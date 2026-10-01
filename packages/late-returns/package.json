@@ -23,7 +23,8 @@
     "dist",
     "README.md",
     "ai",
-    "examples"
+    "examples",
+    "test/mockLedger.ts"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
