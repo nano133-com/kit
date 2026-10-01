@@ -8,6 +8,7 @@ AI setup prompt and spec, and manual steps.
 |---|---|---|
 | Late Payment Return | [`@nano133/late-returns`](packages/late-returns) | pilot |
 | Nano Checkout | [`@nano133/checkout`](packages/checkout) | in review |
+| Sign in with Nano | [`@nano133/signin`](packages/signin) | in review |
 
 Set it up with AI: see `AGENTS.md`, or the Claude Code skills in `skills/`.
 

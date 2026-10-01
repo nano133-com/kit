@@ -28,6 +28,17 @@ Use it when a site wants to take Nano (XNO) payments. Follow
 - Give the receipt only to the browser that started the checkout.
 - Never print, log or commit the receipt secret.
 
+## Sign in with Nano (`@nano133/signin`)
+
+Use it when a site wants Nano (XNO) wallet sign-in. Follow
+`packages/signin/ai/SPEC.md` step by step.
+
+- The sign-in address is a wallet used for sign-ins only.
+- Rate-limit start, check and signature routes per visitor (required).
+- Only the browser that started a sign-in gets the session.
+- The signature message names the site's domain.
+- Never print, log or commit a key or secret.
+
 ## Working in this repository
 
 - `npm test` runs every package's tests (mock ledger; no network, no money).

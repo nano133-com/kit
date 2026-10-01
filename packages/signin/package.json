@@ -1,0 +1,74 @@
+{
+  "name": "@nano133/signin",
+  "version": "0.1.0",
+  "description": "Sign in with Nano (XNO): by a tiny payment that goes back, or by a signature from a wallet's key. No passwords, no email.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./signature": {
+      "types": "./dist/signature.d.ts",
+      "import": "./dist/signature.js"
+    },
+    "./message": {
+      "types": "./dist/message.d.ts",
+      "import": "./dist/message.js"
+    },
+    "./memory": {
+      "types": "./dist/memoryStore.d.ts",
+      "import": "./dist/memoryStore.js"
+    },
+    "./firestore": {
+      "types": "./dist/firestoreStore.d.ts",
+      "import": "./dist/firestoreStore.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "ai",
+    "examples"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "example": "node --import tsx examples/mock-ledger-demo.ts"
+  },
+  "dependencies": {
+    "@nano133/checkout": "0.2.0",
+    "@noble/curves": "^2.0.0",
+    "nanocurrency-web": "^2.0.0"
+  },
+  "peerDependencies": {
+    "firebase-admin": ">=12"
+  },
+  "peerDependenciesMeta": {
+    "firebase-admin": {
+      "optional": true
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nano133-com/kit.git",
+    "directory": "packages/signin"
+  },
+  "homepage": "https://nano133.com/build/sign-in-with-nano",
+  "license": "MIT",
+  "keywords": [
+    "nano",
+    "xno",
+    "login",
+    "sign in",
+    "authentication",
+    "cryptocurrency"
+  ]
+}
