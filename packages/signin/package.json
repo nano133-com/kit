@@ -46,7 +46,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "NODE_ENV=test node --import tsx --test test/*.test.ts",
-    "example": "node --import tsx examples/mock-ledger-demo.ts"
+    "example": "node --import tsx examples/mock-ledger-demo.ts",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@nano133/checkout": "0.2.1",

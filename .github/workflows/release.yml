@@ -1,22 +1,28 @@
 name: Release
 
 # Publishes one package to npm when a tag like `late-returns-v0.2.0` is pushed.
-# It needs the repository secret NPM_TOKEN (an npm automation token for the
-# @nano133 scope). Without it, the job stops before publishing.
+# It needs the repository secret NPM_TOKEN (an npm granular access token with
+# read and write for the @nano133 scope). Without it, the job stops before
+# publishing.
+#
+# Protect the "*-v*" tags (Settings → Rules → Rulesets, target tags): only
+# maintainers may create them, and nobody may move or delete them.
+#
+# Publish order: late-returns, then checkout, then signin (signin pins both).
 on:
   push:
     tags: ["*-v*"]
 
 permissions:
-  contents: write
+  contents: read
   id-token: write
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm

@@ -34,7 +34,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
-    "example": "node --import tsx examples/mock-ledger-demo.ts"
+    "example": "node --import tsx examples/mock-ledger-demo.ts",
+    "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
     "firebase-admin": ">=12"
