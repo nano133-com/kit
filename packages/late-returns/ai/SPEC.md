@@ -95,7 +95,7 @@ For SQL (PostgreSQL shown):
 ```sql
 create table late_returns (
   hash text primary key, amount text not null, "to" text not null,
-  status text not null, by text not null, created_at bigint not null,
+  status text not null, "by" text not null, created_at bigint not null,
   recv text, send jsonb, return_hash text, error text, tries int default 0
 );
 create table late_returns_meta (key text primary key, owner text, until bigint, n int);
