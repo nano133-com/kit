@@ -21,7 +21,7 @@ test("Firestore store: a late payment goes back once, through a lost answer and 
   if (!getApps().length) initializeApp({ projectId: "demo-late-returns" });
   const db = getFirestore();
   const tag = Math.random().toString(36).slice(2, 8);
-  const names = { returns: `t${tag}_returns`, used: [`t${tag}_payments`], meta: `t${tag}_meta` };
+  const names = { returns: `t${tag}_returns`, used: [`t${tag}_payments`, `t${tag}_signins`], meta: `t${tag}_meta`, mark: [`t${tag}_payments`, `t${tag}_signins`], days: `t${tag}_days` };
   const store = firestoreStore(db, names);
   const led = new MockLedger();
   const opening = led.pay(payer, wallet.address, 50n * XNO, 99999);
@@ -39,6 +39,8 @@ test("Firestore store: a late payment goes back once, through a lost answer and 
   assert.equal(back()[0][1].amount, 2n * XNO + 7n);
   assert.equal((await store.get(late))!.status, "returned");
   assert.equal((await db.collection(names.used[0]).doc(late).get()).data()?.return, late, "the payment is marked used");
+  assert.equal((await db.collection(names.used[1]).doc(late).get()).data()?.return, late, "in every `mark` collection");
+  assert.equal((await db.collection(names.days).doc(`returns-${new Date().toISOString().slice(0, 10)}`).get()).data()?.n, 1, "the day is counted in `days`");
 
   const late2 = led.pay(payer, wallet.address, 4n * XNO, 3 * 3600);
   let once = true;

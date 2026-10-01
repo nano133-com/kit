@@ -10,13 +10,20 @@ import { LockLost, type Lock, type RecordResult, type ReturnRecord, type ReturnS
  *   (one document per payment hash). A payment with a document in any of them
  *   is never returned. The first one also gets the "used" mark of a return,
  *   so a late claim that checks it refuses the payment.
- * - `meta`: a collection for the lock and the daily counters.
+ * - `meta`: a collection for the lock (document "lock") and, unless `days`
+ *   names another, the daily counters (documents "returns-YYYY-MM-DD").
+ * - `mark` (optional): the collections that get the "used" mark of a return.
+ *   Default: the first `used` collection. Name several when different claim
+ *   paths check different collections.
+ * - `days` (optional): a separate collection for the daily counters.
  */
-export function firestoreStore(db: Firestore, opts: { returns: string; used: string[]; meta: string }) {
+export function firestoreStore(db: Firestore, opts: { returns: string; used: string[]; meta: string; mark?: string[]; days?: string }) {
   if (!opts.used.length) throw new Error("name at least one collection of used payments");
   const returns = db.collection(opts.returns);
   const used = opts.used.map((c) => db.collection(c));
+  const mark = (opts.mark ?? [opts.used[0]]).map((c) => db.collection(c));
   const meta = db.collection(opts.meta);
+  const days = db.collection(opts.days ?? opts.meta);
   const lockRef = meta.doc("lock");
 
   const store: ReturnStore = {
@@ -28,14 +35,14 @@ export function firestoreStore(db: Firestore, opts: { returns: string; used: str
     async record(r, day): Promise<RecordResult> {
       const H = r.hash.toUpperCase();
       const ref = returns.doc(H);
-      const dayRef = meta.doc(`returns-${day.key}`);
+      const dayRef = days.doc(`returns-${day.key}`);
       return db.runTransaction(async (tx) => {
         const [ret, d, ...marks] = await Promise.all([tx.get(ref), tx.get(dayRef), ...used.map((c) => tx.get(c.doc(H)))]);
         if (ret.exists) return "exists";
         if (marks.some((m) => m.exists)) return "used";
         const n = (d.data()?.n as number | undefined) ?? 0;
         if (n >= day.max) return "limit";
-        tx.set(used[0].doc(H), { return: H, at: Date.now() });
+        for (const c of mark) tx.set(c.doc(H), { return: H, at: Date.now() });
         tx.set(ref, { ...r, hash: H, status: "pending", createdAt: Date.now() } satisfies ReturnRecord);
         tx.set(dayRef, { n: n + 1 });
         return "created";

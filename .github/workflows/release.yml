@@ -1,0 +1,46 @@
+name: Release
+
+# Publishes one package to npm when a tag like `late-returns-v0.2.0` is pushed.
+# It needs the repository secret NPM_TOKEN (an npm automation token for the
+# @nano133 scope). Without it, the job stops before publishing.
+on:
+  push:
+    tags: ["*-v*"]
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - name: Which package and version
+        id: tag
+        run: |
+          tag="$GITHUB_REF_NAME"
+          pkg="${tag%-v*}"
+          version="${tag##*-v}"
+          dir="packages/$pkg"
+          [ -f "$dir/package.json" ] || { echo "no package $dir" >&2; exit 1; }
+          have=$(node -p "require('./$dir/package.json').version")
+          [ "$have" = "$version" ] || { echo "the tag says $version but $dir/package.json says $have" >&2; exit 1; }
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - name: Check the npm token
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: '[ -n "$NPM_TOKEN" ] || { echo "Add the NPM_TOKEN repository secret first." >&2; exit 1; }'
+      - name: Publish
+        working-directory: ${{ steps.tag.outputs.dir }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance
