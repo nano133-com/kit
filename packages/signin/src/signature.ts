@@ -57,6 +57,7 @@ export async function checkSignatureSignin(
   o: { domain: string; useOnce: (key: string, ttlMs: number) => Promise<boolean>; windowMs?: number; now?: () => number },
   p: { address: string; at: number; signature: string },
 ): Promise<string> {
+  if (typeof o.domain !== "string" || !o.domain.trim()) throw new Error("set the site's domain");
   const windowMs = o.windowMs ?? 5 * 60_000;
   const now = o.now?.() ?? Date.now();
   if (typeof p.address !== "string" || !ADDRESS.test(p.address)) throw new SigninError(400, "invalid address");

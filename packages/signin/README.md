@@ -35,11 +35,12 @@ Rules (the same as nano133.com):
 - An amount names one sign-in at a time. It stays reserved until the
   sign-in's grace plus a margin are over.
 - A sign-in takes only a payment your node first saw after it began; an
-  older payment of the same amount is skipped.
+  older payment of the same amount, or one that was already waiting, is skipped.
 - It stops taking payments when its grace (2 minutes after expiry) is over.
 - Taking a payment and marking the sign-in done is one atomic step. One
   payment signs in once.
-- Only the browser that started a sign-in gets it (`mine`).
+- Only the browser that started a sign-in gets it (`mine`), and only for 10
+  minutes after it signed in.
 - When your node doesn't answer, `checkSignin` throws: nobody is signed in.
 
 Defaults, all configurable: 15 minutes to pay, 2 minutes of grace, a 3-minute
@@ -56,11 +57,37 @@ the person. Tell users to pay from their own wallet.
 
 ### Sending the amount back
 
-The amount is tiny, and you can keep it. To send it back, record a return
-with [`@nano133/late-returns`](../late-returns) when a sign-in succeeds; its
-regular run sends it back exactly once. That needs the sign-in wallet's key
-on your server (a hot wallet: keep it nearly empty), and it must never run
-against a test database. Without a key, the amounts stay in the wallet.
+The amount is tiny, and you can keep it. If you keep it, receive the waiting
+amounts now and then (any wallet does that): a search reads the newest 1,000
+waiting payments.
+
+To send each amount back, give the store a `returns` collection. Each sign-in
+then records its return in the same step that signs the visitor in, and a
+regular run sends it back exactly once:
+
+```ts
+import { firestoreStore as returnStore } from "@nano133/late-returns/firestore";
+import { settleSigninRefunds } from "@nano133/signin/refunds";
+
+const store = firestoreStore(db, { sessions: "signins", amounts: "signin_amounts", payments: "signin_payments", returns: "signin_returns" });
+const refunds = returnStore(db, { returns: "signin_returns", used: ["signin_payments"], meta: "signin_wallet" });
+
+// every minute or so (a scheduler, or after each sign-in):
+await settleSigninRefunds({ rpc, signer, store: refunds });
+```
+
+That needs the sign-in wallet's key on your server (a hot wallet: keep it
+nearly empty). `settleSigninRefunds` refuses to run while
+`FIRESTORE_EMULATOR_HOST` is set, so a test database never moves real money.
+
+### Sessions
+
+- Set the starter cookie (httpOnly, SameSite=Lax, a random value) with a
+  short life (30 minutes), and pass its SHA-256 as `starter`.
+- At sign-in, create a new session id, and replace the starter cookie.
+- Show "Signed in as nano_…" right after sign-in.
+- Firestore documents carry `deleteAt`: set a TTL policy on it for each
+  collection except the payments.
 
 ## By signature
 

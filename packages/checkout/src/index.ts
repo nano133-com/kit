@@ -7,7 +7,7 @@ import type { Checkout, CheckoutStore, ClaimResult, Rpc } from "./types.js";
 export * from "./types.js";
 export * from "./amount.js";
 export { xnoUsdRate } from "./rate.js";
-export { checkPayment, findInWindow, inWindow, type PaymentWindow, type PaymentCheck } from "./payment.js";
+export { checkPayment, findInWindow, inWindow, CLOCK_SLACK_MS, type PaymentWindow, type PaymentCheck } from "./payment.js";
 export { signReceipt, verifyReceipt, type ReceiptClaims } from "./receipt.js";
 
 // Nano Checkout.

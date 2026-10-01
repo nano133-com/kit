@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- Exports `CLOCK_SLACK_MS`, the clock allowance of the payment window.
+
 ## 0.2.0
 
 - `uniqueAmount(price, tryLock)`: the unique-amount loop for sites that keep

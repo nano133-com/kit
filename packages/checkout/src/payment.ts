@@ -6,7 +6,8 @@ import type { BlockInfo, Rpc } from "./types.js";
 // belong to an older or a newer checkout, so a send only counts when the node
 // first saw it inside the window.
 
-const CLOCK_SLACK_MS = 2 * 60_000;
+/** How far a node's clock may be from yours: a block counts this long before the window opens and after it closes. */
+export const CLOCK_SLACK_MS = 2 * 60_000;
 export type PaymentWindow = { from: number; until: number };
 
 /** Whether the node first saw the block inside the window (a block with no time is not trusted). */

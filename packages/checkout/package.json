@@ -1,6 +1,6 @@
 {
   "name": "@nano133/checkout",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Take Nano (XNO) payments with unique amounts: create a checkout, check the payment on your own node, and give a signed receipt.",
   "type": "module",
   "main": "dist/index.js",

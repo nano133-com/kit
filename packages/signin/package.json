@@ -1,6 +1,6 @@
 {
   "name": "@nano133/signin",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Sign in with Nano (XNO): by a tiny payment that goes back, or by a signature from a wallet's key. No passwords, no email.",
   "type": "module",
   "main": "dist/index.js",
@@ -25,6 +25,10 @@
     "./firestore": {
       "types": "./dist/firestoreStore.d.ts",
       "import": "./dist/firestoreStore.js"
+    },
+    "./refunds": {
+      "types": "./dist/refunds.d.ts",
+      "import": "./dist/refunds.js"
     }
   },
   "files": [
@@ -41,9 +45,10 @@
     "example": "node --import tsx examples/mock-ledger-demo.ts"
   },
   "dependencies": {
-    "@nano133/checkout": "0.2.0",
+    "@nano133/checkout": "0.2.1",
     "@noble/curves": "^2.0.0",
-    "nanocurrency-web": "^2.0.0"
+    "nanocurrency-web": "^2.0.0",
+    "@nano133/late-returns": "0.2.0"
   },
   "peerDependencies": {
     "firebase-admin": ">=12"

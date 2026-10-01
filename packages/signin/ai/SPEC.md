@@ -47,8 +47,12 @@ in without the node's answer).
 ## 4. The starter cookie
 
 On the first sign-in step, set an httpOnly, SameSite=Lax cookie with a
-random value. Pass `sha256(value)` as `starter`. Only that browser gets the
-session.
+random value and a 30-minute Max-Age. Pass `sha256(value)` as `starter`. Only
+that browser gets the session, and only for 10 minutes after the sign-in.
+
+When you create the session: give it a new session id (never reuse one from
+before the sign-in), replace the starter cookie, and show "Signed in as
+nano_…" with the account.
 
 ## 5. Payment sign-in routes
 
@@ -82,11 +86,21 @@ another domain is refused.
 
 ## 7. Sending amounts back (optional)
 
-Only with the wallet's key on the server. When `checkSignin` returns
-`signedin` the first time (`again === false`), record a return for
-`{ hash, amount, to: account }` in `@nano133/late-returns`' store, and run
-`runLateReturns` every few minutes. Never let it run against a test or
-emulator database with the real key. Keep the wallet nearly empty.
+Ask first: it needs the sign-in wallet's key on the server (a hot wallet;
+keep it nearly empty). Ask where the key lives; never print, log or commit it.
+
+1. Give the sign-in store a `returns` collection. Each sign-in then records
+   its return (pending) in the same transaction as the sign-in.
+2. Make `@nano133/late-returns`' store on the same `returns` collection, with
+   the sign-in payments collection in `used`.
+3. Run `settleSigninRefunds({ rpc, signer, store })` every minute (a
+   scheduler). It refuses to run while `FIRESTORE_EMULATOR_HOST` is set.
+
+Without refunds, receive the waiting amounts now and then; a search reads
+the newest 1,000 waiting payments.
+
+**Check:** on the emulator with the mock ledger (`mockLedger: true`), one
+sign-in sends exactly one return; a second run sends nothing.
 
 ## 8. Test before money
 
@@ -98,7 +112,8 @@ emulator database with the real key. Keep the wallet nearly empty.
 
 - [ ] The sign-in address is a wallet used for nothing else.
 - [ ] start, check and signature routes are rate-limited (required).
-- [ ] Only the starter browser gets the session.
+- [ ] Only the starter browser gets the session; a new session id at sign-in.
+- [ ] TTL policies on `deleteAt` (not on the payments collection).
 - [ ] A node that doesn't answer gives 503; nobody is signed in.
 - [ ] The signature message uses the site's real domain.
 - [ ] Keys and secrets are in a secret store, never logged.

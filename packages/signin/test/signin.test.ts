@@ -27,6 +27,10 @@ test("config: slots must stay below the next round amount", () => {
   assert.throws(() => checkConfig({ address: SIGNIN, step: 10n ** 19n, slots: 1000 }), /round amount/, "1,000 × 1e19 reaches the base's next unit (1e22)");
   checkConfig({ address: SIGNIN, base: 10n ** 30n + 10n ** 24n, step: 10n ** 18n, slots: 999_999 });
   assert.throws(() => checkConfig({ address: "nano_bad" }), /address/);
+  assert.throws(() => checkConfig({ address: SIGNIN, reuseMarginMs: 2 * 60_000 }), /clock allowance/, "the margin must be longer than the allowance");
+  assert.throws(() => checkConfig({ address: SIGNIN, ttlMs: 0 }), /positive/);
+  assert.throws(() => checkConfig({ address: SIGNIN, graceMs: -1 }), /positive/);
+  assert.throws(() => checkConfig({ address: SIGNIN, earlyMs: 120_000 }), /earlyMs/);
 });
 
 test("start: 0.00000133nnnn XNO, reserved until expiry + grace + margin", async () => {
@@ -81,6 +85,53 @@ test("wrong blocks, bad input, the grace, and one payment once", async () => {
   assert.equal((await checkSignin(o, t.id, null, { starter: "b" })).state, "expired");
 });
 
+test("a payment from before the start never counts, by search or by hash", async () => {
+  const { o, led } = setup({ pick: () => 11 });
+  const amount = 133n * 10n ** 22n + 11n * 10n ** 18n;
+  const early = led.pay(USER.address, SIGNIN, amount, 30); // inside the clock allowance, but before the start
+  const waiting = led.pay(USER.address, SIGNIN, amount, 0); // already waiting when the sign-in begins
+  const s = await startSignin(o, { starter: "a" });
+  assert.deepEqual(new Set(s.before), new Set([early, waiting]));
+  assert.equal((await checkSignin(o, s.id, null, { starter: "a" })).state, "waiting");
+  assert.equal((await checkSignin(o, s.id, early, { starter: "a" })).state, "waiting");
+  assert.equal((await checkSignin(o, s.id, waiting, { starter: "a" })).state, "waiting");
+  led.received.add(early); // received since: no longer in "before"'s search, still too early by its time
+  assert.equal((await checkSignin(o, s.id, early, { starter: "a" })).state, "waiting");
+  led.pay(USER.address, SIGNIN, amount, 0);
+  assert.equal((await checkSignin(o, s.id, null, { starter: "a" })).state, "signedin");
+});
+
+test("the starter browser gets the session only for deliverMs", async () => {
+  let now = Date.now();
+  const { o, led } = setup({ now: () => now });
+  const s = await startSignin(o, { starter: "a" });
+  led.pay(USER.address, SIGNIN, BigInt(s.amount), 0);
+  assert.ok((await checkSignin(o, s.id, null, { starter: "a" })).state === "signedin");
+  now += 9 * 60_000;
+  const r = await checkSignin(o, s.id, null, { starter: "a" });
+  assert.ok(r.state === "signedin" && r.mine && r.again);
+  now += 2 * 60_000;
+  const late = await checkSignin(o, s.id, null, { starter: "a" });
+  assert.ok(late.state === "signedin" && !late.mine, "a replay after 10 minutes gets no session");
+});
+
+test("the search reads past many waiting payments; a claim records the return", async () => {
+  const { led } = setup();
+  const counts: string[] = [];
+  const rpc: SigninOptions["rpc"] = (b, t) => {
+    if (b.action === "receivable") counts.push(String(b.count));
+    return led.rpc(b, t);
+  };
+  const store = memoryStore({ refunds: true });
+  const o: SigninOptions = { rpc, store, config: { address: SIGNIN } };
+  const s = await startSignin(o, { starter: "a" });
+  for (let i = 0; i < 80; i++) led.pay(OTHER, SIGNIN, BigInt(s.amount) + 10n ** 24n, 0);
+  const h = led.pay(USER.address, SIGNIN, BigInt(s.amount), 0);
+  assert.equal((await checkSignin(o, s.id, null, { starter: "a" })).state, "signedin");
+  assert.ok(counts.every((c) => Number(c) >= 1000));
+  assert.deepEqual(store.returns.get(h), { hash: h, amount: s.amount, to: USER.address, status: "pending" });
+});
+
 test("signature sign-in: the right key, the right site, fresh, once", async () => {
   const at = Date.now();
   const sign = (domain: string, when = at) => nanoWeb.tools.sign(USER.privateKey, Buffer.from(signinMessage(domain, USER.address, when), "utf8").toString("hex"));
@@ -91,6 +142,7 @@ test("signature sign-in: the right key, the right site, fresh, once", async () =
   const old = at - 6 * 60_000;
   await assert.rejects(checkSignatureSignin(o, { address: USER.address, at: old, signature: sign("example.com", old) }), /too old/);
   await assert.rejects(checkSignatureSignin(o, { address: OTHER, at, signature: sign("example.com") }), /does not match/, "someone else's address");
+  await assert.rejects(checkSignatureSignin({ ...o, domain: " " }, { address: USER.address, at, signature: sign(" ") }), /domain/);
 });
 
 test("signature check: no second form of a signature, no small-order keys", () => {
