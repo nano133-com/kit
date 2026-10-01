@@ -7,8 +7,8 @@ AI setup prompt and spec, and manual steps.
 | Tool | Package | Status |
 |---|---|---|
 | Late Payment Return | [`@nano133/late-returns`](packages/late-returns) | pilot |
+| Nano Checkout | [`@nano133/checkout`](packages/checkout) | in review |
 
-Set it up with AI: see `AGENTS.md`, or the Claude Code skill in
-`skills/add-late-payment-return`.
+Set it up with AI: see `AGENTS.md`, or the Claude Code skills in `skills/`.
 
 MIT license.

@@ -17,6 +17,17 @@ claimed to go back to their sender. Follow
 - Test with the mock ledger (`packages/late-returns/test/mockLedger.ts`)
   before any real payment.
 
+## Nano Checkout (`@nano133/checkout`)
+
+Use it when a site wants to take Nano (XNO) payments. Follow
+`packages/checkout/ai/SPEC.md` step by step.
+
+- Ask for the receiving address and the node. The server holds no key.
+- Prices come from the server, never from the browser.
+- Rate-limit the checkout and claim routes per visitor.
+- Give the receipt only to the browser that started the checkout.
+- Never print, log or commit the receipt secret.
+
 ## Working in this repository
 
 - `npm test` runs every package's tests (mock ledger; no network, no money).

@@ -1,0 +1,27 @@
+{
+  "name": "@nano133/checkout",
+  "version": "0.1.0",
+  "description": "Take Nano (XNO) payments with unique amounts: create a checkout, check the payment on your own node, and give a signed receipt.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./memory": { "types": "./dist/memoryStore.d.ts", "import": "./dist/memoryStore.js" },
+    "./firestore": { "types": "./dist/firestoreStore.d.ts", "import": "./dist/firestoreStore.js" }
+  },
+  "files": ["dist", "README.md", "CHANGELOG.md", "ai", "examples"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "example": "node --import tsx examples/mock-ledger-demo.ts"
+  },
+  "peerDependencies": { "firebase-admin": ">=12" },
+  "peerDependenciesMeta": { "firebase-admin": { "optional": true } },
+  "publishConfig": { "access": "public" },
+  "repository": { "type": "git", "url": "git+https://github.com/nano133-com/kit.git", "directory": "packages/checkout" },
+  "homepage": "https://nano133.com/build/nano-checkout",
+  "license": "MIT",
+  "keywords": ["nano", "xno", "payments", "checkout", "cryptocurrency"]
+}
