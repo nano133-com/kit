@@ -57,9 +57,13 @@ the person. Tell users to pay from their own wallet.
 
 ### Sending the amount back
 
-The amount is tiny, and you can keep it. If you keep it, receive the waiting
-amounts now and then (any wallet does that): a search reads the newest 1,000
-waiting payments.
+The amount is tiny, and you can keep it.
+
+**In both modes, receive the waiting sends now and then.** A search without a
+hash reads at most 1,000 waiting sends at or above the sign-in amount, in the
+node's order, not by time. Receive every waiting send at or above `base`
+regularly (any wallet does that), and pass the block hash to `checkSignin`
+when you have it (from a websocket or a confirmation feed).
 
 To send each amount back, give the store a `returns` collection. Each sign-in
 then records its return in the same step that signs the visitor in, and a
@@ -83,9 +87,11 @@ nearly empty). `settleSigninRefunds` refuses to run while
 ### Sessions
 
 - Set the starter cookie (httpOnly, SameSite=Lax, a random value) with a
-  short life (30 minutes), and pass its SHA-256 as `starter`.
+  short life (30 minutes), set again at every start, and pass its SHA-256 as `starter`.
 - At sign-in, create a new session id, and replace the starter cookie.
-- Show "Signed in as nano_…" right after sign-in.
+- Always show "Signed in as nano_…" right after sign-in (required), so the
+  visitor sees which account they are in.
+- Keep the server's and the node's clocks synchronized (NTP).
 - Firestore documents carry `deleteAt`: set a TTL policy on it for each
   collection except the payments.
 

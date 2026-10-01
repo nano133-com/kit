@@ -24,7 +24,7 @@ export type SigninConfig = {
   reuseMarginMs?: number;
   /**
    * How far before a sign-in began a payment may have been first seen, for the
-   * difference between your clock and your node's. Default 10 seconds; at most 1 minute.
+   * difference between your clock and your node's. Default 30 seconds; at most 1 minute. Keep both clocks synchronized (NTP).
    */
   earlyMs?: number;
   /** How long after a sign-in its starter browser can still get the session. Default 10 minutes. */

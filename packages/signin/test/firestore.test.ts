@@ -35,6 +35,9 @@ test("Firestore stores: a held amount, a sign-in, one payment once, once-keys", 
   assert.equal((await db.collection(`t${tag}_returns`).doc(h).get()).data()?.status, "pending");
   const rstore = returnStore(db, { returns: `t${tag}_returns`, used: [`t${tag}_payments`], meta: `t${tag}_wallet` });
   await assert.rejects(settleSigninRefunds({ rpc: led.rpc, signer, store: rstore }), /refusing/, "never against the emulator without mockLedger");
+  process.env.NODE_ENV = "development";
+  await assert.rejects(settleSigninRefunds({ rpc: led.rpc, signer, store: rstore, mockLedger: true }), /tests only/, "mockLedger outside tests");
+  process.env.NODE_ENV = "test";
   assert.equal(await settleSigninRefunds({ rpc: led.rpc, signer, store: rstore, mockLedger: true }), 1);
   assert.equal(await settleSigninRefunds({ rpc: led.rpc, signer, store: rstore, mockLedger: true }), 0);
   const back = led.sendsFrom(address, user);

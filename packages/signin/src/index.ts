@@ -34,11 +34,11 @@ const defaults = (c: SigninConfig) => ({
   ttlMs: c.ttlMs ?? 15 * 60_000,
   graceMs: c.graceMs ?? 2 * 60_000,
   reuseMarginMs: c.reuseMarginMs ?? 3 * 60_000,
-  earlyMs: c.earlyMs ?? 10_000,
+  earlyMs: c.earlyMs ?? 30_000,
   deliverMs: c.deliverMs ?? 10 * 60_000,
 });
 
-/** How many waiting payments a search reads. Receive kept amounts now and then, so new ones stay inside it. */
+/** How many waiting sends a search reads (in the node's order). Receive waiting sends now and then, so a new one stays inside it. */
 const RECEIVABLE_COUNT = 1000;
 
 /**

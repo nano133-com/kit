@@ -41,7 +41,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test test/*.test.ts",
+    "test": "NODE_ENV=test node --import tsx --test test/*.test.ts",
     "example": "node --import tsx examples/mock-ledger-demo.ts"
   },
   "dependencies": {

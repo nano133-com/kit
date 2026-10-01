@@ -46,13 +46,16 @@ in without the node's answer).
 
 ## 4. The starter cookie
 
-On the first sign-in step, set an httpOnly, SameSite=Lax cookie with a
-random value and a 30-minute Max-Age. Pass `sha256(value)` as `starter`. Only
+At every sign-in start, set (or set again) an httpOnly, SameSite=Lax cookie
+with a random value and a 30-minute Max-Age. Pass `sha256(value)` as `starter`. Only
 that browser gets the session, and only for 10 minutes after the sign-in.
 
 When you create the session: give it a new session id (never reuse one from
 before the sign-in), replace the starter cookie, and show "Signed in as
-nano_…" with the account.
+nano_…" with the account (required).
+
+Keep the server's and the node's clocks synchronized (NTP): a payment counts
+only when the node saw it after the start (allowance `earlyMs`, 30 s).
 
 ## 5. Payment sign-in routes
 
@@ -96,10 +99,11 @@ keep it nearly empty). Ask where the key lives; never print, log or commit it.
 3. Run `settleSigninRefunds({ rpc, signer, store })` every minute (a
    scheduler). It refuses to run while `FIRESTORE_EMULATOR_HOST` is set.
 
-Without refunds, receive the waiting amounts now and then; a search reads
-the newest 1,000 waiting payments.
+In both modes, receive every waiting send at or above `base` now and then
+(a scheduled job). A search without a hash reads at most 1,000 waiting sends,
+in the node's order. Pass the block hash to `checkSignin` when you have it.
 
-**Check:** on the emulator with the mock ledger (`mockLedger: true`), one
+**Check:** on the emulator with the mock ledger (`mockLedger: true`, which works only with `NODE_ENV=test`), one
 sign-in sends exactly one return; a second run sends nothing.
 
 ## 8. Test before money
@@ -113,6 +117,8 @@ sign-in sends exactly one return; a second run sends nothing.
 - [ ] The sign-in address is a wallet used for nothing else.
 - [ ] start, check and signature routes are rate-limited (required).
 - [ ] Only the starter browser gets the session; a new session id at sign-in.
+- [ ] The screen shows "Signed in as nano_…" after every sign-in.
+- [ ] A scheduled job receives waiting sends at or above `base`.
 - [ ] TTL policies on `deleteAt` (not on the payments collection).
 - [ ] A node that doesn't answer gives 503; nobody is signed in.
 - [ ] The signature message uses the site's real domain.

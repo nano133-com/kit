@@ -24,12 +24,13 @@ export type RefundOptions = {
   /** Returns per run. Default 10. */
   perRun?: number;
   work?: (root: string, kind: "send" | "receive") => Promise<string>;
-  /** Tests with a mock ledger only: allow a run while FIRESTORE_EMULATOR_HOST is set. */
+  /** Tests with a mock ledger only: allow a run while FIRESTORE_EMULATOR_HOST is set. Works only with NODE_ENV=test. */
   mockLedger?: boolean;
 };
 
 /** One run: under the wallet's lock, sends pending sign-in returns back. Returns how many it sent. */
 export async function settleSigninRefunds(o: RefundOptions): Promise<number> {
+  if (o.mockLedger && process.env.NODE_ENV !== "test") throw new Error("refusing to send money: mockLedger is for tests only (NODE_ENV=test)");
   if (process.env.FIRESTORE_EMULATOR_HOST && !o.mockLedger) throw new Error("refusing to send money: FIRESTORE_EMULATOR_HOST is set");
   if (!(await o.store.pending(1)).length) return 0;
   const lock = o.store.lock(60_000);
