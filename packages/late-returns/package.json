@@ -21,7 +21,10 @@
   },
   "files": [
     "dist",
+    "src",
     "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "ai",
     "examples",
     "test/mockLedger.ts"

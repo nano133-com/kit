@@ -21,10 +21,14 @@
   },
   "files": [
     "dist",
+    "src",
     "README.md",
     "CHANGELOG.md",
+    "LICENSE",
     "ai",
-    "examples"
+    "examples",
+    "test/mockLedger.ts",
+    "test/blockHash.ts"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
