@@ -1,0 +1,56 @@
+{
+  "name": "@nano133/late-returns",
+  "version": "0.1.0",
+  "description": "Send Nano (XNO) payments that nothing claimed back to their sender, exactly once.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./memory": {
+      "types": "./dist/memoryStore.d.ts",
+      "import": "./dist/memoryStore.js"
+    },
+    "./firestore": {
+      "types": "./dist/firestoreStore.d.ts",
+      "import": "./dist/firestoreStore.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "example": "node --import tsx examples/mock-ledger-demo.ts"
+  },
+  "peerDependencies": {
+    "firebase-admin": ">=12"
+  },
+  "peerDependenciesMeta": {
+    "firebase-admin": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "blakejs": "^1.2.1",
+    "firebase-admin": "^14.5.0",
+    "nanocurrency-web": "^2.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "5.9"
+  },
+  "license": "MIT",
+  "keywords": [
+    "nano",
+    "xno",
+    "payments",
+    "refund",
+    "cryptocurrency"
+  ]
+}

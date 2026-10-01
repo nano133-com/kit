@@ -1,0 +1,11 @@
+{
+  "name": "nano133-kit",
+  "private": true,
+  "description": "Practical, open-source Nano (XNO) tools for websites, from nano133.com.",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "test": "npm test --workspaces",
+    "build": "npm run build --workspaces"
+  },
+  "license": "MIT"
+}
