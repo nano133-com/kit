@@ -40,6 +40,20 @@ export type CheckoutOptions = {
 };
 
 /**
+ * A unique amount for `price` (raw): the price plus a random tail, tried until
+ * `tryLock(amount)` takes it (your lock must be atomic and hold the amount
+ * until the checkout's expiry plus its grace). Null after `tries` (default 5).
+ * Use it when your checkouts live in your own records; createCheckout uses it.
+ */
+export async function uniqueAmount(price: bigint, tryLock: (amount: string) => Promise<boolean>, o: { tries?: number; tail?: () => number } = {}): Promise<string | null> {
+  for (let attempt = 0; attempt < (o.tries ?? 5); attempt++) {
+    const amount = withTail(price, o.tail?.() ?? randomInt(1, 1_000_000)).toString();
+    if (await tryLock(amount)) return amount;
+  }
+  return null;
+}
+
+/**
  * Creates a checkout for `price` (raw) with a unique amount. `ttlMs` (default
  * 15 minutes) is how long it is open; `graceMs` (default 1 hour) is how long
  * after that a late payment still counts. Throws when no free amount was found
@@ -49,12 +63,19 @@ export async function createCheckout(o: CheckoutOptions, p: { item: string; pric
   const now = o.now?.() ?? Date.now();
   const ttl = p.ttlMs ?? 15 * 60_000;
   const graceMs = p.graceMs ?? 60 * 60_000;
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const amount = withTail(p.price, o.tail?.() ?? randomInt(1, 1_000_000)).toString();
-    const checkout: Checkout = { id: randomBytes(12).toString("hex"), item: p.item, amount, to: o.to, status: "waiting", createdAt: now, expiresAt: now + ttl, graceMs, ...(p.meta ? { meta: p.meta } : {}) };
-    if (await o.store.create(checkout, checkout.expiresAt + graceMs)) return checkout;
-  }
-  throw Object.assign(new Error("no free amount right now; try again"), { status: 503 });
+  let made: Checkout | null = null;
+  await uniqueAmount(
+    p.price,
+    async (amount) => {
+      const checkout: Checkout = { id: randomBytes(12).toString("hex"), item: p.item, amount, to: o.to, status: "waiting", createdAt: now, expiresAt: now + ttl, graceMs, ...(p.meta ? { meta: p.meta } : {}) };
+      if (!(await o.store.create(checkout, checkout.expiresAt + graceMs))) return false;
+      made = checkout;
+      return true;
+    },
+    { tail: o.tail },
+  );
+  if (!made) throw Object.assign(new Error("no free amount right now; try again"), { status: 503 });
+  return made;
 }
 
 /**

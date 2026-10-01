@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0
+
+- `uniqueAmount(price, tryLock)`: the unique-amount loop for sites that keep
+  checkouts in their own records. `createCheckout` uses it.
+
 ## 0.1.0
 
 - First version: `createCheckout`, `claimCheckout`, `checkPayment`,

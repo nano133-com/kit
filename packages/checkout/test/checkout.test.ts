@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createHash } from "node:crypto";
 import * as nanoNs from "nanocurrency-web";
-import { claimCheckout, createCheckout, nanoUri, priceRaw, toXno, verifyReceipt, xnoUsdRate, type CheckoutOptions } from "../src/index.js";
+import { claimCheckout, createCheckout, uniqueAmount, nanoUri, priceRaw, toXno, verifyReceipt, xnoUsdRate, type CheckoutOptions } from "../src/index.js";
 import { memoryStore } from "../src/memoryStore.js";
 import { MockLedger } from "./mockLedger.js";
 
@@ -129,4 +129,12 @@ test("the rate: the median of the feeds that answer, nonsense left out", async (
   assert.deepEqual(r?.sources, ["coingecko", "kraken"]);
   assert.equal(r?.usd, 0.37);
   assert.equal(await xnoUsdRate(async () => ({ json: async () => ({}) })), null);
+});
+
+test("uniqueAmount: tries tails until the lock takes one", async () => {
+  const taken = new Set([String(price + 1n), String(price + 2n)]);
+  let t = 1;
+  const a = await uniqueAmount(price, async (amt) => !taken.has(amt), { tail: () => t++ });
+  assert.equal(a, String(price + 3n));
+  assert.equal(await uniqueAmount(price, async () => false, { tries: 3 }), null);
 });
