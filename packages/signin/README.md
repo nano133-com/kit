@@ -89,6 +89,10 @@ nearly empty). `settleSigninRefunds` refuses to run while
 - Set the starter cookie (httpOnly, SameSite=Lax, a random value) with a
   short life (30 minutes), set again at every start, and pass its SHA-256 as `starter`.
 - At sign-in, create a new session id, and replace the starter cookie.
+- Refuse a sign-in request that another site sent: check that `Origin` is
+  exactly your site (or `Sec-Fetch-Site` is `same-origin`) and that the body is
+  JSON. SameSite=Lax stops a stolen session, but not a page elsewhere signing
+  your visitor into the attacker's own account (login CSRF).
 - Always show "Signed in as nano_…" right after sign-in (required), so the
   visitor sees which account they are in.
 - Keep the server's and the node's clocks synchronized (NTP).
