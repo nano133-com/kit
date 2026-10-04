@@ -1,5 +1,7 @@
 # @nano133/checkout
 
+Stage: Beta. What this means: https://nano133.com/stages
+
 Take Nano (XNO) payments on your own site: a checkout with a unique amount,
 a payment check on your own node, and a signed receipt.
 

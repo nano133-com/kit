@@ -1,5 +1,7 @@
 # @nano133/late-returns
 
+Stage: Beta. What this means: https://nano133.com/stages
+
 Send Nano (XNO) payments that nothing claimed back to their sender, exactly once.
 
 > [!WARNING]

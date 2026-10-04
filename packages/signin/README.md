@@ -1,5 +1,7 @@
 # @nano133/signin
 
+Stage: Alpha. What this means: https://nano133.com/stages
+
 Sign in with Nano (XNO). No password and no email: owning a Nano account is
 the proof. Two ways, often offered together:
 
