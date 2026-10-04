@@ -30,6 +30,7 @@ to its sender:
 | Never a payment an open checkout can still claim | your `isClaimable()` |
 | Never a payment from these senders | `never` (your own wallets, an admin's top-ups) |
 | At most | 3 new returns per run (`perRun`), 30 per day (`perDay`) |
+| At most, per sender | no limit (`perSenderPerDay`, off by default) |
 
 Each return is recorded together with a "used" mark for the payment, so a
 late claim can't also take it. The wallet then receives exactly that payment
@@ -86,6 +87,32 @@ await runLateReturns({
 
 Your claim code must refuse a payment whose hash is already in a `used`
 collection; then a payment that went back can never also pay a checkout.
+
+### A limit per sender
+
+Someone can flood your wallet with small wrong payments, and each one costs
+you a return (two blocks). Set `perSenderPerDay` to stop that:
+
+```ts
+await runLateReturns({ /* … */, perSenderPerDay: 10 });
+```
+
+A sender's first 10 late payments in a UTC day go back. From the 11th that
+day, a payment is **kept**: its record has `status: "kept"` and
+`reason: "limit"`, it is marked used (no checkout can claim it), and it is
+never sent. Kept payments don't count toward `perDay`, so one sender can't
+use up the day's returns for everyone else. Say so in your terms.
+
+To send a kept payment back after all (a real customer who made mistakes):
+
+```ts
+import { releaseKept } from "@nano133/late-returns";
+await releaseKept({ rpc, store }, blockHash, "admin@example.com"); // "released" | "not-kept" | "missing"
+```
+
+It goes back with the next run, exactly once. `firestoreStore` keeps each
+sender's daily count in a document `sender-<day>-<hash of the address>` with a
+`deleteAt` date: add a TTL policy on `deleteAt` for that collection.
 
 ### Your own database
 

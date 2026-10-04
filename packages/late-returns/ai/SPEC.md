@@ -86,6 +86,12 @@ Pick one:
   - `record()` is one transaction: unless a return exists for the hash, the
     payment is used, or today's count reached the limit, create the return
     (status `pending`), mark the payment used, add one to today's count.
+  - Optional (only for `perSenderPerDay`): `record()` takes a third argument
+    `{ key, max }`. When the sender's count for `key` is already `max`, create
+    the return with status `kept` (reason `limit`) and mark the payment used,
+    without counting the day; otherwise count the sender too. Set
+    `senderLimit: true` and add `release(hash, to, by)`, which turns a `kept`
+    return into `pending` in one transaction.
   - `lock(ttl)` is one row/document `{ owner, until }`. `take()` succeeds only
     when it is free or expired. Every `update()` runs in a transaction that
     first checks `owner` and `until > now`, and throws `LockLost` otherwise.

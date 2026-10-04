@@ -37,10 +37,17 @@ export type ReturnRecord = {
   amount: string;
   /** Where it goes back to: the payment's sender. */
   to: string;
-  status: "pending" | "returned";
+  /** "kept": over the sender's daily limit (perSenderPerDay); it waits, unsent, until releaseKept(). */
+  status: "pending" | "returned" | "kept";
   /** "auto" for the scan, or who asked (an admin). */
   by: string;
   createdAt: number;
+  /** Why a payment was kept ("limit"), and the UTC day it counted on. */
+  reason?: string | null;
+  day?: string | null;
+  /** Who released a kept payment, and when. */
+  releasedBy?: string | null;
+  releasedAt?: number | null;
   /** The receive of this payment, once the wallet has it ("earlier" when an earlier run received it). */
   recv?: string | null;
   send?: SendIntent | null;
@@ -49,7 +56,10 @@ export type ReturnRecord = {
   tries?: number;
 };
 
-export type RecordResult = "created" | "exists" | "used" | "limit";
+export type RecordResult = "created" | "exists" | "used" | "limit" | "kept";
+
+/** A sender's daily limit for record(): `key` names the sender and the day (it holds no address), `max` the returns it may have. */
+export type SenderLimit = { key: string; max: number };
 
 /** The wallet's lock: one run at a time. Every money write proves it still holds the lock. */
 export interface Lock {
@@ -71,8 +81,21 @@ export interface ReturnStore {
    * In one atomic step: unless a return exists for the hash, the payment is
    * used, or today's count reached `day.max`, create the pending return, mark
    * the payment used (so no checkout can claim it later) and count it.
+   *
+   * With `sender` (only when the store has `senderLimit`): a payment whose
+   * sender already has `sender.max` returns today is recorded as "kept"
+   * instead (marked used, not sent, not counted in `day`), and the result is
+   * "kept". Otherwise the sender's count goes up with the day's.
    */
-  record(r: { hash: string; amount: string; to: string; by: string }, day: { key: string; max: number }): Promise<RecordResult>;
+  record(r: { hash: string; amount: string; to: string; by: string }, day: { key: string; max: number }, sender?: SenderLimit): Promise<RecordResult>;
+  /** True when record() takes a SenderLimit, and release() exists (perSenderPerDay needs both). */
+  senderLimit?: boolean;
+  /**
+   * A kept payment goes back after all: in one atomic step, a "kept" record
+   * becomes "pending" (sent by the next run), going to `to`. Anything else is
+   * left alone.
+   */
+  release?(hash: string, to: string, by: string): Promise<"released" | "not-kept" | "missing">;
   get(hash: string): Promise<ReturnRecord | null>;
   pending(limit: number): Promise<ReturnRecord[]>;
   /** A lock for one run, held for `ttlMs` unless renewed. */

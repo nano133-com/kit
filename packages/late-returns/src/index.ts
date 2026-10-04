@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { nanoPrefix } from "./address.js";
 import { sendOnce } from "./sendOnce.js";
 import { LockLost, type BlockInfo, type ReturnStore, type Rpc, type Signer } from "./types.js";
@@ -20,7 +21,10 @@ export { publicKeyOf } from "./address.js";
 //   checkouts can still claim the amount (isClaimable);
 // - never one sent by an address in `never` (your own wallets, an admin who
 //   tops the wallet up);
-// - at most `perRun` new returns per run and `perDay` per day.
+// - at most `perRun` new returns per run and `perDay` per day;
+// - with `perSenderPerDay` (off by default): at most that many returns per
+//   sender per day. Later payments from that sender that day are kept: recorded
+//   as "kept", marked used, not sent, until you release one (releaseKept).
 //
 // Each return is recorded together with a "used" mark for the payment, so a
 // late claim can't also take it. The wallet then receives exactly that
@@ -47,6 +51,14 @@ export type LateReturnOptions = {
   perRun?: number;
   /** New returns per day (UTC). Default 30. */
   perDay?: number;
+  /**
+   * Returns per sender per day (UTC). Off by default (no limit). When set, a
+   * sender's later payments that day are kept: recorded with status "kept"
+   * and reason "limit", marked used, never sent unless you call releaseKept().
+   * Kept payments don't count toward `perDay`. Needs a store with
+   * `senderLimit` (memoryStore and firestoreStore have it).
+   */
+  perSenderPerDay?: number;
   /**
    * Also look at the wallet's recent receives, not only its waiting payments.
    * Turn on if something else receives into this wallet (a payout run does).
@@ -100,6 +112,8 @@ export async function findLateReturns(o: LateReturnOptions): Promise<number> {
   const d = defaults(o);
   const never = new Set([o.signer.address, ...(o.never ?? [])].map(nanoPrefix));
   const day = { key: new Date(d.now).toISOString().slice(0, 10), max: d.perDay };
+  const perSender = o.perSenderPerDay;
+  if (perSender !== undefined && !o.store.senderLimit) throw new Error("perSenderPerDay needs a store with senderLimit (memoryStore and firestoreStore have it)");
   let made = 0;
   for (const [hash, amount] of await candidates(o, d.minRaw)) {
     if (made >= d.perRun) break;
@@ -112,11 +126,30 @@ export async function findLateReturns(o: LateReturnOptions): Promise<number> {
     const seenAt = Number(info.local_timestamp ?? 0) * 1000;
     if (!seenAt || d.now - seenAt < d.minAgeSec * 1000) continue;
     if (await o.isClaimable({ hash, amount, from, seenAt })) continue;
-    const res = await o.store.record({ hash, amount, to: from, by: "auto" }, day);
+    const res = await o.store.record({ hash, amount, to: from, by: "auto" }, day, perSender === undefined ? undefined : { key: senderKey(day.key, from), max: perSender });
     if (res === "limit") break;
     if (res === "created") made++;
   }
   return made;
+}
+
+/** A sender's counter for a day: the day and a hash of the address (the address itself is not stored in it). */
+export const senderKey = (day: string, address: string) => `${day}-${createHash("sha256").update(nanoPrefix(address)).digest("hex").slice(0, 32)}`;
+
+/**
+ * Releases a kept payment: it goes back to its sender with the next run
+ * (exactly once, like any return). The sender is read again from your node
+ * (block_info), so this works even if your site replaced the stored address.
+ * `by` records who released it. A payment that isn't kept is left alone.
+ */
+export async function releaseKept(o: Pick<LateReturnOptions, "rpc" | "store">, hash: string, by: string): Promise<"released" | "not-kept" | "missing"> {
+  if (!o.store.release) throw new Error("this store can't release kept payments (it has no release())");
+  const H = hash.toUpperCase();
+  const r = await o.store.get(H);
+  if (!r) return "missing";
+  if (r.status !== "kept") return "not-kept";
+  const info = await o.rpc<BlockInfo>({ action: "block_info", hash: H, json_block: "true" });
+  return o.store.release(H, nanoPrefix(info.block_account), by);
 }
 
 /** Sends the pending returns back, each exactly once. Returns how many it sent. Needs the lock. */
