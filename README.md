@@ -1,3 +1,5 @@
+<img src=".github/nano133-mark.svg" alt="nano133" width="72" height="72">
+
 # nano133 Kit
 
 Practical, open-source Nano (XNO) tools for websites, from what
