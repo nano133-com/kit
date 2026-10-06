@@ -1,4 +1,4 @@
-<img src=".github/nano133-mark.svg" alt="nano133" width="72" height="72">
+<img src=".github/nano133-logo.svg" alt="nano133" width="72" height="72">
 
 # nano133 Kit
 
