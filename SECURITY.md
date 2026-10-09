@@ -19,3 +19,12 @@ reproduce it (a test on the package's mock ledger is ideal). We answer within
 ## Supported versions
 
 The newest version of each package gets security fixes.
+
+## Advisories
+
+Each fixed vulnerability has an advisory:
+https://github.com/nano133-com/kit/security/advisories
+
+| Date | Package | Fixed in | Advisory |
+|---|---|---|---|
+| 2026-10-09 | `@nano133/signin` 0.1.0 to 0.2.0 | 0.2.1 | [GHSA-jr9h-hjpf-6wm2](https://github.com/nano133-com/kit/security/advisories/GHSA-jr9h-hjpf-6wm2): a signature sign-in accepted an address with a wrong checksum. Update to 0.2.1. |
