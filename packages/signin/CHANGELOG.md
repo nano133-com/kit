@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- An address must be whole: its shape and its checksum. `checkSignatureSignin`,
+  `verifyMessage` and `checkConfig` refuse one that is not. `validAddress`
+  (`@nano133/signin/signature`) is the test. Update to this version.
+
 ## 0.2.0
 
 - Refunds: a store with `returns` records each sign-in's return in the claim

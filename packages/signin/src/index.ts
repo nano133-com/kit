@@ -3,6 +3,7 @@ import { CLOCK_SLACK_MS, checkPayment, inWindow, type BlockInfo } from "@nano133
 import type { CheckResult, Rpc, SigninConfig, SigninSession, SigninStore } from "./types.js";
 
 export * from "./types.js";
+import { validAddress } from "./signature.js";
 export { signinMessage } from "./message.js";
 
 // Sign in with Nano, by payment.
@@ -49,7 +50,8 @@ const RECEIVABLE_COUNT = 1000;
  */
 export function checkConfig(config: SigninConfig) {
   const c = defaults(config);
-  if (!/^nano_[13][13456789abcdefghijkmnopqrstuwxyz]{59}$/.test(c.address)) throw new Error("the sign-in address isn't a nano_ address");
+  // The whole address, with its checksum: a typing error in the config must stop here, not at the first sign-in.
+  if (!validAddress(c.address)) throw new Error("the sign-in address isn't a nano_ address");
   if (c.base <= 0n || c.step <= 0n || !Number.isInteger(c.slots) || c.slots < 1) throw new Error("base, step and slots must be positive");
   const zeros = (c.base.toString().match(/0*$/)?.[0].length ?? 0);
   const unit = 10n ** BigInt(zeros);

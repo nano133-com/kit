@@ -26,9 +26,23 @@ function strongKey(publicKey: string) {
   }
 }
 
+/**
+ * True for a whole Nano address: its shape and its checksum (the last 8 characters). An account is the one true
+ * address of its key, so every check here asks this first. (The library's addressToPublicKey reads the key from
+ * the first 52 characters and does not look at the checksum.)
+ */
+export function validAddress(address: unknown): address is string {
+  if (typeof address !== "string" || !ADDRESS.test(address)) return false;
+  try {
+    return nanoWeb.tools.validateAddress(address);
+  } catch {
+    return false;
+  }
+}
+
 /** True when `address`'s key signed `message` (signed as the hex of its UTF-8 bytes); false for anything else. */
 export function verifyMessage(address: string, message: string, signature: string) {
-  if (!ADDRESS.test(address) || !/^[0-9A-F]{128}$/i.test(signature)) return false;
+  if (!validAddress(address) || !/^[0-9A-F]{128}$/i.test(signature)) return false;
   if (littleEndian(signature.slice(64)) >= L) return false;
   try {
     const publicKey = nanoWeb.tools.addressToPublicKey(address);
@@ -60,7 +74,7 @@ export async function checkSignatureSignin(
   if (typeof o.domain !== "string" || !o.domain.trim()) throw new Error("set the site's domain");
   const windowMs = o.windowMs ?? 5 * 60_000;
   const now = o.now?.() ?? Date.now();
-  if (typeof p.address !== "string" || !ADDRESS.test(p.address)) throw new SigninError(400, "invalid address");
+  if (!validAddress(p.address)) throw new SigninError(400, "invalid address");
   if (!Number.isFinite(p.at) || Math.abs(now - p.at) > windowMs) throw new SigninError(400, "that sign-in is too old; try again");
   if (typeof p.signature !== "string" || !/^[0-9A-F]{128}$/i.test(p.signature)) throw new SigninError(400, "invalid signature");
   const message = signinMessage(o.domain, p.address, p.at);

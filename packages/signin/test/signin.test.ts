@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { createHash } from "node:crypto";
 import * as nanoNs from "nanocurrency-web";
 import { checkConfig, checkSignin, startSignin, type SigninOptions } from "../src/index.js";
-import { checkSignatureSignin, verifyMessage, SigninError } from "../src/signature.js";
+import { checkSignatureSignin, validAddress, verifyMessage, SigninError } from "../src/signature.js";
 import { signinMessage } from "../src/message.js";
 import { memoryOnce, memoryStore } from "../src/memoryStore.js";
 import { MockLedger } from "./mockLedger.js";
@@ -159,4 +159,36 @@ test("signature check: no second form of a signature, no small-order keys", () =
   const weak = nanoWeb.tools.publicKeyToAddress(identity);
   const forged = identity + "00".repeat(32);
   assert.equal(verifyMessage(weak, msg, forged), false);
+});
+
+test("an address must be whole: the true address passes, the same key with another checksum is refused", async () => {
+  const ALPHABET = "13456789abcdefghijkmnopqrstuwxyz";
+  /** The same 52 characters of key, the last character of the checksum moved one step. */
+  const otherSum = (a: string) => a.slice(0, -1) + ALPHABET[(ALPHABET.indexOf(a.slice(-1)) + 1) % 32];
+  // An address starts nano_1 or nano_3, by its key: one user of each.
+  const users: { address: string; privateKey: string; publicKey: string }[] = [];
+  for (let i = 0; i < 400 && users.length < 2; i++) {
+    const u = account(`whole address user ${i}`);
+    if (!users.some((x) => x.address[5] === u.address[5])) users.push(u);
+  }
+  assert.deepEqual(users.map((u) => u.address.slice(0, 6)).sort(), ["nano_1", "nano_3"]);
+  for (const u of users) {
+    const bad = otherSum(u.address);
+    assert.equal(validAddress(u.address), true);
+    assert.equal(validAddress(bad), false);
+    assert.equal(nanoWeb.tools.addressToPublicKey(bad).toUpperCase(), u.publicKey.toUpperCase(), "the library still reads the same key from it");
+    assert.equal(validAddress(u.address.replace(/^nano_/, "xrb_")), false, "the old xrb_ form is not taken (as before)");
+    const o = { domain: "example.com", useOnce: memoryOnce() };
+    const at = Date.now();
+    const sign = (address: string) => nanoWeb.tools.sign(u.privateKey, Buffer.from(signinMessage("example.com", address, at), "utf8").toString("hex"));
+    // A good signature by the key, over the message that names the text with the other checksum.
+    assert.equal(verifyMessage(bad, signinMessage("example.com", bad, at), sign(bad)), false);
+    await assert.rejects(checkSignatureSignin(o, { address: bad, at, signature: sign(bad) }), (e) => e instanceof SigninError && e.status === 400 && /invalid address/.test(e.message));
+    // The true address signs in exactly as before.
+    assert.equal(verifyMessage(u.address, signinMessage("example.com", u.address, at), sign(u.address)), true);
+    assert.equal(await checkSignatureSignin(o, { address: u.address, at, signature: sign(u.address) }), u.address);
+  }
+  // The site's own sign-in address in the config: a typing error in its last character is refused.
+  checkConfig({ address: SIGNIN });
+  assert.throws(() => checkConfig({ address: otherSum(SIGNIN) }), /address/);
 });

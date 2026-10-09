@@ -1,6 +1,6 @@
 {
   "name": "@nano133/signin",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Sign in with Nano (XNO): by a tiny payment that goes back, or by a signature from a wallet's key. No passwords, no email.",
   "type": "module",
   "main": "dist/index.js",

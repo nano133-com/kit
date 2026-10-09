@@ -85,7 +85,9 @@ doesn't count.
   status to the answer. **Required:** rate-limit it per visitor.
 
 **Check:** the same signature twice: the second is refused; a signature for
-another domain is refused.
+another domain is refused. An address must be whole (its shape and its
+checksum): the package refuses one that is not. Never make an account from an
+address that it did not return.
 
 ## 7. Sending amounts back (optional)
 
