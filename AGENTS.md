@@ -30,13 +30,14 @@ Use it when a site wants to take Nano (XNO) payments. Follow
 
 ## Sign in with Nano (`@nano133/signin`)
 
-Use it when a site wants Nano (XNO) wallet sign-in. Follow
-`packages/signin/ai/SPEC.md` step by step.
+Use it when a site wants Nano (XNO) sign-in: a passkey purse, Nautilus,
+NanChat or any key in the page. Follow `packages/signin/ai/SPEC.md` step by step.
 
-- The sign-in address is a wallet used for sign-ins only.
-- Rate-limit start, check and signature routes per visitor (required).
-- Only the browser that started a sign-in gets the session.
-- The signature message names the site's domain.
+- Every way is a signature: no payment, and the server holds no key.
+- Rate-limit every sign-in route (required); NanChat's answer by total and nonce.
+- Only the browser that started a Nautilus or NanChat request gets the session.
+- The messages name the site's domain.
+- A passkey scheme is frozen in the site's code, with a vector test.
 - Never print, log or commit a key or secret.
 
 ## Working in this repository

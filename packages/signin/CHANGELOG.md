@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.3.0
+
+A breaking release: nano133.com's own sign-in moved into the package, and the
+payment way left it.
+
+- **Removed: the sign-in by payment** (`startSignin`, `checkSignin`,
+  `checkConfig`, `memoryStore`, `firestoreStore`, `settleSigninRefunds` and
+  `@nano133/signin/refunds`). No dependency on `@nano133/checkout` or
+  `@nano133/late-returns` any more. Every way is a signature.
+- **Nautilus** (`startNautilus`, `answerNautilus`, `checkNautilus`,
+  `nautilusReply`): its `nanoauth:` request, as read in the app's source.
+- **NanChat** (`startNanchat`, `answerNanchat`, `checkNanchat`,
+  `nanchatReply`, `nanchatNonce`): its `nanauth` request.
+- **A request store** for the apps (`RequestStore`; `memoryRequests`,
+  `firestoreRequests`), and `WalletRefused` for refusals with words.
+- **The passkey purse** in the browser (`@nano133/signin/passkey`): the
+  passkey calls, a strict reading of the PRF answer, and the seed by the
+  site's own frozen scheme. **`@nano133/signin/purse`**: account 0 of a seed,
+  and `signinBody` for the signature route.
+- **Strict checks for each form** (`@nano133/signin/verify`): `verifyMessage`
+  (the text as hex), `verifyText` (NanChat), `verifyBytes` (Nautilus).
+- `useOnce(key, ttlMs, address)` now gets the account; `firestoreOnce` keeps
+  it on the row. `checkSignatureSignin` takes `onceLabel`.
+
 ## 0.2.1
 
 - An address must be whole: its shape and its checksum. `checkSignatureSignin`,

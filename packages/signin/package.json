@@ -1,7 +1,7 @@
 {
   "name": "@nano133/signin",
-  "version": "0.2.1",
-  "description": "Sign in with Nano (XNO): by a tiny payment that goes back, or by a signature from a wallet's key. No passwords, no email.",
+  "version": "0.3.0",
+  "description": "Sign in with Nano (XNO): a passkey purse, Nautilus or NanChat, or any wallet that signs. No payment, no password, no email.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./verify": {
+      "types": "./dist/verify.d.ts",
+      "import": "./dist/verify.js"
     },
     "./signature": {
       "types": "./dist/signature.d.ts",
@@ -18,17 +22,29 @@
       "types": "./dist/message.d.ts",
       "import": "./dist/message.js"
     },
+    "./nautilus": {
+      "types": "./dist/nautilus.d.ts",
+      "import": "./dist/nautilus.js"
+    },
+    "./nanchat": {
+      "types": "./dist/nanchat.d.ts",
+      "import": "./dist/nanchat.js"
+    },
     "./memory": {
-      "types": "./dist/memoryStore.d.ts",
-      "import": "./dist/memoryStore.js"
+      "types": "./dist/memory.d.ts",
+      "import": "./dist/memory.js"
     },
     "./firestore": {
-      "types": "./dist/firestoreStore.d.ts",
-      "import": "./dist/firestoreStore.js"
+      "types": "./dist/firestore.d.ts",
+      "import": "./dist/firestore.js"
     },
-    "./refunds": {
-      "types": "./dist/refunds.d.ts",
-      "import": "./dist/refunds.js"
+    "./passkey": {
+      "types": "./dist/passkey.d.ts",
+      "import": "./dist/passkey.js"
+    },
+    "./purse": {
+      "types": "./dist/purse.d.ts",
+      "import": "./dist/purse.js"
     }
   },
   "files": [
@@ -37,23 +53,18 @@
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
-    "ai",
-    "examples",
-    "test/mockLedger.ts",
-    "test/blockHash.ts"
+    "ai"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "NODE_ENV=test node --import tsx --test test/*.test.ts",
-    "example": "node --import tsx examples/mock-ledger-demo.ts",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@nano133/checkout": "0.2.1",
     "@noble/curves": "^2.0.0",
-    "nanocurrency-web": "^2.0.0",
-    "@nano133/late-returns": "0.2.0"
+    "@noble/hashes": "^2.0.0",
+    "nanocurrency-web": "^2.0.0"
   },
   "peerDependencies": {
     "firebase-admin": ">=12"
@@ -79,6 +90,10 @@
     "login",
     "sign in",
     "authentication",
-    "cryptocurrency"
+    "cryptocurrency",
+    "passkey",
+    "nautilus",
+    "nanchat",
+    "webauthn"
   ]
 }

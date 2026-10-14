@@ -2,132 +2,103 @@
 
 Stage: Alpha. What this means: https://nano133.com/stages
 
-Sign in with Nano (XNO). No password and no email: owning a Nano account is
-the proof. Two ways, often offered together:
+Sign in with Nano (XNO). No payment, no password and no email: every way is a
+signature from a key the person holds, and your server checks it strictly.
+Your server holds no key. nano133.com runs this package for its own sign-in.
 
-| Way | How | Needs |
+| Way | Who signs | Entry points |
 |---|---|---|
-| **By payment** | The visitor sends a tiny unique amount (0.00000133nnnn XNO by default) from any wallet to your sign-in address. | Any wallet with a little XNO |
-| **By signature** | The visitor's wallet (for example a browser purse) signs a short message with its key. | A wallet that can sign messages; no XNO |
+| **Passkey purse** | A Nano account made from the person's passkey (Face ID, Touch ID, a PIN), in the browser | `/passkey`, `/purse` (browser), `checkSignatureSignin` |
+| **A key in the page** | Any wallet in the page that signs a message | `/purse` (browser), `checkSignatureSignin` |
+| **Nautilus** | The Nautilus app, by its `nanoauth:` request | `startNautilus`, `answerNautilus`, `checkNautilus` |
+| **NanChat** | The NanChat app, by its `nanauth` request | `startNanchat`, `answerNanchat`, `checkNanchat` |
 
-## By payment
+Nautilus publishes no guide for its request: the format here was read in the
+app's source. NanChat's is on its developer page. Both have worked with the
+real apps on nano133.com.
+
+## A passkey purse (browser)
 
 ```ts
-import { startSignin, checkSignin, checkConfig } from "@nano133/signin";
-import { firestoreStore } from "@nano133/signin/firestore";
+import { firstUse, makePasskey, openPasskey, type PasskeyScheme } from "@nano133/signin/passkey";
+import { signinBody } from "@nano133/signin/purse";
 
-const options = {
-  rpc,                                               // your own node; fail closed
-  store: firestoreStore(db, { sessions: "signins", amounts: "signin_amounts", payments: "signin_payments" }),
-  config: { address: SIGNIN_ADDRESS },               // a wallet used ONLY for sign-ins
-};
-checkConfig(options.config);                         // at startup
+// FROZEN: a person's account lies at the address these texts give. Never edit; test with fixed vectors.
+const SCHEME: PasskeyScheme = { input: "example.com purse v1", salt: "example.com", info: "example.com purse seed v1", versionByte: 1 };
+const setup = { rpId: "example.com", rpName: "Example", scheme: SCHEME, exclude: madeHere() };
 
-// POST /signin/start   (rate-limited: 20 per visitor and 600 in all, per 10 minutes)
-const s = await startSignin(options, { starter: sha256(starterCookie) });
-// → show "send exactly s.amount to s.address" (a QR code with the amount, a wallet link)
-
-// POST /signin/check { id, hash? }   (rate-limited like any payment claim)
-const r = await checkSignin(options, id, hash ?? null, { starter: sha256(starterCookie) });
-if (r.state === "signedin" && r.mine) createYourSession(r.account);
+const made = await makePasskey(setup);          // remember made.credentialId now
+const { seed } = await firstUse(setup, made);   // the seed comes from a use, never from the answer at create
+// later visits: const { seed } = await openPasskey(setup);
+// show the seed as a spare key before any XNO goes in: a lost passkey is a lost purse
+await fetch("/signin/signature", { method: "POST", body: JSON.stringify(signinBody("example.com", seed)) });
 ```
 
-Rules (the same as nano133.com):
+- A passkey belongs to one domain, so each site gets its own account for a person.
+- It needs the passkey PRF extension: `passkeySupport()` says "yes", "no" or "unknown".
+- Errors are `PasskeyError` with a `code`; the words are yours.
 
-- An amount names one sign-in at a time. It stays reserved until the
-  sign-in's grace plus a margin are over.
-- A sign-in takes only a payment your node first saw after it began; an
-  older payment of the same amount, or one that was already waiting, is skipped.
-- It stops taking payments when its grace (2 minutes after expiry) is over.
-- Taking a payment and marking the sign-in done is one atomic step. One
-  payment signs in once.
-- Only the browser that started a sign-in gets it (`mine`), and only for 10
-  minutes after it signed in.
-- When your node doesn't answer, `checkSignin` throws: nobody is signed in.
-
-Defaults, all configurable: 15 minutes to pay, 2 minutes of grace, a 3-minute
-margin, base 0.00000133 XNO, step 0.000000000001 XNO, 9,999 slots.
-`checkConfig` refuses settings whose amounts could reach the next round
-amount, so a normal payment never matches a slot.
-
-**The sign-in address must be used for sign-ins only.** Every send of a
-slot's exact amount to it counts as a sign-in payment.
-
-**Exchanges:** a payment from an exchange comes from the exchange's shared
-hot wallet. That account signs in, and a refund goes to the exchange, not to
-the person. Tell users to pay from their own wallet.
-
-### Sending the amount back
-
-The amount is tiny, and you can keep it.
-
-**In both modes, receive the waiting sends now and then.** A search without a
-hash reads at most 1,000 waiting sends at or above the sign-in amount, in the
-node's order, not by time. Receive every waiting send at or above `base`
-regularly (any wallet does that), and pass the block hash to `checkSignin`
-when you have it (from a websocket or a confirmation feed).
-
-To send each amount back, give the store a `returns` collection. Each sign-in
-then records its return in the same step that signs the visitor in, and a
-regular run sends it back exactly once:
+## The signature route (server)
 
 ```ts
-import { firestoreStore as returnStore } from "@nano133/late-returns/firestore";
-import { settleSigninRefunds } from "@nano133/signin/refunds";
-
-const store = firestoreStore(db, { sessions: "signins", amounts: "signin_amounts", payments: "signin_payments", returns: "signin_returns" });
-const refunds = returnStore(db, { returns: "signin_returns", used: ["signin_payments"], meta: "signin_wallet" });
-
-// every minute or so (a scheduler, or after each sign-in):
-await settleSigninRefunds({ rpc, signer, store: refunds });
-```
-
-That needs the sign-in wallet's key on your server (a hot wallet: keep it
-nearly empty). `settleSigninRefunds` refuses to run while
-`FIRESTORE_EMULATOR_HOST` is set, so a test database never moves real money.
-
-### Sessions
-
-- Set the starter cookie (httpOnly, SameSite=Lax, a random value) with a
-  short life (30 minutes), set again at every start, and pass its SHA-256 as `starter`.
-- At sign-in, create a new session id, and replace the starter cookie.
-- Refuse a sign-in request that another site sent: check that `Origin` is
-  exactly your site (or `Sec-Fetch-Site` is `same-origin`) and that the body is
-  JSON. SameSite=Lax stops a stolen session, but not a page elsewhere signing
-  your visitor into the attacker's own account (login CSRF).
-- Always show "Signed in as nano_…" right after sign-in (required), so the
-  visitor sees which account they are in.
-- Keep the server's and the node's clocks synchronized (NTP).
-- Firestore documents carry `deleteAt`: set a TTL policy on it for each
-  collection except the payments.
-
-## By signature
-
-```ts
-import { checkSignatureSignin } from "@nano133/signin/signature";
-import { signinMessage } from "@nano133/signin/message";   // browser-safe
+import { checkSignatureSignin } from "@nano133/signin";
 import { firestoreOnce } from "@nano133/signin/firestore";
 
-// In the browser: sign signinMessage("example.com", address, Date.now()) with the wallet's key.
-// On the server:
-const account = await checkSignatureSignin(
-  { domain: "example.com", useOnce: firestoreOnce(db, "signin_once") },
-  { address, at, signature },
-);
+// POST /signin/signature  { address, at, signature }   (rate-limited per visitor: required)
+const account = await checkSignatureSignin({ domain: "example.com", useOnce: firestoreOnce(db, "signin_once") }, body);
+createYourSession(account);
 ```
 
-- The message names your domain, so a signature for another site fails.
-- It is valid for 5 minutes in both directions, and once only (by the hash
-  of the signed message, not the signature, which can have two forms).
-- Keys that anyone can forge a signature for (small-order points, such as
-  the burn address) are refused.
+The message names your domain, is valid for 5 minutes either way, and counts
+once (by the hash of the signed message, not the signature, which can have two
+forms). Small-order keys (the burn address) and an address with a wrong
+checksum are refused.
+
+## Nautilus and NanChat (server)
+
+```ts
+import { answerNanchat, answerNautilus, checkNanchat, checkNautilus, nanchatReply, nautilusReply, startNanchat, startNautilus, WalletRefused } from "@nano133/signin";
+import { firestoreRequests } from "@nano133/signin/firestore";
+
+const nautilus = { site: "example.com", siteAddress: SITE_ADDRESS, store: firestoreRequests(db, "signin_nautilus") };
+const nanchat = { host: "example.com", store: firestoreRequests(db, "signin_nanchat") };
+
+// start (rate-limited): set the starter cookie, pass its sha256
+const n = await startNautilus(nautilus, { starter, answerUrl: (id) => `https://example.com/signin/nautilus?id=${id}` });
+const c = await startNanchat(nanchat, { starter, answerUrl: "https://example.com/signin/nanchat" });
+
+// the apps post here (no Origin check); always HTTP 200
+try { await answerNautilus(nautilus, id, body); reply(nautilusReply("example.com")); }
+catch (e) { if (e instanceof WalletRefused) reply(nautilusReply("example.com", e.message)); else throw e; }
+
+// the browser asks every 2 seconds
+const r = await checkNautilus(nautilus, id, starter);
+if (r.status === "signedin" && r.mine) createYourSession(r.account!);
+```
+
+- Only the browser that started a request is signed in by it (`mine`).
+- NanChat's answers all come from its relay: limit them by total and per nonce
+  (`nanchatNonce`), not per IP address. NanChat shows your reply's text
+  whatever it says: `nanchatReply` starts a refusal with "NOT signed in".
+- A wallet app's request can be sent to someone else: do not take such a
+  sign-in as proof for an action that cannot be undone.
+
+## Sessions
+
+- At sign-in, create a new session id, and show "Signed in as nano_…"
+  (required).
+- Refuse a sign-in call that another site sent (login CSRF): check that
+  `Origin` is exactly your site, except on the two routes the apps post to.
+- Firestore rows carry `deleteAt`: set a TTL policy on each collection. Every
+  row names its account, for a "delete my data".
 
 ## Test
 
 ```sh
 npm test
-FIRESTORE_EMULATOR_HOST=localhost:8080 npm test
-npm run example
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 npm test
 ```
+
+The spec for AI coding tools: [`ai/SPEC.md`](ai/SPEC.md).
 
 MIT. From [nano133.com](https://nano133.com).

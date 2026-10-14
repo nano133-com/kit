@@ -1,49 +1,35 @@
-// The Firestore stores, against an emulator. Runs only with FIRESTORE_EMULATOR_HOST set (never a real project).
+// The Firestore stores, on an emulator only: FIRESTORE_EMULATOR_HOST=127.0.0.1:<port> npm test. Skipped without it.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createHash } from "node:crypto";
-import * as nanoNs from "nanocurrency-web";
-import { checkSignin, startSignin } from "../src/index.js";
-import { firestoreOnce, firestoreStore } from "../src/firestoreStore.js";
-import { MockLedger } from "./mockLedger.js";
-import { firestoreStore as returnStore } from "@nano133/late-returns/firestore";
-import { settleSigninRefunds } from "../src/refunds.js";
-import { seedSigner } from "../../late-returns/examples/signer.js";
+import { randomBytes } from "node:crypto";
 
-const nanoWeb = ((nanoNs as unknown as { default?: typeof nanoNs }).default ?? nanoNs) as typeof nanoNs;
-const acct = (label: string) => nanoWeb.wallet.legacyAccounts(createHash("sha256").update(label).digest("hex"), 0, 0)[0].address;
+const EMU = process.env.FIRESTORE_EMULATOR_HOST;
+const skip = !EMU && "set FIRESTORE_EMULATOR_HOST to run the Firestore tests";
 
-test("Firestore stores: a held amount, a sign-in, one payment once, once-keys", { skip: !process.env.FIRESTORE_EMULATOR_HOST && "set FIRESTORE_EMULATOR_HOST to run it" }, async () => {
+test("firestoreOnce and firestoreRequests", { skip }, async () => {
   const { initializeApp, getApps } = await import("firebase-admin/app");
   const { getFirestore } = await import("firebase-admin/firestore");
-  if (!getApps().length) initializeApp({ projectId: "demo-signin" });
-  const db = getFirestore();
-  const tag = Math.random().toString(36).slice(2, 8);
-  const store = firestoreStore(db, { sessions: `t${tag}_sessions`, amounts: `t${tag}_amounts`, payments: `t${tag}_payments`, returns: `t${tag}_returns` });
-  const led = new MockLedger();
-  const seed = createHash("sha256").update("fs signin wallet").digest("hex");
-  const signer = seedSigner(seed);
-  const address = signer.address, user = acct("fs user");
-  const o = { rpc: led.rpc, store, config: { address }, pick: () => 9 };
-  const s = await startSignin(o, { starter: "a" });
-  await assert.rejects(startSignin(o, { starter: "b" }), /busy/);
-  const h = led.pay(user, address, BigInt(s.amount), 0);
-  const r = await checkSignin(o, s.id, h, { starter: "a" });
-  assert.ok(r.state === "signedin" && r.account === user && r.mine);
-  assert.equal((await db.collection(`t${tag}_payments`).doc(h).get()).data()?.session, s.id);
-  // The return was recorded with the claim; a refund run sends it back once.
-  assert.equal((await db.collection(`t${tag}_returns`).doc(h).get()).data()?.status, "pending");
-  const rstore = returnStore(db, { returns: `t${tag}_returns`, used: [`t${tag}_payments`], meta: `t${tag}_wallet` });
-  await assert.rejects(settleSigninRefunds({ rpc: led.rpc, signer, store: rstore }), /refusing/, "never against the emulator without mockLedger");
-  process.env.NODE_ENV = "development";
-  await assert.rejects(settleSigninRefunds({ rpc: led.rpc, signer, store: rstore, mockLedger: true }), /tests only/, "mockLedger outside tests");
-  process.env.NODE_ENV = "test";
-  assert.equal(await settleSigninRefunds({ rpc: led.rpc, signer, store: rstore, mockLedger: true }), 1);
-  assert.equal(await settleSigninRefunds({ rpc: led.rpc, signer, store: rstore, mockLedger: true }), 0);
-  const back = led.sendsFrom(address, user);
-  assert.equal(back.length, 1);
-  assert.equal(back[0][1].amount, BigInt(s.amount));
-  const once = firestoreOnce(db, `t${tag}_once`);
-  assert.equal(await once("k1", 60_000), true);
-  assert.equal(await once("k1", 60_000), false);
+  const app = getApps()[0] ?? initializeApp({ projectId: "nano133-kit-test" });
+  const db = getFirestore(app);
+  const { firestoreOnce, firestoreRequests } = await import("../src/firestore.js");
+  const run = randomBytes(4).toString("hex");
+
+  const once = firestoreOnce(db, `once-${run}`);
+  assert.equal(await once("k", 60_000, "nano_a"), true);
+  assert.equal(await once("k", 60_000, "nano_a"), false);
+  assert.equal((await db.collection(`once-${run}`).doc("k").get()).data()?.address, "nano_a", "the row names the account");
+
+  const s = firestoreRequests(db, `req-${run}`);
+  const expiresAt = Date.now() + 60_000;
+  await s.create("key1", { id: "id1-".padEnd(24, "x"), starter: "ab", status: "waiting", expiresAt, label: "L" });
+  await assert.rejects(s.create("key1", { id: "other", starter: "ab", status: "waiting", expiresAt }), "create never overwrites");
+  const got = await s.get("key1");
+  assert.equal(got?.expiresAt, expiresAt);
+  assert.equal(got?.label, "L");
+  assert.equal((await s.find("id1-".padEnd(24, "x")))?.key, "key1");
+  const [a, b] = await Promise.all([s.finish("key1", "nano_a"), s.finish("key1", "nano_b")]);
+  assert.equal(Number(a) + Number(b), 1, "two answers at once: one wins");
+  const doc = (await db.collection(`req-${run}`).doc("key1").get()).data()!;
+  assert.equal(doc.status, "signedin");
+  assert.ok(doc.deleteAt && doc.createdAt && doc.signedAt);
 });

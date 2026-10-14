@@ -1,57 +1,13 @@
 import { createHash } from "node:crypto";
-import { ed25519 } from "@noble/curves/ed25519.js";
-import * as nanoNs from "nanocurrency-web";
 import { signinMessage } from "./message.js";
+import { validAddress, verifyMessage } from "./verify.js";
 
-// Sign in with Nano, by signature: the wallet signs a short message with its
-// key, and the server checks the signature against the address. No payment
-// is needed, so a new user with no XNO can sign in.
-//
-// The check is strict. The usual library check also accepts two things a
-// strict check must not: a second form of the same signature (S + L), and
-// forgeries for the few "small-order" public keys (the burn address is one),
-// which nobody holds a key for.
+// Sign in with Nano, by a signature from a key the browser holds: a purse made from a passkey (./passkey and
+// ./purse), or any wallet that signs a message as the hex of its bytes. The browser signs
+// signinMessage(domain, address, at) and posts { address, at, signature }; the server checks it here. No payment
+// is needed, so a new user with no XNO can sign in. The check is strict (./verify).
 
-const nanoWeb = ((nanoNs as unknown as { default?: typeof nanoNs }).default ?? nanoNs) as typeof nanoNs;
-const ADDRESS = /^nano_[13][13456789abcdefghijkmnopqrstuwxyz]{59}$/;
-/** The order of the Ed25519 group: a signature's S must be below it. */
-const L = 2n ** 252n + 27742317777372353535851937790883648493n;
-const littleEndian = (hex: string) => BigInt(`0x${Buffer.from(hex, "hex").reverse().toString("hex") || "0"}`);
-
-function strongKey(publicKey: string) {
-  try {
-    return !ed25519.Point.fromHex(publicKey.toLowerCase()).isSmallOrder();
-  } catch {
-    return false;
-  }
-}
-
-/**
- * True for a whole Nano address: its shape and its checksum (the last 8 characters). An account is the one true
- * address of its key, so every check here asks this first. (The library's addressToPublicKey reads the key from
- * the first 52 characters and does not look at the checksum.)
- */
-export function validAddress(address: unknown): address is string {
-  if (typeof address !== "string" || !ADDRESS.test(address)) return false;
-  try {
-    return nanoWeb.tools.validateAddress(address);
-  } catch {
-    return false;
-  }
-}
-
-/** True when `address`'s key signed `message` (signed as the hex of its UTF-8 bytes); false for anything else. */
-export function verifyMessage(address: string, message: string, signature: string) {
-  if (!validAddress(address) || !/^[0-9A-F]{128}$/i.test(signature)) return false;
-  if (littleEndian(signature.slice(64)) >= L) return false;
-  try {
-    const publicKey = nanoWeb.tools.addressToPublicKey(address);
-    if (!strongKey(publicKey)) return false;
-    return nanoWeb.tools.verify(publicKey, signature, Buffer.from(message, "utf8").toString("hex"));
-  } catch {
-    return false;
-  }
-}
+export { validAddress, verifyMessage };
 
 export class SigninError extends Error {
   constructor(
@@ -63,14 +19,28 @@ export class SigninError extends Error {
 }
 
 /**
- * Checks a signature sign-in and returns the address. `useOnce(key, ttlMs)`
- * must record `key` atomically and answer false when it was already there
- * (a database row with a unique key). Throws SigninError otherwise.
+ * Records `key` atomically and answers false when it was already there (a database row with a unique key).
+ * `address` is the account that signed: keep it on the row, so that a "delete my data" can find the rows of a
+ * person. memoryOnce and firestoreOnce do.
  */
-export async function checkSignatureSignin(
-  o: { domain: string; useOnce: (key: string, ttlMs: number) => Promise<boolean>; windowMs?: number; now?: () => number },
-  p: { address: string; at: number; signature: string },
-): Promise<string> {
+export type UseOnce = (key: string, ttlMs: number, address: string) => Promise<boolean>;
+
+export type SignatureOptions = {
+  /** The site's domain, exactly as users see it ("example.com"): the message names it. */
+  domain: string;
+  useOnce: UseOnce;
+  /** How old a signature may be, either way (default 5 minutes). */
+  windowMs?: number;
+  now?: () => number;
+  /** The label of the once-only key (default "nano-signin signature v1"). Keep one label for the life of a site. */
+  onceLabel?: string;
+};
+
+/** The once-only key of a signed message: one key for every form of its signature. */
+export const onceKey = (message: string, label = "nano-signin signature v1") => createHash("sha256").update(`${label}|${message}`).digest("hex");
+
+/** Checks a signature sign-in and returns the address. Throws SigninError otherwise. */
+export async function checkSignatureSignin(o: SignatureOptions, p: { address: string; at: number; signature: string }): Promise<string> {
   if (typeof o.domain !== "string" || !o.domain.trim()) throw new Error("set the site's domain");
   const windowMs = o.windowMs ?? 5 * 60_000;
   const now = o.now?.() ?? Date.now();
@@ -80,7 +50,6 @@ export async function checkSignatureSignin(
   const message = signinMessage(o.domain, p.address, p.at);
   if (!verifyMessage(p.address, message, p.signature)) throw new SigninError(401, "the signature does not match");
   // Once only, by the message it signed (a signature can have more than one form).
-  const key = createHash("sha256").update(`nano-signin signature v1|${message}`).digest("hex");
-  if (!(await o.useOnce(key, 2 * windowMs))) throw new SigninError(409, "that sign-in was already used");
+  if (!(await o.useOnce(onceKey(message, o.onceLabel), 2 * windowMs, p.address))) throw new SigninError(409, "that sign-in was already used");
   return p.address;
 }
