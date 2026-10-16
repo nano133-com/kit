@@ -262,8 +262,10 @@ from [server.js](examples/coin-run/server.js). A host worker calls
 wallet slot. A saved signed block there is published again, exactly as
 saved, and the round is marked paid. It does not sign. No slot: nothing
 happens, and it returns `{ state: "none" }`. A slot with no saved block:
-nothing is signed, and it returns `{ state: "signing", roundId }`. An
-operator must look at that round. A published block returns
+nothing is signed, and it returns `{ state: "signing", roundId }`. A live
+`payPrize` also shows `signing` for a few seconds, between its signature and
+its save. Alert an operator only when the same `roundId` stays `signing` for
+more than a few minutes. A published block returns
 `{ state: "paid", hash }`. Poll or refresh a pending prize in your app's
 result screen.
 
