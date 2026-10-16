@@ -17,7 +17,8 @@ no wallet or private key. Use any renderer and any database with transactions.
    that arrives before the replay's full length. A too-soon round stays open.
 4. `payPrize` reserves a winning round and its daily counts. It calls your
    signer once, then closes the round and saves the signed block in one
-   transaction. It publishes the saved block. A retry publishes that same block.
+   transaction. That save is tried up to 3 times and does not sign again.
+   It publishes the saved block. A retry publishes that same block.
 
 ## The 10 rules
 
@@ -127,7 +128,8 @@ returns a frozen rule definition. `version` is a nonempty string.
   the supplied state. A true input is a button press at this step.
 - `valid(state, pressed)` refuses an impossible action before the step.
 - `done(state)` returns null while playing. At the end it returns plain JSON
-  data with `won: boolean`, such as `{ won, coins, hits }`.
+  data with `won: boolean`, such as `{ won, coins, hits }`. The result must
+  not hold arrays inside arrays: Firestore refuses them.
 
 `play(rules, seed, inputs)` returns `{ valid, won, steps, durationMs, result }`.
 An invalid replay returns `{ valid: false, won: false, steps: 0, durationMs: 0 }`.
@@ -196,15 +198,17 @@ wait. Do not use another sender, receive worker or app to change this
 wallet's chain outside the same coordination.
 
 The package never calls a signer in a database callback. Such callbacks can
-run more than once. If signing throws, the process stops, or saving fails
-before the signed block is stored, the round stays `signing`. Its daily
-counts and wallet slot stay reserved. A retry returns `pending`; it does
-not sign again. Keep a durable signing record in your sender for recovery.
-Reconcile the original block before an operator repairs the record. Never
-clear an uncertain reservation to permit another signature.
+run more than once. It tries the save of the signed block up to 3 times.
+Those tries do not sign again. If signing throws, the process stops, or all
+3 saves fail before the signed block is stored, the round stays `signing`.
+Its daily counts and wallet slot stay reserved. A retry returns `pending`;
+it does not sign again. Keep a durable signing record in your sender for
+recovery. Reconcile the original block before an operator repairs the
+record. Never clear an uncertain reservation to permit another signature.
 
 If publication fails after the save, call `payPrize` again with the same
-round, payee and amount. It publishes the saved block without signing again.
+round, payee and amount, or call `retryActivePrize(store, sender)`. Both
+publish the saved block without signing again.
 This also applies if the server stops after publication but before the paid
 mark. Retain rounds, signed blocks, usage records and the wallet slot. Do
 not set a TTL that can remove an unpaid record or permit a second prize.
@@ -252,8 +256,13 @@ It adds the package rule shape and refuses jumps in the air.
 [game.js](examples/coin-run/game.js) draws with Three.js and records jump
 step numbers. Use a bundler and install `three` in your example app. Supply
 a `canvas#game`, an `output#result`, and the two authenticated POST routes
-from [server.js](examples/coin-run/server.js). A host worker must retry saved
-unpaid prizes. Poll or refresh a pending prize in your app's result screen.
+from [server.js](examples/coin-run/server.js). A host worker calls
+`retryActivePrize(store, sender)` for the one active prize. It reads the
+wallet slot. A saved signed block there is published again, exactly as
+saved, and the round is marked paid. It does not sign. No slot: nothing
+happens. A slot with no saved block: nothing is signed. It returns
+`{ state: "paid", hash }` or `{ state: "none" }`. Poll or refresh a pending
+prize in your app's result screen.
 
 ```sh
 npm test

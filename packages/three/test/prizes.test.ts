@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { checkRound, payPrize, startRound, type PrizeSender, type RoundStore } from "../src/server.js";
+import { checkRound, payPrize, retryActivePrize, startRound, type PrizeSender, type RoundStore } from "../src/server.js";
 import { epoch, getRound, limits, mockSender, player, rules, setup, wonRound } from "./fixtures.js";
 
 const prize = (roundId: string, extra = {}) => ({ roundId, payee: player.payee, amountRaw: 1n, limits, ...extra });
@@ -86,20 +86,101 @@ test("a failed save never publishes and never permits a fresh signing on retry",
   const { store } = setup();
   const roundId = await wonRound(store);
   const mock = mockSender();
+  let saves = 0;
   const failing: RoundStore = {
     ...store,
     transaction: (body) => store.transaction((tx) => body({
       ...tx,
       setRound(round) {
-        if (round.send) throw new Error("save failed");
+        if (round.send) { saves++; throw new Error("save failed"); }
         tx.setRound(round);
       },
     })),
   };
   await assert.rejects(payPrize(failing, mock.sender, prize(roundId)), /save failed/);
+  assert.equal(saves, 3);
   assert.equal((await payPrize(store, mock.sender, prize(roundId))).state, "pending");
   assert.equal(mock.signed.length, 1);
   assert.equal(mock.published.length, 0);
+});
+
+test("a save that fails twice then succeeds signs once", async () => {
+  const { store } = setup();
+  const roundId = await wonRound(store);
+  const mock = mockSender();
+  let saves = 0;
+  const flaky: RoundStore = {
+    ...store,
+    transaction: (body) => store.transaction((tx) => body({
+      ...tx,
+      setRound(round) {
+        if (round.send && saves < 2) { saves++; throw new Error("save failed"); }
+        tx.setRound(round);
+      },
+    })),
+  };
+  const sender: PrizeSender = {
+    async sign(input) {
+      if (mock.signed.length) throw new Error("signed again");
+      return mock.sender.sign(input);
+    },
+    publish: mock.sender.publish,
+  };
+  const answer = await payPrize(flaky, sender, prize(roundId));
+  const saved = (await getRound(store, roundId))!;
+  assert.equal(answer.state, "paid");
+  assert.equal(saves, 2);
+  assert.equal(mock.signed.length, 1);
+  assert.equal(mock.published.length, 1);
+  assert.equal(saved.status, "paid");
+  assert.deepEqual(mock.published[0], saved.send);
+});
+
+test("retryActivePrize republishes the saved block once", async () => {
+  const { store } = setup();
+  const roundId = await wonRound(store);
+  const mock = mockSender();
+  const broken: PrizeSender = { sign: mock.sender.sign, publish: async () => { throw new Error("offline"); } };
+  await assert.rejects(payPrize(store, broken, prize(roundId)), /offline/);
+  const saved = (await getRound(store, roundId))!.send!;
+  assert.deepEqual(await retryActivePrize(store, mock.sender), { state: "paid", hash: saved.hash });
+  assert.equal(mock.signed.length, 1);
+  assert.equal(mock.published.length, 1);
+  assert.deepEqual(mock.published[0], saved);
+  assert.equal((await getRound(store, roundId))!.status, "paid");
+  assert.equal(await store.transaction((tx) => tx.getActivePrize()), null);
+  assert.deepEqual(await retryActivePrize(store, mock.sender), { state: "none" });
+  assert.equal(mock.published.length, 1);
+  assert.equal(mock.signed.length, 1);
+});
+
+test("retryActivePrize does nothing when the wallet slot is empty", async () => {
+  const { store } = setup();
+  const mock = mockSender();
+  assert.deepEqual(await retryActivePrize(store, mock.sender), { state: "none" });
+  assert.equal(mock.signed.length, 0);
+  assert.equal(mock.published.length, 0);
+  assert.equal(await store.transaction((tx) => tx.getActivePrize()), null);
+});
+
+test("retryActivePrize does not sign when the slot has no saved block", async () => {
+  const { store } = setup();
+  const roundId = await wonRound(store);
+  const payer: PrizeSender = {
+    async sign() { throw new Error("signer interrupted"); },
+    async publish() { assert.fail("no publish"); },
+  };
+  await assert.rejects(payPrize(store, payer, prize(roundId)), /interrupted/);
+  let signs = 0;
+  const watcher: PrizeSender = {
+    async sign() { signs++; throw new Error("must not sign"); },
+    async publish() { assert.fail("no publish"); },
+  };
+  assert.deepEqual(await retryActivePrize(store, watcher), { state: "none" });
+  assert.equal(signs, 0);
+  assert.equal((await getRound(store, roundId))!.status, "signing");
+  assert.equal((await getRound(store, roundId))!.send, undefined);
+  assert.equal(await store.transaction((tx) => tx.getActivePrize()), roundId);
 });
 
 test("an unpaid saved block holds the wallet slot until its retry completes", async () => {

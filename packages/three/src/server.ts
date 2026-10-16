@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { serverTime } from "./config.js";
 import { play } from "./rules.js";
-import type { CheckResult, PrizeLimits, PrizeResult, PrizeSender, Round, RoundStore, SignedSend, TrustedPlayer } from "./types.js";
+import type { ActivePrizeRetry, CheckResult, PrizeLimits, PrizeResult, PrizeSender, Round, RoundStore, SignedSend, TrustedPlayer } from "./types.js";
 
 export type * from "./types.js";
 
@@ -64,6 +64,54 @@ function savedSend(send: SignedSend): SignedSend {
   return { hash: send.hash.toUpperCase(), block: { type: "state", account: b.account, previous: b.previous, representative: b.representative, balance: b.balance, link: b.link, signature: b.signature, work: b.work } };
 }
 
+// Transaction 2. Writing the same close again is safe. This loop must never sign.
+async function savePrepared(store: RoundStore, roundId: string, block: SignedSend | null): Promise<void> {
+  let error: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await store.transaction(async (tx) => {
+        const round = await tx.getRound(roundId);
+        const active = await tx.getActivePrize();
+        if (block === null) {
+          if (round?.status === "closed" && round.noPrize === "empty") return;
+          if (!round || round.status !== "signing" || active !== round.id) throw new Error("prize reservation is not held");
+          const [totalKey, playerKey] = usageKeys(round.prize!.day, round.player.id);
+          const [total, player] = await Promise.all([tx.getUsage(totalKey), tx.getUsage(playerKey)]);
+          tx.setUsage(totalKey, total - 1);
+          tx.setUsage(playerKey, player - 1);
+          tx.setActivePrize(null);
+          tx.setRound({ ...round, status: "closed", noPrize: "empty" });
+          return;
+        }
+        // A lost answer can retry after the save committed. The same block is not a second signature.
+        if (round?.send) {
+          if (round.send.hash !== block.hash) throw new Error("saved prize send does not match");
+          return;
+        }
+        if (!round || round.status !== "signing" || active !== round.id) throw new Error("prize reservation is not held");
+        // The same transaction closes the round and saves its signed send, before any publication.
+        tx.setRound({ ...round, status: "closed", send: block });
+      });
+      return;
+    } catch (caught) {
+      error = caught;
+      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 20 * attempt));
+    }
+  }
+  throw error;
+}
+
+async function publishSaved(store: RoundStore, sender: PrizeSender, roundId: string, send: SignedSend): Promise<void> {
+  await sender.publish(structuredClone(send));
+  await store.transaction(async (tx) => {
+    const round = await tx.getRound(roundId);
+    const active = await tx.getActivePrize();
+    if (!round?.send || round.send.hash !== send.hash) throw new Error("saved prize send is missing");
+    tx.setRound({ ...round, status: "paid" });
+    if (active === round.id) tx.setActivePrize(null);
+  });
+}
+
 /** Pay a checked win. The payee must match the trusted address saved when the server started the round. */
 export async function payPrize(store: RoundStore, sender: PrizeSender, input: { roundId: string; payee: string; amountRaw: bigint | string; limits: PrizeLimits }): Promise<PrizeResult> {
   if (!knownId(input.roundId)) return { state: "unknown" };
@@ -105,35 +153,26 @@ export async function payPrize(store: RoundStore, sender: PrizeSender, input: { 
     // Never put this call in a retried database callback. A failed or interrupted call stays reserved.
     const signed = await sender.sign({ roundId: prepared.round.id, payee: prepared.round.player.payee, amountRaw });
     const block = signed === null ? null : savedSend(signed);
-    await store.transaction(async (tx) => {
-      const round = await tx.getRound(prepared.round.id);
-      const active = await tx.getActivePrize();
-      if (!round || round.status !== "signing" || active !== round.id) throw new Error("prize reservation is not held");
-      if (block === null) {
-        const [totalKey, playerKey] = usageKeys(round.prize!.day, round.player.id);
-        const [total, player] = await Promise.all([tx.getUsage(totalKey), tx.getUsage(playerKey)]);
-        tx.setUsage(totalKey, total - 1);
-        tx.setUsage(playerKey, player - 1);
-        tx.setActivePrize(null);
-        tx.setRound({ ...round, status: "closed", noPrize: "empty" });
-      } else {
-        // The same transaction closes the round and saves its signed send, before any publication.
-        tx.setRound({ ...round, status: "closed", send: block });
-      }
-    });
+    await savePrepared(store, prepared.round.id, block);
     if (block === null) return { state: "no-prize", won: true, reason: "empty" };
     send = block;
     again = false;
   } else {
     send = prepared.send;
   }
-  await sender.publish(structuredClone(send));
-  await store.transaction(async (tx) => {
-    const round = await tx.getRound(input.roundId);
-    const active = await tx.getActivePrize();
-    if (!round?.send || round.send.hash !== send.hash) throw new Error("saved prize send is missing");
-    tx.setRound({ ...round, status: "paid" });
-    if (active === round.id) tx.setActivePrize(null);
-  });
+  await publishSaved(store, sender, input.roundId, send);
   return { state: "paid", won: true, hash: send.hash, again };
+}
+
+/** Republish the saved block in the wallet slot, if there is one. Never signs. */
+export async function retryActivePrize(store: RoundStore, sender: PrizeSender): Promise<ActivePrizeRetry> {
+  const saved = await store.transaction(async (tx) => {
+    const id = await tx.getActivePrize();
+    if (!id) return null;
+    const round = await tx.getRound(id);
+    return round?.send ? { id: round.id, send: round.send } : null;
+  });
+  if (!saved) return { state: "none" };
+  await publishSaved(store, sender, saved.id, saved.send);
+  return { state: "paid", hash: saved.send.hash };
 }

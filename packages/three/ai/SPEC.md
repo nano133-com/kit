@@ -45,6 +45,7 @@ See `examples/coin-run/run.js` for a complete rule shape.
 - `step(state, pressed)` advances exactly one step.
 - `valid(state, pressed)` refuses an impossible action.
 - `done(state)` returns null until the end, then JSON data with `won`.
+  Do not put arrays inside arrays. Firestore refuses them.
 - Use no Three.js, clock, network, mutable global state or `Math.random()`
   in the rule. Use a deterministic algorithm if the seed controls chance.
 - Use only math that every JavaScript engine computes the same: `+ - * /`,
@@ -155,8 +156,10 @@ and total limits give a normal win with no prize and do not call the signer.
 ## 7. Show the result and handle recovery
 
 Show a win with no prize for `empty`, `player-limit` and `day-limit`.
-For `pending`, show that the prize waits. A worker can retry a saved send
-after an outage with `payPrize`. Limit worker and route retries.
+For `pending`, show that the prize waits. A worker retries the one active
+prize with `retryActivePrize(store, sender)`. It publishes the saved block
+and does not sign. `payPrize` can retry one known round the same way.
+Limit worker and route retries.
 
 If signing throws or the server stops before the signed send is saved, the
 round stays `signing`. Its counts and wallet slot stay reserved. Automatic

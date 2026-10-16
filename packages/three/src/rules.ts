@@ -9,7 +9,7 @@ export type Rules<State, Result extends RuleResult = RuleResult> = Readonly<{
   start(seed: string): State;
   /** May return the next state, or change the supplied state in place. */
   step(state: State, pressed: boolean): State | void;
-  /** Return null until the round ends, then a result with `won`. Use plain JSON data. */
+  /** Return null until the round ends, then a result with `won`. Use plain JSON data. No arrays inside arrays. */
   done(state: State): Result | null;
   /** Refuse an impossible input, such as a jump while in the air. Called before each step. */
   valid(state: State, pressed: boolean): boolean;
