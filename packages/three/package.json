@@ -1,0 +1,33 @@
+{
+  "name": "@nano133/three",
+  "version": "0.1.0",
+  "description": "Replay a game's inputs on the server and pay a Nano (XNO) prize once. Pure rules for Three.js or any renderer.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./server": { "types": "./dist/server.d.ts", "import": "./dist/server.js" },
+    "./memory": { "types": "./dist/memory.d.ts", "import": "./dist/memory.js" },
+    "./firestore": { "types": "./dist/firestore.d.ts", "import": "./dist/firestore.js" },
+    "./examples/coin-run/run.js": { "types": "./examples/coin-run/run.d.ts", "import": "./examples/coin-run/run.js" }
+  },
+  "files": ["dist", "src", "README.md", "CHANGELOG.md", "LICENSE", "ai", "examples"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": { "firebase-admin": ">=12" },
+  "peerDependenciesMeta": { "firebase-admin": { "optional": true } },
+  "publishConfig": { "access": "public" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nano133-com/kit.git",
+    "directory": "packages/three"
+  },
+  "homepage": "https://nano133.com/build/three",
+  "license": "MIT",
+  "keywords": ["nano", "xno", "three", "three.js", "games", "prizes"]
+}

@@ -40,6 +40,19 @@ NanChat or any key in the page. Follow `packages/signin/ai/SPEC.md` step by step
 - A passkey scheme is frozen in the site's code, with a vector test.
 - Never print, log or commit a key or secret.
 
+## Nano for Three.js (`@nano133/three`)
+
+Use it when a game needs a server-checked result and a small Nano (XNO)
+prize. Follow `packages/three/ai/SPEC.md` step by step.
+
+- Share one pure, versioned rule file between the browser and the server.
+- Start the round and make its seed on the server. Replay inputs, not a score.
+- Bind the player and trusted address on the server. Check ownership on every route.
+- Rate-limit the routes. Set per-player and total daily prize limits.
+- Keep the key in the owner's secret manager. The sender is the owner's code.
+- Use one persistent store per prize wallet. Never clear an uncertain signing reservation to sign again.
+- Test with no real money first.
+
 ## Working in this repository
 
 - `npm test` runs every package's tests (mock ledger; no network, no money).
