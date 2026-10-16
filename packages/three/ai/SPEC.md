@@ -47,6 +47,10 @@ See `examples/coin-run/run.js` for a complete rule shape.
 - `done(state)` returns null until the end, then JSON data with `won`.
 - Use no Three.js, clock, network, mutable global state or `Math.random()`
   in the rule. Use a deterministic algorithm if the seed controls chance.
+- Use only math that every JavaScript engine computes the same: `+ - * /`,
+  `Math.sqrt`, `abs`, `floor`, `ceil`, `round`, `trunc`, `min`, `max`, or whole
+  numbers. Never `sin`, `cos`, `atan2`, `exp`, `log`, `pow`, `**`, `hypot` or `cbrt`.
+  Compare distances squared (`dx*dx + dy*dy <= r*r`).
 - Give every rule change a new version string. Keep old versions available.
 
 The replay accepts button presses as whole step numbers in strictly rising

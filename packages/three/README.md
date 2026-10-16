@@ -25,6 +25,11 @@ no wallet or private key. Use any renderer and any database with transactions.
    `(inputs) -> result`, or `(seed, inputs) -> result` for a game with chance.
    The browser draws with it, the server checks with it. Give it a version,
    and replay a round with the version it started with.
+   Use only math that every JavaScript engine computes the same: `+ - * /`,
+   `Math.sqrt`, `abs`, `floor`, `ceil`, `round`, `trunc`, `min` and `max`, or
+   whole numbers. Never `sin`, `cos`, `atan2`, `exp`, `log`, `pow`, `**`, `hypot` or
+   `cbrt`: browsers may round them differently, and the server and the page
+   then disagree. Compare distances squared (`dx*dx + dy*dy <= r*r`).
 2. **The server starts the round** and keeps its start time. A round cannot
    end sooner than its own length: refuse it, or let the game send it again
    later, when it comes too soon. In a game with chance **the server makes

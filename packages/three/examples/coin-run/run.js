@@ -62,7 +62,7 @@ export function step(s, jump) {
         s.slow = RUN.slowSteps;
     });
     COINS.forEach((c, i) => {
-        if (!s.coins[i] && Math.hypot(s.x - c.x, s.y + RUN.tall / 2 - c.y) <= RUN.reach)
+        if (!s.coins[i] && near(s.x - c.x, s.y + RUN.tall / 2 - c.y, RUN.reach))
             s.coins[i] = true;
     });
     s.step++;
@@ -70,6 +70,8 @@ export function step(s, jump) {
         s.done = true;
     return s;
 }
+/** Within reach, by squared distance: only + and *, which every JavaScript engine computes the same (no hypot, no **). */
+const near = (dx, dy, r) => dx * dx + dy * dy <= r * r;
 /** The longest run there is, in steps: every block hit. No run goes on for longer. */
 export const MOST_STEPS = Math.ceil((RUN.end / RUN.speed) * RUN.hz) + BLOCKS.length * RUN.slowSteps + 2;
 
