@@ -1,7 +1,31 @@
+import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { checkRound, payPrize, retryActivePrize, startRound, type PrizeSender, type RoundStore } from "../src/server.js";
+import { checkRound, payPrize, retryActivePrize, startRound, type PrizeSender, type Round, type RoundStore } from "../src/server.js";
 import { epoch, getRound, limits, mockSender, player, rules, setup, wonRound } from "./fixtures.js";
+
+/** The store commits, then throws once, when the saved round matches. A lost answer after a commit. */
+function lostAnswerOnce(store: RoundStore, match: (round: Round) => boolean): RoundStore {
+  let thrown = false;
+  return {
+    ...store,
+    async transaction(body) {
+      let hit = false;
+      const result = await store.transaction((tx) => body({
+        ...tx,
+        setRound(round) {
+          if (match(round)) hit = true;
+          tx.setRound(round);
+        },
+      }));
+      if (hit && !thrown) {
+        thrown = true;
+        throw new Error("answer lost");
+      }
+      return result;
+    },
+  };
+}
 
 const prize = (roundId: string, extra = {}) => ({ roundId, payee: player.payee, amountRaw: 1n, limits, ...extra });
 
@@ -136,6 +160,55 @@ test("a save that fails twice then succeeds signs once", async () => {
   assert.deepEqual(mock.published[0], saved.send);
 });
 
+test("a lost answer after the signed block is saved still pays once", async () => {
+  const { store } = setup();
+  const roundId = await wonRound(store);
+  const mock = mockSender();
+  let writes = 0;
+  const flaky = lostAnswerOnce(store, (round) => {
+    if (round.status === "closed" && round.send) { writes++; return true; }
+    return false;
+  });
+  const sender: PrizeSender = {
+    async sign(input) {
+      if (mock.signed.length) throw new Error("signed again");
+      return mock.sender.sign(input);
+    },
+    publish: mock.sender.publish,
+  };
+  const answer = await payPrize(flaky, sender, prize(roundId));
+  const saved = (await getRound(store, roundId))!;
+  assert.equal(answer.state, "paid");
+  assert.equal(writes, 1);
+  assert.equal(mock.signed.length, 1);
+  assert.equal(mock.published.length, 1);
+  assert.equal(saved.status, "paid");
+  assert.deepEqual(mock.published[0], saved.send);
+});
+
+test("a lost answer after an empty close releases each count once", async () => {
+  const { store } = setup();
+  const roundId = await wonRound(store);
+  let releases = 0;
+  const flaky = lostAnswerOnce(store, (round) => {
+    if (round.noPrize === "empty") { releases++; return true; }
+    return false;
+  });
+  const sender: PrizeSender = {
+    async sign() { return null; },
+    async publish() { assert.fail("empty wallet"); },
+  };
+  assert.deepEqual(await payPrize(flaky, sender, prize(roundId)), { state: "no-prize", won: true, reason: "empty" });
+  const day = new Date(epoch).toISOString().slice(0, 10);
+  const playerKey = `${day}-${createHash("sha256").update(player.id).digest("hex")}`;
+  const [total, mine] = await store.transaction(async (tx) => Promise.all([tx.getUsage(day), tx.getUsage(playerKey)]));
+  assert.equal(releases, 1);
+  assert.equal(total, 0);
+  assert.equal(mine, 0);
+  assert.equal(await store.transaction((tx) => tx.getActivePrize()), null);
+  assert.equal((await getRound(store, roundId))!.noPrize, "empty");
+});
+
 test("retryActivePrize republishes the saved block once", async () => {
   const { store } = setup();
   const roundId = await wonRound(store);
@@ -176,7 +249,7 @@ test("retryActivePrize does not sign when the slot has no saved block", async ()
     async sign() { signs++; throw new Error("must not sign"); },
     async publish() { assert.fail("no publish"); },
   };
-  assert.deepEqual(await retryActivePrize(store, watcher), { state: "none" });
+  assert.deepEqual(await retryActivePrize(store, watcher), { state: "signing", roundId });
   assert.equal(signs, 0);
   assert.equal((await getRound(store, roundId))!.status, "signing");
   assert.equal((await getRound(store, roundId))!.send, undefined);

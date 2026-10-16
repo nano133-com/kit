@@ -158,7 +158,9 @@ and total limits give a normal win with no prize and do not call the signer.
 Show a win with no prize for `empty`, `player-limit` and `day-limit`.
 For `pending`, show that the prize waits. A worker retries the one active
 prize with `retryActivePrize(store, sender)`. It publishes the saved block
-and does not sign. `payPrize` can retry one known round the same way.
+and does not sign. No slot returns `none`. A slot with no saved block
+returns `signing` and the round id: an operator must look at that round.
+`payPrize` can retry one known round the same way.
 Limit worker and route retries.
 
 If signing throws or the server stops before the signed send is saved, the

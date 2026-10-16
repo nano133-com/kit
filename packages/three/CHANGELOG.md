@@ -12,3 +12,6 @@
 - The save of a signed block is tried up to 3 times. Those tries do not sign again.
 - `retryActivePrize(store, sender)` republishes the saved block in the wallet slot and does not sign.
 - A `done()` result must not hold arrays inside arrays. Firestore refuses them.
+- A save whose answer is lost after the commit is tried again. It does not sign again, and an empty wallet releases each count once.
+- `retryActivePrize` returns `signing` and the round id when the slot has no saved block. An operator must look at that round.
+- A failed save waits 200 ms, then 1 second, before the next try.

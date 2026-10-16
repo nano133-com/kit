@@ -95,7 +95,7 @@ async function savePrepared(store: RoundStore, roundId: string, block: SignedSen
       return;
     } catch (caught) {
       error = caught;
-      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 20 * attempt));
+      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, [200, 1000][attempt - 1]));
     }
   }
   throw error;
@@ -166,13 +166,15 @@ export async function payPrize(store: RoundStore, sender: PrizeSender, input: { 
 
 /** Republish the saved block in the wallet slot, if there is one. Never signs. */
 export async function retryActivePrize(store: RoundStore, sender: PrizeSender): Promise<ActivePrizeRetry> {
-  const saved = await store.transaction(async (tx) => {
+  const held = await store.transaction(async (tx) => {
     const id = await tx.getActivePrize();
     if (!id) return null;
     const round = await tx.getRound(id);
-    return round?.send ? { id: round.id, send: round.send } : null;
+    return { roundId: id, send: round?.send ?? null };
   });
-  if (!saved) return { state: "none" };
-  await publishSaved(store, sender, saved.id, saved.send);
-  return { state: "paid", hash: saved.send.hash };
+  if (!held) return { state: "none" };
+  // A slot with no saved block is stuck in signing. The worker must not sign it.
+  if (!held.send) return { state: "signing", roundId: held.roundId };
+  await publishSaved(store, sender, held.roundId, held.send);
+  return { state: "paid", hash: held.send.hash };
 }

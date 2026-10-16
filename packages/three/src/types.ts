@@ -78,7 +78,8 @@ export type PrizeResult =
   | { state: "pending"; won: true; reason: "signing" | "wallet-busy" }
   | { state: "unknown" | "unchecked" };
 
-/** `paid` republished the saved block. `none` means the helper did not publish or sign. */
+/** `paid` republished the saved block. `none` means the slot is empty. `signing` means the slot is held and no block is saved. */
 export type ActivePrizeRetry =
   | { state: "paid"; hash: string }
-  | { state: "none" };
+  | { state: "none" }
+  | { state: "signing"; roundId: string };

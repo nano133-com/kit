@@ -199,7 +199,8 @@ wallet's chain outside the same coordination.
 
 The package never calls a signer in a database callback. Such callbacks can
 run more than once. It tries the save of the signed block up to 3 times.
-Those tries do not sign again. If signing throws, the process stops, or all
+It waits 200 ms, then 1 second, between those tries. Those tries do not
+sign again. If signing throws, the process stops, or all
 3 saves fail before the signed block is stored, the round stays `signing`.
 Its daily counts and wallet slot stay reserved. A retry returns `pending`;
 it does not sign again. Keep a durable signing record in your sender for
@@ -260,9 +261,11 @@ from [server.js](examples/coin-run/server.js). A host worker calls
 `retryActivePrize(store, sender)` for the one active prize. It reads the
 wallet slot. A saved signed block there is published again, exactly as
 saved, and the round is marked paid. It does not sign. No slot: nothing
-happens. A slot with no saved block: nothing is signed. It returns
-`{ state: "paid", hash }` or `{ state: "none" }`. Poll or refresh a pending
-prize in your app's result screen.
+happens, and it returns `{ state: "none" }`. A slot with no saved block:
+nothing is signed, and it returns `{ state: "signing", roundId }`. An
+operator must look at that round. A published block returns
+`{ state: "paid", hash }`. Poll or refresh a pending prize in your app's
+result screen.
 
 ```sh
 npm test
