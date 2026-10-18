@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0
+
+- **Berry Wallet** (`startNanoSignin`, `readNanoSignin`, `answerNanoSignin`,
+  `checkNanoSignin`, `nanoSigninMessage`, `NANO_SIGNIN_ACCEPTED`,
+  `nanoSigninRefusal`; `@nano133/signin/nanosignin`): its `nano-signin-v1`
+  request, read from the real app. A request lives 5 minutes at most. Reply
+  204 with no body to an accepted answer: Berry Wallet shows a 200 with a
+  JSON body as "could not accept". The same account's same answer is accepted
+  again (Berry sends it again on "Retry delivery"). A `WalletRequest` may
+  carry `nonce` and `issuedAt`, and `firestoreRequests` keeps them.
+
 ## 0.3.0
 
 A breaking release: nano133.com's own sign-in moved into the package, and the
@@ -13,12 +24,6 @@ payment way left it.
   `nautilusReply`): its `nanoauth:` request, as read in the app's source.
 - **NanChat** (`startNanchat`, `answerNanchat`, `checkNanchat`,
   `nanchatReply`, `nanchatNonce`): its `nanauth` request.
-- **Berry Wallet** (`startNanoSignin`, `readNanoSignin`, `answerNanoSignin`,
-  `checkNanoSignin`, `nanoSigninMessage`, `nanoSigninReply`,
-  `nanoSigninRefusal`; `@nano133/signin/nanosignin`): its `nano-signin-v1`
-  request, read from the real app. A request lives 5 minutes at most. A
-  `WalletRequest` may carry `nonce` and `issuedAt`, and `firestoreRequests`
-  keeps them.
 - **A request store** for the apps (`RequestStore`; `memoryRequests`,
   `firestoreRequests`), and `WalletRefused` for refusals with words.
 - **The passkey purse** in the browser (`@nano133/signin/passkey`): the

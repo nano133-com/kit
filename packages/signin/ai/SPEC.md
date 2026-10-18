@@ -3,7 +3,7 @@
 Follow these steps in order. Each step ends with a check. Stop and ask the
 site owner when a step says "ask".
 
-Package: `@nano133/signin` (0.3.0 or later). Every way is a signature, and the
+Package: `@nano133/signin` (0.4.0 or later). Every way is a signature, and the
 server checks it strictly: no payment, no password, no email, and your server
 holds no key. The server part works with any Node.js server and any database
 that can insert a row with a unique key and update a row in a transaction.
@@ -149,9 +149,10 @@ nonce is refused.
   `readNanoSignin(options, id, requestUrl)` → HTTP 200 and the JSON, or 404
   when it is null.
 - `POST /signin/nano/:id` (the wallet's signature): `answerNanoSignin(options,
-  id, body, requestUrl)`. Reply with HTTP 200 and `nanoSigninReply(id,
-  account)`, or HTTP 401 and `nanoSigninRefusal(error.message)` for a
-  `WalletRefused`.
+  id, body, requestUrl)`. Reply with HTTP 204 and no body
+  (`NANO_SIGNIN_ACCEPTED`): Berry Wallet shows a 200 with a JSON body as
+  "could not accept". Reply with HTTP 401 and
+  `nanoSigninRefusal(error.message)` for a `WalletRefused`.
 - `POST /signin/nano/check { id }`: `checkNanoSignin(options, id, starter)`.
 - **Required:** rate-limit the start, the GET, the POST and the check. A
   request lives 5 minutes at most (Berry Wallet refuses more).

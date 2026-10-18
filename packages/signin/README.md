@@ -92,7 +92,7 @@ if (r.status === "signedin" && r.mine) createYourSession(r.account!);
 your route (GET) and posts its signature to the same route (POST).
 
 ```ts
-import { answerNanoSignin, checkNanoSignin, nanoSigninRefusal, nanoSigninReply, readNanoSignin, startNanoSignin, WalletRefused } from "@nano133/signin";
+import { answerNanoSignin, checkNanoSignin, NANO_SIGNIN_ACCEPTED, nanoSigninRefusal, readNanoSignin, startNanoSignin, WalletRefused } from "@nano133/signin";
 import { firestoreRequests } from "@nano133/signin/firestore";
 
 const berry = { domain: "example.com", uri: "https://example.com/", store: firestoreRequests(db, "signin_nano") };
@@ -107,8 +107,8 @@ const s = await startNanoSignin(berry, { starter, requestUrl });
 const request = await readNanoSignin(berry, id, requestUrl);
 request ? reply(200, request) : reply(404, nanoSigninRefusal("This sign-in expired."));
 
-// POST /signin/nano/:id (the wallet's signature)
-try { reply(200, nanoSigninReply(id, await answerNanoSignin(berry, id, body, requestUrl))); }
+// POST /signin/nano/:id (the wallet's signature): 204 and no body, the only reply Berry Wallet shows as a success
+try { await answerNanoSignin(berry, id, body, requestUrl); reply(NANO_SIGNIN_ACCEPTED); }
 catch (e) { if (e instanceof WalletRefused) reply(401, nanoSigninRefusal(e.message)); else throw e; }
 
 // the browser asks every 2 seconds

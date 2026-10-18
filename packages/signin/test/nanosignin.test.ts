@@ -6,7 +6,6 @@ import {
   checkNanoSignin,
   nanoSigninMessage,
   nanoSigninRefusal,
-  nanoSigninReply,
   readNanoSignin,
   startNanoSignin,
   NANO_SIGNIN_MAX_MS,
@@ -101,7 +100,6 @@ test("a good answer signs in once; the starter's browser only", async () => {
   const forged = { ...answer(req), signature: answer(req, { priv: other.privateKey }).signature };
   assert.match(await refusal(answerNanoSignin(o, s.id, forged, url)), /does not match/, "a repeat with a wrong signature");
   assert.equal(await readNanoSignin(o, s.id, url), null, "a used request is not served again");
-  assert.deepEqual(nanoSigninReply(s.id, me.address), { ok: true, success: true, accepted: true, approved: true, state: "approved", status: "approved", requestId: s.id, address: me.address, protocol: "nano-signin-v1" });
   assert.deepEqual(nanoSigninRefusal("x"), { error: true, statusCode: 401, message: "x" });
 });
 

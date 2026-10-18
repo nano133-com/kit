@@ -18,9 +18,9 @@ import { checkOf, WalletRefused, type RequestCheck, type RequestStore } from "./
 //    answerNanoSignin checks all of it and signs the request in, once.
 // 4. The browser that started it asks (checkNanoSignin) and is signed in as `account` when `mine` is true.
 //
-// Reply to the wallet's POST with HTTP 200 and nanoSigninReply(...) when it is accepted, and with HTTP 401 and
-// nanoSigninRefusal(error.message) for a WalletRefused. The browser is signed in by the check, whatever the wallet
-// shows of the reply.
+// Reply to the wallet's POST with HTTP 204 and no body (NANO_SIGNIN_ACCEPTED) when it is accepted, and with HTTP
+// 401 and nanoSigninRefusal(error.message) for a WalletRefused. The browser is signed in by the check, whatever the
+// wallet shows of the reply.
 
 export const NANO_SIGNIN_PROTOCOL = "nano-signin-v1";
 export const NANO_SIGNIN_SIGNATURE = "nano-ed25519-blake2b-sha256";
@@ -160,10 +160,12 @@ export async function checkNanoSignin(o: Pick<NanoSigninOptions, "store" | "now"
   return checkOf(request ? { key: id, request } : null, o.now?.() ?? Date.now(), starter);
 }
 
-/** The JSON body of the reply (HTTP 200) to an accepted answer, in each form a wallet may look for. */
-export function nanoSigninReply(requestId: string, address: string) {
-  return { ok: true, success: true, accepted: true, approved: true, state: "approved", status: "approved", requestId, address, protocol: NANO_SIGNIN_PROTOCOL };
-}
+/**
+ * The HTTP status of the reply to an accepted answer, with no body. Berry Wallet shows its success screen for it; a
+ * 200 with a JSON body (whatever it said) showed "The website could not accept this sign-in request" (2026-10-17,
+ * the real app against nano133.com, one form per "Retry delivery").
+ */
+export const NANO_SIGNIN_ACCEPTED = 204;
 
 /** The JSON body of the reply (HTTP 401) to a refused answer: the words for the person. */
 export function nanoSigninRefusal(message: string) {
