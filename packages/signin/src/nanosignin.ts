@@ -138,12 +138,17 @@ export async function answerNanoSignin(o: NanoSigninOptions, id: string, body: R
   if (!SIGNATURE.test(signature)) throw new WalletRefused("The signature does not match this wallet.");
   const r = await o.store.get(id);
   if (!r || typeof r.nonce !== "string" || typeof r.issuedAt !== "number") throw new WalletRefused(`This sign-in is not known. ${again}`);
-  if (r.status !== "waiting") throw new WalletRefused(`This sign-in was already used. ${again}`);
+  // A wallet may send the same answer again (Berry Wallet sent it 3 times when it did not read our reply): the same
+  // account's valid answer to a request it already signed is answered as accepted again. It signs in no one new:
+  // the browser that started the request is signed in by its own check, once.
+  const repeat = r.status === "signedin" && r.account === address;
+  if (r.status !== "waiting" && !repeat) throw new WalletRefused(`This sign-in was already used. ${again}`);
   if (now > r.expiresAt) throw new WalletRefused(`This sign-in expired. ${again}`);
   const expected = nanoSigninMessage(nanoSigninRequest(o, { id, nonce: r.nonce, issuedAt: r.issuedAt, expiresAt: r.expiresAt }, requestUrl), address);
   if (body.message !== expected) throw new WalletRefused("The signed text is not this sign-in's.");
   const digest = new Uint8Array(createHash("sha256").update(expected, "utf8").digest());
   if (!verifyBytes(address, digest, signature)) throw new WalletRefused("The signature does not match this wallet.");
+  if (repeat) return address;
   if (!(await o.store.finish(id, address))) throw new WalletRefused(`This sign-in was already used. ${again}`);
   return address;
 }

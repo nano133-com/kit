@@ -93,7 +93,13 @@ test("a good answer signs in once; the starter's browser only", async () => {
   assert.equal(mine.account, me.address);
   assert.equal(mine.mine, true);
   assert.equal((await checkNanoSignin(o, s.id, "b".repeat(64))).mine, false, "another browser");
-  assert.match(await refusal(answerNanoSignin(o, s.id, answer(req), url)), /already used/, "the same answer again");
+  // The wallet may send its answer again: the same account's valid answer is accepted again and changes nothing.
+  assert.equal(await answerNanoSignin(o, s.id, answer(req), url), me.address, "the same answer again is accepted");
+  assert.equal((await checkNanoSignin(o, s.id, "a".repeat(64))).account, me.address, "and the request still names the same account");
+  const other = account("nanosignin other");
+  assert.match(await refusal(answerNanoSignin(o, s.id, answer(req, { priv: other.privateKey, address: other.address }), url)), /already used/, "another account's answer after it");
+  const forged = { ...answer(req), signature: answer(req, { priv: other.privateKey }).signature };
+  assert.match(await refusal(answerNanoSignin(o, s.id, forged, url)), /does not match/, "a repeat with a wrong signature");
   assert.equal(await readNanoSignin(o, s.id, url), null, "a used request is not served again");
   assert.deepEqual(nanoSigninReply(s.id, me.address), { ok: true, success: true, accepted: true, approved: true, state: "approved", status: "approved", requestId: s.id, address: me.address, protocol: "nano-signin-v1" });
   assert.deepEqual(nanoSigninRefusal("x"), { error: true, statusCode: 401, message: "x" });
