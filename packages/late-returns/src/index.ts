@@ -40,7 +40,22 @@ export type LateReturnOptions = {
    * Whether one of your open checkouts (including its grace period for late
    * payments) can still claim this payment. Return true to leave it alone.
    */
-  isClaimable: (p: { hash: string; amount: string; from: string; seenAt: number }) => Promise<boolean>;
+  isClaimable: (p: { hash: string; amount: string; from: string; seenAt: number; to: string }) => Promise<boolean>;
+  /**
+   * More receiving addresses to scan beside the wallet's own `signer.address`
+   * (for example one address per checkout). A list, or a function that returns
+   * the list for this run. Needs `signerFor`. Default: only `signer.address`.
+   * The limits (`perRun`, `perDay`, `perSenderPerDay`) count across ALL the
+   * addresses together, not per address. The wallet's own address is scanned
+   * first, then these in the order given.
+   */
+  addresses?: string[] | (() => string[] | Promise<string[]>);
+  /**
+   * The signer for one of the `addresses` (the package never sees a key).
+   * Called with the address that received the payment, once per return.
+   * Throw, or return null, for an address you can't sign for: its return waits.
+   */
+  signerFor?: (address: string) => Signer | null | Promise<Signer | null>;
   /** Senders whose payments never go back (your own wallets, an admin's top-ups). */
   never?: string[];
   /** The smallest payment that goes back, in raw. Default 10^27 (0.001 XNO). */
@@ -91,14 +106,24 @@ const defaults = (o: LateReturnOptions) => ({
       (await o.rpc<{ work: string }>({ action: "work_generate", hash: root, difficulty: kind === "send" ? SEND_DIFFICULTY : RECEIVE_DIFFICULTY }, 30_000)).work),
 });
 
-/** The wallet's waiting payments, and (optionally) its recent receives: hash → amount. */
-async function candidates(o: LateReturnOptions, minRaw: bigint) {
+/** The receiving addresses of a run: the wallet's own first, then `addresses` (no repeats). */
+async function receivers(o: LateReturnOptions): Promise<string[]> {
+  const out = [nanoPrefix(o.signer.address)];
+  if (!o.addresses) return out;
+  if (!o.signerFor) throw new Error("addresses needs signerFor");
+  const list = typeof o.addresses === "function" ? await o.addresses() : o.addresses;
+  for (const a of list) if (!out.includes(nanoPrefix(a))) out.push(nanoPrefix(a));
+  return out;
+}
+
+/** The waiting payments of one address, and (optionally) its recent receives: hash → amount. */
+async function candidates(o: LateReturnOptions, minRaw: bigint, address: string) {
   const out = new Map<string, string>();
-  const waiting = await o.rpc<{ blocks: Record<string, { amount: string }> | "" }>({ action: "receivable", account: o.signer.address, count: "50", threshold: minRaw.toString(), source: "true" });
+  const waiting = await o.rpc<{ blocks: Record<string, { amount: string }> | "" }>({ action: "receivable", account: address, count: "50", threshold: minRaw.toString(), source: "true" });
   for (const [hash, v] of Object.entries(waiting.blocks || {})) out.set(hash.toUpperCase(), v.amount);
   if (o.includeReceived) {
     type H = { subtype?: string; type?: string; amount?: string; link?: string };
-    const hist = await o.rpc<{ history: H[] | "" }>({ action: "account_history", account: o.signer.address, count: "50", raw: "true" }).catch(() => ({ history: "" as const }));
+    const hist = await o.rpc<{ history: H[] | "" }>({ action: "account_history", account: address, count: "50", raw: "true" }).catch(() => ({ history: "" as const }));
     for (const h of hist.history || []) {
       // In raw history, a receive's link is the send it received.
       if ((h.subtype ?? h.type) === "receive" && h.link && /^\d+$/.test(h.amount ?? "") && BigInt(h.amount!) >= minRaw) out.set(h.link.toUpperCase(), h.amount!);
@@ -110,25 +135,31 @@ async function candidates(o: LateReturnOptions, minRaw: bigint) {
 /** Finds late payments and records their returns (it sends nothing). Returns how many it recorded. */
 export async function findLateReturns(o: LateReturnOptions): Promise<number> {
   const d = defaults(o);
-  const never = new Set([o.signer.address, ...(o.never ?? [])].map(nanoPrefix));
+  const addresses = await receivers(o);
+  const never = new Set([...addresses, ...(o.never ?? [])].map(nanoPrefix));
   const day = { key: new Date(d.now).toISOString().slice(0, 10), max: d.perDay };
   const perSender = o.perSenderPerDay;
   if (perSender !== undefined && !o.store.senderLimit) throw new Error("perSenderPerDay needs a store with senderLimit (memoryStore and firestoreStore have it)");
   let made = 0;
-  for (const [hash, amount] of await candidates(o, d.minRaw)) {
-    if (made >= d.perRun) break;
-    if ((await o.store.get(hash)) || (await o.store.isUsed(hash))) continue;
-    const info = await o.rpc<BlockInfo>({ action: "block_info", hash, json_block: "true" }).catch(() => null);
-    if (!info || info.confirmed !== "true" || (info.subtype ?? info.contents.subtype) !== "send") continue;
-    if (nanoPrefix(info.contents.link_as_account ?? "") !== nanoPrefix(o.signer.address) || info.amount !== amount) continue;
-    const from = nanoPrefix(info.block_account);
-    if (never.has(from)) continue;
-    const seenAt = Number(info.local_timestamp ?? 0) * 1000;
-    if (!seenAt || d.now - seenAt < d.minAgeSec * 1000) continue;
-    if (await o.isClaimable({ hash, amount, from, seenAt })) continue;
-    const res = await o.store.record({ hash, amount, to: from, by: "auto" }, day, perSender === undefined ? undefined : { key: senderKey(day.key, from), max: perSender });
-    if (res === "limit") break;
-    if (res === "created") made++;
+  scan: for (const address of addresses) {
+    // The first address (the wallet's own) must answer; a failing extra address is skipped so it can't block the others.
+    const found = address === addresses[0] ? await candidates(o, d.minRaw, address) : await candidates(o, d.minRaw, address).catch(() => null);
+    if (!found) continue;
+    for (const [hash, amount] of found) {
+      if (made >= d.perRun) break scan;
+      if ((await o.store.get(hash)) || (await o.store.isUsed(hash))) continue;
+      const info = await o.rpc<BlockInfo>({ action: "block_info", hash, json_block: "true" }).catch(() => null);
+      if (!info || info.confirmed !== "true" || (info.subtype ?? info.contents.subtype) !== "send") continue;
+      if (nanoPrefix(info.contents.link_as_account ?? "") !== address || info.amount !== amount) continue;
+      const from = nanoPrefix(info.block_account);
+      if (never.has(from)) continue;
+      const seenAt = Number(info.local_timestamp ?? 0) * 1000;
+      if (!seenAt || d.now - seenAt < d.minAgeSec * 1000) continue;
+      if (await o.isClaimable({ hash, amount, from, seenAt, to: address })) continue;
+      const res = await o.store.record({ hash, amount, to: from, by: "auto" }, day, perSender === undefined ? undefined : { key: senderKey(day.key, from), max: perSender });
+      if (res === "limit") break scan;
+      if (res === "created") made++;
+    }
   }
   return made;
 }
@@ -152,14 +183,31 @@ export async function releaseKept(o: Pick<LateReturnOptions, "rpc" | "store">, h
   return o.store.release(H, nanoPrefix(info.block_account), by);
 }
 
+/**
+ * The signer for the address that received a payment. With no `addresses`
+ * it is `o.signer`. Otherwise the receiving address is read from your node
+ * (block_info), so a stored record needs no extra field: the wallet's own
+ * address uses `o.signer`, any other asks `signerFor`.
+ */
+async function signerOf(o: LateReturnOptions, hash: string): Promise<Signer> {
+  if (!o.addresses) return o.signer;
+  const info = await o.rpc<BlockInfo>({ action: "block_info", hash, json_block: "true" });
+  const to = nanoPrefix(info.contents.link_as_account ?? "");
+  if (to === nanoPrefix(o.signer.address)) return o.signer;
+  const s = await o.signerFor!(to);
+  if (!s || nanoPrefix(s.address) !== to) throw new Error("no signer for the receiving address");
+  return s;
+}
+
 /** Sends the pending returns back, each exactly once. Returns how many it sent. Needs the lock. */
 export async function settleReturns(o: LateReturnOptions, lock: ReturnType<ReturnStore["lock"]>): Promise<number> {
   const d = defaults(o);
-  const { rpc, signer } = o;
+  const { rpc } = o;
   let sent = 0;
   for (const job of await o.store.pending(d.perRun * 2)) {
     try {
       await lock.renew();
+      const signer = await signerOf(o, job.hash);
       type Info = { frontier?: string; balance?: string; representative?: string };
       const info: Info = await rpc<Info>({ action: "account_info", account: signer.address, representative: "true" }).catch((e: Error) =>
         /not found/i.test(e.message) ? ({} as Info) : Promise.reject(e),

@@ -143,6 +143,15 @@ grace.
 the owner's top-up address (ask the owner for it). The wallet's own address
 is always excluded.
 
+### Many receiving addresses (optional)
+
+Only when each checkout has its own derived address. Pass `addresses` (an
+array, or a function returning one) and `signerFor(address)` (returns the
+`Signer` for it, or null). `signer` stays the main wallet. The limits
+(`perRun`, `perDay`, `perSenderPerDay`) count across all addresses together.
+`isClaimable` gets `to`, the receiving address. Without `addresses` nothing
+changes.
+
 ## 8. Run it
 
 Call `runLateReturns(options)` every 5 minutes:

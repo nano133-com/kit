@@ -116,6 +116,32 @@ It goes back with the next run, exactly once. `firestoreStore` keeps each
 sender's daily count in a document `sender-<day>-<hash of the address>` with a
 `deleteAt` date: add a TTL policy on `deleteAt` for that collection.
 
+### More than one receiving address
+
+By default the package watches one address, the signer's. A site that gives
+each checkout its own derived address can give the package those addresses and
+a signer for each:
+
+```ts
+await runLateReturns({
+  /* … */
+  signer,                                         // the main wallet, scanned first
+  addresses: async () => await listSweepAddresses(), // or a plain array
+  signerFor: (address) => signerForDerivedAddress(address), // null: this return waits
+});
+```
+
+Each run scans `receivable` on the wallet's own address, then on every address
+in `addresses` (one call each; an extra address that fails to answer is
+skipped for that run). A payment is received and returned by the signer of the
+address that got it, which the package reads from your node. `isClaimable`
+also gets `to`, the address that received the payment.
+
+**The limits count across all the addresses together**: `perRun`, `perDay` and
+`perSenderPerDay` are totals, not per address. A run that reaches `perRun`
+stops scanning, so the addresses at the end of the list wait for a later run.
+Every address you list is also treated as a `never` sender.
+
 ### Your own database
 
 Implement `ReturnStore` (see `src/types.ts`). The one hard rule: `record()`

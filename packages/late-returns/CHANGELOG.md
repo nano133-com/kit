@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0
+
+- `addresses` and `signerFor(address)`: scan more receiving addresses than the
+  signer's own (for example one derived address per checkout), each received and
+  returned by its own signer. Without them nothing changes. The limits
+  (`perRun`, `perDay`, `perSenderPerDay`) count across all addresses together.
+  The wallet's own address is scanned first; a failing extra address is skipped
+  for that run; every listed address counts as a `never` sender.
+- `isClaimable` also receives `to`, the address that got the payment.
+
 ## 0.3.0
 
 - `perSenderPerDay` (off by default): at most that many returns per sender per
