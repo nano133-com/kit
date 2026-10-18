@@ -22,7 +22,7 @@ export function firestoreOnce(db: Firestore, collection: string): UseOnce {
 }
 
 /**
- * A RequestStore in Firestore: `collection/{key}` = { id, starter, status, label?, createdAt, expiresAt, deleteAt
+ * A RequestStore in Firestore: `collection/{key}` = { id, starter, status, label?, nonce?, issuedAt?, createdAt, expiresAt, deleteAt
  * (a day after expiresAt), and after the signature: account, signedAt }. `find` reads `where("id", "==", id)`:
  * Firestore's single-field index serves it.
  */
@@ -33,7 +33,16 @@ export function firestoreRequests(db: Firestore, collection: string): RequestSto
     // Not `instanceof Timestamp`: the site's copy of firebase-admin may not be this module's.
     if (!d || typeof d.expiresAt?.toMillis !== "function") return null;
     // A request made before ids were kept (key = id) has none on record.
-    return { id: d.id ?? key, starter: d.starter, status: d.status, expiresAt: d.expiresAt.toMillis(), ...(d.label !== undefined ? { label: d.label } : {}), ...(d.account !== undefined ? { account: d.account } : {}) };
+    return {
+      id: d.id ?? key,
+      starter: d.starter,
+      status: d.status,
+      expiresAt: d.expiresAt.toMillis(),
+      ...(d.label !== undefined ? { label: d.label } : {}),
+      ...(d.nonce !== undefined ? { nonce: d.nonce } : {}),
+      ...(d.issuedAt !== undefined ? { issuedAt: d.issuedAt } : {}),
+      ...(d.account !== undefined ? { account: d.account } : {}),
+    };
   };
   const get = async (key: string) => fromDoc((await col.doc(key).get()).data() as Doc | undefined, key);
   return {
@@ -43,6 +52,8 @@ export function firestoreRequests(db: Firestore, collection: string): RequestSto
         starter: r.starter,
         status: r.status,
         ...(r.label !== undefined ? { label: r.label } : {}),
+        ...(r.nonce !== undefined ? { nonce: r.nonce } : {}),
+        ...(r.issuedAt !== undefined ? { issuedAt: r.issuedAt } : {}),
         createdAt: FieldValue.serverTimestamp(),
         expiresAt: Timestamp.fromMillis(r.expiresAt),
         deleteAt: Timestamp.fromMillis(r.expiresAt + DAY),

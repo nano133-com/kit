@@ -12,10 +12,13 @@ Your server holds no key. nano133.com runs this package for its own sign-in.
 | **A key in the page** | Any wallet in the page that signs a message | `/purse` (browser), `checkSignatureSignin` |
 | **Nautilus** | The Nautilus app, by its `nanoauth:` request | `startNautilus`, `answerNautilus`, `checkNautilus` |
 | **NanChat** | The NanChat app, by its `nanauth` request | `startNanchat`, `answerNanchat`, `checkNanchat` |
+| **Berry Wallet** | Berry Wallet (or any wallet that reads the same request), by `nano-signin-v1` | `startNanoSignin`, `readNanoSignin`, `answerNanoSignin`, `checkNanoSignin` |
 
 Nautilus publishes no guide for its request: the format here was read in the
 app's source. NanChat's is on its developer page. Both have worked with the
-real apps on nano133.com.
+real apps on nano133.com. Berry Wallet's `nano-signin-v1` has no guide either:
+it was read from the real app against a test site, and the package's tests
+check the exact text the app signs.
 
 ## A passkey purse (browser)
 
@@ -83,12 +86,49 @@ if (r.status === "signedin" && r.mine) createYourSession(r.account!);
 - A wallet app's request can be sent to someone else: do not take such a
   sign-in as proof for an action that cannot be undone.
 
+## Berry Wallet (server)
+
+`nano-signin-v1`: the browser shows a link, the wallet reads the request from
+your route (GET) and posts its signature to the same route (POST).
+
+```ts
+import { answerNanoSignin, checkNanoSignin, nanoSigninRefusal, nanoSigninReply, readNanoSignin, startNanoSignin, WalletRefused } from "@nano133/signin";
+import { firestoreRequests } from "@nano133/signin/firestore";
+
+const berry = { domain: "example.com", uri: "https://example.com/", store: firestoreRequests(db, "signin_nano") };
+const requestUrl = (id: string) => `https://example.com/signin/nano/${id}`;
+
+// start (rate-limited): set the starter cookie, pass its sha256
+const s = await startNanoSignin(berry, { starter, requestUrl });
+// s.link: berrypay://signin?request_uri=… (a button on a phone, a QR code on a computer)
+// s.walletLink: nano://signin?request_uri=… (another wallet)
+
+// GET /signin/nano/:id (the wallet reads it; no cookies, no Origin)
+const request = await readNanoSignin(berry, id, requestUrl);
+request ? reply(200, request) : reply(404, nanoSigninRefusal("This sign-in expired."));
+
+// POST /signin/nano/:id (the wallet's signature)
+try { reply(200, nanoSigninReply(id, await answerNanoSignin(berry, id, body, requestUrl))); }
+catch (e) { if (e instanceof WalletRefused) reply(401, nanoSigninRefusal(e.message)); else throw e; }
+
+// the browser asks every 2 seconds
+const r = await checkNanoSignin(berry, id, starter);
+if (r.status === "signedin" && r.mine) createYourSession(r.account!);
+```
+
+- A request lives 5 minutes at most: Berry Wallet refuses a longer one.
+- The wallet signs the SHA-256 of an exact text (`nanoSigninMessage`) that
+  names your domain, the page, the nonce, the times and the request's id and
+  address. Any other text, another type of signature or a second answer is
+  refused.
+- Rate-limit the GET and POST by IP address: the wallet's own phone sends them.
+
 ## Sessions
 
 - At sign-in, create a new session id, and show "Signed in as nano_…"
   (required).
 - Refuse a sign-in call that another site sent (login CSRF): check that
-  `Origin` is exactly your site, except on the two routes the apps post to.
+  `Origin` is exactly your site, except on the routes the apps call.
 - Firestore rows carry `deleteAt`: set a TTL policy on each collection. Every
   row names its account, for a "delete my data".
 

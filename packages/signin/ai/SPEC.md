@@ -14,6 +14,7 @@ that can insert a row with a unique key and update a row in a transaction.
 | Any key the browser holds | a wallet in the page that signs a message | `@nano133/signin/purse` (or your own) | `checkSignatureSignin` |
 | Nautilus | the Nautilus app (its `nanoauth:` request) | a link or a QR code | `startNautilus`, `answerNautilus`, `checkNautilus` |
 | NanChat | the NanChat app (its `nanauth` request) | a link or a QR code | `startNanchat`, `answerNanchat`, `checkNanchat` |
+| Berry Wallet | Berry Wallet, or any wallet that reads `nano-signin-v1` | a link or a QR code | `startNanoSignin`, `readNanoSignin`, `answerNanoSignin`, `checkNanoSignin` |
 
 ## 0. Decide (ask)
 
@@ -39,7 +40,7 @@ npm install @nano133/signin
   exists. Firestore: `firestoreOnce(db, collection)` from
   `@nano133/signin/firestore`. Tests: `memoryOnce()` from
   `@nano133/signin/memory`.
-- **A request store** for Nautilus and NanChat (`RequestStore`): `create`,
+- **A request store** for Nautilus, NanChat and Berry Wallet (`RequestStore`): `create`,
   `get`, `find` (by the browser's id) and `finish` (waiting → signed,
   atomically; false when it was not waiting). Firestore:
   `firestoreRequests(db, collection)`, one collection for each app. Tests:
@@ -51,7 +52,7 @@ npm install @nano133/signin
 **Check:** the same once-only key twice: the second answers false; two
 `finish` calls at the same moment: one answers true.
 
-## 3. The starter cookie (Nautilus, NanChat)
+## 3. The starter cookie (Nautilus, NanChat, Berry Wallet)
 
 A wallet app answers on another device, so only the browser that started a
 request may be signed in by it. At each start, set an httpOnly, SameSite=Lax
@@ -137,14 +138,36 @@ site address or an old time is refused.
 Message: " + text)`) signs in once; a `ban_` account, another host or another
 nonce is refused.
 
+## 7b. Berry Wallet routes (`nano-signin-v1`)
+
+- `POST /signin/nano/start`: `startNanoSignin({ domain, uri, store },
+  { starter, requestUrl })` with `requestUrl = (id) =>
+  "https://<domain>/signin/nano/" + id` → `{ id, link, walletLink,
+  expiresAt }`. On a phone, show `link` as "Open Berry Wallet" and
+  `walletLink` as "Another wallet". On a computer, show `link` as a QR code.
+- `GET /signin/nano/:id` (the wallet reads it; no cookies, no Origin):
+  `readNanoSignin(options, id, requestUrl)` → HTTP 200 and the JSON, or 404
+  when it is null.
+- `POST /signin/nano/:id` (the wallet's signature): `answerNanoSignin(options,
+  id, body, requestUrl)`. Reply with HTTP 200 and `nanoSigninReply(id,
+  account)`, or HTTP 401 and `nanoSigninRefusal(error.message)` for a
+  `WalletRefused`.
+- `POST /signin/nano/check { id }`: `checkNanoSignin(options, id, starter)`.
+- **Required:** rate-limit the start, the GET, the POST and the check. A
+  request lives 5 minutes at most (Berry Wallet refuses more).
+
+**Check:** a signature made as Berry Wallet signs (Ed25519-BLAKE2b over the
+SHA-256 of `nanoSigninMessage(request, account)`) signs in once; another text,
+another `signatureType`, another `requestId` or an expired request is refused.
+
 ## 8. Sessions
 
 When you create a session: give it a new session id (never reuse one from
 before the sign-in), and show "Signed in as nano_…" with the account
 (required). Refuse a sign-in route call that another site sent (login CSRF):
 check that `Origin` is exactly your site, or `Sec-Fetch-Site` is
-`same-origin`, except on the two routes the apps post to. A sign-in from a
-wallet app's request (Nautilus, NanChat) can be approved by someone who was
+`same-origin`, except on the routes the apps call. A sign-in from a
+wallet app's request (Nautilus, NanChat, Berry Wallet) can be approved by someone who was
 sent the link: do not take it as proof for an action that cannot be undone
 (deleting an account); ask for a new signature from the browser instead.
 

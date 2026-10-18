@@ -1,7 +1,7 @@
 {
   "name": "@nano133/signin",
   "version": "0.3.0",
-  "description": "Sign in with Nano (XNO): a passkey purse, Nautilus or NanChat, or any wallet that signs. No payment, no password, no email.",
+  "description": "Sign in with Nano (XNO): a passkey purse, Berry Wallet, Nautilus or NanChat, or any wallet that signs. No payment, no password, no email.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -29,6 +29,10 @@
     "./nanchat": {
       "types": "./dist/nanchat.d.ts",
       "import": "./dist/nanchat.js"
+    },
+    "./nanosignin": {
+      "types": "./dist/nanosignin.d.ts",
+      "import": "./dist/nanosignin.js"
     },
     "./memory": {
       "types": "./dist/memory.d.ts",
@@ -94,6 +98,7 @@
     "passkey",
     "nautilus",
     "nanchat",
+    "berry wallet",
     "webauthn"
   ]
 }

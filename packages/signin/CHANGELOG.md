@@ -13,6 +13,12 @@ payment way left it.
   `nautilusReply`): its `nanoauth:` request, as read in the app's source.
 - **NanChat** (`startNanchat`, `answerNanchat`, `checkNanchat`,
   `nanchatReply`, `nanchatNonce`): its `nanauth` request.
+- **Berry Wallet** (`startNanoSignin`, `readNanoSignin`, `answerNanoSignin`,
+  `checkNanoSignin`, `nanoSigninMessage`, `nanoSigninReply`,
+  `nanoSigninRefusal`; `@nano133/signin/nanosignin`): its `nano-signin-v1`
+  request, read from the real app. A request lives 5 minutes at most. A
+  `WalletRequest` may carry `nonce` and `issuedAt`, and `firestoreRequests`
+  keeps them.
 - **A request store** for the apps (`RequestStore`; `memoryRequests`,
   `firestoreRequests`), and `WalletRefused` for refusals with words.
 - **The passkey purse** in the browser (`@nano133/signin/passkey`): the

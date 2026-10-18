@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 
-// A sign-in request that a wallet app answers (./nautilus, ./nanchat). The browser starts it, the app signs it and
+// A sign-in request that a wallet app answers (./nautilus, ./nanchat, ./nanosignin). The browser starts it, the app signs it and
 // posts the signature to the site's server, and the browser that started it asks until it is signed. Each request
 // takes one signature, for a few minutes, and only the browser that started it may be signed in by it.
 
@@ -15,6 +15,9 @@ export type WalletRequest = {
   expiresAt: number;
   /** Nautilus: the label the app shows and signs. */
   label?: string;
+  /** nano-signin-v1 (./nanosignin): the request's nonce, and when it was issued (ms). Both are in the signed text. */
+  nonce?: string;
+  issuedAt?: number;
   /** The account that signed, once it is signed. */
   account?: string;
 };

@@ -26,6 +26,11 @@ test("firestoreOnce and firestoreRequests", { skip }, async () => {
   const got = await s.get("key1");
   assert.equal(got?.expiresAt, expiresAt);
   assert.equal(got?.label, "L");
+  await s.create("key2", { id: "key2", starter: "ab", status: "waiting", expiresAt, nonce: "n1", issuedAt: 5 });
+  const berry = await s.get("key2");
+  assert.equal(berry?.nonce, "n1", "a nano-signin-v1 request keeps its nonce");
+  assert.equal(berry?.issuedAt, 5);
+  assert.equal(got?.nonce, undefined, "and a request without one has none");
   assert.equal((await s.find("id1-".padEnd(24, "x")))?.key, "key1");
   const [a, b] = await Promise.all([s.finish("key1", "nano_a"), s.finish("key1", "nano_b")]);
   assert.equal(Number(a) + Number(b), 1, "two answers at once: one wins");

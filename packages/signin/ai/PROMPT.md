@@ -2,7 +2,8 @@
 
 ```
 Add "Sign in with Nano" to this site: people sign in with a passkey purse, or
-with a Nano (XNO) wallet that signs (Nautilus, NanChat, or a key in the page).
+with a Nano (XNO) wallet that signs (Berry Wallet, Nautilus, NanChat, or a key
+in the page).
 No payment, no password, no email.
 Use the npm package @nano133/signin and follow its SPEC step by step:
 https://nano133.com/build/sign-in-with-nano/SPEC.md

@@ -5,6 +5,7 @@
 //   a passkey purse, or any key the browser holds   checkSignatureSignin   (./signature)
 //   Nautilus (its nanoauth request)                  start/answer/checkNautilus   (./nautilus)
 //   NanChat (its nanauth request)                    start/answer/checkNanchat    (./nanchat)
+//   Berry Wallet, any "nano-signin-v1" wallet        start/read/answer/checkNanoSignin   (./nanosignin)
 
 export * from "./verify.js";
 export { checkSignatureSignin, onceKey, SigninError, type SignatureOptions, type UseOnce } from "./signature.js";
@@ -12,3 +13,4 @@ export * from "./message.js";
 export * from "./requests.js";
 export * from "./nautilus.js";
 export * from "./nanchat.js";
+export * from "./nanosignin.js";
