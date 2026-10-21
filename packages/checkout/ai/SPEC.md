@@ -43,7 +43,7 @@ npm install @nano133/checkout
 npm install nanocurrency-web @noble/hashes   # way A only
 ```
 
-For late payments (step 9), also `npm install @nano133/late-returns` (0.4.0 or later).
+For late payments (step 10), also `npm install @nano133/late-returns` (0.4.0 or later).
 
 ## 2. The node
 
@@ -165,7 +165,13 @@ again on a second call. Way A: one raw short or one raw over is not paid, and th
 exact amount at another checkout's address is not paid. Way B: an older payment of
 the same amount does not pay it.
 
-## 8. The sweep (way A)
+## 8. Using the receipt
+
+On the page that shows the paid thing:
+`verifyReceipt(RECEIPT_SECRET, cookie, { item })` → show it, or show the
+checkout. Render paid content on the server only.
+
+## 9. The sweep (way A)
 
 A timer (a scheduler that calls a protected route, or a cron job) runs:
 
@@ -187,7 +193,7 @@ await sweepPaid({ rpc, store, secret, destination: MY_ADDRESS });   // MY_ADDRES
 **Check:** with the mock ledger, pay a checkout, claim it, run the sweep: the
 ledger shows one send of exactly the quote to `destination`. A second run sends nothing.
 
-## 9. Late payments
+## 10. Late payments
 
 A payment that matches nothing (a late one, or a wrong amount) stays in a wallet.
 Add Late Payment Return (`@nano133/late-returns` 0.4.0 or later) with the same
@@ -212,7 +218,7 @@ Add Late Payment Return (`@nano133/late-returns` 0.4.0 or later) with the same
 from its own address; the exact quote of a waiting checkout stays; the sweep's own send
 is not returned.
 
-## 10. Test before money
+## 11. Test before money
 
 1. `npm run example` (way B) and `npm run example:derived` (way A) in the package.
 2. A test in the site with `MockLedger` and `memoryStore()` (from the
