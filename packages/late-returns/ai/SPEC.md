@@ -12,8 +12,11 @@ Hono on Node) and any database that has transactions.
 The site must already:
 
 - take Nano payments into **its own wallet**, whose key the server holds;
-- give each checkout a **unique amount** (the price plus a small random tail
-  in raw), and match an incoming payment to a checkout by that amount;
+- tell checkouts apart, either by **an address for each checkout** (recommended:
+  `@nano133/checkout` 0.3.0 `createDerivedCheckout`, a clean amount at its own
+  address, see "Many receiving addresses" in step 7) or by **a unique amount**
+  (the price plus a small random tail in raw, one shared address: a wallet that
+  cuts or rounds the amount, Cake Wallet for one, can never match it);
 - record each claimed payment **by its send block hash**.
 
 If the site pays into a wallet the server has no key for (a phone wallet, an
@@ -149,8 +152,15 @@ Only when each checkout has its own derived address. Pass `addresses` (an
 array, or a function returning one) and `signerFor(address)` (returns the
 `Signer` for it, or null). `signer` stays the main wallet. The limits
 (`perRun`, `perDay`, `perSenderPerDay`) count across all addresses together.
-`isClaimable` gets `to`, the receiving address. Without `addresses` nothing
-changes.
+`isClaimable` gets `to`, the receiving address, and must answer by the address:
+true only for the exact quote of a waiting checkout at its own address, so any
+other amount there goes back in full. Without `addresses` nothing changes.
+
+With `@nano133/checkout` 0.3.0, `derivedReturns({ store, secret })` from
+`@nano133/checkout/derived` gives all three (`addresses`, `signerFor`,
+`isClaimable`): `...derivedReturns({ store, secret })` in the options. Use the
+same `payments` collection for the checkout store and for `used`, so a sweep's
+own send into your wallet is never returned.
 
 ## 8. Run it
 

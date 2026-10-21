@@ -22,19 +22,27 @@ export { signReceipt, verifyReceipt, type ReceiptClaims } from "./receipt.js";
 //    pays one checkout, once. When the node doesn't answer, it throws: nothing
 //    is credited.
 // 4. On success you get a signed receipt for a cookie or a restore link.
+//
+// The older way above has a limit: a wallet that cuts or rounds the amount can never be matched. Since 0.3.0 there is a
+// second way, one receiving address for each checkout and a clean amount: see "@nano133/checkout/derived" (derived.ts).
+// This file never imports it, so the older way keeps its zero runtime dependencies.
 
-export type CheckoutOptions = {
+/** What claimCheckout needs. A checkout of derived-address mode (createDerivedCheckout) is claimed with these alone. */
+export type ClaimOptions = {
   /** Calls your Nano node. Use your own node: its answers decide what you credit. */
   rpc: Rpc;
   store: CheckoutStore;
-  /** The address buyers pay. */
-  to: string;
   /** Signs receipts (HMAC-SHA256). Leave it out to skip receipts. Keep it secret. */
   receiptSecret?: string;
   /** How long a receipt is valid, in seconds. Default 30 days. */
   receiptTtlSec?: number;
   /** The current time, ms (tests). */
   now?: () => number;
+};
+
+export type CheckoutOptions = ClaimOptions & {
+  /** The address buyers pay. */
+  to: string;
   /** The tail for an amount, 1 to 999999 (tests). Default: random. */
   tail?: () => number;
 };
@@ -82,7 +90,7 @@ export async function createCheckout(o: CheckoutOptions, p: { item: string; pric
  * Checks a checkout's payment. `hash`: the block the browser saw (a stream or
  * the purse), or null to search. Throws when the node doesn't answer.
  */
-export async function claimCheckout(o: CheckoutOptions, id: string, hash: string | null): Promise<ClaimResult> {
+export async function claimCheckout(o: ClaimOptions, id: string, hash: string | null): Promise<ClaimResult> {
   const now = o.now?.() ?? Date.now();
   const c = await o.store.get(id);
   if (!c) return { state: "unknown" };

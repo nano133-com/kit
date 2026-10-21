@@ -15,8 +15,8 @@ Send Nano (XNO) payments that nothing claimed back to their sender, exactly once
 
 ## What it does
 
-A site that takes Nano gives each checkout a unique amount and matches the
-payment that arrives. Some payments match nothing: they arrive after the
+A site that takes Nano gives each checkout an address of its own (or a unique
+amount) and matches the payment that arrives. Some payments match nothing: they arrive after the
 checkout closed, or someone sends the wrong amount. Without this package
 that money stays in your wallet, and the buyer has to ask for it back.
 
@@ -136,6 +136,12 @@ in `addresses` (one call each; an extra address that fails to answer is
 skipped for that run). A payment is received and returned by the signer of the
 address that got it, which the package reads from your node. `isClaimable`
 also gets `to`, the address that received the payment.
+
+With [`@nano133/checkout`](../checkout) 0.3.0, `...derivedReturns({ store, secret })`
+(from `@nano133/checkout/derived`) gives `addresses`, `signerFor` and an
+`isClaimable` that answers by the address: only the exact quote of a waiting
+checkout at its own address stays, and any other amount goes back in full. Use
+the same `payments` collection for the checkout store and for `used`.
 
 **The limits count across all the addresses together**: `perRun`, `perDay` and
 `perSenderPerDay` are totals, not per address. A run that reaches `perRun`

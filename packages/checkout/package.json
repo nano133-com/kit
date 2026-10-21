@@ -1,7 +1,7 @@
 {
   "name": "@nano133/checkout",
-  "version": "0.2.1",
-  "description": "Take Nano (XNO) payments with unique amounts: create a checkout, check the payment on your own node, and give a signed receipt.",
+  "version": "0.3.0",
+  "description": "Take Nano (XNO) payments: an address for each checkout with a clean amount, or one address with unique amounts. Check the payment on your own node, sweep it on, and give a signed receipt.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,6 +17,10 @@
     "./firestore": {
       "types": "./dist/firestoreStore.d.ts",
       "import": "./dist/firestoreStore.js"
+    },
+    "./derived": {
+      "types": "./dist/derived.d.ts",
+      "import": "./dist/derived.js"
     }
   },
   "files": [
@@ -35,15 +39,33 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
     "example": "node --import tsx examples/mock-ledger-demo.ts",
+    "example:derived": "node --import tsx examples/derived-demo.ts",
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
-    "firebase-admin": ">=12"
+    "@noble/hashes": "^2.0.0",
+    "firebase-admin": ">=12",
+    "nanocurrency-web": "^2.0.0"
   },
   "peerDependenciesMeta": {
+    "@noble/hashes": {
+      "optional": true
+    },
     "firebase-admin": {
       "optional": true
+    },
+    "nanocurrency-web": {
+      "optional": true
     }
+  },
+  "devDependencies": {
+    "@noble/hashes": "^2.0.0",
+    "@types/node": "^26.6.3",
+    "blakejs": "^1.2.1",
+    "firebase-admin": "^14.5.0",
+    "nanocurrency-web": "^2.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "5.9"
   },
   "publishConfig": {
     "access": "public"

@@ -22,11 +22,17 @@ claimed to go back to their sender. Follow
 Use it when a site wants to take Nano (XNO) payments. Follow
 `packages/checkout/ai/SPEC.md` step by step.
 
-- Ask for the receiving address and the node. The server holds no key.
+- Recommend way A, an address for each checkout (a clean amount, an exact check,
+  a sweep to the owner's address). It puts a seed on the server: ask the owner
+  first, and keep the secret in their secret manager. Way B (one address, a unique
+  amount) needs no key but a wallet that rounds the amount can never pay it.
+- Way A: the sweep's `destination` is a fixed value in the code, never read from a
+  record. Never change the secret or the label after the first checkout.
+- Way B: ask for the receiving address and the node. The server holds no key.
 - Prices come from the server, never from the browser.
 - Rate-limit the checkout and claim routes per visitor.
 - Give the receipt only to the browser that started the checkout.
-- Never print, log or commit the receipt secret.
+- Never print, log or commit the receipt secret, the checkout secret or a key.
 
 ## Sign in with Nano (`@nano133/signin`)
 

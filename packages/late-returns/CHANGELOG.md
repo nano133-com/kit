@@ -9,6 +9,8 @@
   The wallet's own address is scanned first; a failing extra address is skipped
   for that run; every listed address counts as a `never` sender.
 - `isClaimable` also receives `to`, the address that got the payment.
+- README and SPEC: with `@nano133/checkout` 0.3.0, `derivedReturns()` feeds
+  `addresses`, `signerFor` and `isClaimable` for derived checkout addresses.
 
 ## 0.3.0
 
