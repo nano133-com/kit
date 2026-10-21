@@ -13,8 +13,9 @@ Follow the package's `ai/SPEC.md` step by step
 `node_modules/@nano133/late-returns/ai/SPEC.md` after install). Its steps:
 
 1. Confirm the site fits: it pays into a wallet whose key the server holds,
-   uses unique checkout amounts, and records claimed payments by block hash.
-   If not, stop and explain why.
+   tells checkouts apart by an address for each checkout (`@nano133/checkout`
+   0.3.0, `derivedReturns`) or by a unique amount, and records claimed payments
+   by block hash. If not, stop and explain why.
 2. Install the package.
 3. **Ask the user where the wallet seed lives.** Read it from a secret
    store. Never print, log or commit it, not even partly.
