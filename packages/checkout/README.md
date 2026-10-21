@@ -13,14 +13,29 @@ the money on to your wallet, and a signed receipt.
 > to your own address, so little money waits there, but anyone who gets the
 > secret can take what waits and can derive every address. Keep the secret in
 > your secret manager (never in code or in the database), use your own Nano
-> node, and test with a mock ledger or tiny amounts first. The older way
+> node, and test with a mock ledger or tiny amounts first. The keyless way
 > (one address, a unique amount) needs no key on your server, and it has a
-> limit that the section "The older way" explains. The software comes with no
+> limit that the section "The keyless way" explains. The software comes with no
 > warranty (MIT license).
+
+## Which way?
+
+Both ways are supported. Pick by what your server can do.
+
+| | An address for each checkout | The keyless way |
+|---|---|---|
+| Key on your server | Yes: one seed (a hot wallet) | None |
+| What it needs | A server that can sign and do proof of work (the sweep) | Only your address, so it runs in a Cloudflare Worker too |
+| A wallet that rounds the amount (Cake Wallet) | Pays | Cannot pay: the payment goes back |
+| Where the money lands | At the checkout's address, then your address after the sweep | In your wallet at once |
+| Pick it when | You have a server and want every wallet to work | You want the simplest set-up and no key |
+
+Both depend on your node: when it does not answer, nothing is credited. Use a
+node you trust, or two.
 
 ## Why an address for each checkout
 
-The older way gave every checkout the same address and told checkouts apart by a
+The keyless way gives every checkout the same address and tells checkouts apart by a
 unique amount: the price plus a tail in the last digits. A wallet that cuts or
 rounds the amount before it sends can never be matched. On nano133.com, Cake
 Wallet sent 0.0593 XNO for a quote of 0.059300000000000000000000801448 XNO, and
@@ -215,7 +230,7 @@ the send's hash used. `markPaid` must set `sweep.status` to `"due"` for a checko
 that has an `index`, and `claimable(amount, now)` must ignore such checkouts.
 `memoryStore` and `firestoreStore` do all of it.
 
-## The older way: one address and a unique amount
+## The keyless way: one address and a unique amount
 
 > [!NOTE]
 > **This way has a limit.** It tells checkouts apart by a tail in the last digits of
@@ -273,7 +288,7 @@ checkouts of this way only: a derived checkout is claimed by its own address.
 ```sh
 npm test                                          # the mock ledger
 FIRESTORE_EMULATOR_HOST=localhost:8080 npm test   # also the Firestore store, on an emulator
-npm run example                                   # the older way
+npm run example                                   # the keyless way
 npm run example:derived                           # an address for each checkout
 ```
 

@@ -10,13 +10,13 @@ needs `nanocurrency-web` and `@noble/hashes`. It works with any Node.js server
 
 Two ways to take a payment:
 
-- **Way A, an address for each checkout (recommended).** Each checkout gets its
+- **Way A, an address for each checkout (every wallet works; needs a server).** Each checkout gets its
   own receiving address, derived from one secret and an index. The amount is
   clean (the price rounded up to 0.0001 XNO, no tail) and the payment must be
   exactly that amount at exactly that address. A sweep moves each payment on to
   the owner's address. Any other amount goes back to its sender in full. **The
   server holds a seed**: a hot wallet.
-- **Way B, one address and a unique amount (the older way).** Every checkout pays
+- **Way B, keyless: one address and a unique amount.** Every checkout pays
   the owner's one address and gets the price plus a small random tail. The
   server holds no key. **Limit:** a wallet that cuts or rounds the amount before
   it sends (Cake Wallet cut 0.059300000000000000000000801448 XNO to 0.0593) makes
@@ -24,9 +24,12 @@ Two ways to take a payment:
 
 ## 0. What the owner decides (ask)
 
-1. **The way.** Explain the two ways above in two sentences. Recommend way A.
-   Ask: "Is it acceptable that the server holds a seed that can sign for the
-   checkout addresses?" If not, use way B and tell the owner its limit.
+1. **The way.** Explain the two ways above in two sentences. Recommend way A
+   when the owner has a server that can sign and do proof of work and wants every
+   wallet to work. Recommend way B when the owner has no such server (for example
+   a Cloudflare Worker) or wants no key at all. Ask: "Is it acceptable that the
+   server holds a seed that can sign for the checkout addresses?" If not, use
+   way B and tell the owner its limit.
 2. The owner's receiving address (`nano_…`). In way A it is the sweep's
    `destination`: a fixed value in the code. In way B it is `to`.
 3. The node: their own, or a public RPC they trust. Its answers decide what is

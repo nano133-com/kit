@@ -9,10 +9,12 @@ Follow the package's `ai/SPEC.md` step by step
 (https://nano133.com/build/nano-checkout/SPEC.md, or
 `node_modules/@nano133/checkout/ai/SPEC.md` after install).
 
-1. **Ask** which way. Recommend way A: an address for each checkout, a clean
-   amount and a sweep to the owner's address. It puts a seed on the server, so
-   ask whether that is acceptable. Way B (one address, a unique amount) needs no
-   key, but a wallet that cuts or rounds the amount (Cake Wallet) can never pay it.
+1. **Ask** which way. Way A: an address for each checkout, a clean amount and a
+   sweep to the owner's address. It puts a seed on the server, so ask whether
+   that is acceptable, and recommend it when the owner has a server. Way B, the
+   keyless way (one address, a unique amount), needs no key and fits a Worker or
+   a site with no server, but a wallet that cuts or rounds the amount (Cake
+   Wallet) can never pay it.
 2. **Ask** for the owner's receiving address (way A: the sweep's `destination`, fixed
    in code), the node, and what is sold at what price.
 3. Install `@nano133/checkout` (way A also `nanocurrency-web` and `@noble/hashes`);
