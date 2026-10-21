@@ -162,7 +162,7 @@ export async function sweepCheckout(o: SweepOptions, id: string): Promise<SweepO
     const intent: SweepIntent | null = state.send ?? null;
     if (intent) {
       // An earlier run made this send. Is it on the ledger?
-      if (await ours(intent.hash)) return finish(intent.hash);
+      if (await ours(intent.hash)) return await finish(intent.hash);
       const same = intent.root.toUpperCase() === frontier.toUpperCase();
       // Publish that same block again only if it is exactly this send: from this address, to this destination, the quote.
       const sound =
@@ -179,12 +179,12 @@ export async function sweepCheckout(o: SweepOptions, id: string): Promise<SweepO
           // The node already has it after all ("Old block"): check again.
           if (e instanceof SweepLeaseLost || !(await ours(intent.hash))) throw e;
         }
-        return finish(intent.hash);
+        return await finish(intent.hash);
       }
       // The frontier moved and the ledger doesn't know that hash. Before trusting that, look at what came right after
       // the recorded frontier: if it is a send of this amount to this address, it is ours.
       const found = await successorSend(o.rpc, signer.address, intent.root, o.destination, BigInt(intent.block.balance));
-      if (found) return finish(found);
+      if (found) return await finish(found);
       // Nothing of ours follows it: that block can never be valid (or it is not this send). Forget it and make a new one.
       await write({ send: null });
     }
@@ -197,7 +197,7 @@ export async function sweepCheckout(o: SweepOptions, id: string): Promise<SweepO
     await write({});
     const published = (await o.rpc<{ hash: string }>({ action: "process", json_block: "true", subtype: "send", block: sendBlock })).hash.toUpperCase();
     // The node took our signed block: its hash is the truth (ours should match).
-    return finish(published);
+    return await finish(published);
   } catch (e) {
     // Lost the lease: someone else works on it now, and every write here is refused. Any other failure is written down.
     if (!(e instanceof SweepLeaseLost)) {

@@ -471,3 +471,35 @@ test("the sweep's own send is a used payment: Late Payment Return never sends it
   assert.equal((await returns(new Set())).recorded, 1);
   assert.ok(sweepSend);
 });
+
+test("the sweep is done before it lets go of the lease, also with a slow store", async () => {
+  const { o, led, store, sweepOpts } = setup();
+  const c = await createDerivedCheckout(o, { item: "x", price });
+  await claimCheckout(o, c.id, led.pay(BUYER, c.to, BigInt(c.amount), 0));
+  // A store whose writes take time: the end of the sweep must wait for finishSweep, then release the lease.
+  const order: string[] = [];
+  const slow = {
+    ...store,
+    async finishSweep(...a: Parameters<typeof store.finishSweep>) {
+      await new Promise((r) => setTimeout(r, 25));
+      order.push("finish");
+      return store.finishSweep(...a);
+    },
+    async releaseSweep(...a: Parameters<typeof store.releaseSweep>) {
+      order.push("release");
+      return store.releaseSweep(...a);
+    },
+  };
+  assert.equal(await sweepCheckout(sweepOpts({ store: slow }), c.id), "swept");
+  assert.deepEqual(order, ["finish", "release"]);
+  assert.equal((await store.get(c.id))!.sweep?.status, "done");
+  // The same on a second path: a run that finds its send already on the ledger.
+  const d = await createDerivedCheckout(o, { item: "x", price });
+  await claimCheckout(o, d.id, led.pay(BUYER, d.to, BigInt(d.amount), 0));
+  led.faults.loseSendAnswer = true;
+  await assert.rejects(sweepCheckout(sweepOpts({ store: slow }), d.id), /timeout/);
+  order.length = 0;
+  assert.equal(await sweepCheckout(sweepOpts({ store: slow }), d.id), "swept");
+  assert.deepEqual(order, ["finish", "release"]);
+  assert.equal(led.sendsFrom(d.to, DEST).length, 1);
+});
