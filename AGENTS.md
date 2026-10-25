@@ -59,6 +59,20 @@ prize. Follow `packages/three/ai/SPEC.md` step by step.
 - Use one persistent store per prize wallet. Never clear an uncertain signing reservation to sign again.
 - Test with no real money first.
 
+## Nanoterra character for Three.js (`@nano133/character`)
+
+Use it when a Three.js game wants to show the same character that a player has on
+Nanoterra, coloured with the player's look. Follow `packages/character/ai/SPEC.md`
+step by step.
+
+- It draws a character only: no money, no sign-in, no server code.
+- Check every look with `isLook` before it reaches `createCharacter` or `setLook`.
+  A look is five `"#rrggbb"` colours, display only: never use it for a game's rules.
+- `dt` is in seconds. Call `update` once each frame with the game's own speed,
+  `airborne` and `verticalSpeed`. Add `c.shadow` to the scene; set its y to the ground.
+- Use `HEIGHT` and `RADIUS` for the collider. Call `dispose` when a character leaves.
+- Do not edit the geometry or the skeleton. The island's bone names are kept on purpose.
+
 ## Working in this repository
 
 - `npm test` runs every package's tests (mock ledger; no network, no money).

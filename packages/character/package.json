@@ -1,0 +1,36 @@
+{
+  "name": "@nano133/character",
+  "version": "0.1.0",
+  "description": "The Nanoterra island character for a plain Three.js game: the same toon body, ink outline and walk, coloured with the player's look.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+  },
+  "sideEffects": false,
+  "files": ["dist", "src", "README.md", "CHANGELOG.md", "LICENSE", "ai"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": { "three": "^0.186.0" },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "@types/three": "^0.186.0",
+    "three": "^0.186.0",
+    "tsx": "^4.23.15",
+    "typescript": "5.9"
+  },
+  "publishConfig": { "access": "public" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nano133-com/kit.git",
+    "directory": "packages/character"
+  },
+  "homepage": "https://nano133.com/build/nanoterra",
+  "license": "MIT",
+  "keywords": ["nano", "xno", "three", "three.js", "character", "avatar", "toon", "nanoterra"]
+}
