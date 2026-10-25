@@ -86,12 +86,24 @@ export function hashWithoutTicket(hash: string): string {
   return rest.length ? `#${rest.join("&")}` : "";
 }
 
-/** The public keys, as nano133.com publishes them (any origin may read them). `cache: "reload"` skips the browser's copy. */
-export async function fetchKeys(url: string = DEFAULT_KEYS_URL, fetcher: typeof fetch = fetch, cache: RequestCache = "default"): Promise<Keys> {
-  const r = await fetcher(url, { credentials: "omit", cache });
-  if (!r.ok) throw new Error(`keys answered ${r.status}`);
-  const j = (await r.json()) as Partial<Keys>;
-  if (!Array.isArray(j.keys)) throw new Error("keys: not a list");
+/** How long the page waits for the keys (milliseconds). A slow nano133.com must not hold a game's first screen. */
+export const KEYS_TIMEOUT_MS = 5000;
+
+/** The public keys, as nano133.com publishes them (any origin may read them). `cache: "reload"` skips the browser's copy. Rejects after KEYS_TIMEOUT_MS. */
+export async function fetchKeys(url: string = DEFAULT_KEYS_URL, fetcher: typeof fetch = fetch, cache: RequestCache = "default", timeoutMs: number = KEYS_TIMEOUT_MS): Promise<Keys> {
+  const stop = new AbortController();
+  const timer = setTimeout(() => stop.abort(), timeoutMs);
+  try {
+    const r = await fetcher(url, { credentials: "omit", cache, signal: stop.signal });
+    if (!r.ok) throw new Error(`keys answered ${r.status}`);
+    return readKeys(await r.json());
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function readKeys(j: Partial<Keys>): Keys {
+  if (!j || !Array.isArray(j.keys)) throw new Error("keys: not a list");
   return { keys: j.keys.filter((k): k is PublicKey => !!k && typeof k.kid === "string" && typeof k.x === "string") };
 }
 
@@ -143,13 +155,16 @@ export async function verifyTicket(token: string, o: VerifyOptions): Promise<Res
   if (typeof sub !== "string" || !ADDRESS.test(sub) || typeof name !== "string" || !name || name.length > 60 || typeof game !== "string" || typeof jti !== "string") return no("malformed");
   if (!l || typeof l !== "object" || !(["skin", "hair", "shirt", "pants", "shoes"] as const).every((p) => typeof l[p] === "string" && COLOUR.test(l[p] as string))) return no("malformed");
   if (!Array.isArray(items) || items.length > 64 || !items.every((i) => typeof i === "string" && i.length <= 48)) return no("malformed");
-  return { ok: true, ticket: { username: name, address: sub, look: l as Look, items: items as string[], game, audience: claims.aud as string, issuedAt: iat * 1000, expiresAt: exp * 1000, id: jti } };
+  const clean: Look = { skin: l.skin as string, hair: l.hair as string, shirt: l.shirt as string, pants: l.pants as string, shoes: l.shoes as string };
+  return { ok: true, ticket: { username: name, address: sub, look: clean, items: [...(items as string[])], game, audience: claims.aud as string, issuedAt: iat * 1000, expiresAt: exp * 1000, id: jti } };
 }
 
 export type ReadOptions = {
   /** Pin the keys (no fetch). Else they are read from `keysUrl` once, and again when a ticket names a key that is not in the list. */
   keys?: Keys;
   keysUrl?: string;
+  /** How long to wait for the keys (milliseconds): the default is KEYS_TIMEOUT_MS. */
+  keysTimeoutMs?: number;
   /** The origin to expect. Default: this page's own origin. */
   audience?: string;
   location?: Pick<Location, "hash" | "pathname" | "search" | "origin">;
@@ -182,7 +197,7 @@ export async function readTicket(o: ReadOptions = {}): Promise<Result> {
     if (o.keys) return o.keys;
     if (cached && !fresh) return cached;
     try {
-      cached = await fetchKeys(o.keysUrl, o.fetch, fresh ? "reload" : "default");
+      cached = await fetchKeys(o.keysUrl, o.fetch, fresh ? "reload" : "default", o.keysTimeoutMs);
       return cached;
     } catch {
       return null;

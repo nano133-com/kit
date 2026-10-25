@@ -31,7 +31,7 @@ if (result.ok) {
 2. **Takes the ticket out of the address bar** (`history.replaceState`), so a
    reload, a copied link, a screenshot or a bookmark never carries it.
 3. Reads the public keys from `https://nano133.com/api/nanoterra/keys` (once for
-   the session, and again if a ticket names a key it does not know).
+   the session, and again if a ticket names a key it does not know; it waits 5 seconds at most, then the player is a guest).
 4. Checks the signature, the kind, that the ticket is **for this origin** and that
    it has not run out. It never throws.
 
@@ -87,6 +87,7 @@ The character is the same one `@nano133/character` draws in Three.js.
 readTicket({
   keys, // pin the public keys: no fetch at all
   keysUrl, // another place for the keys (tests)
+  keysTimeoutMs, // how long to wait for the keys; default 5,000 (a slow nano133.com never holds your first screen)
   audience, // the origin to expect; default: this page's own
 });
 ```

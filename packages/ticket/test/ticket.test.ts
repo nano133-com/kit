@@ -186,6 +186,21 @@ describe("readTicket", () => {
     assert.deepEqual(none, []);
   });
 
+  it("fetchKeys gives up after its time limit, and readTicket then answers keys (a slow nano133.com never holds the page)", async () => {
+    const hangs = ((_u: string, i: RequestInit) => new Promise((_res, rej) => i.signal?.addEventListener("abort", () => rej(new DOMException("aborted", "AbortError"))))) as unknown as typeof fetch;
+    const t0 = Date.now();
+    await assert.rejects(fetchKeys(undefined, hangs, "default", 40));
+    assert.ok(Date.now() - t0 < 1000);
+    forgetKeys();
+    assert.deepEqual(await readTicket({ ...page(`#nanoterra=${PINNED.token}`), fetch: hangs, keysTimeoutMs: 40, now: NOW }), { ok: false, reason: "keys" });
+  });
+
+  it("a ticket gives a clean look: the five colours and nothing else", async () => {
+    const r = await check(await sign({ ...good, look: { ...LOOK, evil: "#000000", constructor: "x" } }));
+    assert.equal(r.ok, true);
+    if (r.ok) assert.deepEqual(Object.keys(r.ticket.look).sort(), ["hair", "pants", "shirt", "shoes", "skin"]);
+  });
+
   it("fetchKeys keeps only well-formed keys and sends no cookie", async () => {
     let init: RequestInit | undefined;
     const f = (async (_u: string, i: RequestInit) => {
