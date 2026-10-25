@@ -14,6 +14,7 @@ AI setup prompt and spec, and manual steps.
 | Nano for Three.js | [`@nano133/three`](packages/three) | [0.1.0](https://www.npmjs.com/package/@nano133/three) | Alpha |
 | Nanoterra character for Three.js | [`@nano133/character`](packages/character) | [0.1.0](https://www.npmjs.com/package/@nano133/character) | Pre-alpha |
 | Nanoterra sign-in ticket | [`@nano133/ticket`](packages/ticket): read and check a signed ticket in the browser, for a game on a static site | [0.1.0](https://www.npmjs.com/package/@nano133/ticket) | Pre-alpha |
+| Looks for a game | [`@nano133/looks`](packages/looks): the rules of `looks.json`, the price ladder and what a change does to players who own a look; the code behind the Shelf in the game starter's `/admin` | [0.1.0](https://www.npmjs.com/package/@nano133/looks) | Pre-alpha |
 | Nano Unlock for Next.js | [`nano133-com/nano-unlock-next`](https://github.com/nano133-com/nano-unlock-next): the package `@nano133/unlock` and a blog; runs on Vercel and on Cloudflare Workers (live demos: [Vercel](https://nano-unlock-next.vercel.app), [Cloudflare](https://nano-unlock-blog.nano133.workers.dev)) | [0.1.1](https://www.npmjs.com/package/@nano133/unlock) | Alpha |
 | Nano Unlock for WordPress | [`nano133-com/nano-unlock`](https://github.com/nano133-com/nano-unlock): a plugin | not an npm package | Alpha |
 
