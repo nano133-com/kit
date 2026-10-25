@@ -62,10 +62,18 @@ async function onLedger(rpc: Rpc, hash: string) {
   }
 }
 
-/** The send that followed `root` on the address's chain, if it went to `to` and left `balance`: an earlier run's send. */
+/**
+ * The send that followed `root` on the address's chain, if it went to `to` and left `balance`: an earlier run's send, found by what it did.
+ * It asks for the chain from `root` forward (`head` and `reverse`: the block itself, then the one built on it), so it does not matter how
+ * many blocks came after. When the node does not know `root` ("not found") there is no successor; any other error is thrown, so the
+ * checkout stays due and nothing is sent.
+ */
 async function successorSend(rpc: Rpc, account: string, root: string, to: string, balance: bigint): Promise<string | null> {
   type H = { hash: string; previous?: string; subtype?: string; type?: string; balance?: string; link?: string };
-  const hist = await rpc<{ history: H[] | "" }>({ action: "account_history", account, count: "50", raw: "true" });
+  const hist = await rpc<{ history: H[] | "" }>({ action: "account_history", account, count: "2", raw: "true", head: root, reverse: "true" }).catch((e) => {
+    if (notFound(e)) return { history: "" as const };
+    throw e;
+  });
   const next = (hist.history || []).find((h) => (h.previous ?? "").toUpperCase() === root.toUpperCase());
   if (!next || (next.subtype ?? next.type) !== "send") return null;
   return (next.link ?? "").toUpperCase() === nanoWeb.tools.addressToPublicKey(to).toUpperCase() && BigInt(next.balance ?? "-1") === balance ? next.hash.toUpperCase() : null;

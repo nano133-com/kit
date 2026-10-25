@@ -110,6 +110,71 @@ test("a recorded block that can never land (the frontier moved): a new one, once
   assert.notEqual(back(led)[0][0], old);
 });
 
+test("an earlier run's send is found by what it did, even when 55 blocks came after it", async () => {
+  // The recorded block never landed, but another block of the same send did (the same frontier, destination and amount, another
+  // representative, so another hash), and the wallet made 55 more blocks since: the newest 50 do not hold it.
+  const { led, store, opts } = await setup();
+  const late = led.pay(payer, wallet.address, 2n * XNO, 3 * 3600);
+  await runLateReturns({ ...opts, beforePublish: () => Promise.reject(new Error("crash")) });
+  const intent = (await store.get(late))!.send!;
+  assert.equal(back(led).length, 0);
+  const landed = await wallet.send({ frontier: intent.root, balance: BigInt(intent.block.balance) + 2n * XNO, representative: payer, to: payer, amount: 2n * XNO, work: "0" });
+  assert.notEqual(landed.hash.toUpperCase(), intent.hash);
+  await led.rpc({ action: "process", block: landed.block });
+  for (let i = 0; i < 55; i++) {
+    const acc = led.accounts.get(wallet.address)!;
+    const other = led.pay(admin, wallet.address, 1n, 99999);
+    const { block } = await wallet.receive({ frontier: acc.frontier, balance: acc.balance, representative: acc.rep, source: other, amount: 1n, work: "0" });
+    await led.rpc({ action: "process", block });
+  }
+  assert.ok([...led.blocks.values()].filter((b) => b.account === wallet.address).length > 56, "more than 50 blocks follow the send, so the newest 50 do not reach it");
+  await runLateReturns(opts);
+  assert.equal(back(led).length, 1, "no second send");
+  assert.equal(back(led)[0][0], landed.hash.toUpperCase());
+  assert.equal((await store.get(late))!.returnHash, landed.hash.toUpperCase());
+  assert.equal((await store.get(late))!.status, "returned");
+});
+
+test('"Block not found" when the chain is asked means no successor: a new block, once', async () => {
+  const { led, store, opts } = await setup();
+  const late = led.pay(payer, wallet.address, 2n * XNO, 3 * 3600);
+  await runLateReturns({ ...opts, beforePublish: () => Promise.reject(new Error("crash")) });
+  // Something else moves the wallet's frontier, so the recorded block cannot be published again and the chain must be asked.
+  const other = led.pay(admin, wallet.address, 1n * XNO, 99999);
+  const acc = led.accounts.get(wallet.address)!;
+  const { block } = await wallet.receive({ frontier: acc.frontier, balance: acc.balance, representative: acc.rep, source: other, amount: 1n * XNO, work: "0" });
+  await led.rpc({ action: "process", block });
+  const unknown: typeof opts.rpc = async (body) => {
+    if (body.action === "account_history") throw new Error("Block not found");
+    return opts.rpc(body);
+  };
+  await runLateReturns({ ...opts, rpc: unknown });
+  assert.equal(back(led).length, 1);
+  assert.equal((await store.get(late))!.status, "returned");
+});
+
+test('an error other than "not found" when the chain is asked: nothing is sent, and the return stays due', async () => {
+  const { led, store, opts } = await setup();
+  const late = led.pay(payer, wallet.address, 2n * XNO, 3 * 3600);
+  await runLateReturns({ ...opts, beforePublish: () => Promise.reject(new Error("crash")) });
+  // Something else moves the frontier, so the recorded block cannot be published again and the chain must be asked.
+  const other = led.pay(admin, wallet.address, 1n * XNO, 99999);
+  const acc = led.accounts.get(wallet.address)!;
+  const { block } = await wallet.receive({ frontier: acc.frontier, balance: acc.balance, representative: acc.rep, source: other, amount: 1n * XNO, work: "0" });
+  await led.rpc({ action: "process", block });
+  const down: typeof opts.rpc = async (body) => {
+    if (body.action === "account_history") throw new Error("the node is down");
+    return opts.rpc(body);
+  };
+  const r = await runLateReturns({ ...opts, rpc: down });
+  assert.equal(r.sent, 0);
+  assert.equal(back(led).length, 0, "nothing was sent");
+  assert.ok((await store.get(late))!.send, "the record stays");
+  assert.match(String((await store.get(late))!.error), /node is down/);
+  await runLateReturns(opts);
+  assert.equal(back(led).length, 1, "the next run, with the node back, sends once");
+});
+
 test("a payment the wallet already received is found in its history (includeReceived)", async () => {
   const { led, store, opts } = await setup({ includeReceived: true });
   const late = led.pay(payer, wallet.address, 2n * XNO, 3 * 3600);

@@ -1,6 +1,6 @@
 {
   "name": "@nano133/checkout",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Take Nano (XNO) payments: an address for each checkout with a clean amount, or one address with unique amounts. Check the payment on your own node, sweep it on, and give a signed receipt.",
   "type": "module",
   "main": "dist/index.js",

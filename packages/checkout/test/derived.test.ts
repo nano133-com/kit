@@ -296,6 +296,54 @@ test("a run that dies after it recorded the send publishes that same block once;
   assert.equal(led.sendsFrom(b.to, DEST).length, 1, "and the second run did not send again");
 });
 
+test("an earlier run's send is found by what it did, even when 55 blocks came after it", async () => {
+  // The recorded block never landed, but another block of the same send did (the same frontier, destination and amount, another
+  // representative, so another hash), and the address made 55 more blocks since: the newest 50 do not hold it.
+  const { o, led, store, sweepOpts } = setup();
+  const c = await createDerivedCheckout(o, { item: "x", price });
+  const Q = BigInt(c.amount);
+  await claimCheckout(o, c.id, led.pay(BUYER, c.to, Q, 0));
+  await assert.rejects(sweepCheckout(sweepOpts({ beforePublish: () => { throw new Error("the process stopped"); } }), c.id), /process stopped/);
+  const intent = (await store.get(c.id))!.sweep!.send!;
+  const signer = derivedSigner(SECRET, c.index!);
+  const landed = await signer.send({ frontier: intent.root, balance: BigInt(intent.block.balance) + Q, representative: THIEF, to: DEST, amount: Q, work: "0" });
+  assert.notEqual(landed.hash.toUpperCase(), intent.hash.toUpperCase());
+  await led.rpc({ action: "process", block: landed.block });
+  for (let i = 0; i < 55; i++) {
+    const acc = led.accounts.get(c.to)!;
+    const other = led.pay(BUYER, c.to, 1n, 0);
+    const { block } = await signer.receive({ frontier: acc.frontier, balance: acc.balance, representative: acc.rep, source: other, amount: 1n, work: "0" });
+    await led.rpc({ action: "process", block });
+  }
+  assert.ok(blocksOf(led, c.to).length > 56, "more than 50 blocks follow the send, so the newest 50 do not reach it");
+  assert.equal(await sweepCheckout(sweepOpts(), c.id), "swept");
+  assert.equal(led.sendsFrom(c.to, DEST).length, 1, "no second send");
+  assert.equal(led.sendsFrom(c.to, DEST)[0][0], landed.hash.toUpperCase());
+  assert.equal((await store.get(c.id))!.sweep?.hash, landed.hash.toUpperCase());
+});
+
+test("a recorded send whose frontier moved: \"not found\" for the chain means no successor, and another error leaves the sweep due", async () => {
+  const { o, led, store, sweepOpts } = setup();
+  const c = await createDerivedCheckout(o, { item: "x", price });
+  await claimCheckout(o, c.id, led.pay(BUYER, c.to, BigInt(c.amount), 0));
+  await assert.rejects(sweepCheckout(sweepOpts({ beforePublish: () => { throw new Error("the process stopped"); } }), c.id), /process stopped/);
+  // Something else moves the address's frontier, so the recorded block cannot be published again and the chain must be asked.
+  const signer = derivedSigner(SECRET, c.index!);
+  const acc = led.accounts.get(c.to)!;
+  const other = led.pay(BUYER, c.to, 1n, 0);
+  const { block } = await signer.receive({ frontier: acc.frontier, balance: acc.balance, representative: acc.rep, source: other, amount: 1n, work: "0" });
+  await led.rpc({ action: "process", block });
+  const failing = (message: string): typeof led.rpc => async (body) => {
+    if (body.action === "account_history") throw new Error(message);
+    return led.rpc(body);
+  };
+  await assert.rejects(sweepCheckout(sweepOpts({ rpc: failing("the node is down") }), c.id), /node is down/);
+  assert.equal(led.sendsFrom(c.to, DEST).length, 0, "nothing was sent");
+  assert.equal((await store.get(c.id))!.sweep?.status, "due");
+  assert.equal(await sweepCheckout(sweepOpts({ rpc: failing("Block not found") }), c.id), "swept", "no successor: a new block");
+  assert.equal(led.sendsFrom(c.to, DEST).length, 1);
+});
+
 test("the sweep refuses a block that is not a confirmed send of the quote to that address, and moves nothing", async () => {
   const { o, led, store, sweepOpts } = setup();
   const bad = async (make: (c: { to: string; amount: string }) => string, why: RegExp) => {

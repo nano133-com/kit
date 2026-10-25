@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.1
+
+- Fix: when a recorded send's frontier had moved, `sendOnce` looked for an earlier
+  run's send among the wallet's newest 50 blocks. A wallet that had made more than
+  50 blocks since could miss that send and send again. It now asks the chain
+  forward from the recorded block (`account_history` with `head`, `reverse` and
+  `count: "2"`), so it does not matter how many blocks came after. When the node
+  does not know the block ("not found") there is no successor; any other error
+  leaves the return pending and sends nothing.
+- `test/mockLedger.ts` answers `account_history` as a node does: the newest blocks
+  first, `count`, `head` ("Block not found" when the chain does not hold it) and
+  `reverse`.
+
 ## 0.4.0
 
 - `addresses` and `signerFor(address)`: scan more receiving addresses than the

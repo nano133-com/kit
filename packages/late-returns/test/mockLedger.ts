@@ -46,9 +46,19 @@ export class MockLedger {
       return { blocks: Object.keys(out).length ? out : "" } as T;
     }
     if (a === "account_history") {
-      const mine = [...this.blocks.entries()].filter(([, b]) => b.account === body.account);
-      if (!mine.length) throw new Error("Account not found");
-      return { history: mine.reverse().map(([hash, b]) => ({ hash, type: "state", subtype: b.subtype, previous: b.previous, link: b.link, balance: b.balance, amount: b.amount.toString() })) } as T;
+      // As a node answers: the newest blocks first and at most `count` of them; from `head` when it is given
+      // ("Block not found" when the account's chain does not hold it); `reverse` turns the walk toward the frontier.
+      const chain = [...this.blocks.entries()].filter(([, b]) => b.account === body.account); // the oldest first
+      if (!chain.length && !body.head) throw new Error("Account not found");
+      let from = chain.length - 1;
+      if (body.head) {
+        from = chain.findIndex(([h]) => h === String(body.head).toUpperCase());
+        if (from < 0) throw new Error("Block not found");
+      }
+      const reverse = body.reverse === true || body.reverse === "true";
+      const walk = reverse ? chain.slice(from) : chain.slice(0, from + 1).reverse();
+      const count = body.count === undefined ? walk.length : Number(body.count);
+      return { history: walk.slice(0, count).map(([hash, b]) => ({ hash, type: "state", subtype: b.subtype, previous: b.previous, link: b.link, balance: b.balance, amount: b.amount.toString() })) } as T;
     }
     if (a === "block_info") {
       const H = String(body.hash).toUpperCase();

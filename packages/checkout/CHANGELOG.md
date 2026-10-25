@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.1
+
+- Fix: when a recorded sweep's frontier had moved, `sweepCheckout` looked for an
+  earlier run's send among the address's newest 50 blocks. An address that had
+  made more than 50 blocks since could miss that send and send again. It now asks
+  the chain forward from the recorded block (`account_history` with `head`,
+  `reverse` and `count: "2"`), so it does not matter how many blocks came after.
+  When the node does not know the block ("not found") there is no successor; any
+  other error leaves the checkout due and sends nothing.
+- The test ledger answers `account_history` as a node does (newest first, `count`,
+  `head`, `reverse`).
+
 ## 0.3.0
 
 An address for each checkout. Everything is additive: the unique-amount way
