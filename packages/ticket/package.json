@@ -1,0 +1,33 @@
+{
+  "name": "@nano133/ticket",
+  "version": "0.1.0",
+  "description": "Read and check a Nanoterra sign-in ticket in the player's browser: for a game on a static site. The player's name, address and character; no server, no secret.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+  },
+  "sideEffects": false,
+  "files": ["dist", "src", "README.md", "CHANGELOG.md", "LICENSE", "ai"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "tsx": "^4.23.15",
+    "typescript": "5.9"
+  },
+  "publishConfig": { "access": "public" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nano133-com/kit.git",
+    "directory": "packages/ticket"
+  },
+  "homepage": "https://nano133.com/build/nanoterra",
+  "license": "MIT",
+  "keywords": ["nano", "xno", "nanoterra", "sign in", "ticket", "ed25519", "static site"]
+}

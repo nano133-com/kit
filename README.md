@@ -13,6 +13,7 @@ AI setup prompt and spec, and manual steps.
 | Sign in with Nano | [`@nano133/signin`](packages/signin) | [0.3.0](https://www.npmjs.com/package/@nano133/signin) | Alpha |
 | Nano for Three.js | [`@nano133/three`](packages/three) | [0.1.0](https://www.npmjs.com/package/@nano133/three) | Alpha |
 | Nanoterra character for Three.js | [`@nano133/character`](packages/character) | not on npm yet | Pre-alpha |
+| Nanoterra sign-in ticket | [`@nano133/ticket`](packages/ticket): read and check a signed ticket in the browser, for a game on a static site | not on npm yet | Pre-alpha |
 | Nano Unlock for Next.js | [`nano133-com/nano-unlock-next`](https://github.com/nano133-com/nano-unlock-next): the package `@nano133/unlock` and a blog; runs on Vercel and on Cloudflare Workers (live demos: [Vercel](https://nano-unlock-next.vercel.app), [Cloudflare](https://nano-unlock-blog.nano133.workers.dev)) | [0.1.1](https://www.npmjs.com/package/@nano133/unlock) | Alpha |
 | Nano Unlock for WordPress | [`nano133-com/nano-unlock`](https://github.com/nano133-com/nano-unlock): a plugin | not an npm package | Alpha |
 

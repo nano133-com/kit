@@ -34,6 +34,16 @@ Use it when a site wants to take Nano (XNO) payments. Follow
 - Give the receipt only to the browser that started the checkout.
 - Never print, log or commit the receipt secret, the checkout secret or a key.
 
+## Nanoterra sign-in ticket (`@nano133/ticket`)
+
+Use it when a game on a **static site** (no server of its own) wants players who press
+Play in Nanoterra to arrive signed in. Follow `packages/ticket/ai/SPEC.md` step by step.
+
+- A game with a server uses the code exchange, not this.
+- A ticket proves nothing to a server: never give a sale, a prize or a score on it.
+- Ask "Sign in as <name>? Continue / Not me" before treating the player as that name.
+- Show the name as text, never as HTML.
+
 ## Sign in with Nano (`@nano133/signin`)
 
 Use it when a site wants Nano (XNO) sign-in: a passkey purse, Nautilus,
