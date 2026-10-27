@@ -34,16 +34,6 @@ Use it when a site wants to take Nano (XNO) payments. Follow
 - Give the receipt only to the browser that started the checkout.
 - Never print, log or commit the receipt secret, the checkout secret or a key.
 
-## Nanoterra sign-in ticket (`@nano133/ticket`)
-
-Use it when a game on a **static site** (no server of its own) wants players who press
-Play in Nanoterra to arrive signed in. Follow `packages/ticket/ai/SPEC.md` step by step.
-
-- A game with a server uses the code exchange, not this.
-- A ticket proves nothing to a server: never give a sale, a prize or a score on it.
-- Ask "Sign in as <name>? Continue / Not me" before treating the player as that name.
-- Show the name as text, never as HTML.
-
 ## Sign in with Nano (`@nano133/signin`)
 
 Use it when a site wants Nano (XNO) sign-in: a passkey purse, Nautilus,
@@ -69,19 +59,31 @@ prize. Follow `packages/three/ai/SPEC.md` step by step.
 - Use one persistent store per prize wallet. Never clear an uncertain signing reservation to sign again.
 - Test with no real money first.
 
-## Nanoterra character for Three.js (`@nano133/character`)
+## Nanoterra for a game (`@nano133/nanoterra`)
 
-Use it when a Three.js game wants to show the same character that a player has on
-Nanoterra, coloured with the player's look. Follow `packages/character/ai/SPEC.md`
-step by step.
+Use it when a game wants the player's Nanoterra identity: a sign-in ticket (a game on a
+**static site**), the player's character in a Three.js scene, or the looks ladder for a game
+that sells looks. One package, three paths: `/ticket`, `/character` (and `/character/record`
+with no Three.js) and `/looks`. Follow `packages/nanoterra/ai/SPEC.md` step by step.
 
-- It draws a character only: no money, no sign-in, no server code.
-- Check every look with `isLook` before it reaches `createCharacter` or `setLook`.
-  A look is five `"#rrggbb"` colours, display only: never use it for a game's rules.
-- `dt` is in seconds. Call `update` once each frame with the game's own speed,
-  `airborne` and `verticalSpeed`. Add `c.shadow` to the scene; set its y to the ground.
-- Use `HEIGHT` and `RADIUS` for the collider. Call `dispose` when a character leaves.
-- Do not edit the geometry or the skeleton. The island's bone names are kept on purpose.
+- **The ticket** (`/ticket`): a game with a server uses the code exchange, not this. A ticket
+  proves nothing to a server: never give a sale, a prize or a score on it. Ask "Sign in as
+  <name>? Continue / Not me" before treating the player as that name. Show the name as text,
+  never as HTML.
+- **The character** (`/character`): it draws a character only: no money, no sign-in, no server
+  code. A character is a record of whole numbers on closed lists (`/character/record`); check
+  every record with `recordProblem` and every five-colour look with `isLook` before it reaches
+  `createCharacter` or `setLook`. It is display only: never use it for a game's rules, and give
+  every base and size the same collider, jump and reach.
+- `dt` is in seconds. Call `update` once each frame with the game's own speed, `airborne` and
+  `verticalSpeed`. The shadow is in the body: add `c.object` to the scene and nothing else.
+- Use `HEIGHT` and `RADIUS` (the Classic's) for the collider. Call `dispose` when a character
+  leaves. Do not edit the geometry or the skeleton. The island's bone names are kept on purpose.
+- Keep the choice between the Nanoterra character and the game's own in ONE place (the game
+  starter: `"character"` in `game.config.json`).
+- **The looks** (`/looks`): the game is the seller. A look only changes how the character
+  looks: never a score, a speed or a rule, never random. Keep one free look. Never change or
+  remove the id of a look that someone owns. Never send looks, prices or sales to another site.
 
 ## Working in this repository
 

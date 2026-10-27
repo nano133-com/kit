@@ -1,0 +1,362 @@
+# @nano133/nanoterra
+
+Stage: Pre-alpha. What this means: https://nano133.com/stages
+
+Nanoterra for your game, in **one package**. [Nanoterra](https://nano133.com/build/nanoterra) is
+nano133.com's island. A player who is signed in there presses Play, and arrives at your game as
+themselves. This package gives your game three things:
+
+- **The sign-in ticket** (`/ticket`): the player's name, Nano address and character, read in the browser. No server, no secret.
+- **The player's character** (`/character`): the same toon body that the player has on the island, drawn with Three.js. Six bases, faces, hair, clothes, sizes and colours.
+- **The looks ladder** (`/looks`): the rules of `looks.json`, the price steps, and what a change does to the players who own a look.
+
+It replaces `@nano133/character` 0.1.0, `@nano133/ticket` 0.1.0 and `@nano133/looks` 0.1.0
+(see "Moving from the three old packages"). Sign-in, checkout and late returns stay in their own packages
+([`@nano133/signin`](../signin), [`@nano133/checkout`](../checkout), [`@nano133/late-returns`](../late-returns)).
+
+nano133.com's island and its 3D room draw the player with **this same code**: the geometry, the skeleton, the colours and the record
+are one source. A game made with this package shows the character exactly as the island does.
+
+Pre-alpha means: the shape of the API may still change, and the character has not been run on a real phone yet.
+
+## Install
+
+```sh
+npm install @nano133/nanoterra three
+```
+
+`three` is an **optional** peer dependency (`>=0.174.0`). A game that only reads a ticket does not need it.
+
+## Quick start
+
+A page with a Three.js scene. The player arrives from Nanoterra, signed in; any other visitor is a guest.
+
+```ts
+import { readTicket } from "@nano133/nanoterra/ticket";
+import { createCharacter } from "@nano133/nanoterra/character";
+
+const result = await readTicket(); // the ticket in the address, checked; { ok: false } is a guest (ask "Sign in as <name>? Continue / Not me" first)
+const hero = createCharacter(result.ok ? { record: result.ticket.record, look: result.ticket.look } : {}); // their character, or the island's first look
+scene.add(hero.object); // feet at y = 0, facing +Z, about 2.29 m tall; move it with position and rotation.y
+renderer.setAnimationLoop(() => {
+  hero.update(clock.getDelta(), { speed: 3.75 }); // idle, walk (3.75 m/s), run (6.5), jump: your numbers; dt in seconds
+  renderer.render(scene, camera);
+});
+```
+
+That is the whole of it. Add `hero.wave()`, `hero.setLook(next)` and `hero.dispose()` as the game needs them.
+
+**The one switch.** The [game starter](https://github.com/nano133-com/nano-game-starter) keeps one switch in one file:
+`game.config.json` says `"character": "nanoterra"` (the player is their Nanoterra character: the default) or `"own"` (the game's own
+character). Nothing else reads it. If you do not use the starter, make your own switch where it suits your game.
+
+## The paths
+
+Each path loads only what it needs. A page that reads a ticket loads no Three.js.
+
+| Path | What it is | Loads Three.js | Size (minified, gzip) |
+|---|---|---|---|
+| `@nano133/nanoterra` | the types `Look` and `LookRecord`, and nothing that runs | no | 0 |
+| `@nano133/nanoterra/character/record` | the character's **record**: pack, unpack, check, `fromLegacy`, `toLegacy`, `diceRecord`, the lists | no | 4.4 kB (all), 1.9 kB (pack, unpack and the two legacy calls) |
+| `@nano133/nanoterra/ticket` | read and check a sign-in ticket | no | 4.7 kB (all), 3.1 kB (`readTicket` alone) |
+| `@nano133/nanoterra/looks` | the looks ladder | no | 1.9 kB (all), 0.9 kB (`checkLooks` alone) |
+| `@nano133/nanoterra/character` | the builder and `createCharacter` (it includes the record) | yes | 20.4 kB (all), 17.8 kB (`createCharacter` alone) |
+
+Measured 2026-10-26: `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
+All four paths together: 23.6 kB. A test of the package proves that the record, the ticket, the looks and the small part import no package at all.
+
+## The character
+
+```ts
+import { createCharacter, HEIGHT, RADIUS } from "@nano133/nanoterra/character";
+
+const c = createCharacter({ record, quality: "high" });
+scene.add(c.object);
+c.update(dt, { speed, airborne, verticalSpeed });
+c.wave();
+c.setLook(otherRecord); // or five colours
+c.setColors({ shirt: "#c8461a" }); // any colour, over the record's
+c.dispose();
+```
+
+| Call | What it does |
+|---|---|
+| `createCharacter({ record?, look?, colors?, quality?, reducedMotion? })` | Builds a character. `record` is the player's whole character (see "The record"). `look` is the five colours `{ skin, hair, shirt, pants, shoes }` of a player whose ticket has no record: the Classic body in those colours (read only when `record` is left out). Neither: the island's first look. `colors` paints colours over the record's (any `"#rrggbb"`: a shop dye is not on the island's lists). `quality` is `"high"` (default) or `"low"`. Something that is not good throws a `TypeError` that names the part and the value. |
+| `c.object` | A `THREE.Group`: feet at y = 0, facing +Z. Add it to your scene; move it with `position`, turn it with `rotation.y`. It holds the skinned meshes **and the blob shadow** (a disc in the body). |
+| `c.update(dt, { speed, airborne, verticalSpeed })` | One frame. `dt` is in **seconds** (a frame longer than 0.05 s counts as 0.05 s). Idle, walk, run and jump come from your numbers. Every field is optional. See "Motion". |
+| `c.wave()` | Waves the left arm for 1.8 s (`WAVE_SECONDS`), as the island does. |
+| `c.setLook(next)` | `next` is a record or five colours. A record with the same body only repaints; another base, hair, face or clothes builds new geometry (the old is freed) and the walk carries on. Five colours go into the record that is there (its base, face and clothes stay). A bad value throws and changes nothing. |
+| `c.setColors(colors \| null)` | Paints these colours over the record's; `null` gives the record's own back. No new geometry. |
+| `c.record`, `c.look` | The record now (a frozen copy), and its five colours (the older view). |
+| `c.reducedMotion` | A boolean you may change: true turns off the swing of the arms and legs and the bob, and makes the wave still. Set it from `prefers-reduced-motion`. |
+| `c.dispose()` | Frees the geometries, materials and textures that the character made. The other calls do nothing after it. |
+
+Also exported from `/character`: `HEIGHT`, `RADIUS`, `WAVE_SECONDS`, `buildCharacter` and `assemble` (the pieces `createCharacter` uses: the geometry, the skinned meshes on the island's 28-bone skeleton), `BASE_IDS`, the lists, and everything of `/character/record`.
+
+### Motion
+
+`speed` is the speed over the ground in metres a second (not a velocity: the direction is `object.rotation.y`, which you set). It is eased, as on the island.
+
+| `speed` | What shows |
+|---|---|
+| 0 to 0.25 | Idle: arms 0.2 rad out, elbows a little bent. |
+| 0.25 and more | A walk: legs and arms swing against each other, the hips bob and lean. The swing is full at 3 m/s. The island walks at 3.75 m/s. |
+| 3.4 to 5 | The walk blends into a run: more swing, more bend at the elbows, more lean. The island runs at 6.5 m/s. |
+| 9 and more | The same as 9. |
+
+`airborne: true` shows the jump pose at once, whatever the speed: arms out, legs apart. `verticalSpeed` (metres a second, up is positive)
+sizes the shadow: it adds up while the character is airborne to an estimate of the height over the take-off place. The shadow disc stays on the
+ground (it moves down as the body rises, in the character's own space) and shrinks to 0.55 of its size, as on the island. A character made
+smaller or larger by `object.scale` should be given `speed / scale` and `verticalSpeed / scale`. A base with a tail, wings or long hair moves them too.
+
+### The record
+
+A record is the whole character as whole numbers, each an index into a **closed list**. There is no free text, no URL and no colour string,
+so there is nothing to moderate and nothing to inject.
+
+| Field | What it picks |
+|---|---|
+| `base` | one of six: `classic`, `round`, `critter`, `bee`, `robot`, `pineapple` |
+| `skin`, `hair`, `shirt`, `pants`, `shoeColor`, `trim`, `visor` | a colour from that part's list (the body's list depends on the base) |
+| `hairStyle`, `face`, `brows`, `blush`, `freckles`, `glasses` | the head |
+| `top`, `bottom`, `shoes`, `pattern` | the clothes (a base with its own body, such as the Bee, wears none) |
+| `height`, `build`, `head` | the sizes (a scale; the build and the head size change the shape) |
+
+It packs into **two whole numbers** (`packRecord`: 28 and 30 bits) for a wire, a ticket or a database; `unpackRecord(a, b)` gives the record back, or
+`null` when a number is not whole, is out of its bits or is off a list. `recordProblem(x)` says in one sentence what is wrong with a record,
+`clean(x)` puts a wrong field back to its default, and `diceRecord(rand)` makes a random one. A record of zeros is the island's first avatar.
+
+```ts
+import { fromLegacy, toLegacy, packRecord, unpackRecord, diceRecord, baseRecord } from "@nano133/nanoterra/character/record";
+
+const rec = fromLegacy(ticket.look); // five colours (a ticket from before the record) to a record: a Classic in those colours
+toLegacy(rec); // the record's five colours again: every one of the 8,192 old looks comes back whole (a test holds it)
+const [a, b] = packRecord(rec); // two numbers
+unpackRecord(a, b); // the record, or null
+```
+
+The five colours, `Look`, are `{ skin, hair, shirt, pants, shoes }`, each `"#rrggbb"`. `LOOK_PARTS` lists the colours the island offers
+(8 skins, 8 hairs, 8 shirts, 4 pants, 4 shoes), `defaultLook()` is what a new player starts with, and `isLook(x)`, `lookProblem(x)` and `assertLook(x)` check one.
+
+### Units, size and the collider
+
+The model is built in metres, at the size of the island's avatar.
+
+| | |
+|---|---|
+| `HEIGHT` = 2.29 m | From the soles (they dip 0.008 m under y = 0) to the top of the hair, for the default Classic at its normal size. Another base, hair or size is not this tall: measure with `new THREE.Box3().setFromObject(c.object)`. |
+| `RADIUS` = 0.49 m | The Classic's trunk: the widest part of the body without the arms. Use it as the radius of a cylinder or capsule collider. |
+| Facing | +Z. `object.rotation.y = Math.atan2(dx, dz)` turns it to walk along (dx, dz). |
+| Its left | +X (the character's own left hand is at +X). |
+
+The body is **display only**. A game decides its own collider, jump and reach: use the same numbers for every base and size, so that
+a player's choice of body never changes a rule. nano133.com's island and room do the same. A size changes a scale of the drawing (`height`) and nothing else.
+
+### Draws, quality, speed and size
+
+| | `quality: "high"` | `quality: "low"` |
+|---|---|---|
+| Draws | 2 (toon body with its shadow disc, ink outline) | 1 (toon body with its shadow disc) |
+| What it costs | | No outline: the character reads flatter against a background of its own colours. |
+| What it saves | | One draw and the skinned ink vertices each frame. |
+
+`"low"` keeps every shape and colour: only the ink pass goes. Choose it for slow phones. It is fixed when the character is made.
+
+- Each character builds its own geometry. A scene with many characters of the same look should share it; this package does not yet.
+- The meshes are not frustum-culled by their bones (they move every frame): the package gives each a fixed bound. Set `c.object.visible = false` for a character that is far from the camera or off screen.
+- The ink line is a second draw of the same skinned mesh, with its back faces, pushed out along its normal in screen space, so it keeps one width in pixels (2.6). Use `WebGLRenderer`: the ink is a GLSL `ShaderMaterial`.
+- Frame rate has not been measured on a real phone by this package. nano133.com's island draws a room of twelve of these characters at 60 frames a second on a throttled phone profile.
+
+## Worn items (the next version)
+
+**Version 0.1.0 draws the body only**, as `@nano133/character` 0.1.0 did. The island's 14 shop items (hats, scarves, packs, tops, a buddy, a blade) are
+fitted to every base by nano133.com's own code, and are not in this package yet. The builder takes them through **one small interface**,
+`WornAdapter` (what it needs of a worn thing: its shapes and bones through `add(ctx)`, what it does to the hair, `hidesBadge`, `hideTail`), so a game
+may bring its own, and the island brings its adapter the same way.
+
+A player's item ids come in the sign-in answer (`ticket.items` here, `character.items` in the code exchange). A later version (0.2.0) adds the item art so
+that a game can draw them with one call. Until then a game may ignore the ids or draw its own things.
+
+## The sign-in ticket
+
+`@nano133/nanoterra/ticket` reads and checks a sign-in ticket in the player's browser. It is for a game on a **static site**: no server, no secret.
+A player who is signed in at nano133.com presses Play in Nanoterra, agrees once on a card, and arrives at your game with a signed ticket after
+the `#` of its address. This package checks the ticket and gives you the player's **username**, **Nano address** and **character** (the five colours,
+the whole record, and the cosmetics the player owns).
+
+If your game has a server, use the code exchange instead (the [game starter](https://github.com/nano133-com/nano-game-starter) does): a server that
+holds a secret can know who is at the other end. A ticket cannot.
+
+`readTicket()` does four things, in this order:
+
+1. Finds `#nanoterra=<ticket>` in the page's address. With none, it answers `{ ok: false, reason: "none" }` and does nothing else (no network call).
+2. **Takes the ticket out of the address bar** (`history.replaceState`), so a reload, a copied link, a screenshot or a bookmark never carries it.
+3. Reads the public keys from `https://nano133.com/api/nanoterra/keys` (once for the session, and again if a ticket names a key it does not know; it waits 5 seconds at most, then the player is a guest).
+4. Checks the signature, the kind, that the ticket is **for this origin** and that it has not run out. It never throws.
+
+Call it once, when the page loads.
+
+### Rules
+
+- **A ticket proves nothing to your server.** The ticket sits in an address bar: anyone who sees it can use it for two minutes. Use it to show the
+  player's name and character. **Never give a sale, a prize or a score on a ticket alone.**
+- **Ask before you treat the player as that name.** Anyone can send a link that holds their *own* ticket (login CSRF). Show "Sign in as *name*? Continue / Not me"
+  and keep the player a guest until Continue.
+- **Show the name** wherever the player is "signed in", and say whose account it is before a payment.
+- **The username comes from another site.** Put it in the page as text, never as HTML.
+- A guest is a normal visit. Every refusal (`reason`) means "play as a guest".
+
+### What you get
+
+```ts
+type Ticket = {
+  username: string;
+  address: string; // the whole Nano address; also the player's id
+  look: { skin: string; hair: string; shirt: string; pants: string; shoes: string }; // "#rrggbb": every ticket has these
+  record?: LookRecord; // the whole character, when the ticket carries one (see below); a ticket from before it has no `record` at all
+  items: string[]; // the Nanoterra cosmetics the player owns, in the character's slots
+  game: string; // your game's id at nano133.com
+  audience: string; // the origin the ticket is for
+  issuedAt: number; // ms since 1970
+  expiresAt: number;
+  id: string;
+};
+```
+
+`record` is read with care: the ticket's claim is two numbers, and it is kept only when both are whole numbers on the closed lists (`unpackRecord`).
+A ticket without a record, or with one that is not whole, is still a good ticket and reads **exactly as the `@nano133/ticket` 0.1.0 ticket did**: the field is not there.
+`createCharacter({ record: ticket.record, look: ticket.look })` takes both.
+
+### Refusals
+
+| `reason` | Meaning |
+|---|---|
+| `none` | no ticket in the address: a plain visit |
+| `unsupported` | this browser has no Ed25519 in Web Crypto (Chrome 137, Safari 17, Firefox 129 and later have it) |
+| `malformed` | not a ticket |
+| `keys` | the public keys could not be read (offline, or nano133.com did not answer) |
+| `unknown-key`, `signature` | signed with a key that is not nano133.com's, or the signature does not hold |
+| `wrong-kind` | signed right, but not a version 1 ticket from nano133.com |
+| `audience` | a ticket for another origin |
+| `expired`, `early`, `life` | the time does not hold. A player's clock may be a minute off, either way |
+
+### Options
+
+```ts
+readTicket({
+  keys, // pin the public keys: no fetch at all
+  keysUrl, // another place for the keys (tests)
+  keysTimeoutMs, // how long to wait for the keys; default 5,000 (a slow nano133.com never holds your first screen)
+  audience, // the origin to expect; default: this page's own
+});
+```
+
+`verifyTicket(token, { audience, keys })` checks a ticket you already hold, and `fetchKeys()`, `ticketFromHash(hash)` and `hashWithoutTicket(hash)` are the parts.
+
+### The format
+
+For any language. A ticket is `base64url(JSON claims) "." base64url(signature)`: an Ed25519 signature over the ASCII of the first part, made with the key whose `kid` the claims name.
+
+```json
+{ "v": 1, "typ": "ticket", "iss": "nano133.com", "kid": "fe812c12f3ab4ce6", "aud": "https://game.example",
+  "game": "gem-island", "sub": "nano_3i7m…", "name": "Ann",
+  "look": { "skin": "#f2c29b", "hair": "#3a2a1e", "shirt": "#2a9df4", "pants": "#1e2a4a", "shoes": "#ffffff" },
+  "record": { "v": 2, "k": [2359336, 1642] },
+  "items": ["hub.sun-hat"], "iat": 1800000000, "exp": 1800000120, "jti": "AAAAAAAAAAAAAAAA" }
+```
+
+`record` is optional: `k` is the two numbers of `packRecord`. `GET https://nano133.com/api/nanoterra/keys` answers
+`{ "keys": [{ "kid", "kty": "OKP", "crv": "Ed25519", "x", "alg": "EdDSA", "use": "sig" }] }` and may be read from any page.
+A ticket lives two minutes (`exp - iat` is 120; a longer life is refused).
+
+### Turn it on
+
+Your `nano-game.json` says `"signin": "ticket"`. Nanoterra's Play key then sends signed-in players to your play address with a ticket.
+A player who has not agreed, or who plays as a guest, arrives with no ticket.
+
+## The looks ladder
+
+`@nano133/nanoterra/looks` is the code behind the **Shelf** screen in the game starter's `/admin`. Use it in any game that sells looks for Nano (XNO).
+It has no dependencies, runs in a Worker, a browser and Node, and never makes a network call. **It never takes part in a sale:** nothing here sends a price, a sale or a
+player to nano133.com. Your game is the seller.
+
+```ts
+import { checkLooks, removalProblems, looksJson, PRICE_LADDER } from "@nano133/nanoterra/looks";
+
+const looks = checkLooks(JSON.parse(fileText)); // throws an Error with the first mistake in plain words
+const problems = removalProblems(looks, newLooks, ownedLookIds); // a look that a player owns must stay
+const text = looksJson(newLooks); // the new looks.json: one look on each line
+```
+
+(A shop look here, `Look` of `/looks`, is a thing a player can buy. It is not the five colours `Look` of the small part: they live on different paths.)
+
+```ts
+type Look = {
+  id: string; // 1 to 40 lowercase letters, digits or dashes: "mint-cap"
+  name: string; // 1 to 40 characters
+  priceUsd: number; // US dollars, at most 2 decimals; 0 is the free look
+  change: { body: string; hat?: "cap" | "beanie" | "crown" | "tophat"; hatColor?: string }; // colours are "#rrggbb"
+};
+```
+
+The rules (the same as the starter's `AGENTS.md`):
+
+- A look only changes how the character looks. **It never changes a score, a speed or a rule.**
+- Every look shows its price before the player buys. **Nothing is random: no loot boxes, no mystery looks.**
+- The list has **at least one free look** (`priceUsd: 0`): every player starts with it.
+- **Never change or remove the `id` of a look that someone owns.** Owned looks are kept by id. To stop selling a look, keep it in the file.
+
+| | |
+|---|---|
+| `lookProblems(raw)` | Every mistake in a list of looks, as `{ look, field, message }`. An empty array is a good list. |
+| `checkLooks(raw)` | The looks, or an `Error` with the first mistake in plain words. |
+| `removalProblems(before, after, owned)` | The looks in `before` that a player owns (`owned` is a set of ids) and that `after` leaves out. |
+| `diffLooks(before, after)` | `{ added, removed, changed }` by id. A new order is not a change. |
+| `looksJson(looks)` | The text of `looks.json`, one look on each line, as the starter writes it. A change of one look is a change of one line. |
+| `slugId(name, taken)` | A free id for a name: `"Mint Cap"` gives `mint-cap`, then `mint-cap-2`. |
+| `PRICE_LADDER`, `rungOf(usd)`, `priceText(usd)` | The six steps nano133.com uses, from 1¢ to $1, and a price as a page writes it (`25¢`, `$1.10`). |
+| `usdText(usd)`, `wholeCents(usd)`, `HATS` | `"$0.25"`; whether a price has no fraction of a cent; the hats. |
+
+| Step | Price | For |
+|---|---|---|
+| dye | 1¢ | a colour |
+| charm | 2¢ | a small mark or a badge |
+| piece | 5¢ | one worn thing, like a hat or a scarf |
+| statement | 25¢ | a bigger piece that people notice |
+| set | 50¢ | a few pieces that go together |
+| outfit | $1 | a whole look |
+
+The ladder is a suggestion. Any price with at most 2 decimals, up to $1000, is good. `wholeCents` accepts every price in whole cents (the starter's old check,
+`Math.round(x * 100) === x * 100`, refused $0.07, $0.29, $0.57 and $1.10 because of floating point).
+
+## Moving from the three old packages
+
+| Before | Now |
+|---|---|
+| `npm i @nano133/character` | `npm i @nano133/nanoterra three` |
+| `import { createCharacter } from "@nano133/character"` | `import { createCharacter } from "@nano133/nanoterra/character"` |
+| `import { defaultLook, isLook, LOOK_PARTS } from "@nano133/character"` | `import { defaultLook, isLook, LOOK_PARTS } from "@nano133/nanoterra/character/record"` (no Three.js) |
+| `createCharacter({ look })` | the same; or `createCharacter({ record })` for the whole character |
+| `scene.add(c.object, c.shadow)` | `scene.add(c.object)`: the shadow is a disc in the body and stays on the ground by itself (`c.shadow` is gone) |
+| `c.setLook({ ...look, shirt: "#c8461a" })` (a colour not on the island's lists) | `c.setColors({ shirt: "#c8461a" })`. `setLook` takes a record or the five colours of the lists |
+| `import { readTicket } from "@nano133/ticket"` | `import { readTicket } from "@nano133/nanoterra/ticket"`: the same answer, and `ticket.record` when the ticket has one |
+| `import { checkLooks } from "@nano133/looks"` | `import { checkLooks } from "@nano133/nanoterra/looks"` |
+
+## What it does NOT do yet
+
+- Worn items (see above): 0.2.0.
+- The katana, the saya, the headband and the dojo look of the island's Ananos game. (The skeleton keeps their bones, with no vertices.)
+- First-person arms, swimming, climbing, sitting and the room's other moves: only idle, walk, run, jump and wave.
+- Shared geometry for many characters at once, and a react-three-fiber wrapper.
+- `WebGPURenderer`: the ink is a GLSL `ShaderMaterial`, so use `WebGLRenderer`.
+- Any server or Nano code. This package draws a character and reads a ticket; it moves no money.
+
+## Build and test
+
+```sh
+npm install      # at the kit's root
+npm run build -w @nano133/nanoterra
+npm test -w @nano133/nanoterra
+```
+
+MIT license.
