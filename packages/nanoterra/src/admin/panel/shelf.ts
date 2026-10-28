@@ -3,6 +3,7 @@
 // in the repository (there is no server call that writes looks, on purpose). Its rules are in the package's looks path (../../looks).
 
 import { diffLooks, removalProblems } from "../../looks/change.js";
+import { SLOTS_MAX } from "../../looks/look.js";
 import { looksJson, slugId } from "../../looks/json.js";
 import { PRICE_LADDER, priceText, rungOf, rungUsd } from "../../looks/ladder.js";
 import { HATS, lookProblems, usdText, type Hat, type Look, type Problem } from "../../looks/look.js";
@@ -44,7 +45,16 @@ export function lookPicture(l: Look): Element {
   );
 }
 
-const clone = (ls: readonly Look[]): Look[] => ls.map((l) => ({ id: l.id, name: l.name, priceUsd: l.priceUsd, change: { ...l.change } }));
+const clone = (ls: readonly Look[]): Look[] => ls.map((l) => ({ id: l.id, name: l.name, priceUsd: l.priceUsd, change: { ...l.change }, ...(l.slots ? { slots: { ...l.slots } } : {}) }));
+
+/** "wings ember, trail #ffcf5a" */
+const slotsText = (l: Look): string => Object.entries(l.slots ?? {}).map(([k, v]) => `${k} ${v}`).join(", ");
+
+/** The names of the slots that differ between two looks (added, removed or another value). */
+function slotNamesChanged(before: Look, after: Look): string {
+  const names = new Set([...Object.keys(before.slots ?? {}), ...Object.keys(after.slots ?? {})]);
+  return [...names].filter((n) => (before.slots?.[n] ?? null) !== (after.slots?.[n] ?? null)).join(", ");
+}
 
 function fieldWords(d: ReturnType<typeof diffLooks>["changed"][number]): string {
   const parts = d.fields.map((f) => {
@@ -52,6 +62,7 @@ function fieldWords(d: ReturnType<typeof diffLooks>["changed"][number]): string 
     if (f === "priceUsd") return `price ${usdText(d.before.priceUsd)} to ${usdText(d.after.priceUsd)}`;
     if (f === "body") return "body colour";
     if (f === "hat") return `hat ${d.before.change.hat ?? "none"} to ${d.after.change.hat ?? "none"}`;
+    if (f === "slots") return `slots changed (${slotNamesChanged(d.before, d.after)})`;
     return "hat colour";
   });
   return `${d.after.name}: ${parts.join(", ")}`;
@@ -72,9 +83,29 @@ export function shelfView(first: ShelfData, looks: readonly Look[], picture: (l:
   const owned = () => ownedIds(data.players);
   const isOriginal = (id: string) => LOOKS.some((l) => l.id === id);
   const freeCount = () => draft.filter((l) => l.priceUsd === 0).length;
+  /**
+   * The rows of a look's slot editor, as typed: a name can be typed twice (an object cannot hold it), so the rows are the draft's own truth while it is edited, and the
+   * look's `slots` is made from them. A row with no name and no value is a row not filled in yet: it is not a slot.
+   */
+  const slotRows = new WeakMap<Look, [string, string][]>();
+  const rowsOf = (l: Look): [string, string][] => slotRows.get(l) ?? Object.entries(l.slots ?? {});
+  function setRows(l: Look, rows: [string, string][]) {
+    slotRows.set(l, rows);
+    const filled = rows.filter(([k, v]) => k !== "" || v !== "");
+    if (filled.length) l.slots = Object.fromEntries(filled);
+    else delete l.slots;
+  }
 
   function problems(): Problem[] {
-    const own = lookProblems(draft);
+    const dup: Problem[] = [];
+    draft.forEach((l, i) => {
+      const seen = new Set<string>();
+      for (const [k] of rowsOf(l)) {
+        if (k !== "" && seen.has(k)) dup.push({ look: i + 1, field: "slots", message: `looks.json, look ${i + 1}: the slot name "${k}" is used twice` });
+        seen.add(k);
+      }
+    });
+    const own = [...dup, ...lookProblems(draft)];
     return own.length ? own : removalProblems(LOOKS, draft, owned());
   }
 
@@ -131,7 +162,7 @@ export function shelfView(first: ShelfData, looks: readonly Look[], picture: (l:
     const price = l.priceUsd === 0 ? "Free" : `${priceText(l.priceUsd)}${rung ? ` · ${rung.name}` : ""}`;
     const pic = h("div", { class: "shelf-pic" }, picture(l));
     const priceLine = h("span", { class: "shelf-price" }, price);
-    const top = h("div", { class: "shelf-top" }, pic, h("div", { class: "shelf-text" }, h("strong", {}, l.name || "(no name)"), priceLine, h("span", { class: "fine" }, isOriginal(l.id) ? (l.priceUsd === 0 ? "Every player starts with it" : soldText(st.get(l.id))) : "New: not in your game yet")));
+    const top = h("div", { class: "shelf-top" }, pic, h("div", { class: "shelf-text" }, h("strong", {}, l.name || "(no name)"), priceLine, h("span", { class: "fine" }, isOriginal(l.id) ? (l.priceUsd === 0 ? "Every player starts with it" : soldText(st.get(l.id))) : "New: not in your game yet"), l.slots && Object.keys(l.slots).length ? h("span", { class: "fine shelf-slots" }, `Slots: ${slotsText(l)}`) : null));
     if (!editing) return h("article", { class: "shelf-card" }, top);
 
     const sync = () => {
@@ -194,14 +225,53 @@ export function shelfView(first: ShelfData, looks: readonly Look[], picture: (l:
       h("label", { class: "shelf-field" }, h("span", {}, "Name"), name),
       h("div", { class: "shelf-field" }, h("span", {}, "Price in US dollars"), priceInput, ladder),
       h("div", { class: "shelf-colors" }, h("label", { class: "shelf-field" }, h("span", {}, "Body colour"), body), h("label", { class: "shelf-field" }, h("span", {}, "Hat"), hat), h("label", { class: "shelf-field" }, h("span", {}, "Hat colour"), hatColor)),
+      slotsEditor(l, isOriginal(l.id) && own.has(l.id)),
       keep ? h("p", { class: "fine" }, "A player owns this look: its id stays, and it cannot be removed.") : null,
       h("div", { class: "shelf-actions" }, dup, " ", remove),
     );
   }
 
+  /** The slots of a look: names and values (words or #rrggbb colours) that the game reads. Rows to type in, at most SLOTS_MAX. */
+  function slotsEditor(l: Look, owned: boolean): HTMLElement {
+    const rows = rowsOf(l);
+    const list = h("div", { class: "shelf-slot-list" });
+    rows.forEach(([name, value], r) => {
+      const edit = (index: 0 | 1) => (e: Event) => {
+        const cur = rowsOf(l);
+        cur[r] = index === 0 ? [(e.target as HTMLInputElement).value, cur[r][1]] : [cur[r][0], (e.target as HTMLInputElement).value];
+        setRows(l, cur);
+        refreshFoot();
+      };
+      list.append(
+        h(
+          "div",
+          { class: "shelf-slot" },
+          h("input", { class: "shelf-input", type: "text", maxlength: 24, value: name, placeholder: "name", autocapitalize: "none", spellcheck: false, "aria-label": `Name of slot ${r + 1} of ${l.name}`, oninput: edit(0) }),
+          h("input", { class: "shelf-input", type: "text", maxlength: 40, value: value, placeholder: "word or #rrggbb", autocapitalize: "none", spellcheck: false, "aria-label": `Value of slot ${r + 1} of ${l.name}`, oninput: edit(1) }),
+          h("button", { class: "btn btn-small", type: "button", "aria-label": `Remove slot ${name || r + 1} of ${l.name}`, onclick: () => (setRows(l, rowsOf(l).filter((_, i) => i !== r)), redraw()) }, "Remove"),
+        ),
+      );
+    });
+    const add = h("button", { class: "btn btn-small", type: "button", disabled: rows.length >= SLOTS_MAX, onclick: () => {
+      const cur = rowsOf(l);
+      let n = cur.length + 1;
+      while (cur.some(([k]) => k === `slot-${n}`)) n++;
+      setRows(l, [...cur, [`slot-${n}`, ""]]);
+      redraw();
+    } }, "Add a slot");
+    return h(
+      "div",
+      { class: "shelf-field shelf-slots-edit" },
+      h("span", {}, `Slots (${rows.length} of ${SLOTS_MAX}): words and colours that your game reads`),
+      list,
+      add,
+      owned ? h("p", { class: "fine" }, "A player owns this look: its slots cannot change. Add a new look with the new slots instead.") : null,
+    );
+  }
+
   function addLook(from?: Look) {
     const name = from ? `${from.name} copy`.slice(0, 40) : "New look";
-    const base: Look = from ? { id: "", name, priceUsd: from.priceUsd, change: { ...from.change } } : { id: "", name, priceUsd: 0.05, change: { body: "#4aa8ff" } };
+    const base: Look = from ? { id: "", name, priceUsd: from.priceUsd, change: { ...from.change }, ...(from.slots ? { slots: { ...from.slots } } : {}) } : { id: "", name, priceUsd: 0.05, change: { body: "#4aa8ff" } };
     base.id = slugId(name, draft.map((x) => x.id));
     draft = [...draft, base];
     redraw();

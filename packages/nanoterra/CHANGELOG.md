@@ -4,6 +4,12 @@
 
 (Not published. The version is set when Wes decides to publish.)
 
+- **Slots** on a look (`@nano133/nanoterra/looks`, and the Shelf of `/admin/panel`): `slots?: Record<string, string>`, what a game defines for itself (a pair of wings, a trail colour). Names are 1 to 24
+  lowercase letters, digits or dashes starting with a letter; values are words (1 to 40 lowercase letters, digits or dashes) or `#rrggbb` colours; at most 8 on a look. `lookProblems` checks them
+  (`slots`, `slots.<name>`), `checkLooks` keeps them, `looksJson` writes them after `change`, `diffLooks` lists a change as the field `"slots"` (order and the case of a colour are not changes), and
+  `removalProblems` reports a changed slot on a look that a player owns (players own a look by its id; a price, a name, a colour or a hat of an owned look stays allowed). New: `sameSlots`,
+  `cleanSlots`, `slotValueOk`, `SLOTS_MAX`, `SLOT_NAME_PATTERN`, `SLOT_WORD_PATTERN`, the type `Slots`. A file from before slots reads and writes exactly as it did. The Shelf keeps the slots in its
+  draft and has a Slots editor. This is a minor change (0.2.0); a game on 0.1.0 drops slots, so it must move to the new version.
 - **`@nano133/nanoterra/admin`** (step 1 of the admin panel): the admin of a game, in the package, with no Three.js, no database and no cookie. The game gives a session and a store.
   - `adminAccess(input)`: the guard, ONE pure function. The same five checks as the game starter's `adminGuard`, in the same order (owner set, session present, wallet login,
     same address, not older than one day). It only refuses MORE than the starter does: a bad owner address, a time that is not a number or lies more than five minutes in the

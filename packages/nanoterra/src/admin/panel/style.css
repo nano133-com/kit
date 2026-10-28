@@ -471,3 +471,38 @@
   opacity: 0.6;
   cursor: progress;
 }
+
+/* The slots of a look in the Shelf's editor: a name and a value in a row, and Remove; on a narrow phone Remove goes under them. */
+.n133-admin .shelf-slots-edit {
+  gap: 8px;
+}
+
+.n133-admin .shelf-slot-list {
+  display: grid;
+  gap: 8px;
+}
+
+.n133-admin .shelf-slot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+@media (max-width: 480px) {
+  .n133-admin .shelf-slot {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .n133-admin .shelf-slot .btn {
+    grid-column: 1 / -1;
+  }
+}
+
+.n133-admin .shelf-slots-edit > .btn {
+  justify-self: start;
+}
+
+.n133-admin .shelf-slots {
+  overflow-wrap: anywhere;
+}

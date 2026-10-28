@@ -300,8 +300,33 @@ type Look = {
   name: string; // 1 to 40 characters
   priceUsd: number; // US dollars, at most 2 decimals; 0 is the free look
   change: { body: string; hat?: "cap" | "beanie" | "crown" | "tophat"; hatColor?: string }; // colours are "#rrggbb"
+  slots?: Record<string, string>; // what YOUR game defines for itself: see "Slots" below. Optional.
 };
 ```
+
+### Slots: what your game defines on a look
+
+A game with its own parts (a pair of wings, a trail colour) needs a place for them on a look. That place is `slots`, an optional object of names and values:
+
+```json
+{ "id": "ember-wings", "name": "Ember wings", "priceUsd": 0.25, "change": { "body": "#ff7a3d" }, "slots": { "wings": "ember", "trail": "#ffcf5a" } }
+```
+
+- A **name** is 1 to 24 lowercase letters, digits or dashes, starting with a letter (`SLOT_NAME_PATTERN`).
+- A **value** is a **word** (1 to 40 lowercase letters, digits or dashes, `SLOT_WORD_PATTERN`) or a **colour** (`#rrggbb`). Nothing else: no number, no list, no nested object. A game that needs
+  a number writes it as a word it understands (`"size": "large"`).
+- **At most 8 slots** on a look (`SLOTS_MAX`), so at most 512 characters of names and values.
+- A look with no `slots`, or with an empty one, is **the same look**. A file from before slots reads and writes exactly as it did. Any other unknown field of a look is still dropped by `checkLooks`.
+- Your game reads `look.slots` from the checked looks; the package gives them no meaning.
+- `lookProblems` names a bad slot with the look, the field (`slots` or `slots.wings`) and plain words. `checkLooks` keeps the slots (a clean copy). `looksJson` writes them after `change`, on the
+  look's own line, in your order of names. `diffLooks` lists a change as the field `"slots"` (the same names and values in any order are not a change; a colour in upper or lower case is the same).
+- **Players own a look by its id, so the slots of a look that a player owns must not change:** the game reads the slots of the id, and a new slot would change what they own. `removalProblems`
+  reports a changed slot on an owned look as a mistake with the field `"slots"` ("Add a new look with the new slots"), as it reports a removed owned id. A price, a name, a body colour or a hat of an
+  owned look may still change. The free look is every player's and no order owns it, so its slots may change; a look that nobody owns may change its slots too.
+- The Shelf (`/admin/panel`) keeps the slots in its draft, shows them on the look's card, and has a "Slots" editor on each look: rows of a name and a value, Add and Remove, with the count of 8.
+  A name used twice, a bad name and a bad value are shown before anything can be copied.
+
+A game on version 0.1.0 of this package drops `slots` when it checks a file: use the version that has them (a minor change, 0.2.0) in the game, the server and the Shelf.
 
 The rules (the same as the starter's `AGENTS.md`):
 
@@ -314,12 +339,13 @@ The rules (the same as the starter's `AGENTS.md`):
 |---|---|
 | `lookProblems(raw)` | Every mistake in a list of looks, as `{ look, field, message }`. An empty array is a good list. |
 | `checkLooks(raw)` | The looks, or an `Error` with the first mistake in plain words. |
-| `removalProblems(before, after, owned)` | The looks in `before` that a player owns (`owned` is a set of ids) and that `after` leaves out. |
+| `removalProblems(before, after, owned)` | The looks in `before` that a player owns (`owned` is a set of ids) and that `after` leaves out, or whose slots `after` changes. |
 | `diffLooks(before, after)` | `{ added, removed, changed }` by id. A new order is not a change. |
 | `looksJson(looks)` | The text of `looks.json`, one look on each line, as the starter writes it. A change of one look is a change of one line. |
 | `slugId(name, taken)` | A free id for a name: `"Mint Cap"` gives `mint-cap`, then `mint-cap-2`. |
 | `PRICE_LADDER`, `rungOf(usd)`, `priceText(usd)` | The six steps nano133.com uses, from 1¢ to $1, and a price as a page writes it (`25¢`, `$1.10`). |
 | `usdText(usd)`, `wholeCents(usd)`, `HATS` | `"$0.25"`; whether a price has no fraction of a cent; the hats. |
+| `sameSlots(a, b)`, `cleanSlots(slots)`, `slotValueOk(v)`, `SLOTS_MAX` | Whether two looks have the same slots; a clean copy (none when empty); whether a value is a word or a colour; 8. |
 
 | Step | Price | For |
 |---|---|---|

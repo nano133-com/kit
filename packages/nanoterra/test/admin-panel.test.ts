@@ -14,6 +14,7 @@ const RAW_02 = (2n * 10n ** 29n).toString(); // 0.2 XNO
 const LOOKS: Look[] = [
   { id: "classic", name: "Classic", priceUsd: 0, change: { body: "#4aa8ff" } },
   { id: "mint-cap", name: "Mint Cap", priceUsd: 0.25, change: { body: "#3ddc97", hat: "cap", hatColor: "#1c6e4f" } },
+  { id: "ember-wings", name: "Ember Wings", priceUsd: 0.25, change: { body: "#ff7a3d" }, slots: { wings: "ember", trail: "#ffcf5a" } },
 ];
 const KINDS: Record<string, AdminSession> = {
   owner: { address: OWNER, createdAt: NOW - 1000, via: "wallet" },
@@ -204,4 +205,119 @@ test("a fault in reading the two switches leaves the card out and the rest still
   await mounted.ready;
   assert.equal(root.querySelector(".game-card"), null);
   assert.ok(text(root).includes("Orders"));
+});
+
+// ---- slots in the Shelf ----
+
+const cardOf = (root: Element, name: string) => [...root.querySelectorAll(".shelf-card")].find((c) => text(c).includes(name)) as HTMLElement;
+const typeInto = (input: Element, value: string) => {
+  (input as HTMLInputElement).value = value;
+  input.dispatchEvent(new win.Event("input", { bubbles: true }) as unknown as Event);
+};
+const slotInputs = (card: Element) => [...card.querySelectorAll(".shelf-slot input")] as HTMLInputElement[];
+const addSlot = (card: Element) => (buttonWith(card, "Add a slot") as HTMLButtonElement).click();
+
+test("slots: a look's slots show on its card, and the editor shows them as rows", async () => {
+  const { root, mounted } = setup();
+  await mounted.ready;
+  assert.ok(text(cardOf(root, "Ember Wings")).includes("Slots: wings ember, trail #ffcf5a"));
+  assert.ok(!text(cardOf(root, "Classic")).includes("Slots:"));
+  buttonWith(root, "Edit the shelf").click();
+  const inputs = slotInputs(cardOf(root, "Ember Wings"));
+  assert.deepEqual(inputs.map((i) => i.value), ["wings", "ember", "trail", "#ffcf5a"]);
+  assert.ok(text(cardOf(root, "Ember Wings")).includes("Slots (2 of 8)"));
+  // The draft starts equal to the game's looks: no change yet.
+  assert.ok(text(root).includes("No change yet"));
+});
+
+test("slots: add a slot to a look nobody owns; the change is listed and looks.json has it", async () => {
+  const { root, mounted, calls } = setup();
+  await mounted.ready;
+  const before = calls.length;
+  buttonWith(root, "Edit the shelf").click();
+  addSlot(cardOf(root, "Classic"));
+  let inputs = slotInputs(cardOf(root, "Classic"));
+  assert.deepEqual(inputs.map((i) => i.value), ["slot-1", ""], "a new row has a name and no value");
+  assert.ok(text(root).includes("Fix these first"), "an empty value is a mistake");
+  typeInto(inputs[0], "wings");
+  typeInto(inputs[1], "ember");
+  assert.ok(!text(root).includes("Fix these first"), text(root).slice(text(root).indexOf("Fix these"), 200));
+  assert.ok(text(root).includes("1 added, 1 changed") || text(root).includes("0 added, 1 changed, 0 removed"));
+  assert.ok(text(root).includes("Classic: slots changed (wings)"));
+  assert.ok(text(root).includes('"slots": { "wings": "ember" }'), "looks.json has the slot on the look's own line");
+  assert.equal((buttonWith(root, "Copy looks.json") as HTMLButtonElement).disabled, false);
+  assert.equal(calls.length, before, "no request while the slots are edited");
+});
+
+test("slots: a look that a player owns cannot have its slots changed: the mistake is shown, with the way out, and the copy buttons wait", async () => {
+  const { root, mounted } = setup();
+  await mounted.ready;
+  buttonWith(root, "Edit the shelf").click();
+  const mint = cardOf(root, "Mint Cap");
+  assert.ok(text(mint).includes("A player owns this look: its slots cannot change"));
+  addSlot(mint);
+  const inputs = slotInputs(cardOf(root, "Mint Cap"));
+  typeInto(inputs[0], "wings");
+  typeInto(inputs[1], "ember");
+  assert.ok(text(root).includes('The slots of the look "mint-cap" (Mint Cap) changed, and a player owns it'));
+  assert.ok(text(root).includes("Add a new look with the new slots instead") || text(root).includes("add a new look with the new slots"));
+  assert.equal((buttonWith(root, "Copy looks.json") as HTMLButtonElement).disabled, true);
+  // Take the slot away again: the mistake goes, and there is no change.
+  buttonWith(cardOf(root, "Mint Cap"), "Remove").click();
+  const removeButtons = [...cardOf(root, "Mint Cap").querySelectorAll(".shelf-slot button")];
+  assert.equal(removeButtons.length, 0);
+  assert.ok(!text(root).includes("Fix these first"));
+  assert.ok(text(root).includes("No change yet"));
+});
+
+test("slots: a price, a name or a colour of an owned look may still change; only its slots are held", async () => {
+  const { root, mounted } = setup();
+  await mounted.ready;
+  buttonWith(root, "Edit the shelf").click();
+  const price = cardOf(root, "Mint Cap").querySelector('input[type="number"]') as HTMLInputElement;
+  typeInto(price, "0.5");
+  assert.ok(!text(root).includes("Fix these first"));
+  assert.ok(text(root).includes("1 changed"));
+  assert.equal((buttonWith(root, "Copy looks.json") as HTMLButtonElement).disabled, false);
+});
+
+test("slots: a name twice, a bad name and a bad value are each named; at most 8 slots", async () => {
+  const { root, mounted } = setup();
+  await mounted.ready;
+  buttonWith(root, "Edit the shelf").click();
+  const card = () => cardOf(root, "Classic");
+  addSlot(card());
+  addSlot(card());
+  let inputs = slotInputs(card());
+  typeInto(inputs[0], "wings");
+  typeInto(inputs[1], "ember");
+  typeInto(inputs[2], "wings");
+  typeInto(inputs[3], "flame");
+  assert.ok(text(root).includes('the slot name "wings" is used twice'));
+  assert.equal((buttonWith(root, "Copy looks.json") as HTMLButtonElement).disabled, true);
+  typeInto(inputs[2], "Trail");
+  assert.ok(text(root).includes('the slot name "Trail" must be 1 to 24 lowercase letters'));
+  typeInto(inputs[2], "trail");
+  typeInto(inputs[3], "Flame!");
+  assert.ok(text(root).includes('"slots.trail" must be a word'));
+  typeInto(inputs[3], "#ffcf5a");
+  assert.ok(!text(root).includes("Fix these first"));
+  // Up to 8, then Add is off.
+  for (let i = 0; i < 6; i++) addSlot(card());
+  assert.equal(slotInputs(card()).length, 16);
+  assert.equal((buttonWith(card(), "Add a slot") as HTMLButtonElement).disabled, true);
+  assert.ok(text(card()).includes("Slots (8 of 8)"));
+});
+
+test("slots: Duplicate copies the slots, and Start over brings the game's looks back", async () => {
+  const { root, mounted } = setup();
+  await mounted.ready;
+  buttonWith(root, "Edit the shelf").click();
+  buttonWith(cardOf(root, "Ember Wings"), "Duplicate").click();
+  const copy = cardOf(root, "Ember Wings copy");
+  assert.deepEqual(slotInputs(copy).map((i) => i.value), ["wings", "ember", "trail", "#ffcf5a"]);
+  assert.ok(text(root).includes("1 added"));
+  buttonWith(root, "Start over").click();
+  assert.ok(text(root).includes("No change yet"));
+  assert.equal(cardOf(root, "Ember Wings copy"), undefined);
 });

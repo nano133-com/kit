@@ -47,4 +47,6 @@ test("the message for an AI assistant holds the new file, the change and the own
   assert.doesNotMatch(prompt, /nano_[13]/);
   assert.doesNotMatch(prompt, /secret|seed|session|cookie/i);
   assert.ok(aiPrompt(text, diffLooks(before, before), [], before).includes("must stay in the file with the same id: none yet."));
+  // Slots: the message says that the slots of a look that someone owns must not change.
+  assert.ok(prompt.includes("never change the slots of a look that someone owns (slots are words and #rrggbb colours that the game reads, at most 8 on a look)"));
 });
