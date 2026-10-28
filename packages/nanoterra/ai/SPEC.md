@@ -99,9 +99,10 @@ export const LOOKS = checkLooks(rawLooksJson); // throws with the first mistake 
 - Before a change goes live: `[...lookProblems(next), ...removalProblems(current, next, ownedLookIds)]`; show `diffLooks(current, next)`; write the file with `looksJson(next)`.
 - One free look (`priceUsd: 0`) at least. Never change or remove the id of a look that someone owns. Prices in US dollars with at most 2 decimals; the server reads the price from the file.
 - A look only changes how the character looks. No random look, no loot box, no look that changes a score.
+- `slots` (optional, at most 8: a name and a word or a `#rrggbb` colour) is where the game keeps its own parts of a look. Read `look.slots` from `checkLooks`. Never change the slots of a look that someone owns: add a new look.
 - The game is the seller. Never send looks, prices or sales to another site.
 
-**Check:** `checkLooks` passes at start; a removed look that is owned is refused.
+**Check:** `checkLooks` passes at start; a removed look that is owned is refused; a changed slot on an owned look is refused.
 
 ## 8. Do not
 
