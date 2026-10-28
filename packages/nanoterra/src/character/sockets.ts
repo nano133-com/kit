@@ -34,7 +34,7 @@ export type SocketLook = { build: keyof typeof BUILD_FACTORS; head: number };
 /**
  * A socket's frame on a base for a look.
  *  - "head": on the head bone, at the base's hat frame (`spec.hat`), scaled by the hat frame and the head's size: a thing made for the
- *    Classic's head (a hat with its brim's middle at the origin) fits every head.
+ *    Classic's head, round the middle of the head (the game starter's hats are made so), fits every head.
  *  - "hand": on grip_R, in the middle of the right hand (the hands of a wide body are drawn further out than their bone), turned by
  *    `HAND_HOLD`.
  *  - "back": on the chest bone, on the back of the torso (`spec.back`, else the chest's height and the torso's radius there); its axes are the

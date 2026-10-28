@@ -193,7 +193,7 @@ c.setWorn([]); // the shovel comes off; free its geometry and materials yourself
 
 | Socket | Bone | Where | Its axes |
 |---|---|---|---|
-| `"head"` | `head` | the base's hat frame (`BASE_SPECS[base].hat`: the middle of a hat's band), scaled by the hat frame and the head's size | the character's: +Y up, +Z forward. A thing made for the Classic's head fits every head |
+| `"head"` | `head` | the base's hat frame (`BASE_SPECS[base].hat`: about the middle of the head), scaled by the hat frame and the head's size | the character's: +Y up, +Z forward. A thing made round the middle of the Classic's head (radius 0.42 m) fits every head |
 | `"hand"` | `grip_R` | the middle of the drawn right hand (a wide build or base draws its hands further out than the bone) | `HAND_HOLD`: a thing modelled standing up (+Y) with its grip at the origin is held pointing forward, its front (+Z) up |
 | `"back"` | `chest` | on the back of the torso at the chest's height (`BASE_SPECS[base].back`, else the torso's radius at 1.12) | the character's: the side that touches the body at the origin, the bulk towards -Z |
 
