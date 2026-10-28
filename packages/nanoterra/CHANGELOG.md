@@ -38,6 +38,13 @@
   owner address, an expired login and a login that is old but still valid in the store; OPTIONS and HEAD are refused with no preflight answer; other spellings of an admin path open nothing with
   any method; the game's other routes under the base (`otherRoutes`) refuse a visitor; a POST from another site is refused; a body that is too big is refused; every answer is `no-store` with
   no CORS header. (The first version of this suite passed four wirings that leak everything; a security read found them, and each is a test now.)
+- **A third security read** (another new fresh agent, 2026-10-27) found that the suite still passed four wirings that leak: a game that caches 200 answers by URL, one that keeps the sessions it has read
+  in memory (a login that sign-out or Sign out everywhere ended still opens), one that also reads a player's token from a Bearer header, and one that reads it from the query. Fixed: the suite sends every
+  refused visitor again right after the owner was served; `host.endLogin` and the login that used Sign out everywhere are used again and must be refused; `req.tokenAt` sends a player's token in other
+  places than the cookie; and `adminSigninConformance(host)` is a contract for the code that MAKES the logins (a game request never makes an admin login and the other way round, for the browser that
+  started it, another browser and retyped credentials; once; and a signed admin request makes no login after Sign out everywhere). `createD1Store(db, { logins: true })`'s `signOutEverywhere` also marks
+  the admin sign-in requests that were not delivered as delivered (needs `signin_requests.scope` and `.delivered`). The list shows a browser name only when it is words. Four tests run the four wirings
+  against the suite, and three fake sign-in chains run against the contract (one good, three wrong).
 - **A second security read** (new fresh agent, 2026-10-27) found that the second conformance suite still passed some wirings that leak or act. Fixed: the suite sends a foreign Origin (another site,
   `"null"`, a sibling subdomain) and Sec-Fetch-Site cross-site and same-site on every route with every method, for the owner too; it sends an old login that is still valid THREE times (the last two
   with `req.again`) so a rolling session fails; `expired_login` is now made less than a day ago so only the game's own store can refuse it; new kind `signed_out_login`; the spelling tricks run on

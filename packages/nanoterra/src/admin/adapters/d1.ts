@@ -27,8 +27,9 @@ type Row = { id: string; player: string; look_id: string; usd: string; amount: s
 
 /**
  * The admin store for D1. With `logins: true` it also lists the last admin sign-ins (the table `admin_logins`: at, country, browser) and can sign the owner out everywhere
- * (`DELETE FROM sessions WHERE scope = 'admin'`): the game's `sessions` table must have a `scope` column ('admin' for an admin login) and the game must write `admin_logins` when it
- * makes an admin login. Without the option the store has neither call, so a game that has not made those tables is not broken by it.
+ * (`DELETE FROM sessions WHERE scope = 'admin'`, and `UPDATE signin_requests SET delivered = 1 WHERE scope = 'admin' AND delivered = 0` so that a request signed a moment ago cannot
+ * make a new login afterwards): the game's `sessions` and `signin_requests` tables must have a `scope` column ('admin' for an admin login or request) and the game must write
+ * `admin_logins` when it makes an admin login. Without the option the store has neither call, so a game that has not made those tables is not broken by it.
  */
 export function createD1Store(db: D1Like, options: { logins?: boolean } = {}): AdminStore {
   const store: AdminStore = {
@@ -82,9 +83,11 @@ export function createD1Store(db: D1Like, options: { logins?: boolean } = {}): A
       const rows = (await db.prepare("SELECT at, country, browser FROM admin_logins ORDER BY at DESC, id DESC LIMIT ?").bind(n).all<{ at: number; country: string | null; browser: string }>()).results;
       return rows.map((r) => ({ at: r.at, country: r.country, browser: r.browser }));
     };
+    // One batch: the admin sessions are deleted, AND every admin sign-in request that was started but not delivered is marked delivered, so a request that the owner signed a moment
+    // ago cannot make a new admin login after "Sign out everywhere" (its check would answer "used").
     store.signOutEverywhere = async () => {
-      const r = (await db.prepare("DELETE FROM sessions WHERE scope = 'admin'").run()) as { meta?: { changes?: number } };
-      return r?.meta?.changes ?? 0;
+      const done = (await db.batch([db.prepare("DELETE FROM sessions WHERE scope = 'admin'"), db.prepare("UPDATE signin_requests SET delivered = 1 WHERE scope = 'admin' AND delivered = 0")])) as ({ meta?: { changes?: number } } | undefined)[];
+      return done[0]?.meta?.changes ?? 0;
     };
   }
   return store;

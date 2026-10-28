@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ADMIN_LIMITS, ADMIN_SESSION_MS, createAdminHandler, createMemoryStore, loadGameSettings, type AdminHandler, type AdminSession, type AdminStore } from "../src/admin/index.js";
-import { adminConformance, type ConformanceCase, type ConformanceHost, type Who } from "../src/admin/conformance.js";
+import { createHash, randomBytes } from "node:crypto";
+import { adminConformance, adminSigninConformance, type ConformanceCase, type ConformanceHost, type SigninHost, type Who } from "../src/admin/conformance.js";
 
 const OWNER = `nano_1${"a".repeat(59)}`;
 const OTHER = `nano_3${"b".repeat(59)}`;
@@ -22,10 +23,26 @@ const KINDS: Record<string, AdminSession> = {
 };
 /** What the game's own store refuses before the guard sees a login: a login it has expired, and one that its sign-out ended. */
 const STORE_REFUSED = new Set(["expired_login", "signed_out_login"]);
+/** Logins that the game ended (its sign-out), and every admin login the host made (so a store's "sign out everywhere" can end them all). A login is `<kind>.<number>` in the cookie. */
+const ENDED = new Set<string>();
+const ISSUED = new Set<string>();
+let LOGIN_N = 0;
 const readSession = async (req: Request): Promise<AdminSession | null> => {
-  const m = /(?:^|;\s*)admin=([a-z_]+)/.exec(req.headers.get("Cookie") ?? "");
+  const m = /(?:^|;\s*)admin=([a-z_]+)(?:\.(\d+))?/.exec(req.headers.get("Cookie") ?? "");
   if (!m || STORE_REFUSED.has(m[1])) return null;
+  if (m[2] && ENDED.has(`${m[1]}.${m[2]}`)) return null;
   return KINDS[m[1]] ?? null;
+};
+/** A logins-enabled store whose "sign out everywhere" ends every admin login that the host made. */
+const storeWithSignOut = () => {
+  const store = createMemoryStore({ logins: true });
+  store.signOutEverywhere = async () => {
+    const n = ISSUED.size;
+    for (const id of ISSUED) ENDED.add(id);
+    store.pendingAdminRequests = 0;
+    return n;
+  };
+  return store;
 };
 
 function make(over: Partial<Parameters<typeof createAdminHandler>[0]> = {}) {
@@ -52,19 +69,35 @@ function make(over: Partial<Parameters<typeof createAdminHandler>[0]> = {}) {
 }
 
 function hostFor(handler: AdminHandler, noOwner: AdminHandler, wrap?: (res: Response) => Response, otherRoutes: { method: string; path: string }[] = []): ConformanceHost {
+  const last = new Map<Who, string>();
+  const kindOf = (who: Who) => (who === "no_address" ? "owner" : who);
   return {
     routes: handler.routes,
     basePath: handler.basePath,
     origin: ORIGIN,
     otherRoutes,
+    async endLogin(who: Who) {
+      const id = last.get(who);
+      if (id) ENDED.add(`${kindOf(who)}.${id}`);
+    },
     async request(who: Who, req) {
       const headers = new Headers(req.headers);
-      // game_login: a valid login of the PLAYERS' kind: it is in the game's own cookie, which the admin never reads.
-      if (who === "game_login") headers.set("Cookie", "session=owner; admin=");
+      let path = req.path;
+      if (req.tokenAt && (who === "game_login" || who === "game_token_as_admin")) {
+        // The player's login token in a place that is not the game's cookie, and no cookie at all. (The token of this host's player login is the word "game_login".)
+        if (req.tokenAt === "bearer") headers.set("Authorization", "Bearer game_login");
+        else if (req.tokenAt === "header") headers.set("X-Auth-Token", "game_login");
+        else path += `${path.includes("?") ? "&" : "?"}token=game_login&t=game_login&access_token=game_login`;
+      } else if (who === "game_login") headers.set("Cookie", "session=owner; admin=");
       else if (who === "game_token_as_admin") headers.set("Cookie", "admin=game_token_as_admin");
-      else if (who !== "signed_out") headers.set("Cookie", `admin=${who === "no_address" ? "owner" : who}`);
+      else if (who !== "signed_out") {
+        const id = req.again && last.has(who) ? last.get(who)! : String(++LOGIN_N);
+        last.set(who, id);
+        ISSUED.add(`${kindOf(who)}.${id}`);
+        headers.set("Cookie", `admin=${kindOf(who)}.${id}`);
+      }
       const target = who === "no_address" ? noOwner : handler;
-      const res = await target.handle(new Request(ORIGIN + req.path, { method: req.method, headers, body: req.body }));
+      const res = await target.handle(new Request(ORIGIN + path, { method: req.method, headers, body: req.body }));
       const out = res ?? new Response("not for the admin", { status: 404 });
       return wrap ? wrap(out) : out;
     },
@@ -508,7 +541,7 @@ const ago = (ms: number) => NOW - ms;
 
 test("with a store that lists sign-ins, the summary lists the last 10, newest first, with only the time, the country and the browser; nothing more", async () => {
   const store = createMemoryStore({ logins: true });
-  for (let i = 0; i < 14; i++) store.logins.push({ at: ago(i * 60_000), country: i === 3 ? "usa" : i === 4 ? null : "US", browser: `Firefox on Linux ${i}`, address: OWNER, ip: "203.0.113.9", userAgent: "Mozilla/5.0 (X11; Linux x86_64) very long text" });
+  for (let i = 0; i < 14; i++) store.logins.push({ at: ago(i * 60_000), country: i === 3 ? "usa" : i === 4 ? null : "US", browser: "Firefox on Linux", address: OWNER, ip: "203.0.113.9", userAgent: "Mozilla/5.0 (X11; Linux x86_64) very long text" });
   const { handler } = make({ store });
   const s = await (await call(handler, "/api/admin/summary"))!.json();
   assert.equal(s.logins.length, 10);
@@ -564,10 +597,141 @@ test("a fault in signOutEverywhere gives the fixed 500 and no detail", async () 
 });
 
 test("the conformance suite passes on a handler whose store lists sign-ins, and walks the new route too", async () => {
-  const store = createMemoryStore({ logins: true });
+  const store = storeWithSignOut();
   const { handler } = make({ store });
   const { handler: noOwner } = make({ owner: null, store });
   const host = hostFor(handler, noOwner, undefined, [{ method: "GET", path: "/api/admin/orders" }]);
   assert.ok(host.routes.some((r) => r.path.endsWith("/signout-all")));
   for (const c of adminConformance(host)) await c.run().catch((e: Error) => assert.fail(`${c.name}: ${e.message}`));
+});
+
+// ---- what the third security read wrote against the third suite: four wirings that pass it and leak ----
+
+const wholeSuite = async (handler: AdminHandler, over: { otherRoutes?: { method: string; path: string }[] } = {}) => {
+  const { handler: noOwner } = make({ owner: null });
+  await run(adminConformance(hostFor(handler, noOwner, undefined, over.otherRoutes ?? [])));
+};
+
+test("the suite fails a game that caches 200 answers by URL in its own cache (a visitor with no cookie gets the owner's data), though it still says no-store", async () => {
+  const cacheStore = storeWithSignOut();
+  const good = make({ store: cacheStore });
+  const cache = new Map<string, string>();
+  const cached: AdminHandler = {
+    ...good.handler,
+    async handle(req) {
+      const key = req.method === "GET" ? req.url : "";
+      if (key && cache.has(key)) return new Response(cache.get(key), { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      const res = await good.handler.handle(req);
+      if (key && res && res.status === 200) cache.set(key, await res.clone().text());
+      return res;
+    },
+  };
+  await assert.rejects(wholeSuite(cached), /right after the owner was served/);
+});
+
+test("the suite fails a game that keeps the sessions it has read in memory: a login that the game ended, or that Sign out everywhere ended, still opens the admin", async () => {
+  const sessionCache = new Map<string, AdminSession | null>();
+  const bad = make({
+    store: storeWithSignOut(),
+    session: async (req) => {
+      const key = req.headers.get("Cookie") ?? "";
+      if (sessionCache.has(key)) return sessionCache.get(key)!;
+      const s = await readSession(req);
+      sessionCache.set(key, s);
+      return s;
+    },
+  });
+  await assert.rejects(wholeSuite(bad.handler), /game ended it|signed out everywhere|keep sessions in a cache/);
+  // Only the first is caught by the host's endLogin; take it away and Sign out everywhere alone must catch it.
+  const { handler: noOwner } = make({ owner: null });
+  const noEnd = hostFor(bad.handler, noOwner);
+  delete (noEnd as { endLogin?: unknown }).endLogin;
+  sessionCache.clear();
+  await assert.rejects(run(adminConformance(noEnd)), /signed out everywhere|keep sessions in a cache/);
+});
+
+test("the suite fails a game that also accepts a player's token as a Bearer header, or in the query (a player token from a game signature opens the admin)", async () => {
+  const bearer = make({ session: async (req) => (req.headers.get("Authorization") === "Bearer game_login" ? KINDS.owner : readSession(req)) });
+  await assert.rejects(wholeSuite(bearer.handler), /token in bearer/);
+  const query = make({ session: async (req) => (new URL(req.url).searchParams.get("t") === "game_login" ? KINDS.owner : readSession(req)) });
+  await assert.rejects(wholeSuite(query.handler), /token in query/);
+  const header = make({ session: async (req) => (req.headers.get("X-Auth-Token") === "game_login" ? KINDS.owner : readSession(req)) });
+  await assert.rejects(wholeSuite(header.handler), /token in header/);
+});
+
+test("a game whose router allows one partner origin for CORS does not leak: the handler itself refuses a read from that origin, so the suite still passes and the data is not served", async () => {
+  const good = make({ store: storeWithSignOut() });
+  const PARTNER = "https://nano133.com";
+  const partner: AdminHandler = {
+    ...good.handler,
+    async handle(req) {
+      const res = await good.handler.handle(req);
+      if (!res || req.headers.get("Origin") !== PARTNER) return res;
+      const out = new Response(res.body, res);
+      out.headers.set("Access-Control-Allow-Origin", PARTNER);
+      out.headers.set("Access-Control-Allow-Credentials", "true");
+      return out;
+    },
+  };
+  await wholeSuite(partner);
+  // The partner's page reads with the owner's cookie (a sibling or a logged-in owner on that page): the handler refuses a read that is not from the game's own page.
+  const read = (await partner.handle(new Request(`${ORIGIN}/api/admin/summary`, { headers: { Cookie: "admin=owner.9999", Origin: PARTNER } })))!;
+  assert.equal(read.status, 403);
+  assert.ok(!(await read.text()).includes("orders"));
+});
+
+// ---- the sign-in chain contract ----
+
+const sha = (s: string) => createHash("sha256").update(s).digest("hex");
+
+/** A tiny game sign-in chain with the starter's scheme (the admin's starter hash has a prefix). `variant` is how it is wrong, or "good". */
+function fakeChain(variant: "good" | "scopeless" | "prefix-only" | "pending-kept"): SigninHost {
+  type Row = { scope: "game" | "admin"; starterHash: string; signed: boolean; delivered: boolean };
+  const requests = new Map<string, Row>();
+  const keyOf = (value: string, scope: "game" | "admin") => (variant === "scopeless" ? sha(value) : scope === "admin" ? sha(`admin:${value}`) : sha(value));
+  type Handle = { id: string; starter: string; scope: "game" | "admin" };
+  return {
+    async start(scope) {
+      const starter = randomBytes(32).toString("hex");
+      const id = randomBytes(8).toString("hex");
+      requests.set(id, { scope, starterHash: keyOf(starter, scope), signed: false, delivered: false });
+      return { id, starter, scope } satisfies Handle;
+    },
+    async sign(h) {
+      requests.get((h as Handle).id)!.signed = true;
+    },
+    async finish(h, as, credentials) {
+      const { id, starter, scope: started } = h as Handle;
+      const row = requests.get(id)!;
+      // What the browser presents: its own value, nothing, or the value retyped for the other scope's rules.
+      const presented = credentials === "own" ? starter : credentials === "other" ? "" : started === "admin" ? `admin:${starter}` : starter;
+      const scopeOk = variant === "good" || variant === "pending-kept" ? row.scope === as : true;
+      if (!presented || !scopeOk || !row.signed || row.delivered || keyOf(presented, as) !== row.starterHash) return { admin: false, game: false };
+      row.delivered = true;
+      return { admin: as === "admin", game: as === "game" };
+    },
+    async signOutEverywhere() {
+      if (variant === "pending-kept") return; // the sessions go, but a request that is signed and not delivered stays alive
+      for (const row of requests.values()) if (row.scope === "admin") row.delivered = true;
+    },
+  };
+}
+
+test("the sign-in chain contract passes a chain that keeps a request to its own scope and ends pending admin requests on Sign out everywhere", async () => {
+  for (const c of adminSigninConformance(fakeChain("good"))) await c.run().catch((e: Error) => assert.fail(`${c.name}: ${e.message}`));
+});
+
+test("the sign-in chain contract fails a chain that ignores the scope, one that a retyped starter value can cross (the prefix without a stored scope), and one that leaves a signed admin request alive after Sign out everywhere", async () => {
+  await assert.rejects(run(adminSigninConformance(fakeChain("scopeless"))), /made an admin login|made a game login/);
+  await assert.rejects(run(adminSigninConformance(fakeChain("prefix-only"))), /retyped credentials made a game login|retyped/);
+  await assert.rejects(run(adminSigninConformance(fakeChain("pending-kept"))), /Sign out everywhere/);
+});
+
+test("the list shows a browser name only when it is words: a raw browser text, an address or odd bytes from a store are shown as Unknown browser", async () => {
+  const store = createMemoryStore({ logins: true });
+  const raw = ["Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36", "203.0.113.9", "<script>alert(1)</script>", "Chrome 120", "", "x".repeat(41), "\u0000Chrome", "Chrome on macOS", "Samsung Internet on Android"];
+  raw.forEach((browser, i) => store.logins.push({ at: ago(i * 1000), country: "US", browser }));
+  const { handler } = make({ store });
+  const s = await (await call(handler, "/api/admin/summary"))!.json();
+  assert.deepEqual(s.logins.map((l: { browser: string }) => l.browser), ["Unknown browser", "Unknown browser", "Unknown browser", "Unknown browser", "Unknown browser", "Unknown browser", "Unknown browser", "Chrome on macOS", "Samsung Internet on Android"]);
 });

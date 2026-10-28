@@ -50,6 +50,9 @@ export type AdminHandler = {
   handle(req: Request): Promise<Response | null>;
 };
 
+/** A browser name as the list shows it: words ("Chrome on macOS"). Anything else a store gives (a raw browser text, an address) is shown as "Unknown browser". */
+const BROWSER_NAME = /^[A-Za-z][A-Za-z ]{0,39}$/;
+
 /** The limits of the writes. */
 export const ADMIN_LIMITS = {
   /** A press on a switch. */
@@ -109,7 +112,7 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
     if (options.store.recentLogins) {
       // Only the three things of a sign-in go out, whatever the store gave (a store that returns an address or a browser text by mistake does not show it).
       const rows = await options.store.recentLogins(ADMIN_LOGINS_SHOWN);
-      out.logins = rows.slice(0, ADMIN_LOGINS_SHOWN).map((l): AdminLogin => ({ at: Number(l.at), country: typeof l.country === "string" && /^[A-Z]{2}$/.test(l.country) ? l.country : null, browser: typeof l.browser === "string" ? l.browser.slice(0, 60) : "Unknown browser" }));
+      out.logins = rows.slice(0, ADMIN_LOGINS_SHOWN).map((l): AdminLogin => ({ at: Number(l.at), country: typeof l.country === "string" && /^[A-Z]{2}$/.test(l.country) ? l.country : null, browser: typeof l.browser === "string" && BROWSER_NAME.test(l.browser) ? l.browser : "Unknown browser" }));
     }
     if (options.store.signOutEverywhere) out.canSignOutEverywhere = true;
     return out;

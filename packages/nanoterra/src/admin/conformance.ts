@@ -37,6 +37,11 @@ export type ConformanceRequest = {
   body?: string;
   /** True when the suite wants the SAME login as the last request of this kind (do not make a new one): a host must support it, or a session that renews itself on each read is not caught. */
   again?: boolean;
+  /**
+   * Set when the suite wants the login token of this kind sent in a place that is NOT the game's cookie, with NO cookie: "bearer" (`Authorization: Bearer <token>`), "query" (the token in the
+   * query as `token`, `t` and `access_token`) or "header" (`X-Auth-Token: <token>`). A host must support it, or a game that also reads a player's token from one of these places is not caught.
+   */
+  tokenAt?: "bearer" | "query" | "header";
 };
 
 export type ConformanceHost = {
@@ -53,6 +58,8 @@ export type ConformanceHost = {
    */
   otherRoutes?: readonly { method: string; path: string }[];
   request(who: Who, req: ConformanceRequest): Promise<Response>;
+  /** Optional but recommended. Ends the login of the last request of this kind with the game's OWN sign-out (the real route): the suite then uses the same login again and requires a refusal. */
+  endLogin?(who: Who): Promise<void>;
 };
 
 export type ConformanceCase = { name: string; run: () => Promise<void> };
@@ -229,6 +236,57 @@ export function adminConformance(host: ConformanceHost): ConformanceCase[] {
     }
   });
 
+  add("a visitor is refused even right after the owner was served on the same URL: an answer is never kept and shown to the next visitor (no cache of answers by URL)", async () => {
+    for (const route of host.routes.filter((r) => r.method === "GET")) {
+      for (const round of [1, 2]) {
+        const served = await send("owner", { method: "GET", path: route.path, headers: good() });
+        check(served.status === 200, `GET ${route.path} as owner: expected 200, got ${served.status}`);
+        await served.text();
+        for (const r of REFUSALS) {
+          const got = await read(await send(r.who, { method: "GET", path: route.path, headers: good() }));
+          check(got.status === r.status, `GET ${route.path} as ${r.who} right after the owner was served (round ${round}): expected ${r.status}, got ${got.status}`);
+          check(!DATA_WORDS.test(got.text), `GET ${route.path} as ${r.who} right after the owner was served: the answer holds the game's data`);
+        }
+      }
+    }
+  });
+
+  add("(when the host can end a login) a login that the game ended is refused at once, even right after it was used", async () => {
+    if (!host.endLogin) return;
+    for (const route of host.routes.filter((r) => r.method === "GET")) {
+      const first = await send("owner", { method: "GET", path: route.path, headers: good() });
+      check(first.status === 200, `GET ${route.path} as owner: expected 200, got ${first.status}`);
+      await first.text();
+      await host.endLogin("owner");
+      const after = await read(await send("owner", { method: "GET", path: route.path, headers: good(), again: true }));
+      check(after.status === 401, `GET ${route.path} with the same login after the game ended it: expected 401, got ${after.status} (does the game keep sessions in a cache?)`);
+    }
+  });
+
+  add("(when the admin has Sign out everywhere) the login that used it is refused at once, even though it was used a moment before", async () => {
+    const out = host.routes.find((r) => r.method === "POST" && r.path.endsWith("/signout-all"));
+    if (!out) return;
+    const reads = host.routes.find((r) => r.method === "GET")!;
+    check((await send("owner", { method: "GET", path: reads.path, headers: good() })).status === 200, "the owner could not read before signing out");
+    const done = await send("owner", { method: "POST", path: out.path, headers: good(), body: "{}" });
+    check(done.status === 200, `POST ${out.path} as owner: expected 200, got ${done.status}`);
+    const after = await send("owner", { method: "GET", path: reads.path, headers: good(), again: true });
+    check(after.status === 401, `GET ${reads.path} with the login that signed out everywhere: expected 401, got ${after.status} (does the game keep sessions in a cache?)`);
+  });
+
+  add("a player's login token sent in any other place than the game's cookie (a Bearer header, a query parameter, another header) opens nothing", async () => {
+    for (const route of host.routes) {
+      for (const tokenAt of ["bearer", "query", "header"] as const) {
+        for (const who of ["game_login", "game_token_as_admin"] as const) {
+          const got = await read(await send(who, { method: route.method, path: route.path, headers: good(), body: body(route), tokenAt }, false));
+          const here = `${route.method} ${route.path} as ${who} with the token in ${tokenAt}`;
+          check(got.status === 401 || got.status === 403, `${here}: expected 401 or 403, got ${got.status}`);
+          check(!DATA_WORDS.test(got.text), `${here}: the answer holds the game's data`);
+        }
+      }
+    }
+  });
+
   add("the owner gets through the guard on every route", async () => {
     for (const route of host.routes) {
       const res = await send("owner", { method: route.method, path: route.path, headers: good(), body: body(route) });
@@ -282,6 +340,10 @@ export type StoreHarness = {
   seedSessions?(n: { admin: number; play: number }): Promise<void>;
   /** How many admin sessions and how many player sessions the game's database holds now. */
   sessionCounts?(): Promise<{ admin: number; play: number }>;
+  /** Put this many admin sign-in requests and this many game sign-in requests that were started and NOT delivered in the game's database. */
+  seedRequests?(n: { admin: number; game: number }): Promise<void>;
+  /** How many admin and game sign-in requests are still not delivered. */
+  pendingRequests?(): Promise<{ admin: number; game: number }>;
 };
 
 const rawOf = (xno: number): string => (BigInt(Math.round(xno * 10_000)) * 10n ** 26n).toString();
@@ -393,6 +455,7 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
     check(Boolean(h.seedSessions && h.sessionCounts), "a store with signOutEverywhere needs seedSessions and sessionCounts in its harness");
     await h.seed({ orders: [order("1", {}), order("2", { status: "open" })], owned: [{ player: A, lookId: "mint-cap", at: NOW }] });
     await h.seedSessions!({ admin: 3, play: 4 });
+    if (h.seedRequests) await h.seedRequests({ admin: 2, game: 3 });
     const before = await h.snapshot();
     const n = await h.store.signOutEverywhere();
     check(n === 3, `expected 3 admin sessions deleted, got ${n}`);
@@ -401,6 +464,80 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
     check((await h.snapshot()) === before, "the orders, the owned looks or the meta rows changed");
     check((await h.store.signOutEverywhere()) === 0, "a second call deletes nothing and says 0");
     check((await h.sessionCounts!()).play === 4, "the player sessions are still there");
+    if (h.pendingRequests) {
+      const p = await h.pendingRequests();
+      check(p.admin === 0, `an admin sign-in request that was started and not delivered must be ended too, ${p.admin} are left (a request signed a moment ago could make a new login)`);
+      check(p.game === 3, `the game's own sign-in requests must be left alone, ${p.game} of 3 are left`);
+    }
+  });
+
+  return cases;
+}
+
+// ---- the sign-in chain contract: the code that MAKES the logins ----
+// The suite above proves what the admin does with a login. This one proves how the game MAKES one: a request started for the game never makes an admin login, and a request started for
+// the admin never makes a game login, whatever browser asks and whatever credentials it presents. The game gives a host that drives its own sign-in (start, the wallet's signature, the check).
+
+export type SigninScope = "game" | "admin";
+
+export type SigninHost = {
+  /** Starts a sign-in request for this scope in a NEW browser, and returns a handle (the host keeps that browser's credentials in it). */
+  start(scope: SigninScope): Promise<unknown>;
+  /** The owner's wallet signs the request (what the wallet app does). */
+  sign(request: unknown): Promise<void>;
+  /**
+   * The browser asks to finish the request AS `as` (the scope the check is made for), and says which logins it ended with.
+   *  - "own": the browser that started it, with its own credentials;
+   *  - "other": a different browser with no credentials of this request;
+   *  - "retyped": the browser that started it, presenting its credentials as the OTHER scope would read them (the cookie copied to the other scope's name; a value that the other
+   *    scope's hashing would match: the game's best attempt at a forged credential).
+   */
+  finish(request: unknown, as: SigninScope, credentials: "own" | "other" | "retyped"): Promise<{ admin: boolean; game: boolean }>;
+  /** Optional. Signs out everywhere (the admin's "Sign out everywhere", from a fresh admin login of the owner). */
+  signOutEverywhere?(): Promise<void>;
+};
+
+export function adminSigninConformance(host: SigninHost): ConformanceCase[] {
+  const cases: ConformanceCase[] = [];
+  const add = (name: string, run: () => Promise<void>) => cases.push({ name, run });
+  const CREDENTIALS = ["own", "other", "retyped"] as const;
+
+  add("control: a request signed in its own scope signs in the browser that started it, in that scope only, once", async () => {
+    for (const scope of ["game", "admin"] as const) {
+      const req = await host.start(scope);
+      await host.sign(req);
+      const got = await host.finish(req, scope, "own");
+      check(scope === "admin" ? got.admin && !got.game : got.game && !got.admin, `a ${scope} request finished as ${scope} by its own browser: ${JSON.stringify(got)}`);
+      const again = await host.finish(req, scope, "own");
+      check(!again.admin && !again.game, `a ${scope} request must sign in once: the second check gave ${JSON.stringify(again)}`);
+    }
+  });
+
+  add("a request started for the GAME never makes an admin login: not for the browser that started it, not for another browser, not for retyped credentials", async () => {
+    for (const credentials of CREDENTIALS) {
+      const req = await host.start("game");
+      await host.sign(req);
+      const got = await host.finish(req, "admin", credentials);
+      check(!got.admin, `a game request finished as the ADMIN with ${credentials} credentials made an admin login`);
+    }
+  });
+
+  add("a request started for the ADMIN never makes a game login: not for the browser that started it, not for another browser, not for retyped credentials", async () => {
+    for (const credentials of CREDENTIALS) {
+      const req = await host.start("admin");
+      await host.sign(req);
+      const got = await host.finish(req, "game", credentials);
+      check(!got.game, `an admin request finished as the GAME with ${credentials} credentials made a game login`);
+    }
+  });
+
+  add("(when the host can sign out everywhere) an admin request that the owner signed before Sign out everywhere makes no login after it", async () => {
+    if (!host.signOutEverywhere) return;
+    const req = await host.start("admin");
+    await host.sign(req);
+    await host.signOutEverywhere();
+    const got = await host.finish(req, "admin", "own");
+    check(!got.admin, "a signed admin request that was not yet delivered made an admin login after Sign out everywhere");
   });
 
   return cases;

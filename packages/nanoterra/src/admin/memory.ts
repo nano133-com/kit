@@ -17,6 +17,9 @@ export type MemoryStore = AdminStore & {
   logins: (AdminLogin & Record<string, unknown>)[];
   adminSessions: number;
   playSessions: number;
+  /** Admin sign-in requests started and not delivered, and the game's own: "sign out everywhere" ends the first and leaves the second. */
+  pendingAdminRequests: number;
+  pendingGameRequests: number;
 };
 
 export function createMemoryStore(seed: { orders?: OrderRow[]; owned?: { player: string; lookId: string; at: number }[]; rate?: StoreSummary["rate"]; logins?: boolean } = {}): MemoryStore {
@@ -29,6 +32,8 @@ export function createMemoryStore(seed: { orders?: OrderRow[]; owned?: { player:
     logins: [],
     adminSessions: 0,
     playSessions: 0,
+    pendingAdminRequests: 0,
+    pendingGameRequests: 0,
     async readSettings() {
       return { character: store.rows.get("setting:character"), signin: store.rows.get("setting:signin") };
     },
@@ -46,6 +51,7 @@ export function createMemoryStore(seed: { orders?: OrderRow[]; owned?: { player:
     store.signOutEverywhere = async () => {
       const n = store.adminSessions;
       store.adminSessions = 0;
+      store.pendingAdminRequests = 0;
       return n;
     };
   }
