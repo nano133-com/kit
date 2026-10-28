@@ -9,14 +9,14 @@
   base, hair or clothes) moves it, with what hangs on it, to the new bones. New: `SOCKETS`, `socketFrame`, `placeSocket`, `isSocketName`, `HAND_HOLD`, the types
   `SocketName`, `SocketFrame`, `SocketLook`; `BaseSpec` may set `handAt` and `back`.
 - **A model on a socket**: `WornAdapter` takes an optional `socket` and `object` (and `add` is now optional). `createCharacter({ worn })` and `c.setWorn(worn)`
-  hang each object on its socket; a model on a socket builds no geometry, and its `fit`, `hidesBadge` and `hideTail` still apply. The character never frees an
+  hang each object on its socket; a model on a socket builds no geometry, and its `fit`, `hidesBadge`, `hideTail` and the new `hideWings` (a back item takes the Bee's wings off, shapes and bones, as `hideTail` takes a tail off) still apply. The character never frees an
   object that the game hung: `setWorn` takes the old ones off, and `dispose` takes the sockets off the dead bones.
 - **`@nano133/nanoterra/model`**: the 3D model check, moved here from nano133.com (`app/launch/model`, which now keeps the same code). `checkModel(bytes,
   limits)` reads a `.glb` from its bytes, never throws, and answers the problems with a fix each, the facts and, new, **advice** (a large PNG or JPEG, 32-bit
   positions, parts that share a material). New facts: `draws` (each part of each drawn mesh instance), `materials`, `anchor`. New limits: `maxDraws`, and
   `anchor` (a marker whose origin is the attach point: the zone is measured from it). The cosmetic presets of Wes's table (2026-10-28): `HEAD_ITEM`,
-  `HAND_ITEM` (its anchor is `grip_R`; `grip_L` is allowed), `BACK_ITEM`, and `COSMETIC_LIMITS` by socket; `ISLAND_MODEL` is the island's (a disc of 10 m
-  radius, 18 m high). A misspelt marker with capitals in its name (`Grip_R`) now gets its rename line too.
+  `HAND_ITEM` (its anchor is `grip_R`; `grip_L` is allowed; the zone is 0.96 x 0.68 m, from 1.17 m below the grip to 0.43 m above: Wes's choice A of 2026-10-28, so that a shovel held by its T-handle fits), `BACK_ITEM`, and `COSMETIC_LIMITS` by socket; `ISLAND_MODEL` is the island's (a disc of 10 m
+  radius, 18 m high). A misspelt marker with capitals in its name (`Grip_R`) now gets its rename line too. A fix line gives a zone's number with two decimals when one is not exact (1.17 m), and as before otherwise (the island's 20.0 m).
 
 - **The Shelf's pictures on the real character**: `createLookPreview` (in `@nano133/nanoterra/character`) draws a look on a character (the game's own
   `body`, else the package's character with its shirt in the look's colour) with one shared offscreen WebGL renderer, one picture at a time, kept by the

@@ -30,11 +30,13 @@ export const bee: BaseSpec = {
     addFace(c);
     if (!c.headOnly) {
       c.addBody(G.cone8, mtx(0, 0.72, -0.5, -Math.PI / 2 + 0.25, 0, 0, 0.1, 0.32, 0.1), "stripe", "hips");
-      // The wings: a bone at each shoulder blade; a long wing and a short one on it.
-      for (const [s, name] of [[1, "wing_L"], [-1, "wing_R"]] as const) {
-        c.b.bone(name, "chest", [s * 0.12, 1.4, -0.3]);
-        c.add(SPH_S, mtx(s * 0.3, 1.78, -0.4, 0.2, 0, s * 1.15, 0.4, 0.04, 0.22), "wing", name);
-        c.add(SPH_S, mtx(s * 0.36, 1.52, -0.42, 0.15, 0, s * 0.8, 0.28, 0.035, 0.15), "wing", name);
+      // The wings: a bone at each shoulder blade; a long wing and a short one on it. A back item covers them (`hideWings`): no wing, no bone.
+      if (!c.hideWings) {
+        for (const [s, name] of [[1, "wing_L"], [-1, "wing_R"]] as const) {
+          c.b.bone(name, "chest", [s * 0.12, 1.4, -0.3]);
+          c.add(SPH_S, mtx(s * 0.3, 1.78, -0.4, 0.2, 0, s * 1.15, 0.4, 0.04, 0.22), "wing", name);
+          c.add(SPH_S, mtx(s * 0.36, 1.52, -0.42, 0.15, 0, s * 0.8, 0.28, 0.035, 0.15), "wing", name);
+        }
       }
     }
     limbs(c, bee.limbs);

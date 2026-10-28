@@ -101,8 +101,8 @@ function checkColors(colors: unknown): Partial<CharColors> {
   return out;
 }
 
-/** A worn thing that changes the body's geometry: its own shapes, or what it does to the hair, the badge or the tail. */
-const merges = (w: WornAdapter) => !!(w.add || w.fit || w.hidesBadge || w.hideTail);
+/** A worn thing that changes the body's geometry: its own shapes, or what it does to the hair, the badge, the tail or the wings. */
+const merges = (w: WornAdapter) => !!(w.add || w.fit || w.hidesBadge || w.hideTail || w.hideWings);
 
 function checkWorn(worn: unknown): readonly WornAdapter[] {
   if (!Array.isArray(worn)) throw new TypeError("@nano133/nanoterra: worn must be a list of worn things");

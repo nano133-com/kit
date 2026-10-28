@@ -109,3 +109,24 @@ test("bad sockets and bad worn lists throw and change nothing", () => {
   assert.throws(() => createCharacter({ worn: "x" as never }), /worn must be a list/);
   c.dispose();
 });
+
+test("a back item with hideWings takes the Bee's wings off (their shapes and bones), as hideTail takes the Critter's tail off", () => {
+  const wingBones = (c: Character) => [...bones(c)].filter((b) => b.name.startsWith("wing_")).length;
+  const bee = createCharacter({ record: baseRecord("bee") });
+  assert.equal(wingBones(bee), 2);
+  const before = skinned(bee)[0].geometry.attributes.position.count;
+  const pack = new THREE.Group();
+  bee.setWorn([{ socket: "back", object: pack, hideWings: true }]);
+  assert.equal(wingBones(bee), 0, "no wing bones");
+  assert.ok(skinned(bee)[0].geometry.attributes.position.count < before, "no wing shapes");
+  assert.equal(pack.parent, bee.socket("back"));
+  bee.update(0.05, { speed: 4 });
+  bee.setWorn([{ socket: "back", object: pack }]);
+  assert.equal(wingBones(bee), 2, "the wings come back without the rule");
+  bee.dispose();
+  const critter = createCharacter({ record: baseRecord("critter") });
+  const n = skinned(critter)[0].geometry.attributes.position.count;
+  critter.setWorn([{ socket: "back", object: new THREE.Group(), hideTail: true, hideWings: true }]);
+  assert.ok(skinned(critter)[0].geometry.attributes.position.count < n, "the tail is off");
+  critter.dispose();
+});

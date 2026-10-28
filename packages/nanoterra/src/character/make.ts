@@ -47,6 +47,7 @@ export function makeContext(spec: BaseSpec, look: CharLook, b: Builder, opts: Ma
     fit: worn.find((w) => w.fit)?.fit ?? NO_FIT,
     hidesBadge: worn.some((w) => w.hidesBadge),
     hideTail: worn.some((w) => w.hideTail),
+    hideWings: worn.some((w) => w.hideWings),
     limbs: spec.limbs,
     headOnly,
     add,

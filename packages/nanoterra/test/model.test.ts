@@ -113,28 +113,28 @@ class Model {
 const run = (b: Buffer, limits: ModelLimits) => checkModel(new Uint8Array(b.buffer, b.byteOffset, b.length), limits);
 const rules = (r: ReturnType<typeof run>) => r.problems.map((p) => p.rule);
 
-test("a hand item that stands up from its grip_R passes; the zone is measured from the grip", () => {
+test("a hand item held near its top passes; the zone is measured from its grip_R", () => {
   const m = new Model();
-  // A stick 1.2 m long, its grip 0.4 m above the file's origin: from the grip it reaches 0.2 below and 1.0 above.
+  // A stick 1.2 m long, its grip 0.8 m above the file's origin: from the grip it reaches 0.8 below and 0.4 above.
   m.node({ name: "stick", mesh: m.box([0.03, 0.6, 0.03], [0, 0.6, 0]) });
-  m.node({ name: "grip_R", translation: [0, 0.2, 0] });
+  m.node({ name: "grip_R", translation: [0, 0.8, 0] });
   const r = run(m.make(), HAND_ITEM);
   assert.deepEqual(r.problems, []);
   assert.ok(r.ok);
-  assert.deepEqual(r.facts.anchor, [0, 0.2, 0]);
-  assert.ok(Math.abs(r.facts.bounds!.min[1] - -0.2) < 1e-6 && Math.abs(r.facts.bounds!.max[1] - 1.0) < 1e-6);
+  assert.deepEqual(r.facts.anchor, [0, 0.8, 0]);
+  assert.ok(Math.abs(r.facts.bounds!.min[1] - -0.8) < 1e-6 && Math.abs(r.facts.bounds!.max[1] - 0.4) < 1e-6);
   assert.equal(r.facts.draws, 1);
   assert.equal(r.facts.materials, 1);
 });
 
-test("a hand item that hangs below its grip fails the zone, and the fix names the grip", () => {
+test("a hand item that hangs too far below its grip fails the zone, and the fix names the grip and the exact zone", () => {
   const m = new Model();
-  m.node({ name: "stick", mesh: m.box([0.03, 0.5, 0.03], [0, 0.5, 0]) });
-  m.node({ name: "grip_R", translation: [0, 0.99, 0] });
+  m.node({ name: "stick", mesh: m.box([0.03, 0.75, 0.03], [0, 0.75, 0]) });
+  m.node({ name: "grip_R", translation: [0, 1.5, 0] });
   const r = run(m.make(), HAND_ITEM);
   assert.ok(!r.ok);
   assert.deepEqual(rules(r), ["zone"]);
-  assert.match(r.problems[0].fix, /from 0\.3 m below to 1\.3 m above the grip_R marker/);
+  assert.match(r.problems[0].fix, /the zone is -1\.17 to 0\.43 m\. Keep it inside 0\.96 x 0\.68 m and from 1\.17 m below to 0\.43 m above the grip_R marker/);
 });
 
 test("with no grip_R the file's origin is the attach point; a misspelt grip gets a rename line", () => {
@@ -191,7 +191,7 @@ test("advice: a 512 px PNG gets the KTX2 line; a texture over the cosmetic limit
 test("the presets: the table's numbers", () => {
   const z = (L: ModelLimits) => L.zone as { width: number; depth: number; height: number; below: number };
   assert.deepEqual([z(HEAD_ITEM).width, z(HEAD_ITEM).depth, Math.round((z(HEAD_ITEM).height + z(HEAD_ITEM).below) * 1e6) / 1e6, z(HEAD_ITEM).below], [0.9, 0.9, 0.8, 0.1]);
-  assert.deepEqual([z(HAND_ITEM).width, z(HAND_ITEM).depth, Math.round((z(HAND_ITEM).height + z(HAND_ITEM).below) * 1e6) / 1e6, z(HAND_ITEM).below], [0.4, 0.4, 1.6, 0.3]);
+  assert.deepEqual([z(HAND_ITEM).width, z(HAND_ITEM).depth, Math.round((z(HAND_ITEM).height + z(HAND_ITEM).below) * 1e6) / 1e6, z(HAND_ITEM).below], [0.96, 0.68, 1.6, 1.17]);
   assert.deepEqual([z(BACK_ITEM).width, z(BACK_ITEM).depth, Math.round((z(BACK_ITEM).height + z(BACK_ITEM).below) * 1e6) / 1e6, z(BACK_ITEM).below], [1.0, 0.6, 1.2, 0.6]);
   assert.deepEqual([HEAD_ITEM, HAND_ITEM, BACK_ITEM].map((L) => [L.maxTriangles, L.maxTextures, L.maxTextureSide, L.maxDraws, L.maxBytes / 1024]), [
     [3000, 1, 512, 2, 300],

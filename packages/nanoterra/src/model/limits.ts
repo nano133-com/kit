@@ -151,9 +151,10 @@ export const HEAD_ITEM: ModelLimits = {
 
 /**
  * A worn thing in the character's right hand (`socket("hand")`). Its attach point is its `grip_R` marker (an empty node where the right
- * hand holds it), else the file's origin; a `grip_L` marker (where a left hand would hold it) is allowed. The zone is 0.4 x 0.4 m and 1.6 m
- * long, from 0.3 m below the grip: a thing that stands up from the grip (+Y; the hand holds it pointing forward). 3,000 triangles,
- * 1 texture of at most 512 px, 2 draws, 300 KB.
+ * hand holds it), else the file's origin; a `grip_L` marker (where a left hand would hold it) is allowed. The zone is 0.96 x 0.68 m and
+ * 1.6 m long, from 1.17 m below the grip to 0.43 m above it: a tool held near its top, as a shovel by its T-handle (Wes chose this zone on
+ * 2026-10-28 over the first 0.4 x 0.4 m from 0.3 m below, which the example shovel did not fit). 3,000 triangles, 1 texture of at most
+ * 512 px, 2 draws, 300 KB.
  */
 export const HAND_ITEM: ModelLimits = {
   ...COSMETIC_CAPS,
@@ -163,7 +164,7 @@ export const HAND_ITEM: ModelLimits = {
   maxDraws: 2,
   maxTextures: 1,
   maxTextureSide: 512,
-  zone: { width: 0.4, depth: 0.4, height: 1.3, below: 0.3 },
+  zone: { width: 0.96, depth: 0.68, height: 0.43, below: 1.17 },
   markers: [
     { name: "grip_R", required: false, kind: "empty", purpose: "where the right hand holds it" },
     { name: "grip_L", required: false, kind: "empty", purpose: "where a left hand would hold it" },

@@ -58,16 +58,17 @@ export type HatPart = { fit: HairFit; add(c: Ctx): void };
  * island's adapter (the shop's hats, scarves, packs, tops, buddies and blades, each fitted to every base) builds these; a game may bring its own.
  * `add` puts the thing's shapes and bones into the build after the body, in order, through the same context as the body's (`c.add`, `c.addHead`,
  * `c.b.bone`). A head item also says what it does to the hair (`fit`); the first that does decides. `hidesBadge`: the chest badge would poke through it.
- * `hideTail`: a back item (a cape, a pack, a plush) or a pinafore covers a base's tail.
+ * `hideTail`: a back item (a cape, a pack, a plush) or a pinafore covers a base's tail. `hideWings`: a back item covers a base's wings (the Bee's).
  *
  * A thing with its own model (a .glb, say) names a `socket` ("head", "hand" or "back", sockets.ts) and gives its `object`: `createCharacter`
- * hangs the object on that socket (its own draws: 1 or 2 more for each thing) and still reads `fit`, `hidesBadge` and `hideTail`. The game
+ * hangs the object on that socket (its own draws: 1 or 2 more for each thing) and still reads `fit`, `hidesBadge`, `hideTail` and `hideWings`. The game
  * owns the object: the character never frees it. `add` is then optional (a thing can have both: merged shapes and a model).
  */
 export type WornAdapter = {
   fit?: HairFit;
   hidesBadge?: boolean;
   hideTail?: boolean;
+  hideWings?: boolean;
   add?(c: Ctx): void;
   socket?: SocketName;
   object?: THREE.Object3D;
@@ -91,6 +92,8 @@ export type Ctx = {
   hidesBadge: boolean;
   /** A worn back item covers the base's tail (a Critter's). */
   hideTail: boolean;
+  /** A worn back item covers the base's wings (a Bee's). */
+  hideWings: boolean;
   /** The base's arms and legs (a worn cuff follows the arm). */
   limbs: Limbs;
   /** Only the head and what sits on it (the pictures of faces and hats). */

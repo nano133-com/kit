@@ -77,6 +77,8 @@ const isIndex = (v: unknown, n: number): v is number => typeof v === "number" &&
 const isCount = (v: unknown, min = 0): v is number => typeof v === "number" && Number.isInteger(v) && v >= min && v <= 0xffffffff;
 const nums = (v: unknown, n: number): v is number[] => Array.isArray(v) && v.length === n && v.every((x) => typeof x === "number" && Number.isFinite(x));
 const m1 = (n: number) => (Math.round(n * 10) / 10).toFixed(1);
+/** A zone's own number: one decimal when that is exact (the island's 20.0 and 18.0), else two (a hand item's 1.17). */
+const mz = (n: number) => (Math.abs(n * 10 - Math.round(n * 10)) < 1e-9 ? m1(n) : (Math.round(n * 100) / 100).toFixed(2));
 const thousands = (n: number) => n.toLocaleString("en-US");
 const mbOf = (n: number) => (n >= 1024 * 1024 ? `${(n / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
@@ -582,15 +584,15 @@ function read(bytes: Uint8Array, L: ModelLimits, facts: ModelFacts, add: (rule: 
   const lo: Vec3 = "radius" in Z ? [-R, -Z.below, -R] : [-Z.width / 2, -Z.below, -Z.depth / 2];
   const hi: Vec3 = "radius" in Z ? [R, Z.height, R] : [Z.width / 2, Z.height, Z.depth / 2];
   const origin = facts.anchor ? `the ${L.anchor} marker` : "the origin";
-  const zoneWords = `${"radius" in Z ? `a circle ${m1(2 * R)} m across` : `${m1(Z.width)} x ${m1(Z.depth)} m`} and ${Z.below ? `from ${m1(Z.below)} m below to ${m1(Z.height)} m above ${origin}` : `${m1(Z.height)} m high`}, its middle at ${origin}${Z.below ? "" : " and its base at height 0"}`;
+  const zoneWords = `${"radius" in Z ? `a circle ${mz(2 * R)} m across` : `${mz(Z.width)} x ${mz(Z.depth)} m`} and ${Z.below ? `from ${mz(Z.below)} m below to ${mz(Z.height)} m above ${origin}` : `${mz(Z.height)} m high`}, its middle at ${origin}${Z.below ? "" : " and its base at height 0"}`;
   const inZone = (x: Vec3) => [0, 1, 2].every((k) => x[k] >= lo[k] - EPS && x[k] <= hi[k] + EPS) && Math.hypot(x[0], x[2]) <= R + EPS;
   if (bounds.min[0] <= bounds.max[0]) {
     facts.bounds = { min: bounds.min, max: bounds.max };
     facts.reach = Math.sqrt(reach2);
     const axis = ["x (side to side)", "y (height)", "z (front to back)"];
     for (const k of "radius" in Z ? [1] : [0, 1, 2])
-      if (bounds.min[k] < lo[k] - EPS || bounds.max[k] > hi[k] + EPS) add("zone", `Your ${what} reaches ${m1(bounds.min[k])} to ${m1(bounds.max[k])} m on ${axis[k]}; the zone is ${m1(lo[k])} to ${m1(hi[k])} m. Keep it inside ${zoneWords}.`);
-    if (facts.reach > R + EPS) add("zone", `Your ${what} reaches ${m1(facts.reach)} m from its middle across the ground; the zone reaches ${m1(R)} m. Keep it inside ${zoneWords}.`);
+      if (bounds.min[k] < lo[k] - EPS || bounds.max[k] > hi[k] + EPS) add("zone", `Your ${what} reaches ${m1(bounds.min[k])} to ${m1(bounds.max[k])} m on ${axis[k]}; the zone is ${mz(lo[k])} to ${mz(hi[k])} m. Keep it inside ${zoneWords}.`);
+    if (facts.reach > R + EPS) add("zone", `Your ${what} reaches ${m1(facts.reach)} m from its middle across the ground; the zone reaches ${mz(R)} m. Keep it inside ${zoneWords}.`);
   }
 
   // The markers: by exact name; an empty marker has no mesh, a mesh marker has one; each one inside the zone.

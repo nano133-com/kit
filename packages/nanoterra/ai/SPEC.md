@@ -109,5 +109,7 @@ export const LOOKS = checkLooks(rawLooksJson); // throws with the first mistake 
 - Do not edit the geometry, the skeleton or the toon and ink materials.
 - Do not add the katana, the headband or other brands' art. A game's own worn model goes on a socket (`c.socket("head" | "hand" | "back")` or
   `c.setWorn([{ socket, object }])`), and is checked first with `checkModel(bytes, HAND_ITEM)` (or `HEAD_ITEM`, `BACK_ITEM`) from `@nano133/nanoterra/model`.
+  A hand thing has an empty `grip_R` node where the hand holds it and stays inside 0.96 x 0.68 m, from 1.17 m below that grip to 0.43 m above. A back
+  thing gives `hideTail: true` and `hideWings: true`, so a tail or wings do not poke through it.
   The game loads the model and frees it; the character never does.
 - Do not use a look or a record for a game's rules, a score or a payment: it is display only.

@@ -178,7 +178,7 @@ a player's choice of body never changes a rule. nano133.com's island and room do
 
 A worn thing reaches the builder through **one small interface**, `WornAdapter`. It has two ways, and a thing may use both:
 
-- **Merged shapes** (`add(ctx)`, and what it does to the hair `fit`, `hidesBadge`, `hideTail`): the thing's shapes go into the body's own buffers, so it
+- **Merged shapes** (`add(ctx)`, and what it does to the hair `fit`, `hidesBadge`, `hideTail`, `hideWings`): the thing's shapes go into the body's own buffers, so it
   **adds no draw**. nano133.com fits the island's 14 shop items (hats, scarves, packs, tops, a buddy, a blade) to every base this way, with its own code.
 - **A model on a socket** (`socket` and `object`, since 0.3.0): your own `THREE.Object3D` (a `.glb` you loaded, say) hangs on one of the character's three
   attach points and follows its bone. It costs **its own draws** (1 or 2 for each thing). The character never frees it: you load it and you free it.
@@ -195,7 +195,7 @@ c.setWorn([]); // the shovel comes off; free its geometry and materials yourself
 |---|---|---|---|
 | `"head"` | `head` | the base's hat frame (`BASE_SPECS[base].hat`: about the middle of the head), scaled by the hat frame and the head's size | the character's: +Y up, +Z forward. A thing made round the middle of the Classic's head (radius 0.42 m) fits every head |
 | `"hand"` | `grip_R` | the middle of the drawn right hand (a wide build or base draws its hands further out than the bone) | `HAND_HOLD`: a thing modelled standing up (+Y) with its grip at the origin is held pointing forward, its front (+Z) up |
-| `"back"` | `chest` | on the back of the torso at the chest's height (`BASE_SPECS[base].back`, else the torso's radius at 1.12) | the character's: the side that touches the body at the origin, the bulk towards -Z |
+| `"back"` | `chest` | on the back of the torso at the chest's height (`BASE_SPECS[base].back`, else the torso's radius at 1.12) | the character's: the side that touches the body at the origin, the bulk towards -Z. Give the thing `hideTail: true` and `hideWings: true` to take a Critter's tail and a Bee's wings off under it |
 
 `socketFrame(spec, look, name)` gives a socket's bone, place, turn and scale for a base and a look, and `placeSocket(object, bones, spec, look, name)`
 puts an object there: a host that uses `buildCharacter` and `assemble` (not `createCharacter`) makes its own sockets with them. Check a socket model
@@ -218,13 +218,13 @@ file is trusted, the work has a cap and a time limit).
   parts that share a material (joining them saves draws).
 - `modelSummary(facts)`: one short line ("646 triangles, 0 textures, 49 KB, 0.5 x 0.4 x 1.0 m").
 
-The presets (`limits.ts`; a game may make its own `ModelLimits`). The cosmetic numbers are Wes's of 2026-10-28; the zone is in metres for a character 2.29 m
+The presets (`limits.ts`; a game may make its own `ModelLimits`). The cosmetic numbers are Wes's of 2026-10-28 (the hand zone his second choice that day, so that a shovel held by its T-handle fits); the zone is in metres for a character 2.29 m
 tall, its origin the socket's point (a hand item's `grip_R` marker when it has one):
 
 | Preset | Zone (w x d x h) | Triangles | Textures | Draws | File |
 |---|---|---|---|---|---|
 | `HEAD_ITEM` | 0.9 x 0.9 x 0.8, from 0.1 below the socket | 3,000 | 1 of 512 px | 2 | 300 KB |
-| `HAND_ITEM` | 0.4 x 0.4 x 1.6, from 0.3 below the grip | 3,000 | 1 of 512 px | 2 | 300 KB |
+| `HAND_ITEM` | 0.96 x 0.68 x 1.6, from 1.17 below the grip to 0.43 above (a tool held near its top) | 3,000 | 1 of 512 px | 2 | 300 KB |
 | `BACK_ITEM` | 1.0 x 0.6 x 1.2, from 0.6 below the socket | 4,000 | 1 of 512 px | 2 | 400 KB |
 | `ISLAND_MODEL` | a disc of 10 m radius, 18 m high, from the ground | 50,000 | 8 of 1,024 px | no limit | 5 MB |
 
