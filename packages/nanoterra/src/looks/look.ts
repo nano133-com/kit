@@ -13,10 +13,27 @@ export type Look = {
   /** The price in US dollars with at most 2 decimals, for example 0.25. 0 means free for everyone. */
   priceUsd: number;
   change: { body: string; hat?: Hat; hatColor?: string };
+  /**
+   * What a game defines for itself: up to 8 slots, each a name and a value, that the game's own code reads ("wings": "ember", "trail": "#ffcf5a"). A name is 1 to 24
+   * lowercase letters, digits or dashes, starting with a letter; a value is a word (1 to 40 lowercase letters, digits or dashes) or a colour ("#rrggbb"). Optional: a look
+   * without `slots`, or with an empty one, is the same look. Because players own a look by its id, the slots of a look that someone owns must not change.
+   */
+  slots?: Slots;
 };
+
+/** The slots of a look: names and values, words or colours. */
+export type Slots = Record<string, string>;
 
 export const ID_PATTERN = /^[a-z0-9-]{1,40}$/;
 export const COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
+/** At most this many slots on a look. */
+export const SLOTS_MAX = 8;
+/** A slot's name: 1 to 24 lowercase letters, digits or dashes, starting with a letter. */
+export const SLOT_NAME_PATTERN = /^[a-z][a-z0-9-]{0,23}$/;
+/** Names that a slot may not have: they mean something to an object (`constructor`, `prototype`). */
+export const RESERVED_SLOT_NAMES: readonly string[] = ["constructor", "prototype"];
+/** A slot's value that is a word: 1 to 40 lowercase letters, digits or dashes. (The other kind of value is a colour, COLOR_PATTERN.) */
+export const SLOT_WORD_PATTERN = /^[a-z0-9-]{1,40}$/;
 export const NAME_MAX = 40;
 export const PRICE_MAX_USD = 1000;
 
@@ -24,14 +41,17 @@ export const PRICE_MAX_USD = 1000;
 export type Problem = {
   /** The place of the look in the list, from 1, or null for a mistake of the whole list. */
   look: number | null;
-  /** The field: "list", "id", "name", "priceUsd", "change.body", "change.hat", "change.hatColor" or "free". */
+  /** The field: "list", "id", "name", "priceUsd", "change.body", "change.hat", "change.hatColor", "slots", "slots.<name>" or "free". (The change rules also use "slots" for a slot that changed on a look that players own.) */
   field: string;
   message: string;
 };
 
-/** Whether a price has no fraction of a cent. `Math.round(x * 100) === x * 100` is wrong for 0.07, 0.29 and 1.1 (floating point). */
+/**
+ * Whether a price has no fraction of a cent. `Math.round(x * 100) === x * 100` is wrong for 0.07, 0.29 and 1.1 (floating point), and a tolerance is wrong the other way (0.300000001
+ * and 1e-9 would pass): a price is whole cents when it is exactly the number that its own two-decimal text names.
+ */
 export function wholeCents(usd: number): boolean {
-  return Math.abs(usd * 100 - Math.round(usd * 100)) < 1e-6;
+  return typeof usd === "number" && Number.isFinite(usd) && Number(usd.toFixed(2)) === usd;
 }
 
 /** Every mistake in a list of looks (looks.json as it was read), in the order of the list. An empty array means the list is good. */
@@ -54,16 +74,57 @@ export function lookProblems(raw: unknown): Problem[] {
     if (typeof v.change?.body !== "string" || !COLOR_PATTERN.test(v.change.body)) add("change.body", '"change.body" must be a colour like "#4aa8ff"');
     if (v.change?.hat !== undefined && !(HATS as readonly unknown[]).includes(v.change.hat)) add("change.hat", `"change.hat" must be one of ${HATS.join(", ")}`);
     if (v.change?.hatColor !== undefined && (typeof v.change.hatColor !== "string" || !COLOR_PATTERN.test(v.change.hatColor))) add("change.hatColor", '"change.hatColor" must be a colour like "#1c6e4f"');
+    if (v.slots !== undefined) slotProblems(v.slots).forEach((s) => add(s.field, s.message));
   });
   if (!out.length && !free) out.push({ look: null, field: "free", message: "looks.json needs at least one free look (priceUsd 0): every player starts with it" });
   return out;
 }
 
+/** Whether `v` is a plain object (not null, not a list, not a class instance). */
+const isPlain = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v) && (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
+
+/** Whether a slot's value is good: a word or a colour. */
+export const slotValueOk = (v: unknown): v is string => typeof v === "string" && (SLOT_WORD_PATTERN.test(v) || COLOR_PATTERN.test(v));
+
+/** The mistakes in one look's `slots` (the look's own message is added by the caller): the field is "slots" or "slots.<name>". */
+function slotProblems(slots: unknown): { field: string; message: string }[] {
+  if (!isPlain(slots)) return [{ field: "slots", message: '"slots" must be an object of names and values, like { "wings": "ember" }' }];
+  const names = Object.keys(slots);
+  const out: { field: string; message: string }[] = [];
+  if (names.length > SLOTS_MAX) out.push({ field: "slots", message: `"slots" can have at most ${SLOTS_MAX} slots (this one has ${names.length})` });
+  for (const name of names) {
+    if (!SLOT_NAME_PATTERN.test(name)) out.push({ field: `slots.${name}`, message: `the slot name "${name}" must be 1 to 24 lowercase letters, digits or dashes, starting with a letter` });
+    else if (RESERVED_SLOT_NAMES.includes(name)) out.push({ field: `slots.${name}`, message: `the slot name "${name}" is reserved: choose another` });
+    else if (!slotValueOk(slots[name])) out.push({ field: `slots.${name}`, message: `"slots.${name}" must be a word (1 to 40 lowercase letters, digits or dashes) or a colour like "#ffcf5a"` });
+  }
+  return out;
+}
+
+/**
+ * The slots as a clean copy, or undefined when there are none (an empty `slots` is the same as none). The creator's order of names is kept. A COLOUR is written in lower case
+ * ("#ffcf5a"), so the game always reads one text for one colour: a change of only the case of a colour is then no change at all, for the game as for the check.
+ */
+export function cleanSlots(slots: Slots | undefined): Slots | undefined {
+  if (!slots) return undefined;
+  const names = Object.keys(slots);
+  return names.length ? Object.fromEntries(names.map((n) => [n, typeof slots[n] === "string" && COLOR_PATTERN.test(slots[n]) ? slots[n].toLowerCase() : slots[n]])) : undefined;
+}
+
 /** The looks, or an Error that says the first mistake in plain words. The same words as the starter's `checkLooks`. */
-export function checkLooks(raw: unknown): Look[] {
+export function checkLooks(rawInput: unknown): Look[] {
+  // One snapshot of the data is checked AND copied: a getter or a changing value cannot be good for the check and something else for the copy. (JSON cannot hold one.)
+  let raw: unknown = rawInput;
+  try {
+    raw = rawInput === undefined ? undefined : JSON.parse(JSON.stringify(rawInput));
+  } catch {
+    throw new Error("looks.json must be plain JSON data");
+  }
   const first = lookProblems(raw)[0];
   if (first) throw new Error(first.message);
-  return (raw as Look[]).map((l) => ({ id: l.id, name: l.name, priceUsd: l.priceUsd, change: { body: l.change.body, hat: l.change.hat, hatColor: l.change.hatColor } }));
+  return (raw as Look[]).map((l) => {
+    const slots = cleanSlots(l.slots);
+    return { id: l.id, name: l.name, priceUsd: l.priceUsd, change: { body: l.change.body, hat: l.change.hat, hatColor: l.change.hatColor }, ...(slots ? { slots } : {}) };
+  });
 }
 
 /** "$0.25" */
