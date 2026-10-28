@@ -10,9 +10,9 @@ AI setup prompt and spec, and manual steps.
 |---|---|---|---|
 | Nano Checkout | [`@nano133/checkout`](packages/checkout) | [0.2.1](https://www.npmjs.com/package/@nano133/checkout) | Beta |
 | Late Payment Return | [`@nano133/late-returns`](packages/late-returns) | [0.3.0](https://www.npmjs.com/package/@nano133/late-returns) | Beta |
-| Sign in with Nano | [`@nano133/signin`](packages/signin) | [0.3.0](https://www.npmjs.com/package/@nano133/signin) | Alpha |
+| Sign in with Nano | [`@nano133/signin`](packages/signin) | [0.5.0](https://www.npmjs.com/package/@nano133/signin) | Alpha |
 | Nano for Three.js | [`@nano133/three`](packages/three) | [0.1.0](https://www.npmjs.com/package/@nano133/three) | Alpha |
-| Nanoterra for a game: the player's sign-in ticket, the player's character and the looks ladder | [`@nano133/nanoterra`](packages/nanoterra): one package, on paths `/ticket`, `/character`, `/character/record` and `/looks` (it replaces `@nano133/character`, `@nano133/ticket` and `@nano133/looks`) | [0.1.0](https://www.npmjs.com/package/@nano133/nanoterra) | Pre-alpha |
+| Nanoterra for a game: the player's sign-in ticket, the player's character and the looks ladder | [`@nano133/nanoterra`](packages/nanoterra): one package, on paths `/ticket`, `/character`, `/character/record` and `/looks` (it replaces `@nano133/character`, `@nano133/ticket` and `@nano133/looks`) | [0.2.0](https://www.npmjs.com/package/@nano133/nanoterra) | Pre-alpha |
 | Nano Unlock for Next.js | [`nano133-com/nano-unlock-next`](https://github.com/nano133-com/nano-unlock-next): the package `@nano133/unlock` and a blog; runs on Vercel and on Cloudflare Workers (live demos: [Vercel](https://nano-unlock-next.vercel.app), [Cloudflare](https://nano-unlock-blog.nano133.workers.dev)) | [0.1.1](https://www.npmjs.com/package/@nano133/unlock) | Alpha |
 | Nano Unlock for WordPress | [`nano133-com/nano-unlock`](https://github.com/nano133-com/nano-unlock): a plugin | not an npm package | Alpha |
 

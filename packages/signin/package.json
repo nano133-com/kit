@@ -1,6 +1,6 @@
 {
   "name": "@nano133/signin",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Sign in with Nano (XNO): a passkey purse, Berry Wallet, Nautilus or NanChat, or any wallet that signs. No payment, no password, no email.",
   "type": "module",
   "main": "dist/index.js",

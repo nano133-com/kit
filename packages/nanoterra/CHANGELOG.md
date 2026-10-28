@@ -1,8 +1,6 @@
 # Changelog
 
-## Unreleased
-
-(Not published. The version is set when Wes decides to publish.)
+## 0.2.0 (2026-10-27)
 
 - **Slots** on a look (`@nano133/nanoterra/looks`, and the Shelf of `/admin/panel`): `slots?: Record<string, string>`, what a game defines for itself (a pair of wings, a trail colour). Names are 1 to 24
   lowercase letters, digits or dashes starting with a letter; values are words (1 to 40 lowercase letters, digits or dashes) or `#rrggbb` colours; at most 8 on a look. `lookProblems` checks them

@@ -1,8 +1,6 @@
 # Changelog
 
-## Unreleased
-
-(Not published. The version is set when Wes decides to publish.)
+## 0.5.0 (2026-10-27)
 
 A sign-in that opens an ADMIN must say so in what the wallet signs, and may live shorter. Small, optional changes; nothing changes for a site that does not use them.
 

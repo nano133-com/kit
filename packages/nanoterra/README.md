@@ -61,10 +61,10 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/ticket` | read and check a sign-in ticket | no | 4.7 kB (all), 3.1 kB (`readTicket` alone) |
 | `@nano133/nanoterra/looks` | the looks ladder | no | 1.9 kB (all), 0.9 kB (`checkLooks` alone) |
 | `@nano133/nanoterra/character` | the builder and `createCharacter` (it includes the record) | yes | 20.4 kB (all), 17.8 kB (`createCharacter` alone) |
-| `@nano133/nanoterra/admin` | the admin of a game: the guard, the handler, the store type (server code; not published yet) | no | 3.7 kB |
-| `@nano133/nanoterra/admin/d1`, `/admin/firestore` | the admin store for D1 (the starter's tables) or Firestore (a small interface, no Firebase dependency): `createD1Store`, `createFirestoreStore` (not published yet) | no | 1.5 kB each |
-| `@nano133/nanoterra/admin/panel` | the admin page, drawn in the browser into one element, and its stylesheet `@nano133/nanoterra/admin/style.css` (not published yet) | no | 8.5 kB + 2.4 kB of CSS |
-| `@nano133/nanoterra/admin/conformance` | test cases that a game runs against its own admin (a dev dependency in practice; not published yet) | no | n/a |
+| `@nano133/nanoterra/admin` | the admin of a game: the guard, the handler, the store type (server code; since 0.2.0) | no | 3.7 kB |
+| `@nano133/nanoterra/admin/d1`, `/admin/firestore` | the admin store for D1 (the starter's tables) or Firestore (a small interface, no Firebase dependency): `createD1Store`, `createFirestoreStore` (since 0.2.0) | no | 1.5 kB each |
+| `@nano133/nanoterra/admin/panel` | the admin page, drawn in the browser into one element, and its stylesheet `@nano133/nanoterra/admin/style.css` (since 0.2.0) | no | 8.5 kB + 2.4 kB of CSS |
+| `@nano133/nanoterra/admin/conformance` | test cases that a game runs against its own admin (a dev dependency in practice; since 0.2.0) | no | n/a |
 
 Measured 2026-10-26: `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
 All four paths together: 23.6 kB. A test of the package proves that the record, the ticket, the looks and the small part import no package at all.
@@ -173,7 +173,7 @@ a player's choice of body never changes a rule. nano133.com's island and room do
 
 ## Worn items (the next version)
 
-**Version 0.1.0 draws the body only**, as `@nano133/character` 0.1.0 did. The island's 14 shop items (hats, scarves, packs, tops, a buddy, a blade) are
+**Versions 0.1.0 and 0.2.0 draw the body only**, as `@nano133/character` 0.1.0 did. The island's 14 shop items (hats, scarves, packs, tops, a buddy, a blade) are
 fitted to every base by nano133.com's own code, and are not in this package yet. The builder takes them through **one small interface**,
 `WornAdapter` (what it needs of a worn thing: its shapes and bones through `add(ctx)`, what it does to the hair, `hidesBadge`, `hideTail`), so a game
 may bring its own, and the island brings its adapter the same way.
@@ -361,7 +361,7 @@ The rules (the same as the starter's `AGENTS.md`):
 The ladder is a suggestion. Any price with at most 2 decimals, up to $1000, is good. `wholeCents` accepts every price in whole cents (the starter's old check,
 `Math.round(x * 100) === x * 100`, refused $0.07, $0.29, $0.57 and $1.10 because of floating point).
 
-## The admin (`/admin`; not published yet)
+## The admin (`/admin`; since 0.2.0)
 
 The admin of a game that sells Nanoterra looks for Nano, in the package: one panel for the game, its looks and its orders. It has two parts that never load each other:
 the **server part** (`/admin`: the guard, the routes and a test suite) and the **panel** (`/admin/panel`: the page, drawn in the browser). Neither has Three.js. The package has no
