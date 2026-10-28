@@ -141,3 +141,16 @@ test("a bad deliverMs (a negative number, NaN, Infinity, not a number) is read a
   }
   assert.equal((await checkNanoSignin({ store: s, now: () => clock, deliverMs: 0 }, start.id, "a".repeat(64))).mine, false, "0 is no delivery after the request ends");
 });
+
+test("deliverMs can only shorten the window: a value above an hour (1e15, 2**53) is held to the hour", async () => {
+  const s = store();
+  const o = options(s, GAME);
+  const start = await startNanoSignin(o, { starter: "a".repeat(64), requestUrl: url });
+  const req = (await readNanoSignin(o, start.id, url))!;
+  await answerNanoSignin(o, start.id, berryAnswer(req), url);
+  clock += 5 * 60_000 + 61 * 60_000; // 61 minutes after the request ended
+  for (const big of [1e15, 2 ** 53, 10 * 60 * 60_000]) {
+    assert.equal((await checkNanoSignin({ store: s, now: () => clock, deliverMs: big }, start.id, "a".repeat(64))).mine, false, `${big} is held to an hour`);
+  }
+  assert.equal((await checkNanoSignin({ store: s, now: () => clock }, start.id, "a".repeat(64))).mine, false, "the default is the hour");
+});

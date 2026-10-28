@@ -12,7 +12,7 @@ A sign-in that opens an ADMIN must say so in what the wallet signs, and may live
   game's `https://example.com/`, the admin's `https://example.com/admin`, the line "URI: ..." of the signed text) reads the note back before it answers the wallet.
 - **A shorter delivery:** `checkNanoSignin`, `checkNautilus` and `checkNanchat` take `deliverMs` (default `DELIVER_MS`, an hour): how long after a request expires a signature can still sign in the
   browser that started it. `checkOf(found, now, starter, deliverMs?)`. No value is the default; a value that is not a number from 0 up (negative, NaN, Infinity) is read as 0, never as the
-  longest window.
+  longest window. A value above `DELIVER_MS` is held to it: a site can only shorten the window.
 - Tests (`test/admin-text.test.ts`): a signature of the game's text never answers an admin request and an admin one never answers a game request, for Berry and for Nautilus; the shorter life.
 - NanChat is unchanged: its text must start "Login to <host>", and its docs do not say what else may follow, so a site that needs a named admin sign-in should not offer NanChat for it.
 
