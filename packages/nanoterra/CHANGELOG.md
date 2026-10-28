@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 (unreleased)
+## 0.3.0 (2026-10-28)
 
 - **Sockets** (`@nano133/nanoterra/character`): three attach points on the character, `c.socket("head" | "hand" | "back")`, each a `THREE.Object3D` on a bone
   (`head`, `grip_R`, `chest`) that follows the walk, the run, the jump and the wave. The head socket sits at the base's hat frame and scales with it and the head's

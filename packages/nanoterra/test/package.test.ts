@@ -104,7 +104,7 @@ test("package.json: no runtime dependency, three is an optional peer, version 0.
   assert.equal(pkg.type, "module");
   assert.deepEqual(pkg.files.slice().sort(), ["CHANGELOG.md", "LICENSE", "README.md", "ai", "dist", "src"], "files holds no test, no script and no secret");
   assert.match(read("README.md"), /^# @nano133\/nanoterra\n\nStage: Pre-alpha\. What this means: https:\/\/nano133\.com\/stages\n/);
-  assert.match(read("CHANGELOG.md"), /^# Changelog\n\n(## Unreleased\n[\s\S]*?\n)?## 0\.3\.0 \(unreleased\)\n[\s\S]*?\n## 0\.2\.0 \(2026-10-27\)\n[\s\S]*?\n## 0\.1\.0\n/);
+  assert.match(read("CHANGELOG.md"), /^# Changelog\n\n(## Unreleased\n[\s\S]*?\n)?## 0\.3\.0 \(2026-10-28\)\n[\s\S]*?\n## 0\.2\.0 \(2026-10-27\)\n[\s\S]*?\n## 0\.1\.0\n/);
 });
 
 test("the exports map: the small part, the character, its record, the ticket, the looks, the model check and the admin, each with types", () => {
