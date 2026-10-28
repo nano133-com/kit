@@ -469,6 +469,10 @@ The Firestore store does not have them yet (a game's sessions are its own): a ga
 
 - **A second signature for a write.** The only server write the admin makes is the sign-in switch (and the Shelf never writes), so asking the owner to sign again for each press adds friction for
   little gain. A later version could ask for it if the admin ever writes more.
+- **An optional passkey for the admin, bound to the domain.** A passkey (WebAuthn) belongs to the domain it was made for, so a sign-in request that a stranger relays to the owner from another
+  page or link **cannot be answered with it**: the browser will not use the passkey on another domain. That is the strongest fix for the relay of an admin wallet sign-in. The wallet text names
+  the admin now, but a wallet cannot tell where a request started; a passkey can. Later, not now: the owner's wallet signature would stay as the way to make the first admin login or to
+  recover, and the passkey would be a second, optional way that cannot be relayed.
 
 ### The panel
 
