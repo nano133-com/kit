@@ -229,3 +229,21 @@ test("xnoText writes a raw amount as XNO with every significant digit", () => {
   assert.equal(xnoText((RAW_PER_XNO * 123n + 5n * 10n ** 28n).toString()), "123.05");
   assert.equal(xnoText("1"), "0.000000000000000000000000000001");
 });
+
+// ---- what the security read found ----
+
+test("a row with an odd status or an odd dollar text does not change the counts or the totals", async () => {
+  const store = createMemoryStore({
+    orders: [
+      { id: "1", player: "p", lookId: "l", usd: "0.25", amountRaw: "1", status: "paid", createdAt: 1, expiresAt: 2, paidAt: 1, payer: "p", hash: "a" },
+      { id: "2", player: "p", lookId: "l", usd: "-5", amountRaw: "1", status: "paid", createdAt: 2, expiresAt: 3, paidAt: 1, payer: "p", hash: "b" },
+      { id: "3", player: "p", lookId: "l", usd: "0x10", amountRaw: "1", status: "paid", createdAt: 3, expiresAt: 4, paidAt: 1, payer: "p", hash: "c" },
+      { id: "4", player: "p", lookId: "l", usd: "1e3", amountRaw: "1", status: "constructor", createdAt: 4, expiresAt: 5, paidAt: 1, payer: "p", hash: "d" },
+      { id: "5", player: "p", lookId: "l", usd: "0.75", amountRaw: "1", status: "toString", createdAt: 5, expiresAt: 6, paidAt: 1, payer: "p", hash: "e" },
+    ],
+  });
+  const s = await store.summary(0);
+  assert.deepEqual(Object.keys(s.counts), ["open", "paid", "expired", "paid_late"]);
+  assert.deepEqual(s.counts, { open: 0, paid: 3, expired: 0, paid_late: 0 });
+  assert.equal(s.totals.paid.usd, "0.25", "a negative, a hex and an exponent text count as 0");
+});

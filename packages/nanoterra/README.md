@@ -380,11 +380,19 @@ const host = { routes: admin.routes, basePath: admin.basePath, origin: "https://
 for (const c of adminConformance(host)) it(c.name, c.run);   // vitest, node:test or any runner
 ```
 
-`sendAs(who, req)` makes a request as one of seven visitors from YOUR sessions: `signed_out`, `game_login` (a login made for your players, which must NOT open the admin),
-`nanoterra_login`, `other_wallet`, `no_address`, `expired_login` and `owner`. The suite then checks every route in `admin.routes` for each, and also: an unknown path gets the same
-refusal; other spellings of an admin path (upper case, a doubled slash, a percent code, a dot segment) open nothing; a POST from another site is refused; a method that a
-route does not have is refused; a body that is too big is refused; and every answer is `no-store` with no CORS header. A route that someone adds later cannot skip the guard,
-because the suite walks the route list.
+`sendAs(who, req)` makes a request as one of ten visitors from YOUR sessions: `signed_out`; `game_login` (a login made for your players, which must NOT open the admin);
+`game_token_as_admin` (the token of that player login put in the ADMIN cookie: your store must keep the two scopes apart, not only the cookie names); `nanoterra_login`;
+`unknown_via_login` (an admin login whose `via` is a word you do not know, like `"ticket"`: it must fail closed); `other_wallet`; `no_address`; `expired_login`;
+`old_valid_row` (an admin login more than a day old whose stored row is still valid, so only the guard's age check can refuse it: do not let your session code rewrite the time); and `owner`.
+The suite checks every route in `admin.routes` for each, and also: an unknown path gets the same refusal; **OPTIONS and HEAD** on every route are refused like any other method and no
+preflight is ever answered; other spellings of an admin path (upper case, a doubled slash, a percent code, a backslash, a dot segment) open nothing with any method; a POST from another
+site is refused; a method that a route does not have is refused; a body that is too big is refused; and **every answer is `no-store` with no CORS header**, for every method and status.
+A route that someone adds later cannot skip the guard, because the suite walks the route list.
+
+**List the other routes that your own router serves under the admin base** in `host.otherRoutes` (`{ method, path }`: an old `/api/admin/orders`, a debug route, a route kept for an old page).
+The suite sends each one as every visitor who is not the owner and requires a refusal. It cannot find a route that your router hides from it, so a route that answers BEFORE the handler with no
+guard is a fault only if you list it. **What the suite cannot see:** the code that CREATES admin logins (your wallet sign-in). Test that separately: only a wallet signature started from the
+admin may make an admin login, and never from another sign-in. A security read found these gaps in the first version of this suite, and each one is a test now.
 
 ### The store (an adapter for your database)
 

@@ -57,7 +57,7 @@ export function createD1Store(db: D1Like): AdminStore {
       const counts = { open: 0, paid: 0, expired: 0, paid_late: 0 };
       for (const c of grouped) {
         const key = c.status === "open" && c.past ? "expired" : c.status;
-        if (key in counts) counts[key as keyof typeof counts] += c.n;
+        if (Object.hasOwn(counts, key)) counts[key as keyof typeof counts] += c.n;
       }
       const money = (status: string) => moneyOf(sums.filter((s) => s.status === status).map((s) => ({ amountRaw: s.amount, usd: s.usd })));
       const rows: OrderRow[] = orders.map((o) => ({ id: o.id, player: o.player, lookId: o.look_id, usd: o.usd, amountRaw: o.amount, status: o.status, createdAt: o.created_at, expiresAt: o.expires_at, paidAt: o.paid_at, payer: o.payer, hash: o.hash }));

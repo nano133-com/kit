@@ -21,8 +21,14 @@
   Firebase dependency). Both write ONLY the two settings. `adminStoreConformance(make)` (in `/admin/conformance`) is the store contract that every adapter passes: the memory store, D1 on SQLite and Firestore on a fake.
   The summary's numbers come from one file (`summarize`, `moneyOf`, `shapeOrders`), so every adapter says the same thing. The memory store now takes orders with a raw `amountRaw`, like a real database.
 - **`@nano133/nanoterra/admin/conformance`**: `adminConformance(host)` gives test cases that a game runs against its OWN session code and store: every route refuses a visitor
-  who is signed out, a login made for the game's players, a Nanoterra sign-in, another wallet, a missing owner address and an old login; other spellings of an admin path
-  open nothing; a POST from another site is refused; a body that is too big is refused; every answer is `no-store` with no CORS header.
+  who is signed out, a login made for the game's players (also its token in the admin cookie), a Nanoterra sign-in, a login made some way the game does not know, another wallet, a missing
+  owner address, an expired login and a login that is old but still valid in the store; OPTIONS and HEAD are refused with no preflight answer; other spellings of an admin path open nothing with
+  any method; the game's other routes under the base (`otherRoutes`) refuse a visitor; a POST from another site is refused; a body that is too big is refused; every answer is `no-store` with
+  no CORS header. (The first version of this suite passed four wirings that leak everything; a security read found them, and each is a test now.)
+- **Fixes from a security read of the first admin code:** odd spellings of the base path (a bad percent code, backslashes, many levels of encoding) now reach the guard instead of falling through;
+  a fault in the game's `now()` or `onError()` can no longer reject `handle()` with the raw error; the default limiter is keyed by base path and owner, so two games in one process do not share a
+  count; the message for an AI assistant takes only valid look ids, written as JSON strings (an id from a database cannot write a line into it); the summary counts only the four statuses it knows
+  and reads a dollar text only when it is plain dollars.
 
 ## 0.1.0
 
