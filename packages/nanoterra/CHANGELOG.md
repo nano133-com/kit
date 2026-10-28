@@ -38,6 +38,12 @@
   owner address, an expired login and a login that is old but still valid in the store; OPTIONS and HEAD are refused with no preflight answer; other spellings of an admin path open nothing with
   any method; the game's other routes under the base (`otherRoutes`) refuse a visitor; a POST from another site is refused; a body that is too big is refused; every answer is `no-store` with
   no CORS header. (The first version of this suite passed four wirings that leak everything; a security read found them, and each is a test now.)
+- **A second security read** (new fresh agent, 2026-10-27) found that the second conformance suite still passed some wirings that leak or act. Fixed: the suite sends a foreign Origin (another site,
+  `"null"`, a sibling subdomain) and Sec-Fetch-Site cross-site and same-site on every route with every method, for the owner too; it sends an old login that is still valid THREE times (the last two
+  with `req.again`) so a rolling session fails; `expired_login` is now made less than a day ago so only the game's own store can refuse it; new kind `signed_out_login`; the spelling tricks run on
+  every route and method; the game's other routes must refuse with a refusal that carries no data. **The handler now refuses a read that says it comes from another page**, as it refused a write.
+  Looks: `wholeCents` is exact (`0.300000001` and `1e-9` no longer pass); a slot colour is written in lower case (a change of only its case is no change); the names `constructor` and
+  `prototype` are reserved; `checkLooks` checks and copies one snapshot; the Shelf never gives an id that a player owns to a new look.
 - **Fixes from a security read of the first admin code:** odd spellings of the base path (a bad percent code, backslashes, many levels of encoding) now reach the guard instead of falling through;
   a fault in the game's `now()` or `onError()` can no longer reject `handle()` with the raw error; the default limiter is keyed by base path and owner, so two games in one process do not share a
   count; the message for an AI assistant takes only valid look ids, written as JSON strings (an id from a database cannot write a line into it); the summary counts only the four statuses it knows

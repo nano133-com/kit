@@ -403,3 +403,28 @@ test("sign-ins: with a store that lists nothing, there is no card", async () => 
   await mounted.ready;
   assert.equal(root.querySelector(".signins"), null);
 });
+
+test("slots: an id that a player owns is never given to a new look, even when that look is not in looks.json now", async () => {
+  // "mint-cap" is owned by a player (see the setup) but the game's looks do not have it: a new look named "Mint cap" must not take its id.
+  const store = createMemoryStore({ owned: [{ player: OTHER, lookId: "mint-cap", at: NOW }] });
+  const root = win.document.createElement("div") as unknown as HTMLElement;
+  win.document.body.append(root as unknown as Node);
+  const only = LOOKS.filter((l) => l.id !== "mint-cap");
+  const handler = createAdminHandler({ store, defaults: { character: "nanoterra", signin: "exchange" }, owner: OWNER, session: async () => KINDS.owner, now: () => NOW, limit: () => true });
+  const send = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    if ((init?.method ?? "GET") === "POST") headers.set("Origin", ORIGIN);
+    return (await handler.handle(new Request(new URL(String(input), ORIGIN), { method: init?.method ?? "GET", headers, body: init?.body as string | undefined })))!;
+  }) as typeof fetch;
+  const mounted = mountAdmin(root, { looks: only, fetch: send, signOut: async () => undefined, signIn: () => undefined });
+  await mounted.ready;
+  buttonWith(root, "Edit the shelf").click();
+  buttonWith(root, "Add a look").click();
+  const card = [...root.querySelectorAll(".shelf-card")].at(-1) as HTMLElement;
+  const name = card.querySelector('input[type="text"]') as HTMLInputElement;
+  typeInto(name, "Mint cap");
+  const json = (root.querySelector(".shelf-file pre")?.textContent ?? "") + text(root);
+  // The new look is not "mint-cap": its id is the next free one, and the owned id is left for the look that players own.
+  assert.ok(!/"id": "mint-cap"/.test(root.querySelector(".shelf-file pre")?.textContent ?? ""), json.slice(0, 300));
+  assert.ok(/"id": "mint-cap-2"/.test(root.querySelector(".shelf-file pre")?.textContent ?? ""), json.slice(0, 300));
+});

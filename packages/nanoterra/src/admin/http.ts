@@ -19,6 +19,18 @@ export function sameOrigin(req: Request): boolean {
   return req.headers.get("Sec-Fetch-Site") === "same-origin";
 }
 
+/**
+ * True when the browser says a request did NOT come from this game's own pages: an Origin that is not the game's (any value, "null" too), or Sec-Fetch-Site "cross-site" or
+ * "same-site" (a sibling subdomain is same-site and has the game's cookies). A request with neither header (a command-line tool; a browser's own address bar says "none") is not foreign.
+ * The admin API is called only by its own page, so a read that is foreign is refused too: whatever CORS headers the game's router might add, the answer is not for another page.
+ */
+export function foreignOrigin(req: Request): boolean {
+  const origin = req.headers.get("Origin");
+  if (origin !== null && origin !== new URL(req.url).origin) return true;
+  const site = req.headers.get("Sec-Fetch-Site");
+  return site === "cross-site" || site === "same-site";
+}
+
 /** The text of a body of at most `max` bytes, or null when it is bigger. It stops reading at the limit: a body with no length cannot fill the memory. */
 export async function readLimited(req: Request, max: number): Promise<string | null> {
   const declared = req.headers.get("Content-Length");

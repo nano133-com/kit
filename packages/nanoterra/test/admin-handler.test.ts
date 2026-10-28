@@ -20,9 +20,12 @@ const KINDS: Record<string, AdminSession> = {
   old_valid_row: { address: OWNER, createdAt: NOW - ADMIN_SESSION_MS - 1, via: "wallet" },
   unknown_via_login: { address: OWNER, createdAt: NOW - 1000, via: "ticket" },
 };
+/** What the game's own store refuses before the guard sees a login: a login it has expired, and one that its sign-out ended. */
+const STORE_REFUSED = new Set(["expired_login", "signed_out_login"]);
 const readSession = async (req: Request): Promise<AdminSession | null> => {
   const m = /(?:^|;\s*)admin=([a-z_]+)/.exec(req.headers.get("Cookie") ?? "");
-  return (m && KINDS[m[1]]) || null;
+  if (!m || STORE_REFUSED.has(m[1])) return null;
+  return KINDS[m[1]] ?? null;
 };
 
 function make(over: Partial<Parameters<typeof createAdminHandler>[0]> = {}) {
@@ -132,7 +135,7 @@ test("the suite fails a handler that lets a cross-site POST through", async () =
       return handler.handle(new Request(req.url, { method: req.method, headers, body: text === "" ? undefined : text }));
     },
   };
-  await assert.rejects(run(adminConformance(hostFor(noOriginCheck, noOwner))), /another Origin|Sec-Fetch-Site|neither/);
+  await assert.rejects(run(adminConformance(hostFor(noOriginCheck, noOwner))), /another Origin|Sec-Fetch-Site|neither|foreign page/);
 });
 
 // The four wirings that a security read wrote against the first suite; every one of them passed it. They must fail now.
@@ -184,6 +187,90 @@ test("the suite fails a game that gives a login a new creation time, so that an 
   } });
   const { handler: noOwner } = make({ owner: null });
   await assert.rejects(run(adminConformance(hostFor(bad.handler, noOwner))), /old_valid_row|expired_login|more than a day|expected 401, got 200/);
+});
+
+// What a second security read wrote against the second suite; every one of these passed it. They must fail now.
+const cookieKind = (req: Request) => /(?:^|;\s*)admin=([a-z_]+)/.exec(req.headers.get("Cookie") ?? "")?.[1];
+
+test("the suite fails a game whose router adds CORS for a foreign Origin, or that serves the data to a foreign page", async () => {
+  const good = make();
+  const { handler: noOwner } = make({ owner: null });
+  const reflect: AdminHandler = {
+    ...good.handler,
+    async handle(req) {
+      const res = await good.handler.handle(req);
+      const origin = req.headers.get("Origin");
+      if (!res || !origin) return res;
+      const out = new Response(res.body, res);
+      out.headers.set("Access-Control-Allow-Origin", origin);
+      out.headers.set("Access-Control-Allow-Credentials", "true");
+      return out;
+    },
+  };
+  await assert.rejects(run(adminConformance(hostFor(reflect, noOwner))), /CORS/);
+  // The handler's own refusal of a foreign page is what the suite needs: a wrapper that hides the foreign Origin from it gets the owner's data and fails.
+  const hide: AdminHandler = {
+    ...good.handler,
+    async handle(req) {
+      const headers = new Headers(req.headers);
+      headers.delete("Origin");
+      headers.delete("Sec-Fetch-Site");
+      const text = req.method === "GET" || req.method === "HEAD" ? undefined : await req.text();
+      return good.handler.handle(new Request(req.url, { method: req.method, headers, body: text === "" ? undefined : text }));
+    },
+  };
+  await assert.rejects(run(adminConformance(hostFor(hide, noOwner))), /foreign page|another page|Origin/);
+});
+
+test("the suite fails a game whose session renews the creation time of a login each time it is read (a rolling session)", async () => {
+  let reads = 0;
+  const bad = make({ session: async (req) => {
+    if (cookieKind(req) !== "old_valid_row") return readSession(req);
+    reads++;
+    return reads === 1 ? KINDS.old_valid_row : { ...KINDS.old_valid_row, createdAt: NOW - 1000 };
+  } });
+  const { handler: noOwner } = make({ owner: null });
+  await assert.rejects(run(adminConformance(hostFor(bad.handler, noOwner))), /old_valid_row/);
+});
+
+test("the suite fails a game that ignores its own expiry, or that still reads a login that sign-out ended", async () => {
+  const { handler: noOwner } = make({ owner: null });
+  const ignoresExpiry = make({ session: async (req) => (cookieKind(req) === "expired_login" ? KINDS.owner : readSession(req)) });
+  await assert.rejects(run(adminConformance(hostFor(ignoresExpiry.handler, noOwner))), /expired_login|expired/);
+  const keepsSignedOut = make({ session: async (req) => (cookieKind(req) === "signed_out_login" ? KINDS.owner : readSession(req)) });
+  await assert.rejects(run(adminConformance(hostFor(keepsSignedOut.handler, noOwner))), /signed_out_login|sign-out/);
+});
+
+test("the suite fails an unguarded legacy write under another spelling of a route (not listed in otherRoutes), and an old route that refuses with data", async () => {
+  const good = make();
+  const { handler: noOwner } = make({ owner: null });
+  const legacy: AdminHandler = {
+    ...good.handler,
+    async handle(req) {
+      if (req.method === "POST" && new URL(req.url).pathname === "/api/admin/game/") return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Cache-Control": "no-store" } });
+      return good.handler.handle(req);
+    },
+  };
+  await assert.rejects(run(adminConformance(hostFor(legacy, noOwner))), /game\/|expected 401, 403, 404 or 405/);
+  const leaky: AdminHandler = {
+    ...good.handler,
+    async handle(req) {
+      if (new URL(req.url).pathname === "/api/admin/orders") return new Response(JSON.stringify({ error: "no", rows: [{ player: "x", hash: "y" }] }), { status: 403, headers: { "Cache-Control": "no-store" } });
+      return good.handler.handle(req);
+    },
+  };
+  await assert.rejects(run(adminConformance(hostFor(leaky, noOwner, undefined, [{ method: "GET", path: "/api/admin/orders" }]))), /carry only error, reason and signedInAs/);
+});
+
+test("a read from another page is refused by the handler itself, as a write is: a foreign Origin, Origin null, Sec-Fetch-Site cross-site or same-site; the game's own page and a command-line tool are not", async () => {
+  const { handler } = make();
+  const get = (headers: Record<string, string>) => handler.handle(new Request(`${ORIGIN}/api/admin/summary`, { headers: { Cookie: "admin=owner", ...headers } }));
+  for (const headers of [{ Origin: "https://evil.example" }, { Origin: "null" }, { Origin: `${ORIGIN}.evil.example` }, { Origin: "https://sibling.game.example" }, { "Sec-Fetch-Site": "cross-site" }, { "Sec-Fetch-Site": "same-site" }, { Origin: ORIGIN, "Sec-Fetch-Site": "cross-site" }]) {
+    assert.equal((await get(headers))!.status, 403, JSON.stringify(headers));
+  }
+  for (const headers of [{}, { Origin: ORIGIN }, { "Sec-Fetch-Site": "same-origin" }, { "Sec-Fetch-Site": "none" }, { Origin: ORIGIN, "Sec-Fetch-Site": "same-origin" }]) {
+    assert.equal((await get(headers))!.status, 200, JSON.stringify(headers));
+  }
 });
 
 // ---- the routes ----

@@ -76,7 +76,7 @@ test("checkLooks keeps the slots, drops every other unknown field, and returns a
 test("a key that could touch the prototype is refused, and nothing is polluted", () => {
   const raw = JSON.parse('[{"id":"free","name":"A","priceUsd":0,"change":{"body":"#336699"},"slots":{"__proto__":"x","constructor":"y"}}]');
   const p = lookProblems(raw);
-  assert.deepEqual(p.map((x) => x.field), ["slots.__proto__"]);
+  assert.deepEqual(p.map((x) => x.field), ["slots.__proto__", "slots.constructor"], '"__proto__" fails the name pattern and "constructor" is a reserved name');
   assert.equal(({} as Record<string, unknown>).x, undefined);
   assert.equal(Object.getPrototypeOf(cleanSlots(raw[0].slots)!), Object.prototype);
   assert.equal(({} as { polluted?: unknown }).polluted, undefined);
@@ -136,4 +136,49 @@ test("a file from before slots: every look reads and writes the same, and a chan
   const old = [FREE, look({ id: "a", priceUsd: 0.25 })];
   assert.deepEqual(removalProblems(old, [FREE, { ...old[1], priceUsd: 0.5 }], ["a"]), []);
   assert.deepEqual(removalProblems(old, [FREE], ["a"]).map((p) => p.field), ["id"]);
+});
+
+// ---- what the second security read found ----
+
+import { wholeCents, RESERVED_SLOT_NAMES } from "../src/looks/index.js";
+
+test("a colour in a slot is written in lower case, so the game reads one text for one colour; a change of only the case is no change", () => {
+  const [l] = checkLooks([{ ...FREE, slots: { trail: "#FFCF5A", wings: "Ember".toLowerCase() } }]);
+  assert.deepEqual(l.slots, { trail: "#ffcf5a", wings: "ember" });
+  assert.ok(looksJson([l]).includes('"trail": "#ffcf5a"'));
+  assert.ok(looksJson([{ ...FREE, slots: { trail: "#FFCF5A" } }]).includes('"trail": "#ffcf5a"'), "looksJson writes lower case even for an unchecked look");
+  // The owner of a look sees no change when only the case of its slot colour moves, together with a price change: the game reads the same text either way.
+  const before = checkLooks([FREE, { ...EMBER, slots: { trail: "#ffcf5a" } }]);
+  const after = checkLooks([FREE, { ...EMBER, priceUsd: 0.5, slots: { trail: "#FFCF5A" } }]);
+  assert.deepEqual(before[1].slots, after[1].slots);
+  assert.deepEqual(removalProblems(before, after, ["ember-wings"]), []);
+});
+
+test("a price is whole cents only when it is exactly the number its own two decimals name", () => {
+  for (const ok of [0, 0.01, 0.07, 0.29, 0.57, 1.1, 0.25, 1, 999.99, 1000]) assert.equal(wholeCents(ok), true, String(ok));
+  for (let cents = 0; cents <= 100_000; cents += 1) if (!wholeCents(cents / 100)) assert.fail(`${cents / 100} is whole cents`);
+  for (const bad of [0.300000001, 1e-9, 999.999999999, 0.1 + 0.2, 1.005, 0.001, Number.NaN, Infinity, -Infinity]) assert.equal(wholeCents(bad), false, String(bad));
+  assert.deepEqual(lookProblems([{ ...FREE, priceUsd: 1e-9 }]).map((p) => p.field), ["priceUsd"]);
+  assert.deepEqual(lookProblems([FREE, { ...FREE, id: "x", priceUsd: 0.300000001 }]).map((p) => p.field), ["priceUsd"]);
+});
+
+test("a slot name that means something to an object is reserved", () => {
+  for (const name of RESERVED_SLOT_NAMES) {
+    const p = lookProblems([{ ...FREE, slots: { [name]: "x" } }]);
+    assert.deepEqual(p.map((x) => x.field), [`slots.${name}`]);
+    assert.match(p[0].message, /is reserved/);
+  }
+  assert.deepEqual(lookProblems([{ ...FREE, slots: { constructors: "x", prototypes: "y" } }]), []);
+});
+
+test("checkLooks checks and copies ONE snapshot: a getter that changes cannot be good for the check and something else for the copy", () => {
+  let reads = 0;
+  const raw = [{ id: "free", name: "A", priceUsd: 0, change: { body: "#336699" }, get slots() { return { wings: reads++ === 0 ? "ember" : "<script>" }; } }];
+  const out = checkLooks(raw);
+  assert.deepEqual(out[0].slots, { wings: "ember" });
+  assert.ok(reads <= 1, `the slots were read ${reads} times`);
+  assert.throws(() => checkLooks([{ ...FREE, priceUsd: 10n }]), /plain JSON data/);
+  const circular: Record<string, unknown> = { ...FREE };
+  circular.self = circular;
+  assert.throws(() => checkLooks([circular]), /plain JSON data/);
 });

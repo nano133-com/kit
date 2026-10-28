@@ -21,13 +21,23 @@ import { ORDERS_SHOWN, type OrderRow } from "./summary.js";
  *  - unknown_via_login     an admin-scope login of the owner's whose `via` is a word the game does not know (like "ticket", or an empty one): it must fail closed
  *  - other_wallet          a wallet login for an address that is not the owner's
  *  - no_address            a wallet login while the game has NO owner address set (the game runs with none)
- *  - expired_login         a wallet login of the owner's that the game's own store has already expired
- *  - old_valid_row         a wallet login of the owner's made more than one day ago whose stored row is STILL valid, so only the guard's own age check can refuse it
+ *  - expired_login         a wallet login of the owner's, made LESS than a day ago, that the game's own store has already expired (its own life is shorter than a day, or it ended).
+ *                          The guard's age check cannot refuse it, so only the game's store does: a game whose session code ignores its own expiry fails here
+ *  - signed_out_login      a wallet login of the owner's, made just now, that the game's own sign-out route has ended. A game that still reads it fails here
+ *  - old_valid_row         a wallet login of the owner's made more than one day ago whose stored row is STILL valid, so only the guard's own age check can refuse it. The suite sends it
+ *                          TWICE (the second time with `again: true`, the same login): a game that renews the creation time on every read fails here
  *  - owner                 a wallet login of the owner's, made just now
  */
-export type Who = "signed_out" | "game_login" | "game_token_as_admin" | "nanoterra_login" | "unknown_via_login" | "other_wallet" | "no_address" | "expired_login" | "old_valid_row" | "owner";
+export type Who = "signed_out" | "game_login" | "game_token_as_admin" | "nanoterra_login" | "unknown_via_login" | "other_wallet" | "no_address" | "expired_login" | "signed_out_login" | "old_valid_row" | "owner";
 
-export type ConformanceRequest = { method: string; path: string; headers?: Record<string, string>; body?: string };
+export type ConformanceRequest = {
+  method: string;
+  path: string;
+  headers?: Record<string, string>;
+  body?: string;
+  /** True when the suite wants the SAME login as the last request of this kind (do not make a new one): a host must support it, or a session that renews itself on each read is not caught. */
+  again?: boolean;
+};
 
 export type ConformanceHost = {
   /** The handler's `routes`. */
@@ -55,7 +65,8 @@ const REFUSALS: { who: Who; status: number; reason?: string; words: string }[] =
   { who: "unknown_via_login", status: 403, words: "an admin login that was made some way the game does not know (it must fail closed)" },
   { who: "other_wallet", status: 403, reason: "other_address", words: "a wallet that is not the owner's" },
   { who: "no_address", status: 403, reason: "no_address", words: "anyone, while the game has no owner address" },
-  { who: "expired_login", status: 401, words: "an admin login that the game's own store has expired" },
+  { who: "expired_login", status: 401, words: "an admin login that the game's own store has expired (made less than a day ago)" },
+  { who: "signed_out_login", status: 401, words: "an admin login that the game's own sign-out has ended" },
   { who: "old_valid_row", status: 401, words: "an admin login that is more than a day old but still valid in the game's store (only the guard's age check refuses it)" },
 ];
 
@@ -139,39 +150,81 @@ export function adminConformance(host: ConformanceHost): ConformanceCase[] {
     check(owner.status === 404, `GET ${path} as owner: expected 404, got ${owner.status}`);
   });
 
-  add("the game's other routes under the base (the ones its own router serves) refuse every visitor who is not the owner", async () => {
+  add("the game's other routes under the base (the ones its own router serves) refuse every visitor who is not the owner, with a refusal that carries no data", async () => {
     for (const route of host.otherRoutes ?? []) {
       for (const who of NOT_OWNER) {
         const got = await read(await send(who, { method: route.method, path: route.path, headers: good(), body: body(route) }, false));
         const here = `${route.method} ${route.path} as ${who}`;
         check(got.status === 401 || got.status === 403, `${here}: expected 401 or 403, got ${got.status}`);
         check(!DATA_WORDS.test(got.text), `${here}: the answer holds the game's data`);
+        check(got.json !== null && Object.keys(got.json).every((k) => REFUSAL_KEYS.has(k)), `${here}: a refusal must carry only error, reason and signedInAs, got ${got.text.slice(0, 120)}`);
       }
     }
   });
 
-  add("other spellings of an admin path never open anything for a visitor, with any method (other case, a slash, a doubled slash, a percent code, a backslash, a dot segment)", async () => {
-    const real = host.routes.find((r) => r.method === "GET")!.path;
-    const last = real.slice(real.lastIndexOf("/") + 1);
-    const tricks = [
-      real.toUpperCase(),
-      `${real}/`,
-      real.replace(`/${last}`, `//${last}`),
-      real.slice(0, -1) + `%${last.charCodeAt(last.length - 1).toString(16)}`,
-      real.replace(`/${last}`, `/x/../${last}`),
-      `${host.basePath}%2f${last}`,
-      `${host.basePath}\\${last}`,
-      `${host.basePath}%5c${last}`,
-      `${host.basePath.replace(/^\/(\w+)\//, "/$1%2f")}/${last}`,
-      `${host.basePath.replace(/^\/(\w)/, (_, c: string) => `/%${c.charCodeAt(0).toString(16)}`)}/${last}`,
+  /** Other spellings of one admin path: other case, a slash, a doubled slash, a percent code, a backslash, a dot segment. */
+  const spellings = (path: string): string[] => {
+    const last = path.slice(path.lastIndexOf("/") + 1);
+    const base = host.basePath;
+    return [
+      path.toUpperCase(),
+      `${path}/`,
+      path.replace(`/${last}`, `//${last}`),
+      path.slice(0, -1) + `%${path.charCodeAt(path.length - 1).toString(16)}`,
+      path.replace(`/${last}`, `/x/../${last}`),
+      `${base}%2f${last}`,
+      `${base}\\${last}`,
+      `${base}%5c${last}`,
+      `${base.replace(/^\/(\w+)\//, "/$1%2f")}/${last}`,
+      `${base.replace(/^\/(\w)/, (_, c: string) => `/%${c.charCodeAt(0).toString(16)}`)}/${last}`,
     ];
-    for (const path of tricks) {
-      for (const who of NOT_OWNER) {
-        for (const method of ["GET", "POST", "OPTIONS", "HEAD"]) {
-          const got = await read(await send(who, { method, path, headers: good(), body: body({ method }) }, false));
-          check([401, 403, 404, 405].includes(got.status), `${method} ${path} as ${who}: expected 401, 403, 404 or 405, got ${got.status}`);
-          check(!DATA_WORDS.test(got.text), `${method} ${path} as ${who}: the answer holds the game's data`);
+  };
+
+  add("other spellings of EVERY admin path never open anything for a visitor, with any method", async () => {
+    const seen = new Set<string>();
+    for (const route of host.routes) {
+      for (const path of spellings(route.path)) {
+        if (seen.has(path)) continue;
+        seen.add(path);
+        for (const who of NOT_OWNER) {
+          for (const method of new Set([route.method, "GET", "POST", "OPTIONS", "HEAD"])) {
+            const got = await read(await send(who, { method, path, headers: good(), body: body({ method }) }, false));
+            check([401, 403, 404, 405].includes(got.status), `${method} ${path} as ${who}: expected 401, 403, 404 or 405, got ${got.status}`);
+            check(!DATA_WORDS.test(got.text), `${method} ${path} as ${who}: the answer holds the game's data`);
+          }
         }
+      }
+    }
+  });
+
+  add("a request from another page never gets a CORS header, and never the data: a foreign Origin (another site, 'null', a sibling subdomain) on every route, with every method, for the owner and for every visitor", async () => {
+    const own = new URL(host.origin);
+    const origins = ["https://evil.example", "null", `${own.protocol}//evil.${own.host}`, `${own.protocol}//${own.host.replace(/^[^.]+\./, "sibling.")}`, `${own.protocol}//${own.host}.evil.example`];
+    const WHO: Who[] = ["owner", ...NOT_OWNER];
+    for (const route of host.routes) {
+      for (const origin of origins) {
+        for (const who of WHO) {
+          for (const method of new Set([route.method, "GET", "OPTIONS", "HEAD"])) {
+            const got = await read(await send(who, { method, path: route.path, headers: { Origin: origin, "Content-Type": "application/json" }, body: body({ method }) }));
+            const here = `${method} ${route.path} as ${who} with Origin ${origin}`;
+            check([401, 403, 405].includes(got.status), `${here}: a foreign page must get 401, 403 or 405, got ${got.status}`);
+            check(!DATA_WORDS.test(got.text), `${here}: the answer holds the game's data`);
+          }
+        }
+      }
+      // Sec-Fetch-Site says the same: cross-site and same-site (a sibling subdomain has the game's cookies) are not the game's own page.
+      for (const site of ["cross-site", "same-site"]) {
+        const got = await read(await send("owner", { method: route.method, path: route.path, headers: { "Sec-Fetch-Site": site, "Content-Type": "application/json" }, body: body(route) }));
+        check(got.status === 403, `${route.method} ${route.path} as owner with Sec-Fetch-Site ${site}: expected 403, got ${got.status}`);
+      }
+    }
+  });
+
+  add("an old login that is still valid in the store is refused EVERY time it is used, not only the first: a game must not renew a login on each read", async () => {
+    for (const route of host.routes) {
+      for (const again of [false, true, true]) {
+        const got = await read(await send("old_valid_row", { method: route.method, path: route.path, headers: good(), body: body(route), again }));
+        check(got.status === 401, `${route.method} ${route.path} as old_valid_row${again ? " (the same login again)" : ""}: expected 401, got ${got.status}`);
       }
     }
   });

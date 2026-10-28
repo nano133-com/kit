@@ -9,7 +9,7 @@
 // for any path, a real one or not, and learns nothing about the routes. The handler sets no CORS header. A POST must come from the game's own page.
 
 import { adminAccess, type AdminAccess, type AdminSession } from "./guard.js";
-import { fail, json, memoryLimiter, readLimited, sameOrigin } from "./http.js";
+import { fail, foreignOrigin, json, memoryLimiter, readLimited, sameOrigin } from "./http.js";
 import { ADMIN_LOGINS_SHOWN, type AdminLogin, type AdminOrder, type AdminPlayer, type AdminStatus, type AdminStore, type AdminSummary, type StoreSummary } from "./store.js";
 import { mergeSettings, parsePatch, type GameSettings, type GameState } from "./switches.js";
 
@@ -149,8 +149,8 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
       if (!known.length) return fail(404, "No such admin page.");
       const route = known.find((r) => r.method === req.method);
       if (!route) return fail(405, "Not allowed.", {}, { Allow: known.map((r) => r.method).join(", ") });
-      // 3. A write must come from the game's own page.
-      if (route.method === "POST" && !sameOrigin(req)) return fail(403, "This call must come from the game's own page.");
+      // 3. The call must come from the game's own page: a write must say so (Origin, or Sec-Fetch-Site same-origin); a read must not say it comes from another page.
+      if (route.method === "POST" ? !sameOrigin(req) : foreignOrigin(req)) return fail(403, "This call must come from the game's own page.");
 
       if (route.method === "GET" && route.path === `${base}/summary`) return json(await summary(at));
       if (route.method === "GET") return json(await settings());

@@ -174,7 +174,7 @@ export function shelfView(first: ShelfData, looks: readonly Look[], picture: (l:
     };
     const name = h("input", { class: "shelf-input", type: "text", maxlength: 40, value: l.name, "aria-label": `Name of look ${i + 1}`, oninput: (e: Event) => {
       l.name = (e.target as HTMLInputElement).value;
-      if (!isOriginal(l.id)) l.id = slugId(l.name, draft.filter((x) => x !== l).map((x) => x.id));
+      if (!isOriginal(l.id)) l.id = slugId(l.name, [...draft.filter((x) => x !== l).map((x) => x.id), ...owned()]);
       sync();
     } });
     const priceInput = h("input", { class: "shelf-input shelf-num", type: "number", step: 0.01, min: 0, max: 1000, inputmode: "decimal", value: Number.isFinite(l.priceUsd) ? l.priceUsd : "", "aria-label": `Price in US dollars of ${l.name}`, oninput: (e: Event) => {
@@ -272,7 +272,8 @@ export function shelfView(first: ShelfData, looks: readonly Look[], picture: (l:
   function addLook(from?: Look) {
     const name = from ? `${from.name} copy`.slice(0, 40) : "New look";
     const base: Look = from ? { id: "", name, priceUsd: from.priceUsd, change: { ...from.change }, ...(from.slots ? { slots: { ...from.slots } } : {}) } : { id: "", name, priceUsd: 0.05, change: { body: "#4aa8ff" } };
-    base.id = slugId(name, draft.map((x) => x.id));
+    // An id that a player owns is never given to a new look (even when that look is not in looks.json now): the new look would be what the owners own.
+    base.id = slugId(name, [...draft.map((x) => x.id), ...owned()]);
     draft = [...draft, base];
     redraw();
     el.querySelectorAll<HTMLInputElement>(".shelf-card:last-of-type input[type=text]").forEach((i) => i.focus());

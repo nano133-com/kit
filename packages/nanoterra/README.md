@@ -315,14 +315,16 @@ A game with its own parts (a pair of wings, a trail colour) needs a place for th
 - A **name** is 1 to 24 lowercase letters, digits or dashes, starting with a letter (`SLOT_NAME_PATTERN`).
 - A **value** is a **word** (1 to 40 lowercase letters, digits or dashes, `SLOT_WORD_PATTERN`) or a **colour** (`#rrggbb`). Nothing else: no number, no list, no nested object. A game that needs
   a number writes it as a word it understands (`"size": "large"`).
-- **At most 8 slots** on a look (`SLOTS_MAX`), so at most 512 characters of names and values.
+- **At most 8 slots** on a look (`SLOTS_MAX`), so at most 512 characters of names and values. The names `constructor` and `prototype` are reserved (`RESERVED_SLOT_NAMES`).
+- **A colour is written in lower case** by `checkLooks`, `cleanSlots` and `looksJson` (`#FFCF5A` becomes `#ffcf5a`), so the game reads one text for one colour and a change of only the case is no change.
 - A look with no `slots`, or with an empty one, is **the same look**. A file from before slots reads and writes exactly as it did. Any other unknown field of a look is still dropped by `checkLooks`.
 - Your game reads `look.slots` from the checked looks; the package gives them no meaning.
 - `lookProblems` names a bad slot with the look, the field (`slots` or `slots.wings`) and plain words. `checkLooks` keeps the slots (a clean copy). `looksJson` writes them after `change`, on the
   look's own line, in your order of names. `diffLooks` lists a change as the field `"slots"` (the same names and values in any order are not a change; a colour in upper or lower case is the same).
 - **Players own a look by its id, so the slots of a look that a player owns must not change:** the game reads the slots of the id, and a new slot would change what they own. `removalProblems`
   reports a changed slot on an owned look as a mistake with the field `"slots"` ("Add a new look with the new slots"), as it reports a removed owned id. A price, a name, a body colour or a hat of an
-  owned look may still change. The free look is every player's and no order owns it, so its slots may change; a look that nobody owns may change its slots too.
+  owned look may still change. The free look is every player's and no order owns it, so its slots may change; a look that nobody owns may change its slots too. The Shelf never gives an id that a
+  player owns to a NEW look (when an owned look is no longer in the file, a new look named like it gets the next free id, such as `mint-cap-2`).
 - The Shelf (`/admin/panel`) keeps the slots in its draft, shows them on the look's card, and has a "Slots" editor on each look: rows of a name and a value, Add and Remove, with the count of 8.
   A name used twice, a bad name and a bad value are shown before anything can be copied.
 
@@ -389,6 +391,10 @@ or lies more than five minutes in the future, a login word that is not exactly `
 to one day, and a fault inside the guard is a refusal. A test runs the starter's guard and this one over 10,000 inputs and proves that this one never allows what the
 starter refuses.
 
+**The handler** refuses a request that says it comes from another page, for a read as for a write: an `Origin` that is not the game's (also `"null"`), or `Sec-Fetch-Site` `cross-site` or `same-site`
+(a sibling subdomain has the game's cookies). The admin API is called only by its own page, so whatever CORS headers a game's router might add, the answer is not for another page. A tool with
+neither header (curl) and the browser's own address bar (`Sec-Fetch-Site: none`) are not foreign.
+
 **The handler** sends every request under the base path (`/api/admin` by default) through the guard first, before the route is looked up: a visitor who is not the owner
 gets 401 or 403 for any path, so nothing about the routes leaks. A POST must come from the game's own page (`Origin`, else `Sec-Fetch-Site: same-origin`). It sets no CORS
 header, always sends `Cache-Control: no-store`, reads at most 512 bytes of a press, and limits presses to 30 a minute. A fault in your store gives a plain 500 that shows
@@ -406,14 +412,18 @@ const host = { routes: admin.routes, basePath: admin.basePath, origin: "https://
 for (const c of adminConformance(host)) it(c.name, c.run);   // vitest, node:test or any runner
 ```
 
-`sendAs(who, req)` makes a request as one of ten visitors from YOUR sessions: `signed_out`; `game_login` (a login made for your players, which must NOT open the admin);
+`sendAs(who, req)` makes a request as one of eleven visitors from YOUR sessions: `signed_out`; `game_login` (a login made for your players, which must NOT open the admin);
 `game_token_as_admin` (the token of that player login put in the ADMIN cookie: your store must keep the two scopes apart, not only the cookie names); `nanoterra_login`;
-`unknown_via_login` (an admin login whose `via` is a word you do not know, like `"ticket"`: it must fail closed); `other_wallet`; `no_address`; `expired_login`;
-`old_valid_row` (an admin login more than a day old whose stored row is still valid, so only the guard's age check can refuse it: do not let your session code rewrite the time); and `owner`.
+`unknown_via_login` (an admin login whose `via` is a word you do not know, like `"ticket"`: it must fail closed); `other_wallet`; `no_address`;
+`expired_login` (made LESS than a day ago and expired by your own store, so only your store can refuse it: a game that ignores its own expiry fails); `signed_out_login` (a login that your own
+sign-out ended); `old_valid_row` (an admin login more than a day old whose stored row is still valid, so only the guard's age check can refuse it); and `owner`. **Support `req.again`:** when it
+is true, send the SAME login as the last request of that kind and do not make a new one. The suite sends `old_valid_row` three times, the last two with `again`, and requires 401 each time: a
+session that renews its creation time on every read is a rolling session, and a stolen cookie would then live for ever.
 The suite checks every route in `admin.routes` for each, and also: an unknown path gets the same refusal; **OPTIONS and HEAD** on every route are refused like any other method and no
-preflight is ever answered; other spellings of an admin path (upper case, a doubled slash, a percent code, a backslash, a dot segment) open nothing with any method; a POST from another
-site is refused; a method that a route does not have is refused; a body that is too big is refused; and **every answer is `no-store` with no CORS header**, for every method and status.
-A route that someone adds later cannot skip the guard, because the suite walks the route list.
+preflight is ever answered; other spellings of EVERY admin path (upper case, a doubled slash, a percent code, a backslash, a dot segment) open nothing with any method; **a request from another
+page** (a foreign Origin, `"null"`, a sibling subdomain, Sec-Fetch-Site cross-site or same-site) is refused on every route with every method, for the owner too, and never gets a CORS header; a POST
+from another site is refused; a method that a route does not have is refused; a body that is too big is refused; and **every answer is `no-store` with no CORS header**, for every method and
+status. A route that someone adds later cannot skip the guard, because the suite walks the route list.
 
 **List the other routes that your own router serves under the admin base** in `host.otherRoutes` (`{ method, path }`: an old `/api/admin/orders`, a debug route, a route kept for an old page).
 The suite sends each one as every visitor who is not the owner and requires a refusal. It cannot find a route that your router hides from it, so a route that answers BEFORE the handler with no
