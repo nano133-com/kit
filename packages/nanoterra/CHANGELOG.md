@@ -13,6 +13,10 @@
   - `AdminStore`: what a game gives (read the two settings, save a checked patch, the summary). The only writes are the two `setting:` values.
   - `loadGameSettings(store, defaults)`: the two switches for the game's own routes (the listing file, the character); the defaults when the store fails.
   - `createMemoryStore()`: a store in memory, for tests.
+- **`@nano133/nanoterra/admin/panel`** (step 2): `mountAdmin(element, options)`, the admin page in plain DOM with no framework: the Game card, the status warnings, the totals, the Shelf (the
+  starter's, moved here: it edits a draft and gives text to copy, and sends no request), the orders with "Paid late" and an optional "Check payments now", the looks that players own,
+  and the screens for a visitor who is signed out, a wrong wallet, a Nanoterra sign-in and a missing owner address. The game gives `signIn`, `signOut` and its `looks`.
+  `@nano133/nanoterra/admin/style.css`: its stylesheet, every rule under `.n133-admin`. The summary of the handler now says `canCheck`.
 - **`@nano133/nanoterra/admin/conformance`**: `adminConformance(host)` gives test cases that a game runs against its OWN session code and store: every route refuses a visitor
   who is signed out, a login made for the game's players, a Nanoterra sign-in, another wallet, a missing owner address and an old login; other spellings of an admin path
   open nothing; a POST from another site is refused; a body that is too big is refused; every answer is `no-store` with no CORS header.

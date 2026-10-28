@@ -61,7 +61,8 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/ticket` | read and check a sign-in ticket | no | 4.7 kB (all), 3.1 kB (`readTicket` alone) |
 | `@nano133/nanoterra/looks` | the looks ladder | no | 1.9 kB (all), 0.9 kB (`checkLooks` alone) |
 | `@nano133/nanoterra/character` | the builder and `createCharacter` (it includes the record) | yes | 20.4 kB (all), 17.8 kB (`createCharacter` alone) |
-| `@nano133/nanoterra/admin` | the admin of a game: the guard, the handler, the store type (server code; not published yet) | no | not measured yet |
+| `@nano133/nanoterra/admin` | the admin of a game: the guard, the handler, the store type (server code; not published yet) | no | 3.7 kB |
+| `@nano133/nanoterra/admin/panel` | the admin page, drawn in the browser into one element, and its stylesheet `@nano133/nanoterra/admin/style.css` (not published yet) | no | 8.5 kB + 2.4 kB of CSS |
 | `@nano133/nanoterra/admin/conformance` | test cases that a game runs against its own admin (a dev dependency in practice; not published yet) | no | n/a |
 
 Measured 2026-10-26: `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
@@ -333,8 +334,9 @@ The ladder is a suggestion. Any price with at most 2 decimals, up to $1000, is g
 
 ## The admin (`/admin`; not published yet)
 
-The admin of a game that sells Nanoterra looks for Nano, in the package: one panel for the game, its looks and its orders. It is built in steps; this is **step 1, the
-server part**. It has no Three.js, no database and no cookie. **The game gives a session and a store**, and the package gives the guard, the routes and a test suite.
+The admin of a game that sells Nanoterra looks for Nano, in the package: one panel for the game, its looks and its orders. It has two parts that never load each other:
+the **server part** (`/admin`: the guard, the routes and a test suite) and the **panel** (`/admin/panel`: the page, drawn in the browser). Neither has Three.js. The package has no
+database and reads no cookie: **the game gives a session and a store**.
 
 ```ts
 import { createAdminHandler } from "@nano133/nanoterra/admin";
@@ -382,6 +384,32 @@ for (const c of adminConformance(host)) it(c.name, c.run);   // vitest, node:tes
 refusal; other spellings of an admin path (upper case, a doubled slash, a percent code, a dot segment) open nothing; a POST from another site is refused; a method that a
 route does not have is refused; a body that is too big is refused; and every answer is `no-store` with no CORS header. A route that someone adds later cannot skip the guard,
 because the suite walks the route list.
+
+### The panel
+
+```ts
+import { mountAdmin } from "@nano133/nanoterra/admin/panel";
+import "@nano133/nanoterra/admin/style.css";
+
+mountAdmin(document.getElementById("admin")!, {
+  looks,                                        // your looks.json as the game has it now: the Shelf starts from it
+  signIn: (into, done) => showWalletSignIn(into, done),   // YOUR wallet sign-in for the ADMIN login; call done() when the owner has signed in
+  signOut: () => signOutOfAdmin(),              // sign out of the ADMIN login only (the game's own login stays)
+  defaultsFile: "game.config.json",             // optional: where your switches' defaults are written
+});
+```
+
+The panel draws: the **Game** card (the two switches), what is still off (the status warnings), the totals, the **Shelf** (the looks with what each has sold, and a draft you can change),
+**Orders** (with "Paid late" and a "Check payments now" button when the game gave a check), the looks that players own, and Sign out. A visitor who is signed out gets the game's
+sign-in; a wrong wallet, a Nanoterra sign-in and a missing owner address each get their own screen and see no data. Options: `api` (the handler's base path), `noAddressHelp`,
+`lookPicture(look)` (your own picture of a look for the Shelf), `repoHelp`, and `fetch`.
+
+**The Shelf never writes.** It edits a draft in the owner's browser and gives text to copy (`looks.json`, or a message for an AI assistant): there is no call in the panel that
+changes a look, a price or an order, and a test proves that editing the Shelf sends no request. A change of looks is a change of your repository. The **Game** card writes only the
+two settings. The stylesheet is scoped under `.n133-admin`, so it cannot leak into your page; to theme it set `--n133-ink`, `--n133-ink-soft`, `--n133-paper`, `--n133-line`,
+`--n133-gem`, `--n133-gem-dark`, `--n133-sea`, `--n133-radius` or `--n133-font` on the element that holds it. Every control is at least 40 px high (the order tabs); the switches, the price chips, the inputs and the buttons are 44 px or more. One column on a phone, two from 640 px.
+
+The wallet sign-in stays yours (`signIn`), because only your game can start a request in the ADMIN scope with its own cookie. The panel never signs anyone in.
 
 ## Moving from the three old packages
 

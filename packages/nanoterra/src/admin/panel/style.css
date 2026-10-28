@@ -1,0 +1,473 @@
+/* The admin panel's styles (mountAdmin in ./mount.ts). Every rule is under .n133-admin, so nothing leaks into the page that holds the panel and the page's own
+   styles do not reach in by accident. Phone first: every control is at least 40 px high (the order tabs), the rest 44 px or more; one column, two from 640px.
+   To theme it, set the --n133-* custom properties on the element that holds the panel (or on any parent): --n133-ink, --n133-ink-soft, --n133-paper, --n133-line,
+   --n133-gem, --n133-gem-dark, --n133-sea, --n133-radius and --n133-font. */
+
+.n133-admin {
+  --font: var(--n133-font, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+  --gem: var(--n133-gem, #20c9a6);
+  --gem-dark: var(--n133-gem-dark, #0e8a72);
+  --ink: var(--n133-ink, #16202e);
+  --ink-soft: var(--n133-ink-soft, #4a5568);
+  --line: var(--n133-line, #dbe4ee);
+  --paper: var(--n133-paper, #ffffff);
+  --radius: var(--n133-radius, 18px);
+  --sea: var(--n133-sea, #1f8fc4);
+  box-sizing: border-box;
+  max-width: 900px;
+  margin: 0 auto;
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-text-size-adjust: 100%;
+}
+
+.n133-admin *,
+.n133-admin *::before,
+.n133-admin *::after {
+  box-sizing: border-box;
+}
+
+.n133-admin [hidden] {
+  display: none !important;
+}
+
+.n133-admin .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 700 16px/1 var(--font);
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.n133-admin .btn:focus-visible {
+  outline: 3px solid var(--sea);
+  outline-offset: 2px;
+}
+
+.n133-admin .btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.n133-admin .btn-primary {
+  border-color: var(--gem-dark);
+  background: var(--gem);
+  color: #062b23;
+}
+
+.n133-admin .btn-small {
+  min-height: 40px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.n133-admin .fine {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.n133-admin .admin-card {
+  margin: 12px 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.n133-admin .admin-card h2 {
+  margin: 0 0 10px;
+  font-size: 19px;
+}
+
+.n133-admin .card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.n133-admin .card-head h2 {
+  margin: 0;
+}
+
+.n133-admin .warnings {
+  border-color: #f2b8c1;
+  background: #fff4f6;
+}
+
+.n133-admin .warnings ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.n133-admin .totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.n133-admin .total {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.n133-admin .total span {
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.n133-admin .total strong {
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+}
+
+.n133-admin .tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.n133-admin .tab {
+  flex: none;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  font: 700 14px/1 var(--font);
+  cursor: pointer;
+}
+
+.n133-admin .tab-on {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #fff;
+}
+
+.n133-admin .order {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.n133-admin .order-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.n133-admin .order-amount {
+  margin: 4px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.n133-admin .badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eef1f4;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.n133-admin .badge-paid {
+  background: #dcf8ef;
+  color: #0b6d5a;
+}
+
+.n133-admin .badge-open {
+  background: #e3f1ff;
+  color: #134e86;
+}
+
+.n133-admin .badge-paid_late {
+  background: #ffe3e8;
+  color: #a1122a;
+}
+
+.n133-admin .late-note {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff4f6;
+  font-size: 14px;
+}
+
+.n133-admin .late-note code,
+.n133-admin .player code,
+.n133-admin .admin-card code {
+  word-break: break-all;
+  font-size: 12px;
+}
+
+.n133-admin .hash {
+  word-break: break-all;
+}
+
+.n133-admin .player {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+/* The Shelf (src/client/shelf.ts): phone first, one column; two from 640px. */
+.n133-admin .shelf-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 640px) {
+.n133-admin .shelf-list {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.n133-admin .shelf-card {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fbfdff;
+}
+
+.n133-admin .shelf-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.n133-admin .shelf-pic {
+  display: grid;
+  flex: none;
+  width: 68px;
+  height: 76px;
+  place-items: center;
+  border-radius: 12px;
+  background: #e8f3fb;
+}
+
+.n133-admin .shelf-text {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.n133-admin .shelf-text strong {
+  overflow-wrap: anywhere;
+}
+
+.n133-admin .shelf-price {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.n133-admin .shelf-field {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.n133-admin .shelf-field > span {
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.n133-admin .shelf-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  font: 16px/1 var(--font);
+}
+
+.n133-admin .shelf-color {
+  width: 100%;
+  min-height: 44px;
+  padding: 2px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.n133-admin .shelf-color:disabled {
+  opacity: 0.45;
+}
+
+.n133-admin .shelf-colors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.n133-admin .shelf-ladder {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.n133-admin .chip {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font: 700 14px/1 var(--font);
+  cursor: pointer;
+}
+
+.n133-admin .shelf-actions,
+.n133-admin .shelf-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.n133-admin .shelf-foot {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.n133-admin .shelf-changes ul,
+.n133-admin .late-note ul {
+  margin: 4px 0 0;
+  padding-left: 20px;
+}
+
+.n133-admin .shelf-file pre {
+  max-height: 320px;
+  margin: 8px 0 0;
+  padding: 12px;
+  overflow: auto;
+  border-radius: 12px;
+  background: #0f172a;
+  color: #e6edf6;
+  font-size: 13px;
+}
+
+/* WebKit draws a select at its own height and ignores min-height: take over the drawing, so it is 44px (a finger) on an iPad too. */
+.n133-admin select.shelf-input {
+  height: 44px;
+  padding-right: 32px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%), linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 19px, calc(100% - 13px) 19px;
+  background-repeat: no-repeat;
+  background-size: 5px 5px, 5px 5px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* The "Game" card: two switches (src/client/gameSwitches.ts). Each is a button of at least 44 px, on a phone first. */
+.n133-admin .game-card .switch-row {
+  display: grid;
+  gap: 6px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.n133-admin .game-card .switch-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.n133-admin .game-card .switch-title {
+  font: 700 16px/1.3 var(--font);
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.n133-admin .game-card .switch-note {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 15px;
+  line-height: 1.45;
+  max-width: 60ch;
+}
+
+.n133-admin .game-card .switch-review {
+  margin: 4px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.n133-admin .game-card .switch-review a {
+  display: inline-block;
+  padding: 10px 0;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.n133-admin .switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 96px;
+  min-height: 44px;
+  /* Off: the knob is on the left and the word on the right. On: the word on the left and the knob on the right (the usual switch). */
+  flex-direction: row-reverse;
+  padding: 0 14px 0 6px;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 700 14px/1 var(--font);
+  cursor: pointer;
+}
+
+.n133-admin .switch .switch-knob {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--line);
+}
+
+.n133-admin .switch.switch-on {
+  border-color: var(--gem-dark);
+  background: var(--gem);
+  color: #052b23;
+  flex-direction: row;
+  padding: 0 6px 0 14px;
+}
+
+.n133-admin .switch.switch-on .switch-knob {
+  background: var(--paper);
+}
+
+.n133-admin .switch:focus-visible {
+  outline: 3px solid var(--sea);
+  outline-offset: 2px;
+}
+
+.n133-admin .switch:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}

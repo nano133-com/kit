@@ -97,7 +97,7 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
     const name = (id: string) => options.lookName?.(id) ?? id;
     const orders: AdminOrder[] = s.orders.map((o) => ({ ...o, look: name(o.lookId) }));
     const players: AdminPlayer[] = s.players.map((p) => ({ player: p.player, looks: p.looks.map((l) => ({ id: l.id, name: name(l.id), at: l.at })) }));
-    return { ...status, counts: s.counts, totals: s.totals, rate: s.rate, orders, players };
+    return { ...status, counts: s.counts, totals: s.totals, rate: s.rate, orders, players, canCheck: Boolean(options.check) };
   }
 
   async function handle(req: Request): Promise<Response | null> {

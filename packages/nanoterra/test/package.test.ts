@@ -79,6 +79,12 @@ test("the paths that must not load Three.js import no package at all (the record
   assert.ok(!graph("src/looks/index.ts").files.some((f) => f.startsWith("character/")));
   // The admin has no Three.js, no character and no looks code in its server part.
   assert.ok(!graph("src/admin/index.ts").files.some((f) => f.startsWith("character/")));
+  // The server part never reaches the panel (which uses the DOM), and the panel imports no package and no drawing code.
+  assert.ok(!graph("src/admin/index.ts").files.some((f) => f.startsWith("admin/panel/")));
+  assert.ok(!graph("src/admin/conformance.ts").files.some((f) => f.startsWith("admin/panel/")));
+  const panel = graph("src/admin/panel/index.ts");
+  assert.deepEqual(panel.packages, []);
+  assert.ok(!panel.files.some((f) => f.startsWith("character/")));
   // The character's path draws: it names Three.js and nothing else.
   assert.deepEqual(graph("src/character/index.ts").packages, ["three"]);
 });
@@ -101,8 +107,10 @@ test("package.json: no runtime dependency, three is an optional peer, version 0.
 
 test("the exports map: the small part, the character, its record, the ticket, the looks and the admin, each with types", () => {
   const pkg = JSON.parse(read("package.json"));
-  assert.deepEqual(Object.keys(pkg.exports), [".", "./character", "./character/record", "./ticket", "./looks", "./admin", "./admin/conformance"]);
-  const want: Record<string, string> = { ".": "index", "./character": "character/index", "./character/record": "character/pure", "./ticket": "ticket/index", "./looks": "looks/index", "./admin": "admin/index", "./admin/conformance": "admin/conformance" };
+  assert.deepEqual(Object.keys(pkg.exports), [".", "./character", "./character/record", "./ticket", "./looks", "./admin", "./admin/conformance", "./admin/panel", "./admin/style.css"]);
+  assert.equal(pkg.exports["./admin/style.css"], "./src/admin/panel/style.css");
+  assert.ok(existsSync(join(root, "src/admin/panel/style.css")), "the stylesheet is shipped in src");
+  const want: Record<string, string> = { ".": "index", "./character": "character/index", "./character/record": "character/pure", "./ticket": "ticket/index", "./looks": "looks/index", "./admin": "admin/index", "./admin/conformance": "admin/conformance", "./admin/panel": "admin/panel/index" };
   for (const [path, file] of Object.entries(want)) {
     assert.deepEqual(pkg.exports[path], { types: `./dist/${file}.d.ts`, import: `./dist/${file}.js` }, path);
     assert.ok(existsSync(join(root, `src/${file}.ts`)), `${path} has its source src/${file}.ts`);
@@ -142,7 +150,7 @@ test("npm pack would ship the built files, the sources, the README, the changelo
   const r = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { cwd: root, encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
   const files: string[] = JSON.parse(r.stdout)[0].files.map((f: { path: string }) => f.path);
-  for (const f of ["package.json", "README.md", "LICENSE", "CHANGELOG.md", "dist/index.js", "dist/character/index.js", "dist/character/pure.js", "dist/ticket/index.js", "dist/looks/index.js", "dist/admin/index.js", "dist/admin/conformance.js", "ai/PROMPT.md", "ai/SPEC.md"]) assert.ok(files.includes(f), `${f} is shipped`);
+  for (const f of ["package.json", "README.md", "LICENSE", "CHANGELOG.md", "dist/index.js", "dist/character/index.js", "dist/character/pure.js", "dist/ticket/index.js", "dist/looks/index.js", "dist/admin/index.js", "dist/admin/conformance.js", "dist/admin/panel/index.js", "src/admin/panel/style.css", "ai/PROMPT.md", "ai/SPEC.md"]) assert.ok(files.includes(f), `${f} is shipped`);
   for (const f of files) {
     assert.ok(/^(dist|src|ai)\//.test(f) || ["package.json", "README.md", "CHANGELOG.md", "LICENSE"].includes(f), `${f} would be published`);
     assert.doesNotMatch(f, /^test\/|\.env|\.tsbuildinfo|\.test\.|secret|\.key$/i, `${f} must not be published`);

@@ -65,4 +65,10 @@ export type AdminStatus = {
 };
 
 /** The whole of GET summary. */
-export type AdminSummary = AdminStatus & Omit<StoreSummary, "orders" | "players"> & { orders: AdminOrder[]; players: AdminPlayer[] };
+export type AdminSummary = AdminStatus &
+  Omit<StoreSummary, "orders" | "players"> & {
+    orders: AdminOrder[];
+    players: AdminPlayer[];
+    /** Whether the game gave a payment check (POST check). The panel shows "Check payments now" only then. */
+    canCheck: boolean;
+  };
