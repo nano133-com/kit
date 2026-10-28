@@ -103,12 +103,14 @@ export function nanoSigninMessage(request: NanoSigninRequest, address: string) {
  * Starts a request for the browser whose starter hash is `starter`. `requestUrl(id)`: your public route for this
  * request (the wallet GETs and POSTs it), on your own domain: `https://example.com/signin/nano/<id>`.
  */
-export async function startNanoSignin(o: NanoSigninOptions, p: { starter: string; requestUrl: (id: string) => string }): Promise<NanoSigninStart> {
+export async function startNanoSignin(o: NanoSigninOptions, p: { starter: string; requestUrl: (id: string) => string; label?: string }): Promise<NanoSigninStart> {
   const now = o.now?.() ?? Date.now();
   const id = randomBytes(16).toString("hex");
   const nonce = randomBytes(32).toString("hex");
   const expiresAt = now + lifeOf(o);
-  await o.store.create(id, { id, starter: p.starter, status: "waiting", expiresAt, nonce, issuedAt: now });
+  // `label`: a note of the site's own that the store keeps with the request (it is not signed): a site that answers the wallet with different `uri` options for different
+  // kinds of request (the game's, the admin's) keeps which kind it was here, and reads it back before it builds the options for the wallet's GET and POST.
+  await o.store.create(id, { id, starter: p.starter, status: "waiting", expiresAt, nonce, issuedAt: now, ...(p.label !== undefined ? { label: p.label } : {}) });
   const links = nanoSigninLinks(p.requestUrl(id));
   return { id, link: links.berry, walletLink: links.wallet, expiresAt };
 }
@@ -154,10 +156,10 @@ export async function answerNanoSignin(o: NanoSigninOptions, id: string, body: R
 }
 
 /** Where request `id` stands, for the browser that asks. `starter`: that browser's starter hash (gives `mine`). */
-export async function checkNanoSignin(o: Pick<NanoSigninOptions, "store" | "now">, id: string, starter?: string): Promise<RequestCheck> {
+export async function checkNanoSignin(o: Pick<NanoSigninOptions, "store" | "now"> & { deliverMs?: number }, id: string, starter?: string): Promise<RequestCheck> {
   if (!NANO_SIGNIN_ID.test(id)) return { status: "expired" };
   const request = await o.store.get(id);
-  return checkOf(request ? { key: id, request } : null, o.now?.() ?? Date.now(), starter);
+  return checkOf(request ? { key: id, request } : null, o.now?.() ?? Date.now(), starter, o.deliverMs);
 }
 
 /**

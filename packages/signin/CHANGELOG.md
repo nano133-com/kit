@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+(Not published. The version is set when Wes decides to publish.)
+
+A sign-in that opens an ADMIN must say so in what the wallet signs, and may live shorter. Small, optional changes; nothing changes for a site that does not use them.
+
+- **Nautilus:** `NautilusOptions.title` (the words that stand for the site in the SIGNED label: "ADMIN of example.com") and `note` (words after the code: "from US"; no colon). `nautilusLabel(site, code, note?)`.
+  The default label is as it was.
+- **Berry Wallet:** `startNanoSignin(o, { starter, requestUrl, label? })` keeps a note of the site's own with the request (it is not signed). A site that builds `uri` by the kind of request (the
+  game's `https://example.com/`, the admin's `https://example.com/admin`, the line "URI: ..." of the signed text) reads the note back before it answers the wallet.
+- **A shorter delivery:** `checkNanoSignin`, `checkNautilus` and `checkNanchat` take `deliverMs` (default `DELIVER_MS`, an hour): how long after a request expires a signature can still sign in the
+  browser that started it. `checkOf(found, now, starter, deliverMs?)`. No value is the default; a value that is not a number from 0 up (negative, NaN, Infinity) is read as 0, never as the
+  longest window. A value above `DELIVER_MS` is held to it: a site can only shorten the window.
+- Tests (`test/admin-text.test.ts`): a signature of the game's text never answers an admin request and an admin one never answers a game request, for Berry and for Nautilus; the shorter life.
+- NanChat is unchanged: its text must start "Login to <host>", and its docs do not say what else may follow, so a site that needs a named admin sign-in should not offer NanChat for it.
+
 ## 0.4.0
 
 - **Berry Wallet** (`startNanoSignin`, `readNanoSignin`, `answerNanoSignin`,
