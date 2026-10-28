@@ -392,7 +392,7 @@ starter refuses.
 **The handler** sends every request under the base path (`/api/admin` by default) through the guard first, before the route is looked up: a visitor who is not the owner
 gets 401 or 403 for any path, so nothing about the routes leaks. A POST must come from the game's own page (`Origin`, else `Sec-Fetch-Site: same-origin`). It sets no CORS
 header, always sends `Cache-Control: no-store`, reads at most 512 bytes of a press, and limits presses to 30 a minute. A fault in your store gives a plain 500 that shows
-nothing of the fault (`onError` hears it). The only writes are the two settings, **never a look, a price or an order**: a change of looks stays a change of your repository.
+nothing of the fault (`onError` hears it). The only writes are the two settings (and, when the game turns on the sign-in list, the deletion of the admin sessions), **never a look, a price or an order**: a change of looks stays a change of your repository.
 
 **Your own routes read the switches** with `loadGameSettings(store, defaults)` (for the listing file's `signin` word and for the character): the stored word, else your default,
 and your defaults when the store fails.
@@ -422,7 +422,7 @@ admin may make an admin login, and never from another sign-in. A security read f
 
 ### The store (an adapter for your database)
 
-`createAdminHandler` needs a store: three calls, `readSettings()`, `saveSettings(patch, now)` and `summary(now)`. Two adapters come with the package, and **both write only the two settings**
+`createAdminHandler` needs a store: three calls, `readSettings()`, `saveSettings(patch, now)` and `summary(now)`. Two adapters come with the package, and **both write only the two settings** (the D1 store also deletes the admin sessions, but only when the game turns on the sign-in list: see below)
 (`setting:character` and `setting:signin`); every other call they make is a read. Both must pass the same **store contract**, `adminStoreConformance(make)` in
 `@nano133/nanoterra/admin/conformance`: the settings are kept and accumulate, saving changes no order, no owned look and no other row, an open order past its expiry counts as expired,
 the money is totalled right, the newest 500 orders come first, and a bad rate row is ignored. A game with another database writes its own store and runs the same contract.
@@ -438,6 +438,27 @@ const store = createFirestoreStore(db);                                   // met
 The D1 adapter uses the starter's own queries (the counts and the totals over all orders; the list is the newest 500). The Firestore adapter reads the newest 5000 orders and every owned look,
 so it is for a small game; its data model is in the file's top comment. **The Firestore adapter was tested against an in-memory fake of the interface, not against real Firestore.** The D1 adapter
 was tested on SQLite with the starter's tables, not on Cloudflare's D1.
+
+### Who signed in, and "Sign out everywhere" (optional)
+
+A creator can see who opened the admin lately, and end every admin login at once. Both are optional: they exist only when the game's store has `recentLogins(limit)` and `signOutEverywhere()`.
+With them the panel has a **Sign-ins** card (the last 10 admin sign-ins, newest first: the time, the rough country and a short browser name such as "Chrome on macOS") and a **Sign out
+everywhere** button (two presses: "This ends every admin sign-in, in every browser, this one too"). The handler gets the route `POST {base}/signout-all` (behind the same guard, the same
+origin rule and a limit of 5 a minute). It deletes the admin sessions and **no player session**, and says how many.
+
+**What is kept, and for how long.** For each admin sign-in the game keeps three things: the **time**, the **country** that the request's country header gave (two letters, or none) and a **short
+browser name** that the game makes from the browser text (a family and a system from fixed lists: "Chrome on macOS"). It keeps **no address, no IP and no browser text**. The handler sends only those
+three things to the page, whatever the store gives. How long the game keeps them is the game's choice: **30 days is the suggestion**, and the game's `loginsNote` option says it on the card
+(the starter deletes a row older than 30 days). The package cannot write a sign-in: the game writes one when it makes an admin login.
+
+With D1: `createD1Store(db, { logins: true })` needs the table `admin_logins (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, country TEXT, browser TEXT NOT NULL)` and a `scope`
+column on `sessions` (`'admin'` for an admin login). Without the option the store has neither call, so a game without those tables is not broken. The store contract has cases for both calls.
+The Firestore store does not have them yet (a game's sessions are its own): a game with Firestore writes its own `recentLogins` and `signOutEverywhere`.
+
+### Later ideas (not built)
+
+- **A second signature for a write.** The only server write the admin makes is the sign-in switch (and the Shelf never writes), so asking the owner to sign again for each press adds friction for
+  little gain. A later version could ask for it if the admin ever writes more.
 
 ### The panel
 

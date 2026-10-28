@@ -14,9 +14,19 @@ const run = (name: string, cases: ConformanceCase[]) => {
 // ---- the memory store ----
 
 run("memory store", adminStoreConformance(async () => {
-  const store = createMemoryStore();
+  const store = createMemoryStore({ logins: true });
   const h: StoreHarness = {
     store,
+    async seedLogins(rows) {
+      store.logins.push(...rows);
+    },
+    async seedSessions(n) {
+      store.adminSessions = n.admin;
+      store.playSessions = n.play;
+    },
+    async sessionCounts() {
+      return { admin: store.adminSessions, play: store.playSessions };
+    },
     async seed(d) {
       if (d.orders) store.orders = d.orders;
       if (d.owned) store.owned = d.owned;
@@ -35,7 +45,9 @@ const SCHEMA = `
 CREATE TABLE orders (id TEXT PRIMARY KEY, player TEXT NOT NULL, look_id TEXT NOT NULL, usd TEXT NOT NULL, rate REAL NOT NULL DEFAULT 1, amount TEXT NOT NULL, amount_lock TEXT UNIQUE,
   status TEXT NOT NULL DEFAULT 'open', created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, hold_until INTEGER NOT NULL DEFAULT 0, hash TEXT UNIQUE, payer TEXT, paid_at INTEGER, visitor TEXT);
 CREATE TABLE owned (player TEXT NOT NULL, look_id TEXT NOT NULL, order_id TEXT NOT NULL DEFAULT '', granted_at INTEGER NOT NULL, PRIMARY KEY (player, look_id));
-CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL, at INTEGER NOT NULL);`;
+CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL, at INTEGER NOT NULL);
+CREATE TABLE sessions (id_hash TEXT PRIMARY KEY, address TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, via TEXT NOT NULL DEFAULT 'wallet', scope TEXT NOT NULL DEFAULT 'play');
+CREATE TABLE admin_logins (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, country TEXT, browser TEXT NOT NULL);`;
 
 type Sqlite = import("node:sqlite").DatabaseSync;
 let DatabaseSync: typeof import("node:sqlite").DatabaseSync | null = null;
@@ -52,7 +64,8 @@ function d1Over(db: Sqlite, log: { sql: string; args: unknown[] }[] = []): D1Lik
     bind: (...v) => stmt(sql, v),
     all: async <T>() => (log.push({ sql, args }), { results: db.prepare(sql).all(...(args as never[])) as T[] }),
     first: async <T>() => (log.push({ sql, args }), ((db.prepare(sql).get(...(args as never[])) as T | undefined) ?? null)),
-    run: async () => (log.push({ sql, args }), db.prepare(sql).run(...(args as never[]))),
+    // D1 reports what a statement changed as `meta.changes`.
+    run: async () => (log.push({ sql, args }), { meta: { changes: Number(db.prepare(sql).run(...(args as never[])).changes) } }),
     exec: () => (log.push({ sql, args }), db.prepare(sql).run(...(args as never[]))),
   });
   return {
@@ -71,14 +84,26 @@ function d1Over(db: Sqlite, log: { sql: string; args: unknown[] }[] = []): D1Lik
   };
 }
 
-function d1Harness(): StoreHarness & { log: { sql: string; args: unknown[] }[]; db: Sqlite } {
+function d1Harness(withLogins = true): StoreHarness & { log: { sql: string; args: unknown[] }[]; db: Sqlite } {
   const db = new DatabaseSync!(":memory:");
   db.exec(SCHEMA);
   const log: { sql: string; args: unknown[] }[] = [];
+  let n = 0;
   return {
     db,
     log,
-    store: createD1Store(d1Over(db, log)),
+    store: createD1Store(d1Over(db, log), { logins: withLogins }),
+    async seedLogins(rows) {
+      for (const r of rows) db.prepare("INSERT INTO admin_logins (at, country, browser) VALUES (?, ?, ?)").run(r.at, r.country, r.browser);
+    },
+    async seedSessions(c) {
+      for (let i = 0; i < c.admin; i++) db.prepare("INSERT INTO sessions (id_hash, address, created_at, expires_at, scope) VALUES (?, 'a', 1, 2, 'admin')").run(`admin${n++}`);
+      for (let i = 0; i < c.play; i++) db.prepare("INSERT INTO sessions (id_hash, address, created_at, expires_at, scope) VALUES (?, 'a', 1, 2, 'play')").run(`play${n++}`);
+    },
+    async sessionCounts() {
+      const row = (scope: string) => (db.prepare("SELECT COUNT(*) AS n FROM sessions WHERE scope = ?").get(scope) as { n: number }).n;
+      return { admin: row("admin"), play: row("play") };
+    },
     async seed(d) {
       for (const o of d.orders ?? []) {
         db.prepare("INSERT INTO orders (id, player, look_id, usd, amount, status, created_at, expires_at, paid_at, payer, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(o.id, o.player, o.lookId, o.usd, o.amountRaw, o.status, o.createdAt, o.expiresAt, o.paidAt, o.payer, o.hash);
@@ -110,6 +135,32 @@ else {
       assert.match(sql, /^INSERT INTO meta \(key, value, at\) VALUES \(\?, \?, \?\) ON CONFLICT \(key\) DO UPDATE/, sql);
       assert.ok(["setting:character", "setting:signin"].includes(String(args[0])), `a write to the meta row ${String(args[0])}`);
     }
+  });
+
+  test("D1 adapter: with the sign-in list on, the only other write is the deletion of admin sessions, and every statement is parameterised or constant", async () => {
+    const h = d1Harness(true);
+    h.log.length = 0;
+    await h.store.recentLogins!(10);
+    await h.store.signOutEverywhere!();
+    const writes = h.log.filter((l) => !/^\s*SELECT/i.test(l.sql));
+    assert.deepEqual(writes.map((w) => w.sql), ["DELETE FROM sessions WHERE scope = 'admin'"]);
+    const read = h.log.find((l) => /FROM admin_logins/.test(l.sql))!;
+    assert.match(read.sql, /ORDER BY at DESC, id DESC LIMIT \?$/);
+    assert.deepEqual(read.args, [10]);
+    // A silly limit is held: 9999 reads at most 50, a negative or not a number reads none.
+    h.log.length = 0;
+    await h.store.recentLogins!(9999);
+    await h.store.recentLogins!(-1);
+    await h.store.recentLogins!(Number.NaN);
+    assert.deepEqual(h.log.map((l) => l.args[0]), [50, 0, 0]);
+  });
+
+  test("D1 adapter: without the option the store has neither call, so a game without those tables is not broken", async () => {
+    const h = d1Harness(false);
+    assert.equal(h.store.recentLogins, undefined);
+    assert.equal(h.store.signOutEverywhere, undefined);
+    h.db.exec("DROP TABLE admin_logins");
+    assert.equal((await h.store.summary(10)).counts.paid, 0);
   });
 
   test("D1 adapter: a patch for both switches is one batch, all or none", async () => {

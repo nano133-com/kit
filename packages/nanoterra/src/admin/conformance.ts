@@ -223,6 +223,12 @@ export type StoreHarness = {
   seed(data: { orders?: OrderRow[]; owned?: { player: string; lookId: string; at: number }[]; rate?: { value: string; at: number } }): Promise<void>;
   /** Every row that the store could change by mistake, as one text: the orders, the owned looks and the meta rows that are NOT the two settings. Same rows, same text. */
   snapshot(): Promise<string>;
+  /** Only for a store with `recentLogins` and `signOutEverywhere`: put admin sign-ins in the game's database (the store only reads them). */
+  seedLogins?(rows: { at: number; country: string | null; browser: string }[]): Promise<void>;
+  /** Put this many admin sessions and this many player sessions in the game's database. */
+  seedSessions?(n: { admin: number; play: number }): Promise<void>;
+  /** How many admin sessions and how many player sessions the game's database holds now. */
+  sessionCounts?(): Promise<{ admin: number; play: number }>;
 };
 
 const rawOf = (xno: number): string => (BigInt(Math.round(xno * 10_000)) * 10n ** 26n).toString();
@@ -311,6 +317,37 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
     check(JSON.stringify((await store.summary(NOW)).rate) === JSON.stringify({ usd: 1.18, sources: ["a", "b"], at: NOW - 60 }), "a good rate row must be read");
     await seed({ rate: { value: "not json", at: NOW } });
     check((await store.summary(NOW)).rate === null, "a junk rate row must give null");
+  });
+
+  // The sign-in list and "sign out everywhere" are optional: a store that has them must pass these cases (a store that has not skips them).
+  add("(when the store lists sign-ins) the last sign-ins come newest first, at most the limit, with only the time, the country and the browser", async (h) => {
+    if (!h.store.recentLogins) return;
+    check(Boolean(h.seedLogins), "a store with recentLogins needs seedLogins in its harness");
+    check((await h.store.recentLogins(10)).length === 0, "a new store lists no sign-ins");
+    const rows = Array.from({ length: 12 }, (_, i) => ({ at: NOW - 1000 * (12 - i), country: i % 3 === 0 ? null : "US", browser: `Chrome on macOS ${i}` }));
+    await h.seedLogins!(rows);
+    const got = await h.store.recentLogins(10);
+    check(got.length === 10, `expected 10 sign-ins, got ${got.length}`);
+    check(got.every((l, i, all) => i === 0 || all[i - 1].at >= l.at), "the sign-ins are not newest first");
+    check(got[0].at === NOW - 1000 && got[0].browser === "Chrome on macOS 11", `the first must be the newest: ${JSON.stringify(got[0])}`);
+    check(got.every((l) => Object.keys(l).sort().join() === "at,browser,country"), `a sign-in must carry only at, browser and country: ${JSON.stringify(got[0])}`);
+    check((await h.store.recentLogins(3)).length === 3, "the limit must hold");
+    check((await h.store.recentLogins(0)).length === 0, "a limit of 0 lists none");
+  });
+
+  add("(when the store can sign out everywhere) it deletes every admin session and no player session, says how many, and changes nothing else", async (h) => {
+    if (!h.store.signOutEverywhere) return;
+    check(Boolean(h.seedSessions && h.sessionCounts), "a store with signOutEverywhere needs seedSessions and sessionCounts in its harness");
+    await h.seed({ orders: [order("1", {}), order("2", { status: "open" })], owned: [{ player: A, lookId: "mint-cap", at: NOW }] });
+    await h.seedSessions!({ admin: 3, play: 4 });
+    const before = await h.snapshot();
+    const n = await h.store.signOutEverywhere();
+    check(n === 3, `expected 3 admin sessions deleted, got ${n}`);
+    const left = await h.sessionCounts!();
+    check(left.admin === 0 && left.play === 4, `expected 0 admin and 4 player sessions, got ${JSON.stringify(left)}`);
+    check((await h.snapshot()) === before, "the orders, the owned looks or the meta rows changed");
+    check((await h.store.signOutEverywhere()) === 0, "a second call deletes nothing and says 0");
+    check((await h.sessionCounts!()).play === 4, "the player sessions are still there");
   });
 
   return cases;

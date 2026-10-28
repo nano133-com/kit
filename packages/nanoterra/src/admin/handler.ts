@@ -10,7 +10,7 @@
 
 import { adminAccess, type AdminAccess, type AdminSession } from "./guard.js";
 import { fail, json, memoryLimiter, readLimited, sameOrigin } from "./http.js";
-import type { AdminOrder, AdminPlayer, AdminStatus, AdminStore, AdminSummary, StoreSummary } from "./store.js";
+import { ADMIN_LOGINS_SHOWN, type AdminLogin, type AdminOrder, type AdminPlayer, type AdminStatus, type AdminStore, type AdminSummary, type StoreSummary } from "./store.js";
 import { mergeSettings, parsePatch, type GameSettings, type GameState } from "./switches.js";
 
 export type AdminRoute = { method: "GET" | "POST"; path: string };
@@ -56,6 +56,8 @@ export const ADMIN_LIMITS = {
   game: { limit: 30, windowMs: 60_000 },
   /** A payment check. */
   check: { limit: 20, windowMs: 60_000 },
+  /** "Sign out everywhere". */
+  signOutAll: { limit: 5, windowMs: 60_000 },
   /** The biggest body a press can have. */
   gameBodyMax: 512,
 } as const;
@@ -92,6 +94,7 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
     { method: "GET", path: `${base}/game` },
     { method: "POST", path: `${base}/game` },
     ...(options.check ? [{ method: "POST" as const, path: `${base}/check` }] : []),
+    ...(options.store.signOutEverywhere ? [{ method: "POST" as const, path: `${base}/signout-all` }] : []),
   ];
 
   const settings = async (): Promise<GameState> => mergeSettings(await options.store.readSettings(), options.defaults);
@@ -102,7 +105,14 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
     const name = (id: string) => options.lookName?.(id) ?? id;
     const orders: AdminOrder[] = s.orders.map((o) => ({ ...o, look: name(o.lookId) }));
     const players: AdminPlayer[] = s.players.map((p) => ({ player: p.player, looks: p.looks.map((l) => ({ id: l.id, name: name(l.id), at: l.at })) }));
-    return { ...status, counts: s.counts, totals: s.totals, rate: s.rate, orders, players, canCheck: Boolean(options.check) };
+    const out: AdminSummary = { ...status, counts: s.counts, totals: s.totals, rate: s.rate, orders, players, canCheck: Boolean(options.check) };
+    if (options.store.recentLogins) {
+      // Only the three things of a sign-in go out, whatever the store gave (a store that returns an address or a browser text by mistake does not show it).
+      const rows = await options.store.recentLogins(ADMIN_LOGINS_SHOWN);
+      out.logins = rows.slice(0, ADMIN_LOGINS_SHOWN).map((l): AdminLogin => ({ at: Number(l.at), country: typeof l.country === "string" && /^[A-Z]{2}$/.test(l.country) ? l.country : null, browser: typeof l.browser === "string" ? l.browser.slice(0, 60) : "Unknown browser" }));
+    }
+    if (options.store.signOutEverywhere) out.canSignOutEverywhere = true;
+    return out;
   }
 
   /** Tells the game about a fault. A fault in the game's own `onError` is not the visitor's business: it is swallowed. */
@@ -158,6 +168,11 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
         if (!parsed.ok) return fail(400, parsed.error);
         await options.store.saveSettings(parsed.patch, at);
         return json(await settings());
+      }
+      if (route.path === `${base}/signout-all`) {
+        if (!(await limit(lkey("admin-signout-all"), ADMIN_LIMITS.signOutAll.limit, ADMIN_LIMITS.signOutAll.windowMs, at))) return fail(429, "Too many tries. Wait a minute.");
+        const n = await options.store.signOutEverywhere!();
+        return json({ ok: true, signedOut: n });
       }
       // POST check
       if (!(await limit(lkey("admin-check"), ADMIN_LIMITS.check.limit, ADMIN_LIMITS.check.windowMs, at))) return fail(429, "Too many checks. Wait a minute.");

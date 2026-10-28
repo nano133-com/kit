@@ -321,3 +321,85 @@ test("slots: Duplicate copies the slots, and Start over brings the game's looks 
   assert.ok(text(root).includes("No change yet"));
   assert.equal(cardOf(root, "Ember Wings copy"), undefined);
 });
+
+// ---- the Sign-ins card ----
+
+function withLogins() {
+  const store = createMemoryStore({ logins: true });
+  store.logins.push({ at: NOW - 60_000, country: "US", browser: "Chrome on macOS" }, { at: NOW - 3_600_000, country: null, browser: "Safari on iOS" }, { at: NOW - 86_400_000, country: "DE", browser: "Firefox on Linux" });
+  store.adminSessions = 2;
+  return store;
+}
+
+test("sign-ins: the card lists them newest first with the country and the browser, and says what is kept", async () => {
+  const store = withLogins();
+  const { root, mounted } = setup({ store });
+  await mounted.ready;
+  const card = root.querySelector(".signins") as HTMLElement;
+  assert.ok(card, "the Sign-ins card is there");
+  const items = [...card.querySelectorAll("li")].map((li) => text(li));
+  assert.equal(items.length, 3);
+  assert.ok(items[0].includes("United States (US)") && items[0].includes("Chrome on macOS"), items[0]);
+  assert.ok(items[1].includes("unknown country") && items[1].includes("Safari on iOS"), items[1]);
+  assert.ok(items[2].includes("Germany (DE)"), items[2]);
+  assert.ok(text(card).includes("only the time, the rough country and a short browser name are kept"));
+});
+
+test("sign-ins: the game's own words about what it keeps replace the default", async () => {
+  const store = withLogins();
+  const root = win.document.createElement("div") as unknown as HTMLElement;
+  win.document.body.append(root as unknown as Node);
+  const handler = createAdminHandler({ store, defaults: { character: "nanoterra", signin: "exchange" }, owner: OWNER, session: async () => KINDS.owner, now: () => NOW, limit: () => true });
+  const send = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    if ((init?.method ?? "GET") === "POST") headers.set("Origin", ORIGIN);
+    return (await handler.handle(new Request(new URL(String(input), ORIGIN), { method: init?.method ?? "GET", headers, body: init?.body as string | undefined })))!;
+  }) as typeof fetch;
+  const mounted = mountAdmin(root, { looks: LOOKS, fetch: send, signOut: async () => undefined, signIn: () => undefined, loginsNote: "This game keeps them for 30 days." });
+  await mounted.ready;
+  assert.ok(text(root.querySelector(".signins")!).includes("This game keeps them for 30 days."));
+});
+
+test("sign-ins: Sign out everywhere takes two presses; Cancel goes back; Yes signs out, and the panel loads again", async () => {
+  const store = withLogins();
+  const { root, mounted, calls } = setup({ store });
+  await mounted.ready;
+  const card = root.querySelector(".signins") as HTMLElement;
+  const first = buttonWith(card, "Sign out everywhere") as HTMLButtonElement;
+  first.click();
+  assert.equal(first.hidden, true);
+  assert.ok(text(card).includes("This ends every admin sign-in, in every browser, this one too"));
+  buttonWith(card, "Cancel").click();
+  assert.equal(first.hidden, false);
+  assert.ok(!calls.some((c) => c.path.endsWith("/signout-all")), "nothing was sent by a cancelled press");
+  first.click();
+  const summaries = calls.filter((c) => c.path.endsWith("/summary")).length;
+  (buttonWith(card, "Yes, sign out everywhere") as HTMLButtonElement).click();
+  await tick();
+  assert.ok(calls.some((c) => c.method === "POST" && c.path === "/api/admin/signout-all"));
+  assert.equal(store.adminSessions, 0);
+  assert.equal(calls.filter((c) => c.path.endsWith("/summary")).length, summaries + 1, "the panel read the summary again");
+});
+
+test("sign-ins: a refused or failed sign-out shows the words and leaves the buttons usable", async () => {
+  const store = withLogins();
+  store.signOutEverywhere = async () => {
+    throw new Error("SECRET_DETAIL");
+  };
+  const { root, mounted } = setup({ store });
+  await mounted.ready;
+  const card = root.querySelector(".signins") as HTMLElement;
+  (buttonWith(card, "Sign out everywhere") as HTMLButtonElement).click();
+  const yes = buttonWith(card, "Yes, sign out everywhere") as HTMLButtonElement;
+  yes.click();
+  await tick();
+  assert.ok(text(card).includes("could not do that"));
+  assert.ok(!text(card).includes("SECRET_DETAIL"));
+  assert.equal(yes.disabled, false);
+});
+
+test("sign-ins: with a store that lists nothing, there is no card", async () => {
+  const { root, mounted } = setup();
+  await mounted.ready;
+  assert.equal(root.querySelector(".signins"), null);
+});

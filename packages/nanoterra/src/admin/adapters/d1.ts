@@ -1,5 +1,6 @@
 // The admin store for a game on Cloudflare D1, with the tables of the game starter (migrations/0001_init.sql): `meta`, `orders` and `owned`.
-// It writes ONLY the two settings (`setting:character`, `setting:signin` in `meta`); everything else it does is a read.
+// It writes ONLY the two settings (`setting:character`, `setting:signin` in `meta`); everything else it does is a read, except when the game turns the sign-in list on
+// (`logins: true`): then the one other write is `DELETE FROM sessions WHERE scope = 'admin'` ("sign out everywhere").
 //
 //   import { createD1Store } from "@nano133/nanoterra/admin/d1";
 //   const store = createD1Store(env.DB);
@@ -24,8 +25,13 @@ export const D1_KEYS = { character: "setting:character", signin: "setting:signin
 
 type Row = { id: string; player: string; look_id: string; usd: string; amount: string; status: string; created_at: number; expires_at: number; paid_at: number | null; payer: string | null; hash: string | null };
 
-export function createD1Store(db: D1Like): AdminStore {
-  return {
+/**
+ * The admin store for D1. With `logins: true` it also lists the last admin sign-ins (the table `admin_logins`: at, country, browser) and can sign the owner out everywhere
+ * (`DELETE FROM sessions WHERE scope = 'admin'`): the game's `sessions` table must have a `scope` column ('admin' for an admin login) and the game must write `admin_logins` when it
+ * makes an admin login. Without the option the store has neither call, so a game that has not made those tables is not broken by it.
+ */
+export function createD1Store(db: D1Like, options: { logins?: boolean } = {}): AdminStore {
+  const store: AdminStore = {
     async readSettings() {
       const rows = (await db.prepare("SELECT key, value FROM meta WHERE key IN (?, ?)").bind(D1_KEYS.character, D1_KEYS.signin).all<{ key: string; value: string }>()).results;
       const row = (key: string) => rows.find((r) => r.key === key)?.value;
@@ -70,4 +76,16 @@ export function createD1Store(db: D1Like): AdminStore {
       };
     },
   };
+  if (options.logins) {
+    store.recentLogins = async (limit) => {
+      const n = Math.min(Math.max(Math.floor(Number(limit)) || 0, 0), 50);
+      const rows = (await db.prepare("SELECT at, country, browser FROM admin_logins ORDER BY at DESC, id DESC LIMIT ?").bind(n).all<{ at: number; country: string | null; browser: string }>()).results;
+      return rows.map((r) => ({ at: r.at, country: r.country, browser: r.browser }));
+    };
+    store.signOutEverywhere = async () => {
+      const r = (await db.prepare("DELETE FROM sessions WHERE scope = 'admin'").run()) as { meta?: { changes?: number } };
+      return r?.meta?.changes ?? 0;
+    };
+  }
+  return store;
 }

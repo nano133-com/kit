@@ -8,6 +8,7 @@ import { ApiError, createApi, type Api } from "./api.js";
 import { h, shortAddress } from "./dom.js";
 import { gameCard } from "./gameCard.js";
 import { shelfView } from "./shelf.js";
+import { signinsCard } from "./signins.js";
 
 export type MountOptions = {
   /** The game's looks now (its looks.json). The Shelf starts from them. */
@@ -26,6 +27,8 @@ export type MountOptions = {
   lookPicture?: (look: Look) => Element;
   /** What the Shelf says when the status gives no repository. */
   repoHelp?: string;
+  /** What the Sign-ins card says about what the game keeps and for how long ("30 days"). Default: only the time, the rough country and a short browser name. */
+  loginsNote?: string;
   /** The `fetch` to use (default: the page's). */
   fetch?: typeof fetch;
 };
@@ -207,6 +210,7 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
       shelfCard(s),
       h("section", { class: "admin-card" }, h("div", { class: "card-head" }, h("h2", {}, "Orders"), h("div", {}, ...(s.canCheck === false ? [] : [check, " ", checkNote]))), tabs, orders),
       h("section", { class: "admin-card" }, h("h2", {}, "Owned looks"), players),
+      signinsCard(s, api, () => void load(), options.loginsNote),
       h(
         "section",
         { class: "admin-card fine" },

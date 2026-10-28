@@ -12,7 +12,8 @@ export { ADMIN_LIMITS, createAdminHandler, loadGameSettings } from "./handler.js
 export type { AdminHandler, AdminHandlerOptions, AdminRoute } from "./handler.js";
 export { createMemoryStore } from "./memory.js";
 export type { MemoryStore } from "./memory.js";
-export type { AdminOrder, AdminPlayer, AdminStatus, AdminStore, AdminSummary, Money, OrderStatus, StoreSummary } from "./store.js";
+export { ADMIN_LOGINS_SHOWN } from "./store.js";
+export type { AdminLogin, AdminOrder, AdminPlayer, AdminStatus, AdminStore, AdminSummary, Money, OrderStatus, StoreSummary } from "./store.js";
 export { ORDERS_SHOWN, moneyOf, parseRate, shapeOrders, shapePlayers, statusOf, summarize } from "./summary.js";
 export type { OrderRow } from "./summary.js";
 export { RAW_PER_XNO, xnoText } from "./amount.js";

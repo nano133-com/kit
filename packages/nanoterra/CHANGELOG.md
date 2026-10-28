@@ -28,6 +28,11 @@
   The summary's numbers come from one file (`summarize`, `moneyOf`, `shapeOrders`), so every adapter says the same thing. The memory store now takes orders with a raw `amountRaw`, like a real database.
 - **The Game card's words for sign-in Off** (Wes, "off means off"): "Sign-in from Nanoterra is Off, so every player plays as the island's first character, a player who signed in from Nanoterra before
   included." The card only says it: the game's own page must draw no Nanoterra character while sign-in is Off (the game starter's `src/client/ui/player.ts` does).
+- **Who signed in, and "Sign out everywhere"** (optional, Wes's security ideas): `AdminLogin` (time, country, short browser name) and the optional store calls `recentLogins(limit)` and
+  `signOutEverywhere()`. With them the summary has `logins` (the last 10, only those three things, whatever the store gives) and `canSignOutEverywhere`, the handler has `POST {base}/signout-all`
+  (guarded, same origin, 5 a minute, deletes the admin sessions and no player session), and the panel has a Sign-ins card with a two-press "Sign out everywhere". `createD1Store(db, { logins: true })`
+  reads `admin_logins` and deletes `sessions WHERE scope = 'admin'`. Memory store: `createMemoryStore({ logins: true })`. The store contract has cases for both. The panel option `loginsNote` says what
+  the game keeps and for how long (30 days suggested).
 - **`@nano133/nanoterra/admin/conformance`**: `adminConformance(host)` gives test cases that a game runs against its OWN session code and store: every route refuses a visitor
   who is signed out, a login made for the game's players (also its token in the admin cookie), a Nanoterra sign-in, a login made some way the game does not know, another wallet, a missing
   owner address, an expired login and a login that is old but still valid in the store; OPTIONS and HEAD are refused with no preflight answer; other spellings of an admin path open nothing with

@@ -2,7 +2,7 @@
 // real adapters (./summary.ts), so it is the reference for what a summary says.
 
 import { summarize, type OrderRow } from "./summary.js";
-import type { AdminStore, StoreSummary } from "./store.js";
+import type { AdminLogin, AdminStore, StoreSummary } from "./store.js";
 import type { GamePatch } from "./switches.js";
 
 export type MemoryStore = AdminStore & {
@@ -13,15 +13,22 @@ export type MemoryStore = AdminStore & {
   orders: OrderRow[];
   owned: { player: string; lookId: string; at: number }[];
   rate: StoreSummary["rate"];
+  /** The admin sign-ins and the count of admin sessions, when the store was made with `logins: true`. */
+  logins: (AdminLogin & Record<string, unknown>)[];
+  adminSessions: number;
+  playSessions: number;
 };
 
-export function createMemoryStore(seed: { orders?: OrderRow[]; owned?: { player: string; lookId: string; at: number }[]; rate?: StoreSummary["rate"] } = {}): MemoryStore {
+export function createMemoryStore(seed: { orders?: OrderRow[]; owned?: { player: string; lookId: string; at: number }[]; rate?: StoreSummary["rate"]; logins?: boolean } = {}): MemoryStore {
   const store: MemoryStore = {
     rows: new Map(),
     writes: 0,
     orders: seed.orders ?? [],
     owned: seed.owned ?? [],
     rate: seed.rate ?? null,
+    logins: [],
+    adminSessions: 0,
+    playSessions: 0,
     async readSettings() {
       return { character: store.rows.get("setting:character"), signin: store.rows.get("setting:signin") };
     },
@@ -34,5 +41,13 @@ export function createMemoryStore(seed: { orders?: OrderRow[]; owned?: { player:
       return summarize(store.orders, store.owned, store.rate, now);
     },
   };
+  if (seed.logins) {
+    store.recentLogins = async (limit: number) => [...store.logins].sort((a, b) => b.at - a.at).slice(0, limit);
+    store.signOutEverywhere = async () => {
+      const n = store.adminSessions;
+      store.adminSessions = 0;
+      return n;
+    };
+  }
   return store;
 }

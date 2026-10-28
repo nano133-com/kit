@@ -506,3 +506,37 @@
 .n133-admin .shelf-slots {
   overflow-wrap: anywhere;
 }
+
+/* The Sign-ins card: a list of the last sign-ins, and the two-step "Sign out everywhere". */
+.n133-admin .signin-list {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.n133-admin .signin-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.n133-admin .signout-box {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  margin-top: 8px;
+}
+
+.n133-admin .signout-confirm {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #fff4f6;
+}
+
+.n133-admin .signout-confirm p {
+  margin: 0;
+}

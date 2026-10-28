@@ -414,3 +414,73 @@ test("the default limiter is not shared by two games in one process: another own
   assert.equal((await press(a, "owner"))!.status, 429, "game A is at its limit");
   assert.equal((await press(b, "other_wallet"))!.status, 200, "game B's first press is not refused because of game A");
 });
+
+// ---- the sign-in list and "sign out everywhere" ----
+
+const ago = (ms: number) => NOW - ms;
+
+test("with a store that lists sign-ins, the summary lists the last 10, newest first, with only the time, the country and the browser; nothing more", async () => {
+  const store = createMemoryStore({ logins: true });
+  for (let i = 0; i < 14; i++) store.logins.push({ at: ago(i * 60_000), country: i === 3 ? "usa" : i === 4 ? null : "US", browser: `Firefox on Linux ${i}`, address: OWNER, ip: "203.0.113.9", userAgent: "Mozilla/5.0 (X11; Linux x86_64) very long text" });
+  const { handler } = make({ store });
+  const s = await (await call(handler, "/api/admin/summary"))!.json();
+  assert.equal(s.logins.length, 10);
+  assert.deepEqual(s.logins.map((l: { at: number }) => l.at), Array.from({ length: 10 }, (_, i) => ago(i * 60_000)));
+  for (const l of s.logins) assert.deepEqual(Object.keys(l).sort(), ["at", "browser", "country"]);
+  assert.equal(s.logins[3].country, null, 'a country that is not two capital letters ("usa") is not shown');
+  assert.equal(s.logins[4].country, null);
+  assert.equal(s.logins[0].country, "US");
+  assert.ok(!JSON.stringify(s).includes("203.0.113.9") && !JSON.stringify(s).includes("Mozilla"), "no address and no browser text go out, even if the store gave them");
+  assert.equal(s.canSignOutEverywhere, true);
+});
+
+test("a store that does not list sign-ins gives a summary with no list and no sign-out route", async () => {
+  const { handler } = make();
+  const s = await (await call(handler, "/api/admin/summary"))!.json();
+  assert.equal(s.logins, undefined);
+  assert.equal(s.canSignOutEverywhere, undefined);
+  assert.equal(handler.routes.some((r) => r.path.endsWith("/signout-all")), false);
+  assert.equal((await call(handler, "/api/admin/signout-all", { method: "POST", body: "{}" }))!.status, 404);
+});
+
+test("sign out everywhere: the owner ends every admin session and no player session; a visitor and another site cannot; it is limited", async () => {
+  const store = createMemoryStore({ logins: true });
+  store.adminSessions = 4;
+  store.playSessions = 9;
+  const { handler } = make({ store });
+  assert.ok(handler.routes.some((r) => r.method === "POST" && r.path === "/api/admin/signout-all"));
+  // Not from another site; not as a visitor.
+  assert.equal((await call(handler, "/api/admin/signout-all", { method: "POST", origin: "https://evil.example", body: "{}" }))!.status, 403);
+  assert.equal((await call(handler, "/api/admin/signout-all", { method: "POST", kind: "other_wallet", body: "{}" }))!.status, 403);
+  assert.equal((await call(handler, "/api/admin/signout-all", { method: "POST", kind: "nobody", body: "{}" }))!.status, 401);
+  assert.equal(store.adminSessions, 4, "nothing was deleted by a refused call");
+  assert.equal((await call(handler, "/api/admin/signout-all", { method: "GET" }))!.status, 405);
+  const res = (await call(handler, "/api/admin/signout-all", { method: "POST", body: "{}" }))!;
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { ok: true, signedOut: 4 });
+  assert.equal(store.adminSessions, 0);
+  assert.equal(store.playSessions, 9, "the players' sessions stay");
+  // 5 a minute.
+  for (let i = 0; i < ADMIN_LIMITS.signOutAll.limit - 1; i++) assert.equal((await call(handler, "/api/admin/signout-all", { method: "POST", body: "{}" }))!.status, 200);
+  assert.equal((await call(handler, "/api/admin/signout-all", { method: "POST", body: "{}" }))!.status, 429);
+});
+
+test("a fault in signOutEverywhere gives the fixed 500 and no detail", async () => {
+  const store = createMemoryStore({ logins: true });
+  store.signOutEverywhere = async () => {
+    throw new Error("SECRET_SQL_DETAIL");
+  };
+  const { handler } = make({ store });
+  const res = (await call(handler, "/api/admin/signout-all", { method: "POST", body: "{}" }))!;
+  assert.equal(res.status, 500);
+  assert.ok(!(await res.text()).includes("SECRET_SQL_DETAIL"));
+});
+
+test("the conformance suite passes on a handler whose store lists sign-ins, and walks the new route too", async () => {
+  const store = createMemoryStore({ logins: true });
+  const { handler } = make({ store });
+  const { handler: noOwner } = make({ owner: null, store });
+  const host = hostFor(handler, noOwner, undefined, [{ method: "GET", path: "/api/admin/orders" }]);
+  assert.ok(host.routes.some((r) => r.path.endsWith("/signout-all")));
+  for (const c of adminConformance(host)) await c.run().catch((e: Error) => assert.fail(`${c.name}: ${e.message}`));
+});
