@@ -22,7 +22,7 @@ const url = (id: string) => `https://example.com/signin/nano/${id}`;
 const store = () => memoryRequests();
 const options = (s: ReturnType<typeof store>, uri: string, extra: Partial<NanoSigninOptions> = {}): NanoSigninOptions => ({ domain: "example.com", uri, store: s, now: () => clock, ...extra });
 const GAME = "https://example.com/";
-const ADMIN = "https://example.com/admin?from=US";
+const ADMIN = "https://example.com/admin";
 const berryAnswer = (req: NanoSigninRequest, message = nanoSigninMessage(req, me.address)) => ({ protocol: "nano-signin-v1", requestId: req.requestId, address: me.address, signatureType: "nano-ed25519-blake2b-sha256", message, signature: signBytes(me.privateKey, sha(message)) });
 
 test("Berry: the signed text of an admin request names the admin in its URI line, and carries the start time", async () => {
@@ -30,7 +30,7 @@ test("Berry: the signed text of an admin request names the admin in its URI line
   const start = await startNanoSignin(options(s, ADMIN), { starter: "a".repeat(64), requestUrl: url, label: "admin:US" });
   const req = (await readNanoSignin(options(s, ADMIN), start.id, url))!;
   const text = nanoSigninMessage(req, me.address);
-  assert.match(text, /\nURI: https:\/\/example\.com\/admin\?from=US\n/);
+  assert.match(text, /\nURI: https:\/\/example\.com\/admin\n/);
   assert.match(text, new RegExp(`\\nIssued At: ${new Date(clock).toISOString()}\\n`));
   assert.equal((await s.get(start.id))?.label, "admin:US", "the site's own note is kept with the request, so it can read the kind back before it answers the wallet");
 });
