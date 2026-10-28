@@ -60,7 +60,8 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/character/record` | the character's **record**: pack, unpack, check, `fromLegacy`, `toLegacy`, `diceRecord`, the lists | no | 4.4 kB (all), 1.9 kB (pack, unpack and the two legacy calls) |
 | `@nano133/nanoterra/ticket` | read and check a sign-in ticket | no | 4.7 kB (all), 3.1 kB (`readTicket` alone) |
 | `@nano133/nanoterra/looks` | the looks ladder | no | 1.9 kB (all), 0.9 kB (`checkLooks` alone) |
-| `@nano133/nanoterra/character` | the builder and `createCharacter` (it includes the record) | yes | 20.4 kB (all), 17.8 kB (`createCharacter` alone) |
+| `@nano133/nanoterra/character` | the builder and `createCharacter` (it includes the record), with the three sockets | yes | 21.1 kB (all; 20.4 kB before the sockets of 0.3.0), 17.8 kB (`createCharacter` alone, measured on 0.2.0) |
+| `@nano133/nanoterra/model` | the 3D model check: a `.glb` against the island's limits or a cosmetic's (since 0.3.0) | no | 8.8 kB |
 | `@nano133/nanoterra/admin` | the admin of a game: the guard, the handler, the store type (server code; since 0.2.0) | no | 3.7 kB |
 | `@nano133/nanoterra/admin/d1`, `/admin/firestore` | the admin store for D1 (the starter's tables) or Firestore (a small interface, no Firebase dependency): `createD1Store`, `createFirestoreStore` (since 0.2.0) | no | 1.5 kB each |
 | `@nano133/nanoterra/admin/panel` | the admin page, drawn in the browser into one element, and its stylesheet `@nano133/nanoterra/admin/style.css` (since 0.2.0) | no | 8.5 kB + 2.4 kB of CSS |
@@ -85,7 +86,7 @@ c.dispose();
 
 | Call | What it does |
 |---|---|
-| `createCharacter({ record?, look?, colors?, quality?, reducedMotion? })` | Builds a character. `record` is the player's whole character (see "The record"). `look` is the five colours `{ skin, hair, shirt, pants, shoes }` of a player whose ticket has no record: the Classic body in those colours (read only when `record` is left out). Neither: the island's first look. `colors` paints colours over the record's (any `"#rrggbb"`: a shop dye is not on the island's lists). `quality` is `"high"` (default) or `"low"`. Something that is not good throws a `TypeError` that names the part and the value. |
+| `createCharacter({ record?, look?, colors?, quality?, reducedMotion?, worn? })` | Builds a character. `record` is the player's whole character (see "The record"). `look` is the five colours `{ skin, hair, shirt, pants, shoes }` of a player whose ticket has no record: the Classic body in those colours (read only when `record` is left out). Neither: the island's first look. `colors` paints colours over the record's (any `"#rrggbb"`: a shop dye is not on the island's lists). `quality` is `"high"` (default) or `"low"`. Something that is not good throws a `TypeError` that names the part and the value. |
 | `c.object` | A `THREE.Group`: feet at y = 0, facing +Z. Add it to your scene; move it with `position`, turn it with `rotation.y`. It holds the skinned meshes **and the blob shadow** (a disc in the body). |
 | `c.update(dt, { speed, airborne, verticalSpeed })` | One frame. `dt` is in **seconds** (a frame longer than 0.05 s counts as 0.05 s). Idle, walk, run and jump come from your numbers. Every field is optional. See "Motion". |
 | `c.wave()` | Waves the left arm for 1.8 s (`WAVE_SECONDS`), as the island does. |
@@ -93,7 +94,9 @@ c.dispose();
 | `c.setColors(colors \| null)` | Paints these colours over the record's; `null` gives the record's own back. No new geometry. |
 | `c.record`, `c.look` | The record now (a frozen copy), and its five colours (the older view). |
 | `c.reducedMotion` | A boolean you may change: true turns off the swing of the arms and legs and the bob, and makes the wave still. Set it from `prefers-reduced-motion`. |
-| `c.dispose()` | Frees the geometries, materials and textures that the character made. The other calls do nothing after it. |
+| `c.socket(name)` | An attach point, a `THREE.Object3D` on a bone: `"head"`, `"hand"` or `"back"`. Add your own object to it and it follows the bone. It is the same object for the character's whole life: a rebuild moves it, with what hangs on it, to the new bones (since 0.3.0; see "Worn things and sockets"). |
+| `c.setWorn(worn)` | The worn things (`WornAdapter`): shapes merged into the body, or a model on a socket. A model on a socket builds no geometry; the objects of things no longer worn come off their socket (since 0.3.0). |
+| `c.dispose()` | Frees the geometries, materials and textures that the character made. The other calls do nothing after it. It never frees an object that you hung on a socket: that is yours. |
 
 Also exported from `/character`: `HEIGHT`, `RADIUS`, `WAVE_SECONDS`, `buildCharacter` and `assemble` (the pieces `createCharacter` uses: the geometry, the skinned meshes on the island's 28-bone skeleton), `BASE_IDS`, the lists, and everything of `/character/record`.
 
@@ -171,15 +174,62 @@ a player's choice of body never changes a rule. nano133.com's island and room do
 - The ink line is a second draw of the same skinned mesh, with its back faces, pushed out along its normal in screen space, so it keeps one width in pixels (2.6). Use `WebGLRenderer`: the ink is a GLSL `ShaderMaterial`.
 - Frame rate has not been measured on a real phone by this package. nano133.com's island draws a room of twelve of these characters at 60 frames a second on a throttled phone profile.
 
-## Worn items (the next version)
+## Worn things and sockets
 
-**Versions 0.1.0 and 0.2.0 draw the body only**, as `@nano133/character` 0.1.0 did. The island's 14 shop items (hats, scarves, packs, tops, a buddy, a blade) are
-fitted to every base by nano133.com's own code, and are not in this package yet. The builder takes them through **one small interface**,
-`WornAdapter` (what it needs of a worn thing: its shapes and bones through `add(ctx)`, what it does to the hair, `hidesBadge`, `hideTail`), so a game
-may bring its own, and the island brings its adapter the same way.
+A worn thing reaches the builder through **one small interface**, `WornAdapter`. It has two ways, and a thing may use both:
 
-A player's item ids come in the sign-in answer (`ticket.items` here, `character.items` in the code exchange). A later version (0.2.0) adds the item art so
-that a game can draw them with one call. Until then a game may ignore the ids or draw its own things.
+- **Merged shapes** (`add(ctx)`, and what it does to the hair `fit`, `hidesBadge`, `hideTail`): the thing's shapes go into the body's own buffers, so it
+  **adds no draw**. nano133.com fits the island's 14 shop items (hats, scarves, packs, tops, a buddy, a blade) to every base this way, with its own code.
+- **A model on a socket** (`socket` and `object`, since 0.3.0): your own `THREE.Object3D` (a `.glb` you loaded, say) hangs on one of the character's three
+  attach points and follows its bone. It costs **its own draws** (1 or 2 for each thing). The character never frees it: you load it and you free it.
+
+```ts
+const c = createCharacter({ record });
+const shovel = (await new GLTFLoader().loadAsync("/looks/shovel.glb")).scene;
+c.setWorn([{ socket: "hand", object: shovel }]); // or: c.socket("hand").add(shovel)
+c.setLook(otherRecord); // another base: the shovel moves to the new hand
+c.setWorn([]); // the shovel comes off; free its geometry and materials yourself
+```
+
+| Socket | Bone | Where | Its axes |
+|---|---|---|---|
+| `"head"` | `head` | the base's hat frame (`BASE_SPECS[base].hat`: the middle of a hat's band), scaled by the hat frame and the head's size | the character's: +Y up, +Z forward. A thing made for the Classic's head fits every head |
+| `"hand"` | `grip_R` | the middle of the drawn right hand (a wide build or base draws its hands further out than the bone) | `HAND_HOLD`: a thing modelled standing up (+Y) with its grip at the origin is held pointing forward, its front (+Z) up |
+| `"back"` | `chest` | on the back of the torso at the chest's height (`BASE_SPECS[base].back`, else the torso's radius at 1.12) | the character's: the side that touches the body at the origin, the bulk towards -Z |
+
+`socketFrame(spec, look, name)` gives a socket's bone, place, turn and scale for a base and a look, and `placeSocket(object, bones, spec, look, name)`
+puts an object there: a host that uses `buildCharacter` and `assemble` (not `createCharacter`) makes its own sockets with them. Check a socket model
+with the presets of `@nano133/nanoterra/model` (`HEAD_ITEM`, `HAND_ITEM`, `BACK_ITEM`) before you ship it.
+
+A player's item ids come in the sign-in answer (`ticket.items` here, `character.items` in the code exchange). The island's item art is not in this package;
+a game may ignore the ids or draw its own things.
+
+## Model check (`@nano133/nanoterra/model`; since 0.3.0)
+
+`checkModel(bytes, limits)` reads a `.glb` (binary glTF 2.0) from its bytes and answers `{ ok, problems, facts, advice }`. It is pure (no Three.js, no
+network, no DOM) and it never throws: a file that cannot be read answers a problem. The file comes from a stranger, so every read is bounded (no size in the
+file is trusted, the work has a cap and a time limit).
+
+- `problems`: each `{ rule, fix }`, the fix in one or two plain sentences for the creator. Rules: `file`, `size`, `embedded`, `extensions`, `lights`,
+  `motion`, `triangles`, `textures`, `draws`, `zone`, `markers`, `time`.
+- `facts`: the bytes, the triangles, the **draws** (each part of each drawn mesh instance), the **materials** the parts use, the textures (their type and size,
+  read from the picture itself), the box and the reach, the markers, the anchor.
+- `advice`: lines that are never a failure: a large PNG or JPEG (KTX2 makes it smaller), 32-bit positions (`KHR_mesh_quantization` halves them),
+  parts that share a material (joining them saves draws).
+- `modelSummary(facts)`: one short line ("646 triangles, 0 textures, 49 KB, 0.5 x 0.4 x 1.0 m").
+
+The presets (`limits.ts`; a game may make its own `ModelLimits`). The cosmetic numbers are Wes's of 2026-10-28; the zone is in metres for a character 2.29 m
+tall, its origin the socket's point (a hand item's `grip_R` marker when it has one):
+
+| Preset | Zone (w x d x h) | Triangles | Textures | Draws | File |
+|---|---|---|---|---|---|
+| `HEAD_ITEM` | 0.9 x 0.9 x 0.8, from 0.1 below the socket | 3,000 | 1 of 512 px | 2 | 300 KB |
+| `HAND_ITEM` | 0.4 x 0.4 x 1.6, from 0.3 below the grip | 3,000 | 1 of 512 px | 2 | 300 KB |
+| `BACK_ITEM` | 1.0 x 0.6 x 1.2, from 0.6 below the socket | 4,000 | 1 of 512 px | 2 | 400 KB |
+| `ISLAND_MODEL` | a disc of 10 m radius, 18 m high, from the ground | 50,000 | 8 of 1,024 px | no limit | 5 MB |
+
+Every preset refuses skins, animations, morph targets, lights, external files and compressed meshes (Draco, meshopt): a worn thing is rigid on its socket.
+`COSMETIC_LIMITS` gives the preset of each socket by its name. The island preset is nano133.com's (its "Launch my game" check uses this same code).
 
 ## The sign-in ticket
 
@@ -531,7 +581,8 @@ The wallet sign-in stays yours (`signIn`), because only your game can start a re
 
 ## What it does NOT do yet
 
-- Worn items (see above): 0.2.0.
+- The island's item art (see "Worn things and sockets"): a game brings its own things.
+- A pose for a held thing: the arms swing free, so a two-handed thing (a `grip_L` as well as a `grip_R`) is held in the right hand only.
 - The katana, the saya, the headband and the dojo look of the island's Ananos game. (The skeleton keeps their bones, with no vertices.)
 - First-person arms, swimming, climbing, sitting and the room's other moves: only idle, walk, run, jump and wave.
 - Shared geometry for many characters at once, and a react-three-fiber wrapper.

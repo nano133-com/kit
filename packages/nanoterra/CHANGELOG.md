@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0 (unreleased)
+
+- **Sockets** (`@nano133/nanoterra/character`): three attach points on the character, `c.socket("head" | "hand" | "back")`, each a `THREE.Object3D` on a bone
+  (`head`, `grip_R`, `chest`) that follows the walk, the run, the jump and the wave. The head socket sits at the base's hat frame and scales with it and the head's
+  size; the hand socket is in the middle of the drawn right hand (a wide build or base draws its hands further out than the bone) and holds a thing pointing
+  forward (`HAND_HOLD`); the back socket is on the back of the torso at the chest. A socket is the same object for the character's whole life: a rebuild (a new
+  base, hair or clothes) moves it, with what hangs on it, to the new bones. New: `SOCKETS`, `socketFrame`, `placeSocket`, `isSocketName`, `HAND_HOLD`, the types
+  `SocketName`, `SocketFrame`, `SocketLook`; `BaseSpec` may set `handAt` and `back`.
+- **A model on a socket**: `WornAdapter` takes an optional `socket` and `object` (and `add` is now optional). `createCharacter({ worn })` and `c.setWorn(worn)`
+  hang each object on its socket; a model on a socket builds no geometry, and its `fit`, `hidesBadge` and `hideTail` still apply. The character never frees an
+  object that the game hung: `setWorn` takes the old ones off, and `dispose` takes the sockets off the dead bones.
+- **`@nano133/nanoterra/model`**: the 3D model check, moved here from nano133.com (`app/launch/model`, which now keeps the same code). `checkModel(bytes,
+  limits)` reads a `.glb` from its bytes, never throws, and answers the problems with a fix each, the facts and, new, **advice** (a large PNG or JPEG, 32-bit
+  positions, parts that share a material). New facts: `draws` (each part of each drawn mesh instance), `materials`, `anchor`. New limits: `maxDraws`, and
+  `anchor` (a marker whose origin is the attach point: the zone is measured from it). The cosmetic presets of Wes's table (2026-10-28): `HEAD_ITEM`,
+  `HAND_ITEM` (its anchor is `grip_R`; `grip_L` is allowed), `BACK_ITEM`, and `COSMETIC_LIMITS` by socket; `ISLAND_MODEL` is the island's (a disc of 10 m
+  radius, 18 m high). A misspelt marker with capitals in its name (`Grip_R`) now gets its rename line too.
+
 ## 0.2.0 (2026-10-27)
 
 - **Slots** on a look (`@nano133/nanoterra/looks`, and the Shelf of `/admin/panel`): `slots?: Record<string, string>`, what a game defines for itself (a pair of wings, a trail colour). Names are 1 to 24

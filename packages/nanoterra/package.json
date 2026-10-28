@@ -1,6 +1,6 @@
 {
   "name": "@nano133/nanoterra",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Nanoterra for a creator's game, in one package: the player's sign-in ticket, the player's character (a toon body on the island's skeleton) and the looks ladder.",
   "type": "module",
   "main": "dist/index.js",
@@ -11,6 +11,7 @@
     "./character/record": { "types": "./dist/character/pure.d.ts", "import": "./dist/character/pure.js" },
     "./ticket": { "types": "./dist/ticket/index.d.ts", "import": "./dist/ticket/index.js" },
     "./looks": { "types": "./dist/looks/index.d.ts", "import": "./dist/looks/index.js" },
+    "./model": { "types": "./dist/model/index.d.ts", "import": "./dist/model/index.js" },
     "./admin": { "types": "./dist/admin/index.d.ts", "import": "./dist/admin/index.js" },
     "./admin/conformance": { "types": "./dist/admin/conformance.d.ts", "import": "./dist/admin/conformance.js" },
     "./admin/d1": { "types": "./dist/admin/adapters/d1.d.ts", "import": "./dist/admin/adapters/d1.js" },
@@ -44,5 +45,5 @@
   },
   "homepage": "https://nano133.com/build/nanoterra",
   "license": "MIT",
-  "keywords": ["nano", "xno", "nanoterra", "sign in", "ticket", "character", "avatar", "three", "three.js", "toon", "looks", "cosmetics"]
+  "keywords": ["nano", "gltf", "glb", "model check", "xno", "nanoterra", "sign in", "ticket", "character", "avatar", "three", "three.js", "toon", "looks", "cosmetics"]
 }
