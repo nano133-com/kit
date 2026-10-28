@@ -240,6 +240,20 @@ test("the summary has the status, the numbers, and names for the looks", async (
   assert.deepEqual(s.players, [{ player: OTHER, looks: [{ id: "mint-cap", name: "Mint Cap", at: NOW - 40 }] }]);
 });
 
+test("the status hook gets the store's numbers, so a warning can depend on them", async () => {
+  let seen: unknown = null;
+  const { handler, store } = make({
+    status: (_now, summary) => {
+      seen = summary.counts;
+      return { address: OWNER, testMode: false, warnings: summary.counts.paid_late ? [`${summary.counts.paid_late} payment came late.`] : [] };
+    },
+  });
+  store.orders.push({ id: "L", player: OTHER, lookId: "x", usd: "0.05", amountRaw: RAW_04, status: "paid_late", createdAt: NOW - 5, expiresAt: NOW - 1, paidAt: NOW, payer: OTHER, hash: "HL" });
+  const s = await (await call(handler, "/api/admin/summary"))!.json();
+  assert.deepEqual(s.warnings, ["1 payment came late."]);
+  assert.deepEqual(seen, { open: 0, paid: 0, expired: 0, paid_late: 1 });
+});
+
 test("the payment check route exists only when the game gives one, and answers with the scan and the summary", async () => {
   const { handler } = make();
   const res = (await call(handler, "/api/admin/check", { method: "POST", body: "{}" }))!;

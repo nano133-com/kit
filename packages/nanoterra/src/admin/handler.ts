@@ -10,7 +10,7 @@
 
 import { adminAccess, type AdminAccess, type AdminSession } from "./guard.js";
 import { fail, json, memoryLimiter, readLimited, sameOrigin } from "./http.js";
-import type { AdminOrder, AdminPlayer, AdminStatus, AdminStore, AdminSummary } from "./store.js";
+import type { AdminOrder, AdminPlayer, AdminStatus, AdminStore, AdminSummary, StoreSummary } from "./store.js";
 import { mergeSettings, parsePatch, type GameSettings, type GameState } from "./switches.js";
 
 export type AdminRoute = { method: "GET" | "POST"; path: string };
@@ -24,8 +24,8 @@ export type AdminHandlerOptions = {
   owner: string | null;
   /** The admin login of this request, or null. It reads the ADMIN cookie only (a login made for the game's players is not one). */
   session: (req: Request, now: number) => Promise<AdminSession | null>;
-  /** The Status card: what only the game knows. Default: the owner's address and nothing else. */
-  status?: (now: number) => Promise<AdminStatus> | AdminStatus;
+  /** The Status card: what only the game knows. It gets the numbers of the store too, for a warning that depends on them ("2 payments came late"). Default: the owner's address and nothing else. */
+  status?: (now: number, summary: StoreSummary) => Promise<AdminStatus> | AdminStatus;
   /** What a look is called, for the orders. Default: its id. */
   lookName?: (id: string) => string | undefined;
   /** The payment check (POST check). Its answer is sent as `scan`. With none given, the route does not exist. */
@@ -93,7 +93,8 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
   const settings = async (): Promise<GameState> => mergeSettings(await options.store.readSettings(), options.defaults);
 
   async function summary(at: number): Promise<AdminSummary> {
-    const [status, s] = await Promise.all([Promise.resolve(options.status ? options.status(at) : { address: options.owner, testMode: false, warnings: [] as string[] }), options.store.summary(at)]);
+    const s = await options.store.summary(at);
+    const status = options.status ? await options.status(at, s) : { address: options.owner, testMode: false, warnings: [] as string[] };
     const name = (id: string) => options.lookName?.(id) ?? id;
     const orders: AdminOrder[] = s.orders.map((o) => ({ ...o, look: name(o.lookId) }));
     const players: AdminPlayer[] = s.players.map((p) => ({ player: p.player, looks: p.looks.map((l) => ({ id: l.id, name: name(l.id), at: l.at })) }));

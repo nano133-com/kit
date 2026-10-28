@@ -347,7 +347,7 @@ const admin = createAdminHandler({
   defaults: { character: "nanoterra", signin: "exchange" },   // what the two switches are until /admin sets them (your game.config.json)
   owner: ownerAddress,                     // "nano_..." lowercase, its checksum checked by you; null when none is set
   session: (req, now) => readAdminSession(req, now),          // YOUR admin login: its own cookie; return { address, createdAt, via: "wallet" } or null
-  status: (now) => ({ address: ownerAddress, testMode, warnings }),   // what only your game knows
+  status: (now, summary) => ({ address: ownerAddress, testMode, warnings }),   // what only your game knows (the store's numbers come too, for a warning like "2 payments came late")
   lookName: (id) => looks.find((l) => l.id === id)?.name,
   check: (now) => checkPayments(now),      // optional: the payment check
 });
