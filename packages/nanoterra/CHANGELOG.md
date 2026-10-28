@@ -20,6 +20,8 @@
 - **`@nano133/nanoterra/admin/d1`** and **`/admin/firestore`** (step 3): `createD1Store(db)` (the game starter's tables, with the starter's own queries) and `createFirestoreStore(db, names?)` (a small interface; no
   Firebase dependency). Both write ONLY the two settings. `adminStoreConformance(make)` (in `/admin/conformance`) is the store contract that every adapter passes: the memory store, D1 on SQLite and Firestore on a fake.
   The summary's numbers come from one file (`summarize`, `moneyOf`, `shapeOrders`), so every adapter says the same thing. The memory store now takes orders with a raw `amountRaw`, like a real database.
+- **The Game card's words for sign-in Off** (Wes, "off means off"): "Sign-in from Nanoterra is Off, so every player plays as the island's first character, a player who signed in from Nanoterra before
+  included." The card only says it: the game's own page must draw no Nanoterra character while sign-in is Off (the game starter's `src/client/ui/player.ts` does).
 - **`@nano133/nanoterra/admin/conformance`**: `adminConformance(host)` gives test cases that a game runs against its OWN session code and store: every route refuses a visitor
   who is signed out, a login made for the game's players (also its token in the admin cookie), a Nanoterra sign-in, a login made some way the game does not know, another wallet, a missing
   owner address, an expired login and a login that is old but still valid in the store; OPTIONS and HEAD are refused with no preflight answer; other spellings of an admin path open nothing with
