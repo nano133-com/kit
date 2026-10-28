@@ -10,7 +10,9 @@
     "./character": { "types": "./dist/character/index.d.ts", "import": "./dist/character/index.js" },
     "./character/record": { "types": "./dist/character/pure.d.ts", "import": "./dist/character/pure.js" },
     "./ticket": { "types": "./dist/ticket/index.d.ts", "import": "./dist/ticket/index.js" },
-    "./looks": { "types": "./dist/looks/index.d.ts", "import": "./dist/looks/index.js" }
+    "./looks": { "types": "./dist/looks/index.d.ts", "import": "./dist/looks/index.js" },
+    "./admin": { "types": "./dist/admin/index.d.ts", "import": "./dist/admin/index.js" },
+    "./admin/conformance": { "types": "./dist/admin/conformance.d.ts", "import": "./dist/admin/conformance.js" }
   },
   "sideEffects": false,
   "files": ["dist", "src", "README.md", "CHANGELOG.md", "LICENSE", "ai"],

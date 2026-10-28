@@ -61,6 +61,8 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/ticket` | read and check a sign-in ticket | no | 4.7 kB (all), 3.1 kB (`readTicket` alone) |
 | `@nano133/nanoterra/looks` | the looks ladder | no | 1.9 kB (all), 0.9 kB (`checkLooks` alone) |
 | `@nano133/nanoterra/character` | the builder and `createCharacter` (it includes the record) | yes | 20.4 kB (all), 17.8 kB (`createCharacter` alone) |
+| `@nano133/nanoterra/admin` | the admin of a game: the guard, the handler, the store type (server code; not published yet) | no | not measured yet |
+| `@nano133/nanoterra/admin/conformance` | test cases that a game runs against its own admin (a dev dependency in practice; not published yet) | no | n/a |
 
 Measured 2026-10-26: `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
 All four paths together: 23.6 kB. A test of the package proves that the record, the ticket, the looks and the small part import no package at all.
@@ -328,6 +330,58 @@ The rules (the same as the starter's `AGENTS.md`):
 
 The ladder is a suggestion. Any price with at most 2 decimals, up to $1000, is good. `wholeCents` accepts every price in whole cents (the starter's old check,
 `Math.round(x * 100) === x * 100`, refused $0.07, $0.29, $0.57 and $1.10 because of floating point).
+
+## The admin (`/admin`; not published yet)
+
+The admin of a game that sells Nanoterra looks for Nano, in the package: one panel for the game, its looks and its orders. It is built in steps; this is **step 1, the
+server part**. It has no Three.js, no database and no cookie. **The game gives a session and a store**, and the package gives the guard, the routes and a test suite.
+
+```ts
+import { createAdminHandler } from "@nano133/nanoterra/admin";
+
+const admin = createAdminHandler({
+  store,                                   // your database: readSettings(), saveSettings(patch, now), summary(now)  (a memory store is in the package, for tests)
+  defaults: { character: "nanoterra", signin: "exchange" },   // what the two switches are until /admin sets them (your game.config.json)
+  owner: ownerAddress,                     // "nano_..." lowercase, its checksum checked by you; null when none is set
+  session: (req, now) => readAdminSession(req, now),          // YOUR admin login: its own cookie; return { address, createdAt, via: "wallet" } or null
+  status: (now) => ({ address: ownerAddress, testMode, warnings }),   // what only your game knows
+  lookName: (id) => looks.find((l) => l.id === id)?.name,
+  check: (now) => checkPayments(now),      // optional: the payment check
+});
+
+const answer = await admin.handle(request);   // null when the request is not for /api/admin
+if (answer) return answer;
+```
+
+**The guard** is `adminAccess({ owner, session, now, maxAgeMs? })`, one pure function with the same five checks as the game starter's `adminGuard`, in the same order: the
+game has a real owner address; there is a login; it was made with a wallet signature (a sign-in from Nanoterra names an address but proves no key, so it never opens the
+admin); it is the owner's address; it is not more than a day old. **It only refuses more than the starter does, never less**: a bad owner, a time that is not a number
+or lies more than five minutes in the future, a login word that is not exactly `"wallet"` and a limit that is not a real number are refusals, a limit above one day is cut
+to one day, and a fault inside the guard is a refusal. A test runs the starter's guard and this one over 10,000 inputs and proves that this one never allows what the
+starter refuses.
+
+**The handler** sends every request under the base path (`/api/admin` by default) through the guard first, before the route is looked up: a visitor who is not the owner
+gets 401 or 403 for any path, so nothing about the routes leaks. A POST must come from the game's own page (`Origin`, else `Sec-Fetch-Site: same-origin`). It sets no CORS
+header, always sends `Cache-Control: no-store`, reads at most 512 bytes of a press, and limits presses to 30 a minute. A fault in your store gives a plain 500 that shows
+nothing of the fault (`onError` hears it). The only writes are the two settings, **never a look, a price or an order**: a change of looks stays a change of your repository.
+
+**Your own routes read the switches** with `loadGameSettings(store, defaults)` (for the listing file's `signin` word and for the character): the stored word, else your default,
+and your defaults when the store fails.
+
+**The conformance suite** proves your whole chain, not only the guard: the cookie you read, the session lookup, the owner you pass.
+
+```ts
+import { adminConformance } from "@nano133/nanoterra/admin/conformance";
+
+const host = { routes: admin.routes, basePath: admin.basePath, origin: "https://game.example", request: (who, req) => sendAs(who, req) };
+for (const c of adminConformance(host)) it(c.name, c.run);   // vitest, node:test or any runner
+```
+
+`sendAs(who, req)` makes a request as one of seven visitors from YOUR sessions: `signed_out`, `game_login` (a login made for your players, which must NOT open the admin),
+`nanoterra_login`, `other_wallet`, `no_address`, `expired_login` and `owner`. The suite then checks every route in `admin.routes` for each, and also: an unknown path gets the same
+refusal; other spellings of an admin path (upper case, a doubled slash, a percent code, a dot segment) open nothing; a POST from another site is refused; a method that a
+route does not have is refused; a body that is too big is refused; and every answer is `no-store` with no CORS header. A route that someone adds later cannot skip the guard,
+because the suite walks the route list.
 
 ## Moving from the three old packages
 

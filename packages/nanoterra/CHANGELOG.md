@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+(Not published. The version is set when Wes decides to publish.)
+
+- **`@nano133/nanoterra/admin`** (step 1 of the admin panel): the admin of a game, in the package, with no Three.js, no database and no cookie. The game gives a session and a store.
+  - `adminAccess(input)`: the guard, ONE pure function. The same five checks as the game starter's `adminGuard`, in the same order (owner set, session present, wallet login,
+    same address, not older than one day). It only refuses MORE than the starter does: a bad owner address, a time that is not a number or lies more than five minutes in the
+    future, a login word that is not exactly "wallet", and a limit above one day are all refusals. A fault inside it is a refusal.
+  - `createAdminHandler(options)`: the routes (summary, the two game switches, the payment check) on Web `Request` and `Response`. Every path under the base goes through the
+    guard first, so a visitor learns nothing about the routes. A POST must come from the game's own page. No CORS header, always `no-store`, a body limit, a rate limit.
+  - `AdminStore`: what a game gives (read the two settings, save a checked patch, the summary). The only writes are the two `setting:` values.
+  - `loadGameSettings(store, defaults)`: the two switches for the game's own routes (the listing file, the character); the defaults when the store fails.
+  - `createMemoryStore()`: a store in memory, for tests.
+- **`@nano133/nanoterra/admin/conformance`**: `adminConformance(host)` gives test cases that a game runs against its OWN session code and store: every route refuses a visitor
+  who is signed out, a login made for the game's players, a Nanoterra sign-in, another wallet, a missing owner address and an old login; other spellings of an admin path
+  open nothing; a POST from another site is refused; a body that is too big is refused; every answer is `no-store` with no CORS header.
+
 ## 0.1.0
 
 First version (Pre-alpha). **One package for Nanoterra.** It replaces `@nano133/character` 0.1.0, `@nano133/ticket` 0.1.0 and
