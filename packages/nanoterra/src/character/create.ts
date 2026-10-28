@@ -7,11 +7,14 @@ import { buildWith, paintCharacter, type Made } from "./make.js";
 import { makePose, MAX_DT, type Motion } from "./pose.js";
 import { clean, DEFAULT_RECORD, resolve, toLegacy, withLegacy, type CharColors, type LookRecord } from "./record.js";
 import type { BoneName } from "./skeleton.js";
+import type { WornAdapter } from "./ctx.js";
+import { isSocketName, placeSocket, SOCKETS, type SocketName } from "./sockets.js";
 import { followCanvas, inkMaterial, makeRamp, toonMaterial } from "./toon.js";
 
 // createCharacter: the character as ONE object for a plain Three.js game. It builds the player's record (record.ts) with the kit (make.ts), binds it
 // to the island's skeleton (assemble.ts), gives it the toon material and the ink line (toon.ts) and plays the island's idle, walk, run, jump and wave
-// on it (pose.ts, solver.ts) from the numbers the game gives each frame. The body only: a worn item is the host's (ctx.ts `WornAdapter`).
+// on it (pose.ts, solver.ts) from the numbers the game gives each frame. A worn item is the host's (ctx.ts `WornAdapter`): its shapes merge into the
+// body, or its own model hangs on one of the three sockets (sockets.ts), which stay on the new bones after a rebuild.
 // The blob shadow is a part of the body (a disc on the skeleton's shadow bone): it lies on the ground under the character in a jump and shrinks.
 
 /** The character's height in metres at the record's normal size: from the soles to the top of the hair (the Classic base). Another base, hair or size is not this tall: measure it with a Box3. */
@@ -33,6 +36,8 @@ export type CharacterOptions = {
   quality?: Quality;
   /** Starts with the walk's swing and bob off, as the island does for a player who asks for less motion. */
   reducedMotion?: boolean;
+  /** Worn things (ctx.ts `WornAdapter`): shapes merged into the body, or a model on a socket. Change them with `setWorn`. */
+  worn?: readonly WornAdapter[];
 };
 
 export interface Character {
@@ -64,6 +69,17 @@ export interface Character {
   /** Paints these colours over the record's, or none (`null`): the record's own come back. It builds no geometry. */
   setColors(colors: Partial<CharColors> | null): void;
   /**
+   * An attach point: "head" (at the base's hat frame, scaled with the head), "hand" (in the right hand, on grip_R) or "back" (on the chest,
+   * behind). Add your own object to it and it follows the bone. It is the same object for the character's whole life: a new base, hair or
+   * clothes (a rebuild) moves it, with what hangs on it, to the new bones and to the new base's frame. An unknown name throws.
+   */
+  socket(name: SocketName): THREE.Object3D;
+  /**
+   * Changes the worn things. Shapes that merge (`add`) and the hair's fit build new geometry; a thing that only hangs a model on a socket
+   * builds none. The objects of the things that are no longer worn come off their socket (the game frees them: the character never does).
+   */
+  setWorn(worn: readonly WornAdapter[]): void;
+  /**
    * Frees the geometries, materials and textures that the character made, and takes `object` out of its parent. Later calls to the other methods do
    * nothing.
    */
@@ -83,6 +99,22 @@ function checkColors(colors: unknown): Partial<CharColors> {
     out[k as keyof CharColors] = v;
   }
   return out;
+}
+
+/** A worn thing that changes the body's geometry: its own shapes, or what it does to the hair, the badge or the tail. */
+const merges = (w: WornAdapter) => !!(w.add || w.fit || w.hidesBadge || w.hideTail);
+
+function checkWorn(worn: unknown): readonly WornAdapter[] {
+  if (!Array.isArray(worn)) throw new TypeError("@nano133/nanoterra: worn must be a list of worn things");
+  worn.forEach((w: unknown, i) => {
+    const v = w as WornAdapter | null;
+    if (typeof v !== "object" || v === null) throw new TypeError(`@nano133/nanoterra: worn[${i}] is not an object`);
+    if (v.add !== undefined && typeof v.add !== "function") throw new TypeError(`@nano133/nanoterra: worn[${i}].add must be a function`);
+    if (v.socket !== undefined && !isSocketName(v.socket)) throw new TypeError(`@nano133/nanoterra: worn[${i}].socket must be one of ${SOCKETS.join(", ")}, not ${JSON.stringify(v.socket)}`);
+    if ((v.object === undefined) !== (v.socket === undefined)) throw new TypeError(`@nano133/nanoterra: worn[${i}] needs both a socket and an object, or neither`);
+    if (v.object !== undefined && !(v.object as THREE.Object3D)?.isObject3D) throw new TypeError(`@nano133/nanoterra: worn[${i}].object must be a THREE.Object3D`);
+  });
+  return [...worn];
 }
 
 const frozen = (rec: LookRecord): Readonly<LookRecord> => Object.freeze({ ...clean(rec) });
@@ -110,6 +142,15 @@ export function createCharacter(options: CharacterOptions = {}): Character {
   }
   let record: LookRecord = opts.record !== undefined ? recordOf(opts.record, null) : opts.look !== undefined ? recordOf(opts.look, null) : { ...DEFAULT_RECORD };
   let over: Partial<CharColors> | null = opts.colors === undefined ? null : checkColors(opts.colors);
+  let worn: readonly WornAdapter[] = checkWorn(opts.worn ?? []);
+  /** The three sockets: made once, moved to the new bones on every rebuild. */
+  const sockets = Object.fromEntries(
+    SOCKETS.map((n) => {
+      const g = new THREE.Group();
+      g.name = `socket-${n}`;
+      return [n, g];
+    }),
+  ) as Record<SocketName, THREE.Group>;
 
   const ramp = makeRamp();
   const toon = toonMaterial(ramp);
@@ -125,7 +166,10 @@ export function createCharacter(options: CharacterOptions = {}): Character {
   type Rig = { made: Made; a: Assembled; pose: ReturnType<typeof makePose> };
   const colorsNow = (): CharColors => ({ ...resolve(record).colors, ...over });
   function build(): Rig {
-    const made = buildWith(BASE_SPECS[resolve(record).base], resolve(record));
+    const look = resolve(record);
+    const spec = BASE_SPECS[look.base];
+    const merged = worn.filter(merges);
+    const made = buildWith(spec, look, merged.length ? { worn: merged } : {});
     paintCharacter(made, colorsNow());
     const a = assemble(made, { toon, ink: ink ?? toon });
     a.mesh.name = "character-toon";
@@ -139,10 +183,16 @@ export function createCharacter(options: CharacterOptions = {}): Character {
     a.group.scale.setScalar(HEIGHTS[record.height] ?? 1);
     object.add(a.group);
     const pose = makePose(a.list, a.bones as Record<BoneName, THREE.Bone>, unit);
+    for (const n of SOCKETS) placeSocket(sockets[n], a.bones, spec, look, n);
     return { made, a, pose };
   }
   let rig = build();
   rig.pose.rest(reducedMotion);
+  /** Hangs each worn model on its socket (in the order of the list). */
+  const hang = () => {
+    for (const w of worn) if (w.object && w.socket) sockets[w.socket].add(w.object);
+  };
+  hang();
 
   /** Frees a rig's geometry and skeleton. A rig that is replaced also leaves the object; a character that is disposed keeps its (dead) meshes, as it always did. */
   const free = (r: Rig, replaced: boolean) => {
@@ -201,10 +251,31 @@ export function createCharacter(options: CharacterOptions = {}): Character {
       over = colors === null ? null : checkColors(colors);
       paintCharacter(rig.made, colorsNow());
     },
+    socket(name) {
+      if (!isSocketName(name)) throw new TypeError(`@nano133/nanoterra: there is no socket ${JSON.stringify(name)} (the sockets are ${SOCKETS.join(", ")})`);
+      return sockets[name];
+    },
+    setWorn(next) {
+      if (disposed) return;
+      const to = checkWorn(next);
+      const rebuild = worn.some(merges) || to.some(merges);
+      for (const w of worn) if (w.object && !to.some((x) => x.object === w.object)) w.object.removeFromParent();
+      worn = to;
+      if (rebuild) {
+        const was = rig;
+        rig = build();
+        Object.assign(rig.pose.state, was.pose.state);
+        rig.pose.rest(reducedMotion);
+        free(was, true);
+      }
+      hang();
+    },
     dispose() {
       if (disposed) return;
       disposed = true;
       object.removeFromParent();
+      // The sockets leave the dead bones; what hangs on them is the game's.
+      for (const n of SOCKETS) sockets[n].removeFromParent();
       free(rig, false);
       toon.dispose();
       ink?.dispose();

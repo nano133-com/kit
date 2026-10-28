@@ -27,3 +27,4 @@ export * from "./edit.js";
 export * from "./look.js";
 export { createCharacter, HEIGHT, RADIUS, type Character, type CharacterOptions, type Quality } from "./create.js";
 export { WAVE_SECONDS, MAX_DT, type Motion } from "./pose.js";
+export { SOCKETS, HAND_HOLD, socketFrame, placeSocket, isSocketName, type SocketName, type SocketFrame, type SocketLook } from "./sockets.js";

@@ -14,5 +14,9 @@ export type BaseSpec = {
   limbs: Limbs;
   /** Where a hat sits: the hat frame's centre height (a Classic hat is built for 1.83) and its scale. */
   hat: { y: number; z?: number; s: readonly [number, number, number] };
+  /** The hand socket's place from the middle of the drawn right hand, when it is not that middle (sockets.ts). */
+  handAt?: readonly [number, number, number];
+  /** The back socket: its height (left out: the chest bone's, 1.12) and its depth (left out: the torso's radius there, behind). */
+  back?: { y: number; z?: number };
   build(c: Ctx): void;
 };

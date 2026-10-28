@@ -69,7 +69,7 @@ export function buildWith(spec: BaseSpec, look: CharLook, opts: MakeOptions = {}
     // The shadow: a flat dark disc on its own bone, which stays on the floor under a hop.
     c.addBody(new THREE.CircleGeometry(0.62, 20), mtx(0, 0.02, 0, -Math.PI / 2), "shadow", "shadow", false);
   }
-  for (const w of wornOf(opts)) w.add(c);
+  for (const w of wornOf(opts)) w.add?.(c);
   return { ...b.finish(), toonTris: b.p.length / 9, inkTris: b.ip.length / 9, look };
 }
 export type Made = ReturnType<typeof buildWith>;
