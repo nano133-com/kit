@@ -67,12 +67,13 @@ export function sameStarter(stored: unknown, starter: string | undefined): boole
 
 /**
  * A request's state for the browser that asks. `deliverMs`: how long after the request expires a signature can still sign in the browser that started it
- * (default DELIVER_MS, an hour). A site that wants a shorter life for a request (an admin sign-in) passes a shorter one.
+ * (default DELIVER_MS, an hour, when it is not given). A site that wants a shorter life for a request (an admin sign-in) passes a shorter one. A value that is not a number of
+ * milliseconds from 0 up (a negative one, NaN, Infinity) is a mistake of the site and is read as 0: no delivery after the request ends, never the longest window.
  */
 export function checkOf(found: { key: string; request: WalletRequest } | null, now: number, starter?: string, deliverMs: number = DELIVER_MS): RequestCheck {
   if (!found) return { status: "expired" };
   const r = found.request;
-  const late = Number.isFinite(deliverMs) && deliverMs >= 0 ? deliverMs : DELIVER_MS;
+  const late = typeof deliverMs === "number" && Number.isFinite(deliverMs) && deliverMs >= 0 ? deliverMs : 0;
   if (r.status === "signedin")
     return { status: "signedin", account: r.account, starter: r.starter, fresh: now < r.expiresAt + late, key: found.key, ...(starter !== undefined ? { mine: sameStarter(r.starter, starter) && now < r.expiresAt + late } : {}) };
   return now > r.expiresAt ? { status: "expired" } : { status: "waiting" };

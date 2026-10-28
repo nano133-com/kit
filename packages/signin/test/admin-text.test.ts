@@ -122,14 +122,22 @@ test("Nautilus: an admin request takes the shorter life and the shorter delivery
   assert.equal((await checkNautilus({ store: s, now: () => clock }, a.id, "a".repeat(64))).mine, true);
 });
 
-test("a bad deliverMs (not a number, negative, infinite) is the default window, never zero and never forever", async () => {
+test("a bad deliverMs (a negative number, NaN, Infinity, not a number) is read as 0: nothing is delivered after the request ends, never the longest window; no deliverMs is the default hour", async () => {
   const s = store();
   const o = options(s, GAME);
   const start = await startNanoSignin(o, { starter: "a".repeat(64), requestUrl: url });
   const req = (await readNanoSignin(o, start.id, url))!;
   await answerNanoSignin(o, start.id, berryAnswer(req), url);
-  for (const bad of [Number.NaN, -5, Infinity, undefined]) {
-    const got = await checkNanoSignin({ store: s, now: () => clock, deliverMs: bad as number }, start.id, "a".repeat(64));
-    assert.equal(got.mine, true, `${String(bad)}: the default window (an hour) applies`);
+  // In time, every value still delivers: the window only matters after the request ends.
+  for (const bad of [Number.NaN, -1, -5, Infinity, "3600000" as unknown as number, null as unknown as number]) {
+    assert.equal((await checkNanoSignin({ store: s, now: () => clock, deliverMs: bad }, start.id, "a".repeat(64))).mine, true, `${String(bad)} in time`);
   }
+  // After it ends (30 minutes later): the default delivers, a bad value does not.
+  clock += 5 * 60_000 + 30 * 60_000;
+  assert.equal((await checkNanoSignin({ store: s, now: () => clock }, start.id, "a".repeat(64))).mine, true, "no deliverMs: the default hour");
+  assert.equal((await checkNanoSignin({ store: s, now: () => clock, deliverMs: undefined }, start.id, "a".repeat(64))).mine, true, "undefined is no deliverMs");
+  for (const bad of [Number.NaN, -1, -5, Infinity, "3600000" as unknown as number, null as unknown as number]) {
+    assert.equal((await checkNanoSignin({ store: s, now: () => clock, deliverMs: bad }, start.id, "a".repeat(64))).mine, false, `${String(bad)} 30 minutes after`);
+  }
+  assert.equal((await checkNanoSignin({ store: s, now: () => clock, deliverMs: 0 }, start.id, "a".repeat(64))).mine, false, "0 is no delivery after the request ends");
 });
