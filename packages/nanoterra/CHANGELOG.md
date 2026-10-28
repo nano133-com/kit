@@ -38,6 +38,13 @@
   owner address, an expired login and a login that is old but still valid in the store; OPTIONS and HEAD are refused with no preflight answer; other spellings of an admin path open nothing with
   any method; the game's other routes under the base (`otherRoutes`) refuse a visitor; a POST from another site is refused; a body that is too big is refused; every answer is `no-store` with
   no CORS header. (The first version of this suite passed four wirings that leak everything; a security read found them, and each is a test now.)
+- **A fourth security read** (the same fresh agent as the third, 2026-10-27, on the third-read fixes) found that `adminSigninConformance` still passed wrong chains: one with no binding of a request to its
+  browser inside one scope, one whose cross-scope ask gave a login in the STORED scope, one whose `sign()` stopped landing (the checks then ran on an unsigned request), one that checked the scope only
+  while the request was fresh, one whose Sign out everywhere left a request that was still waiting for a signature, and one with no `signOutEverywhere` at all (the case was skipped). Fixed: `sign()` must
+  throw on a refusal; a cross-scope ask must give no login of either kind and the request must still sign in afterwards (the signature is proven to have landed); a same-scope ask from another browser gives
+  none; the host may give `advance(ms)` to repeat the asks after the admin's request life; `adminSigninConformance(host, { signOutEverywhere: true })` fails a host that has no call; the store contract
+  REQUIRES `seedRequests` and `pendingRequests` when the store has `signOutEverywhere`. `createD1Store(db, { logins: true })`'s `signOutEverywhere` also ends the pending admin requests
+  (`expires_at = 0`). Eight fake chains (one good, seven wrong) run against the contract.
 - **A third security read** (another new fresh agent, 2026-10-27) found that the suite still passed four wirings that leak: a game that caches 200 answers by URL, one that keeps the sessions it has read
   in memory (a login that sign-out or Sign out everywhere ended still opens), one that also reads a player's token from a Bearer header, and one that reads it from the query. Fixed: the suite sends every
   refused visitor again right after the owner was served; `host.endLogin` and the login that used Sign out everywhere are used again and must be refused; `req.tokenAt` sends a player's token in other

@@ -160,7 +160,7 @@ else {
     await h.store.recentLogins!(10);
     await h.store.signOutEverywhere!();
     const writes = h.log.filter((l) => !/^\s*SELECT/i.test(l.sql));
-    assert.deepEqual(writes.map((w) => w.sql), ["DELETE FROM sessions WHERE scope = 'admin'", "UPDATE signin_requests SET delivered = 1 WHERE scope = 'admin' AND delivered = 0"]);
+    assert.deepEqual(writes.map((w) => w.sql), ["DELETE FROM sessions WHERE scope = 'admin'", "UPDATE signin_requests SET delivered = 1, expires_at = 0 WHERE scope = 'admin' AND delivered = 0"]);
     const read = h.log.find((l) => /FROM admin_logins/.test(l.sql))!;
     assert.match(read.sql, /ORDER BY at DESC, id DESC LIMIT \?$/);
     assert.deepEqual(read.args, [10]);

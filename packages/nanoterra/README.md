@@ -430,11 +430,14 @@ your REAL sign-out route: the suite then sends the same login again and requires
 header, in the query or in another header instead of the cookie: a game that also reads a player's token from there fails); and the suite sends every refused visitor again right after the owner was
 served on the same URL (a game that caches answers by URL fails) and uses the login that did "Sign out everywhere" again (it must be refused at once).
 
-**The sign-in chain contract** (`adminSigninConformance(host)`, in the same path) tests the code that MAKES the logins, which the suite above cannot see. Give it a host that drives your own sign-in:
-`start(scope)` (a new browser starts a request for the game or for the admin), `sign(request)` (the owner's wallet signs it), `finish(request, as, credentials)` (a browser asks to finish it as a scope with
-its own credentials, as another browser, or with its credentials "retyped" for the other scope: a cookie copied to the other scope's name, a value that the other scope's hashing would match) and
-optionally `signOutEverywhere()`. It requires: a request started for the game never makes an admin login, a request started for the admin never makes a game login, each signs in once in its own scope,
-and a signed admin request that was not yet delivered makes no login after Sign out everywhere.
+**The sign-in chain contract** (`adminSigninConformance(host, { signOutEverywhere })`, in the same path) tests the code that MAKES the logins, which the suite above cannot see. Give it a host that drives your own sign-in:
+`start(scope)` (a new browser starts a request for the game or for the admin), `sign(request)` (the owner's wallet signs it; it MUST throw when the signature is refused, so a signature that stops working
+cannot make the contract pass), `finish(request, as, credentials)` (a browser asks to finish it as a scope with its own credentials, as another browser, or with its credentials "retyped" for the other
+scope: a cookie copied to the other scope's name, a value that the other scope's hashing would match), optionally `advance(ms)` (moves the game's clock; the cross-scope asks then repeat after the admin's
+request life has ended) and optionally `signOutEverywhere()`. It requires: a request started for the game never makes an admin login, a request started for the admin never makes a game login (a cross-scope
+ask gives NO login of either kind, and the request still signs in its own browser afterwards), each signs in once in its own scope, a request signs in only the browser that started it (also inside the same
+scope), and Sign out everywhere ends the admin's pending requests, those that are signed and those still waiting for a signature, and leaves a player's request alone. Pass `{ signOutEverywhere: true }`
+when your store has the call: a host that then has none fails the contract, so the case cannot be skipped by leaving the call out.
 
 **List the other routes that your own router serves under the admin base** in `host.otherRoutes` (`{ method, path }`: an old `/api/admin/orders`, a debug route, a route kept for an old page).
 The suite sends each one as every visitor who is not the owner and requires a refusal. It cannot find a route that your router hides from it, so a route that answers BEFORE the handler with no
@@ -474,7 +477,7 @@ three things to the page, whatever the store gives. How long the game keeps them
 
 With D1: `createD1Store(db, { logins: true })` needs the table `admin_logins (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, country TEXT, browser TEXT NOT NULL)`, a `scope` column on
 `sessions` (`'admin'` for an admin login) and a `scope` column and a `delivered` column on `signin_requests` ("Sign out everywhere" also marks every admin request that was started and not delivered as
-delivered, so a request that the owner signed a moment ago cannot make a new admin login afterwards). The panel shows a browser name only when it is words (letters and spaces, 40 at most): anything else
+delivered and ends it (`expires_at = 0`, so the wallet app does not show "Signed in" for it either), so a request that the owner signed a moment ago, or signs a moment later, cannot make a new admin login afterwards). The panel shows a browser name only when it is words (letters and spaces, 40 at most): anything else
 a store gives, such as a raw browser text or an address, is shown as "Unknown browser". Without the option the store has neither call, so a game without those tables is not broken. The store contract has cases for both calls.
 The Firestore store does not have them yet (a game's sessions are its own): a game with Firestore writes its own `recentLogins` and `signOutEverywhere`.
 

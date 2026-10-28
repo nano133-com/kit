@@ -684,47 +684,83 @@ test("a game whose router allows one partner origin for CORS does not leak: the 
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 
-/** A tiny game sign-in chain with the starter's scheme (the admin's starter hash has a prefix). `variant` is how it is wrong, or "good". */
-function fakeChain(variant: "good" | "scopeless" | "prefix-only" | "pending-kept"): SigninHost {
-  type Row = { scope: "game" | "admin"; starterHash: string; signed: boolean; delivered: boolean };
+/**
+ * A tiny game sign-in chain with the starter's scheme (the admin's starter hash has a prefix). `variant` is how it is wrong, or "good". The fourth security read invented most of these wrong chains and
+ * ran them against the first version of the contract: each must fail now.
+ */
+type Variant = "good" | "scopeless" | "prefix-only" | "pending-kept" | "no-binding" | "cross-gives-stored" | "sign-dies" | "late-scope" | "signed-only";
+function fakeChain(variant: Variant) {
+  type Row = { scope: "game" | "admin"; starterHash: string; signed: boolean; delivered: boolean; at: number };
   const requests = new Map<string, Row>();
-  const keyOf = (value: string, scope: "game" | "admin") => (variant === "scopeless" ? sha(value) : scope === "admin" ? sha(`admin:${value}`) : sha(value));
+  let clock = 0;
+  let signs = 0;
+  const scopeless = variant === "scopeless" || variant === "late-scope";
+  const keyOf = (value: string, scope: "game" | "admin") => (scopeless ? sha(value) : scope === "admin" ? sha(`admin:${value}`) : sha(value));
   type Handle = { id: string; starter: string; scope: "game" | "admin" };
-  return {
+  const host: SigninHost = {
     async start(scope) {
       const starter = randomBytes(32).toString("hex");
       const id = randomBytes(8).toString("hex");
-      requests.set(id, { scope, starterHash: keyOf(starter, scope), signed: false, delivered: false });
+      requests.set(id, { scope, starterHash: keyOf(starter, scope), signed: false, delivered: false, at: clock });
       return { id, starter, scope } satisfies Handle;
     },
     async sign(h) {
+      // "sign-dies": the signature stops landing after the second call, and says nothing.
+      if (variant === "sign-dies" && ++signs > 2) return;
       requests.get((h as Handle).id)!.signed = true;
     },
     async finish(h, as, credentials) {
       const { id, starter, scope: started } = h as Handle;
       const row = requests.get(id)!;
-      // What the browser presents: its own value, nothing, or the value retyped for the other scope's rules.
       const presented = credentials === "own" ? starter : credentials === "other" ? "" : started === "admin" ? `admin:${starter}` : starter;
-      const scopeOk = variant === "good" || variant === "pending-kept" ? row.scope === as : true;
-      if (!presented || !scopeOk || !row.signed || row.delivered || keyOf(presented, as) !== row.starterHash) return { admin: false, game: false };
+      if (!row.signed || row.delivered) return { admin: false, game: false };
+      if (variant === "cross-gives-stored" && row.scope !== as) {
+        // a cross-scope ask gets a login in the STORED scope, whoever asks
+        row.delivered = true;
+        return { admin: row.scope === "admin", game: row.scope === "game" };
+      }
+      const fresh = clock - row.at < 60_000;
+      const scopeOk = variant === "good" || variant === "pending-kept" || variant === "no-binding" || variant === "sign-dies" || variant === "signed-only" ? row.scope === as : variant === "late-scope" ? !fresh || row.scope === as : true;
+      if (!scopeOk) return { admin: false, game: false };
+      const bound = variant === "no-binding" ? true : !!presented && keyOf(presented, as) === row.starterHash;
+      if (!bound) return { admin: false, game: false };
       row.delivered = true;
       return { admin: as === "admin", game: as === "game" };
     },
     async signOutEverywhere() {
       if (variant === "pending-kept") return; // the sessions go, but a request that is signed and not delivered stays alive
-      for (const row of requests.values()) if (row.scope === "admin") row.delivered = true;
+      for (const row of requests.values()) if (row.scope === "admin" && (variant !== "signed-only" || row.signed)) row.delivered = true;
+    },
+    async advance(ms) {
+      clock += ms;
     },
   };
+  return host;
 }
 
-test("the sign-in chain contract passes a chain that keeps a request to its own scope and ends pending admin requests on Sign out everywhere", async () => {
-  for (const c of adminSigninConformance(fakeChain("good"))) await c.run().catch((e: Error) => assert.fail(`${c.name}: ${e.message}`));
+test("the sign-in chain contract passes a chain that keeps a request to its own scope and its own browser, holds after the admin window, and ends pending admin requests on Sign out everywhere", async () => {
+  for (const c of adminSigninConformance(fakeChain("good"), { signOutEverywhere: true })) await c.run().catch((e: Error) => assert.fail(`${c.name}: ${e.message}`));
 });
 
-test("the sign-in chain contract fails a chain that ignores the scope, one that a retyped starter value can cross (the prefix without a stored scope), and one that leaves a signed admin request alive after Sign out everywhere", async () => {
-  await assert.rejects(run(adminSigninConformance(fakeChain("scopeless"))), /made an admin login|made a game login/);
-  await assert.rejects(run(adminSigninConformance(fakeChain("prefix-only"))), /retyped credentials made a game login|retyped/);
-  await assert.rejects(run(adminSigninConformance(fakeChain("pending-kept"))), /Sign out everywhere/);
+test("the sign-in chain contract fails each wrong chain: no scope, a retyped value that crosses, no binding to the browser, a cross-scope ask that gets the stored scope, a signature that stops landing, a scope checked only while fresh, and a Sign out everywhere that leaves pending requests", async () => {
+  const wrong: [Variant, RegExp][] = [
+    ["scopeless", /made a login|made an admin login|made a game login/],
+    ["prefix-only", /retyped|made a login/],
+    ["no-binding", /ANOTHER browser/],
+    ["cross-gives-stored", /made a login/],
+    ["sign-dies", /no longer signed in its own browser|never landed|landed/],
+    ["late-scope", /ten minutes later/],
+    ["pending-kept", /Sign out everywhere/],
+    ["signed-only", /waiting at Sign out everywhere|waiting/],
+  ];
+  for (const [variant, why] of wrong) await assert.rejects(run(adminSigninConformance(fakeChain(variant), { signOutEverywhere: true })), why, variant);
+});
+
+test("a host with no signOutEverywhere fails the contract when the contract is told that the admin has it, and passes when it is not", async () => {
+  const good = fakeChain("good");
+  const without: SigninHost = { start: good.start, sign: good.sign, finish: good.finish, advance: good.advance };
+  await assert.rejects(run(adminSigninConformance(without, { signOutEverywhere: true })), /no signOutEverywhere/);
+  await run(adminSigninConformance(without));
 });
 
 test("the list shows a browser name only when it is words: a raw browser text, an address or odd bytes from a store are shown as Unknown browser", async () => {

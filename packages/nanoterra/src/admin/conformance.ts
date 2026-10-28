@@ -453,9 +453,10 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
   add("(when the store can sign out everywhere) it deletes every admin session and no player session, says how many, and changes nothing else", async (h) => {
     if (!h.store.signOutEverywhere) return;
     check(Boolean(h.seedSessions && h.sessionCounts), "a store with signOutEverywhere needs seedSessions and sessionCounts in its harness");
+    check(Boolean(h.seedRequests && h.pendingRequests), "a store with signOutEverywhere needs seedRequests and pendingRequests in its harness: the contract must prove that it ends the admin sign-in requests that were not delivered");
     await h.seed({ orders: [order("1", {}), order("2", { status: "open" })], owned: [{ player: A, lookId: "mint-cap", at: NOW }] });
     await h.seedSessions!({ admin: 3, play: 4 });
-    if (h.seedRequests) await h.seedRequests({ admin: 2, game: 3 });
+    await h.seedRequests!({ admin: 2, game: 3 });
     const before = await h.snapshot();
     const n = await h.store.signOutEverywhere();
     check(n === 3, `expected 3 admin sessions deleted, got ${n}`);
@@ -464,80 +465,130 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
     check((await h.snapshot()) === before, "the orders, the owned looks or the meta rows changed");
     check((await h.store.signOutEverywhere()) === 0, "a second call deletes nothing and says 0");
     check((await h.sessionCounts!()).play === 4, "the player sessions are still there");
-    if (h.pendingRequests) {
-      const p = await h.pendingRequests();
-      check(p.admin === 0, `an admin sign-in request that was started and not delivered must be ended too, ${p.admin} are left (a request signed a moment ago could make a new login)`);
-      check(p.game === 3, `the game's own sign-in requests must be left alone, ${p.game} of 3 are left`);
-    }
+    const p = await h.pendingRequests!();
+    check(p.admin === 0, `an admin sign-in request that was started and not delivered must be ended too, ${p.admin} are left (a request signed a moment ago could make a new login)`);
+    check(p.game === 3, `the game's own sign-in requests must be left alone, ${p.game} of 3 are left`);
   });
 
   return cases;
 }
 
 // ---- the sign-in chain contract: the code that MAKES the logins ----
-// The suite above proves what the admin does with a login. This one proves how the game MAKES one: a request started for the game never makes an admin login, and a request started for
-// the admin never makes a game login, whatever browser asks and whatever credentials it presents. The game gives a host that drives its own sign-in (start, the wallet's signature, the check).
+// The suite above proves what the admin does with a login. This one proves how the game MAKES one: a request started for the game never makes an admin login, a request started for
+// the admin never makes a game login, and a request signs in only the browser that started it, whatever browser asks and whatever credentials it presents. The game gives a host that
+// drives its own sign-in (start, the wallet's signature, the check). A refused attempt must leave the request as it was: after every refused attempt the contract proves that the signature
+// had landed (the request still signs in its own browser), so a chain whose `sign` silently stops working cannot pass.
 
 export type SigninScope = "game" | "admin";
 
 export type SigninHost = {
   /** Starts a sign-in request for this scope in a NEW browser, and returns a handle (the host keeps that browser's credentials in it). */
   start(scope: SigninScope): Promise<unknown>;
-  /** The owner's wallet signs the request (what the wallet app does). */
+  /** The owner's wallet signs the request (what the wallet app does). It MUST throw when the answer was refused: a signature that did not land is a fault of the test, never a pass. */
   sign(request: unknown): Promise<void>;
   /**
    * The browser asks to finish the request AS `as` (the scope the check is made for), and says which logins it ended with.
    *  - "own": the browser that started it, with its own credentials;
    *  - "other": a different browser with no credentials of this request;
    *  - "retyped": the browser that started it, presenting its credentials as the OTHER scope would read them (the cookie copied to the other scope's name; a value that the other
-   *    scope's hashing would match: the game's best attempt at a forged credential).
+   *    scope's hashing would match: the game's best attempt at a forged credential). It differs from "own" only when `as` is not the scope the request started for.
    */
   finish(request: unknown, as: SigninScope, credentials: "own" | "other" | "retyped"): Promise<{ admin: boolean; game: boolean }>;
-  /** Optional. Signs out everywhere (the admin's "Sign out everywhere", from a fresh admin login of the owner). */
+  /** Optional, but pass `{ signOutEverywhere: true }` to the contract when your admin has "Sign out everywhere". Signs out everywhere (from a fresh admin login of the owner). */
   signOutEverywhere?(): Promise<void>;
+  /**
+   * Optional, recommended. Moves the game's clock forward by `ms` for every later call. The contract then repeats the cross-scope asks after the admin's window has ended, inside the
+   * game's hour of delivery: a scope check that only works while a request is fresh fails here. The contract runs this case last.
+   */
+  advance?(ms: number): Promise<void>;
 };
 
-export function adminSigninConformance(host: SigninHost): ConformanceCase[] {
+export function adminSigninConformance(host: SigninHost, options: { signOutEverywhere?: boolean } = {}): ConformanceCase[] {
   const cases: ConformanceCase[] = [];
   const add = (name: string, run: () => Promise<void>) => cases.push({ name, run });
-  const CREDENTIALS = ["own", "other", "retyped"] as const;
+  const SCOPES = ["game", "admin"] as const;
+  const other = (s: SigninScope): SigninScope => (s === "admin" ? "game" : "admin");
+  const none = (got: { admin: boolean; game: boolean }) => !got.admin && !got.game;
+  const owns = (got: { admin: boolean; game: boolean }, scope: SigninScope) => (scope === "admin" ? got.admin && !got.game : got.game && !got.admin);
+
+  /** A refused attempt must leave the request as it was: its own browser still signs in, in its own scope, once. This also proves that the signature landed. */
+  async function stillSignsIn(req: unknown, scope: SigninScope, after: string): Promise<void> {
+    const got = await host.finish(req, scope, "own");
+    check(owns(got, scope), `after ${after}, a ${scope} request that was signed no longer signed in its own browser in its own scope: ${JSON.stringify(got)} (a refusal must leave the request as it was; or the signature never landed)`);
+  }
 
   add("control: a request signed in its own scope signs in the browser that started it, in that scope only, once", async () => {
-    for (const scope of ["game", "admin"] as const) {
+    for (const scope of SCOPES) {
       const req = await host.start(scope);
       await host.sign(req);
       const got = await host.finish(req, scope, "own");
-      check(scope === "admin" ? got.admin && !got.game : got.game && !got.admin, `a ${scope} request finished as ${scope} by its own browser: ${JSON.stringify(got)}`);
+      check(owns(got, scope), `a ${scope} request finished as ${scope} by its own browser: ${JSON.stringify(got)}`);
       const again = await host.finish(req, scope, "own");
-      check(!again.admin && !again.game, `a ${scope} request must sign in once: the second check gave ${JSON.stringify(again)}`);
+      check(none(again), `a ${scope} request must sign in once: the second check gave ${JSON.stringify(again)}`);
     }
   });
 
-  add("a request started for the GAME never makes an admin login: not for the browser that started it, not for another browser, not for retyped credentials", async () => {
-    for (const credentials of CREDENTIALS) {
-      const req = await host.start("game");
+  add("a request signs in only the browser that started it: another browser that knows the request signs in nobody, in either scope", async () => {
+    for (const scope of SCOPES) {
+      const req = await host.start(scope);
       await host.sign(req);
-      const got = await host.finish(req, "admin", credentials);
-      check(!got.admin, `a game request finished as the ADMIN with ${credentials} credentials made an admin login`);
+      const got = await host.finish(req, scope, "other");
+      check(none(got), `a ${scope} request finished in its own scope by ANOTHER browser made a login: ${JSON.stringify(got)}`);
+      await stillSignsIn(req, scope, "another browser asked in the same scope");
     }
   });
 
-  add("a request started for the ADMIN never makes a game login: not for the browser that started it, not for another browser, not for retyped credentials", async () => {
-    for (const credentials of CREDENTIALS) {
-      const req = await host.start("admin");
-      await host.sign(req);
-      const got = await host.finish(req, "game", credentials);
-      check(!got.game, `an admin request finished as the GAME with ${credentials} credentials made a game login`);
+  add("a request never makes a login in the OTHER scope: not for the browser that started it, not for another browser, not for retyped credentials; and no login of any kind is made", async () => {
+    for (const scope of SCOPES) {
+      for (const credentials of ["own", "other", "retyped"] as const) {
+        const req = await host.start(scope);
+        await host.sign(req);
+        const got = await host.finish(req, other(scope), credentials);
+        check(none(got), `a ${scope} request finished as the ${other(scope)} with ${credentials} credentials made a login: ${JSON.stringify(got)}`);
+        await stillSignsIn(req, scope, `an ask as the ${other(scope)} with ${credentials} credentials`);
+      }
     }
   });
 
-  add("(when the host can sign out everywhere) an admin request that the owner signed before Sign out everywhere makes no login after it", async () => {
-    if (!host.signOutEverywhere) return;
-    const req = await host.start("admin");
-    await host.sign(req);
+  add("(when the admin has Sign out everywhere) a signed admin request makes no login after it, and neither does a waiting one that is signed afterwards; a game request is left alone", async () => {
+    if (!host.signOutEverywhere) {
+      check(!options.signOutEverywhere, "the host has no signOutEverywhere, but the contract was told that the admin has Sign out everywhere");
+      return;
+    }
+    // signed, then signed out everywhere
+    const signed = await host.start("admin");
+    await host.sign(signed);
+    // waiting when signed out everywhere, signed afterwards
+    const waiting = await host.start("admin");
+    // a game request, signed, left alone
+    const game = await host.start("game");
+    await host.sign(game);
     await host.signOutEverywhere();
-    const got = await host.finish(req, "admin", "own");
-    check(!got.admin, "a signed admin request that was not yet delivered made an admin login after Sign out everywhere");
+    check(none(await host.finish(signed, "admin", "own")), "a signed admin request that was not yet delivered made a login after Sign out everywhere");
+    try {
+      await host.sign(waiting); // the app may refuse it (the request ended): that is fine
+    } catch {
+      // refused
+    }
+    check(none(await host.finish(waiting, "admin", "own")), "an admin request that was waiting at Sign out everywhere made a login when it was signed afterwards");
+    check(owns(await host.finish(game, "game", "own"), "game"), "Sign out everywhere must leave the game's own sign-in requests alone");
+  });
+
+  add("(when the host can move its clock) the cross-scope asks are refused after the admin's request life has ended too, inside the game's hour of delivery", async () => {
+    if (!host.advance) return;
+    const made: { req: unknown; scope: SigninScope }[] = [];
+    for (const scope of SCOPES) {
+      const req = await host.start(scope);
+      await host.sign(req);
+      made.push({ req, scope });
+    }
+    await host.advance(10 * 60_000);
+    for (const { req, scope } of made) {
+      for (const credentials of ["own", "other", "retyped"] as const) {
+        const got = await host.finish(req, other(scope), credentials);
+        check(none(got), `ten minutes later, a ${scope} request finished as the ${other(scope)} with ${credentials} credentials made a login: ${JSON.stringify(got)}`);
+      }
+    }
   });
 
   return cases;
