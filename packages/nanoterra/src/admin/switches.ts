@@ -57,12 +57,12 @@ export const SWITCHES: Record<SwitchId, { title: string; on: string; off: string
 };
 
 /**
- * The character comes through the sign-in: only a player who signs in from Nanoterra brings one. So the character switch is shown with its dependency,
- * and with sign-in Off it says what a player gets now (a session made before the switch went Off still carries its character until it ends).
+ * The character comes through the sign-in: only a player who signs in from Nanoterra brings one. So the character switch is shown with its dependency. With sign-in Off the
+ * card says what a player gets: the island's first character, every player, a player who signed in from Nanoterra before included ("Off means Off"). That is the GAME's page
+ * to do (the starter's src/client/ui/player.ts draws no Nanoterra character while sign-in is Off); the card only says it.
  */
 export const CHARACTER_NEEDS_SIGNIN = "This needs “Players can sign in with Nanoterra” to be On: only a player who signs in from Nanoterra brings a character.";
-export const CHARACTER_SIGNIN_OFF =
-  "Sign-in from Nanoterra is Off, so no new player can bring a character: every new player plays as the island's first character. A player who signed in before keeps their character until that sign-in ends.";
+export const CHARACTER_SIGNIN_OFF = "Sign-in from Nanoterra is Off, so every player plays as the island's first character, a player who signed in from Nanoterra before included.";
 
 /** What to tell the creator under the sign-in switch about Nanoterra's review. A game cannot see that review: it says so. */
 export const REVIEW_NOTE =
