@@ -17,6 +17,8 @@ const KINDS: Record<string, AdminSession> = {
   nanoterra_login: { address: OWNER, createdAt: NOW - 1000, via: "nanoterra" },
   other_wallet: { address: OTHER, createdAt: NOW - 1000, via: "wallet" },
   expired_login: { address: OWNER, createdAt: NOW - ADMIN_SESSION_MS - 1, via: "wallet" },
+  old_valid_row: { address: OWNER, createdAt: NOW - ADMIN_SESSION_MS - 1, via: "wallet" },
+  unknown_via_login: { address: OWNER, createdAt: NOW - 1000, via: "ticket" },
 };
 const readSession = async (req: Request): Promise<AdminSession | null> => {
   const m = /(?:^|;\s*)admin=([a-z_]+)/.exec(req.headers.get("Cookie") ?? "");
@@ -46,15 +48,17 @@ function make(over: Partial<Parameters<typeof createAdminHandler>[0]> = {}) {
   return { store, handler };
 }
 
-function hostFor(handler: AdminHandler, noOwner: AdminHandler, wrap?: (res: Response) => Response): ConformanceHost {
+function hostFor(handler: AdminHandler, noOwner: AdminHandler, wrap?: (res: Response) => Response, otherRoutes: { method: string; path: string }[] = []): ConformanceHost {
   return {
     routes: handler.routes,
     basePath: handler.basePath,
     origin: ORIGIN,
+    otherRoutes,
     async request(who: Who, req) {
       const headers = new Headers(req.headers);
       // game_login: a valid login of the PLAYERS' kind: it is in the game's own cookie, which the admin never reads.
       if (who === "game_login") headers.set("Cookie", "session=owner; admin=");
+      else if (who === "game_token_as_admin") headers.set("Cookie", "admin=game_token_as_admin");
       else if (who !== "signed_out") headers.set("Cookie", `admin=${who === "no_address" ? "owner" : who}`);
       const target = who === "no_address" ? noOwner : handler;
       const res = await target.handle(new Request(ORIGIN + req.path, { method: req.method, headers, body: req.body }));
@@ -73,8 +77,8 @@ const run = async (cases: ConformanceCase[]) => {
 test("the conformance suite passes on a handler with the memory store", async () => {
   const { handler } = make();
   const { handler: noOwner } = make({ owner: null });
-  const cases = adminConformance(hostFor(handler, noOwner));
-  assert.ok(cases.length >= 10);
+  const cases = adminConformance(hostFor(handler, noOwner, undefined, [{ method: "GET", path: "/api/admin/orders" }, { method: "POST", path: "/api/admin/debug" }]));
+  assert.ok(cases.length >= 12);
   for (const c of cases) await c.run().catch((e: Error) => assert.fail(`${c.name}: ${e.message}`));
 });
 
@@ -129,6 +133,57 @@ test("the suite fails a handler that lets a cross-site POST through", async () =
     },
   };
   await assert.rejects(run(adminConformance(hostFor(noOriginCheck, noOwner))), /another Origin|Sec-Fetch-Site|neither/);
+});
+
+// The four wirings that a security read wrote against the first suite; every one of them passed it. They must fail now.
+test("the suite fails a game whose router serves an old admin route before the handler, with no guard (a route listed in otherRoutes)", async () => {
+  const good = make();
+  const { handler: noOwner } = make({ owner: null });
+  const leaky: AdminHandler = {
+    ...good.handler,
+    async handle(req) {
+      if (new URL(req.url).pathname === "/api/admin/orders") return new Response(JSON.stringify({ counts: { paid: 1 }, orders: [{ id: "x" }] }), { status: 200, headers: { "Cache-Control": "no-store" } });
+      return good.handler.handle(req);
+    },
+  };
+  await assert.rejects(run(adminConformance(hostFor(leaky, noOwner, undefined, [{ method: "GET", path: "/api/admin/orders" }]))), /\/api\/admin\/orders/);
+});
+
+test("the suite fails a game that keeps both scopes in one session table, so a player's token in the admin cookie opens the admin", async () => {
+  const bad = make({ session: async (req) => (/(?:^|;\s*)admin=(owner|game_token_as_admin)\b/.test(req.headers.get("Cookie") ?? "") ? KINDS.owner : null) });
+  const { handler: noOwner } = make({ owner: null });
+  await assert.rejects(run(adminConformance(hostFor(bad.handler, noOwner))), /game_token_as_admin/);
+});
+
+test("the suite fails a game that reads an unknown login word as a wallet login (a fail-open map)", async () => {
+  const bad = make({ session: async (req) => {
+    const s = await readSession(req);
+    return s ? { ...s, via: s.via === "nanoterra" ? "nanoterra" : "wallet" } : null;
+  } });
+  const { handler: noOwner } = make({ owner: null });
+  await assert.rejects(run(adminConformance(hostFor(bad.handler, noOwner))), /unknown_via_login|did not know|fail closed|expected 403, got 200/);
+});
+
+test("the suite fails a game that answers a CORS preflight for a visitor", async () => {
+  const good = make();
+  const { handler: noOwner } = make({ owner: null });
+  const preflight: AdminHandler = {
+    ...good.handler,
+    async handle(req) {
+      if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: { "Access-Control-Allow-Origin": new URL(req.url).origin, "Access-Control-Allow-Credentials": "true", "Cache-Control": "no-store" } });
+      return good.handler.handle(req);
+    },
+  };
+  await assert.rejects(run(adminConformance(hostFor(preflight, noOwner))), /OPTIONS|CORS/);
+});
+
+test("the suite fails a game that gives a login a new creation time, so that an old login looks new (only the guard's age check could refuse it)", async () => {
+  const bad = make({ session: async (req) => {
+    const s = await readSession(req);
+    return s ? { ...s, createdAt: NOW - 1000 } : null;
+  } });
+  const { handler: noOwner } = make({ owner: null });
+  await assert.rejects(run(adminConformance(hostFor(bad.handler, noOwner))), /old_valid_row|expired_login|more than a day|expected 401, got 200/);
 });
 
 // ---- the routes ----
@@ -315,4 +370,47 @@ test("loadGameSettings: the stored words, the defaults for a missing or odd word
   assert.deepEqual(await loadGameSettings(store, DEFAULTS), { character: "own", signin: "exchange", fromAdmin: { character: true, signin: false } });
   const broken = { readSettings: async () => { throw new Error("down"); } };
   assert.deepEqual(await loadGameSettings(broken, { character: "own", signin: "none" }), { character: "own", signin: "none", fromAdmin: { character: false, signin: false } });
+});
+
+// ---- what the security read found ----
+
+test("odd spellings of the base are the admin's, so the guard answers them (a bad percent code, backslashes, many levels of encoding); a path that only looks alike is not", async () => {
+  let asked = 0;
+  const { handler } = make({ session: async () => (asked++, null) });
+  const mine = ["/api/%61dmin/summary%ZZ", "/api/%5c%5cadmin/summary", "/api/%5Cadmin/summary", "/api/admin%2f..%2fsummary", `/api/%${"25".repeat(10)}61dmin/summary`, "/API/ADMIN", "/api//admin//summary", "/api/ad%6din/x"];
+  for (const p of mine) {
+    const res = await handler.handle(new Request(ORIGIN + p));
+    assert.ok(res, p);
+    assert.equal(res.status, 401, p);
+  }
+  assert.equal(asked, mine.length);
+  for (const p of ["/api/administrators", "/api/adminx/summary", "/api/ad", "/admin", "/api/orders/admin", "/", "/api/%25%25admin/summary"]) assert.equal(await handler.handle(new Request(ORIGIN + p)), null, p);
+});
+
+test("a fault in the game's now() or onError() never reaches the visitor as a raw error, and never lets anyone in", async () => {
+  const boom = (word: string) => () => {
+    throw new Error(word);
+  };
+  const a = make({ now: boom("SECRET7") });
+  const res = (await call(a.handler, "/api/admin/summary"))!;
+  assert.equal(res.status, 500);
+  assert.ok(!(await res.text()).includes("SECRET7"));
+  const b = make({ onError: boom("SECRET8"), store: { readSettings: boom("db"), saveSettings: boom("db"), summary: boom("db") } as unknown as AdminStore });
+  const r2 = (await call(b.handler, "/api/admin/summary"))!;
+  assert.equal(r2.status, 500);
+  assert.ok(!(await r2.text()).includes("SECRET8"));
+  const c = make({ onError: boom("SECRET9"), session: async () => { throw new Error("session down"); } });
+  const r3 = (await call(c.handler, "/api/admin/summary"))!;
+  assert.equal(r3.status, 503);
+  assert.ok(!(await r3.text()).includes("SECRET9"));
+});
+
+test("the default limiter is not shared by two games in one process: another owner's presses do not use up this one's", async () => {
+  const sessionFor = async (req: Request) => readSession(req);
+  const a = createAdminHandler({ store: createMemoryStore(), defaults: DEFAULTS, owner: OWNER, session: sessionFor, now: () => NOW });
+  const b = createAdminHandler({ store: createMemoryStore(), defaults: DEFAULTS, owner: OTHER, session: sessionFor, now: () => NOW });
+  const press = (h: AdminHandler, kind: string) => h.handle(new Request(`${ORIGIN}/api/admin/game`, { method: "POST", headers: { Cookie: `admin=${kind}`, Origin: ORIGIN }, body: JSON.stringify({ signin: "none" }) }));
+  for (let i = 0; i < ADMIN_LIMITS.game.limit; i++) assert.equal((await press(a, "owner"))!.status, 200);
+  assert.equal((await press(a, "owner"))!.status, 429, "game A is at its limit");
+  assert.equal((await press(b, "other_wallet"))!.status, 200, "game B's first press is not refused because of game A");
 });

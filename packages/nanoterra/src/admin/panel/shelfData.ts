@@ -2,7 +2,7 @@
 // here comes from the game's own database (the admin summary) and from looks.json; nothing is sent anywhere.
 
 import type { LooksDiff } from "../../looks/change.js";
-import type { Look } from "../../looks/look.js";
+import { ID_PATTERN, type Look } from "../../looks/look.js";
 
 export type ShelfOrder = { lookId: string; status: string; usd: string };
 export type ShelfPlayer = { looks: { id: string }[] };
@@ -61,7 +61,12 @@ export function soldText(s: LookStats | undefined): string {
  * It holds no address, no order and no secret: only the looks, and the ids that players own.
  */
 export function aiPrompt(text: string, diff: LooksDiff, owned: readonly string[], before: readonly Look[]): string {
-  const names = (ls: readonly Look[]) => ls.map((l) => `"${l.id}"`).join(", ");
+  // Only a real id goes in, written as a JSON string: an id that comes from a database is data, and a message that a person pastes into an AI assistant must not carry a line
+  // that an attacker wrote there.
+  const quote = (ids: readonly string[]) => ids.filter((id) => ID_PATTERN.test(id)).map((id) => JSON.stringify(id)).join(", ");
+  const names = (ls: readonly Look[]) => quote(ls.map((l) => l.id));
+  const ownedOk = owned.filter((id) => ID_PATTERN.test(id));
+  const odd = owned.length - ownedOk.length;
   const lines = [
     "Replace looks.json at the top of this game with the text below, then run `npm run check` and push to GitHub. Do not change anything else.",
     "",
@@ -70,7 +75,7 @@ export function aiPrompt(text: string, diff: LooksDiff, owned: readonly string[]
     diff.removed.length ? `Removed: ${names(diff.removed)}.` : "",
     diff.changed.length ? `Changed: ${names(diff.changed.map((c) => c.after))}.` : "",
     "",
-    `Looks that players own and that must stay in the file with the same id: ${owned.length ? owned.map((id) => `"${id}"`).join(", ") : "none yet"}.`,
+    `Looks that players own and that must stay in the file with the same id: ${ownedOk.length ? quote(ownedOk) : "none yet"}${odd ? ` (and ${odd} more with an id that is not a valid look id: do not remove any look)` : ""}.`,
     `Rules: keep one free look (priceUsd 0), prices in US dollars with at most 2 decimals, never change or remove the id of a look that someone owns, never change the slots of a look that someone owns (slots are words and #rrggbb colours that the game reads, at most 8 on a look), and a look never changes a score or a rule. (The file had ${before.length} looks before.)`,
     "",
     "looks.json:",

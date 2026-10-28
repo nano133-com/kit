@@ -60,19 +60,21 @@ export const ADMIN_LIMITS = {
   gameBodyMax: 512,
 } as const;
 
-/** The path as a person or a browser might write it: percent-decoded, lowercase, one slash at a time. Used only to decide that a request is for the admin. */
-function normal(path: string): string {
-  let p = path;
-  for (let i = 0; i < 3; i++) {
-    try {
-      const d = decodeURIComponent(p);
-      if (d === p) break;
-      p = d;
-    } catch {
-      break;
-    }
+/**
+ * Whether a request path could be read as under the admin base by anything: in any case, with backslashes for slashes, doubled slashes, and percent codes (decoded again and
+ * again, a code at a time, so one bad code does not stop the rest). Used ONLY to decide that a request is the admin's, so that the guard answers it. A path that is still
+ * changing after ten decodings is not an honest path: it is the admin's too (the guard refuses it). The route match later is exact on the parsed path.
+ */
+function readsAsBase(raw: string, base: string): boolean {
+  let p = raw;
+  for (let i = 0; i < 10; i++) {
+    const plain = p.toLowerCase().replace(/\\/g, "/").replace(/\/{2,}/g, "/");
+    if (plain === base || plain.startsWith(`${base}/`)) return true;
+    const decoded = p.replace(/%([0-9a-f]{2})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)));
+    if (decoded === p) return false;
+    p = decoded;
   }
-  return p.toLowerCase().replace(/\/{2,}/g, "/").replace(/\\/g, "/");
+  return true;
 }
 
 /** The default limiter lives at module level: a Worker makes a handler for each request, and a limiter made inside it would forget every press. */
@@ -83,6 +85,8 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
   if (!base.startsWith("/") || base.length < 2 || base.endsWith("/")) throw new Error('basePath must start with "/" and not end with "/", like "/api/admin"');
   const now = options.now ?? (() => Date.now());
   const limit = options.limit ?? sharedLimit;
+  /** The key of a limit: the base path and the owner come first, so two games in one process never share a count. */
+  const lkey = (name: string) => `${base}|${options.owner ?? ""}|${name}`;
   const routes: AdminRoute[] = [
     { method: "GET", path: `${base}/summary` },
     { method: "GET", path: `${base}/game` },
@@ -101,18 +105,26 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
     return { ...status, counts: s.counts, totals: s.totals, rate: s.rate, orders, players, canCheck: Boolean(options.check) };
   }
 
+  /** Tells the game about a fault. A fault in the game's own `onError` is not the visitor's business: it is swallowed. */
+  const report = (e: unknown): void => {
+    try {
+      options.onError?.(e);
+    } catch {
+      // nothing more can be done
+    }
+  };
+
   async function handle(req: Request): Promise<Response | null> {
     const url = new URL(req.url);
-    const path = normal(url.pathname);
-    if (path !== base && !path.startsWith(`${base}/`)) return null;
-    const at = now();
+    if (!readsAsBase(url.pathname, base)) return null;
     try {
+      const at = now();
       // 1. The guard, before anything else.
       let session: AdminSession | null;
       try {
         session = await options.session(req, at);
       } catch (e) {
-        options.onError?.(e);
+        report(e);
         // The game could not read its sessions: nobody is let in.
         return fail(503, "The game's server could not check your sign-in. Try again.");
       }
@@ -133,7 +145,7 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
       if (route.method === "GET" && route.path === `${base}/summary`) return json(await summary(at));
       if (route.method === "GET") return json(await settings());
       if (route.path === `${base}/game`) {
-        if (!(await limit("admin-game", ADMIN_LIMITS.game.limit, ADMIN_LIMITS.game.windowMs, at))) return fail(429, "Too many presses. Wait a minute.");
+        if (!(await limit(lkey("admin-game"), ADMIN_LIMITS.game.limit, ADMIN_LIMITS.game.windowMs, at))) return fail(429, "Too many presses. Wait a minute.");
         const text = await readLimited(req, ADMIN_LIMITS.gameBodyMax);
         if (text === null) return fail(413, "That is too much to send.");
         let body: unknown;
@@ -148,11 +160,11 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
         return json(await settings());
       }
       // POST check
-      if (!(await limit("admin-check", ADMIN_LIMITS.check.limit, ADMIN_LIMITS.check.windowMs, at))) return fail(429, "Too many checks. Wait a minute.");
+      if (!(await limit(lkey("admin-check"), ADMIN_LIMITS.check.limit, ADMIN_LIMITS.check.windowMs, at))) return fail(429, "Too many checks. Wait a minute.");
       const scan = await options.check!(at);
       return json({ scan, summary: await summary(now()) });
     } catch (e) {
-      options.onError?.(e);
+      report(e);
       return fail(500, "The game's server could not do that. Nothing was changed that you can see here.");
     }
   }

@@ -14,15 +14,18 @@ import { ORDERS_SHOWN, type OrderRow } from "./summary.js";
 
 /**
  * The kinds of visitor the game must be able to make:
- *  - signed_out       no cookie at all
- *  - game_login       a valid login made for the game's PLAYERS (the owner's own address, even): it is not an admin login
- *  - nanoterra_login  an admin-scope login whose `via` is not "wallet" (a sign-in from Nanoterra), for the owner's address
- *  - other_wallet     a wallet login for an address that is not the owner's
- *  - no_address       a wallet login while the game has NO owner address set (the game runs with none)
- *  - expired_login    a wallet login of the owner's, made more than one day ago
- *  - owner            a wallet login of the owner's, made just now
+ *  - signed_out            no cookie at all
+ *  - game_login            a valid login made for the game's PLAYERS (the owner's own address, even), in the game's own cookie: it is not an admin login
+ *  - game_token_as_admin   the token of that same player login, put in the ADMIN cookie. The game must keep the two scopes apart in its store, not only in the cookie names
+ *  - nanoterra_login       an admin-scope login whose `via` is "nanoterra" (a sign-in from Nanoterra), for the owner's address
+ *  - unknown_via_login     an admin-scope login of the owner's whose `via` is a word the game does not know (like "ticket", or an empty one): it must fail closed
+ *  - other_wallet          a wallet login for an address that is not the owner's
+ *  - no_address            a wallet login while the game has NO owner address set (the game runs with none)
+ *  - expired_login         a wallet login of the owner's that the game's own store has already expired
+ *  - old_valid_row         a wallet login of the owner's made more than one day ago whose stored row is STILL valid, so only the guard's own age check can refuse it
+ *  - owner                 a wallet login of the owner's, made just now
  */
-export type Who = "signed_out" | "game_login" | "nanoterra_login" | "other_wallet" | "no_address" | "expired_login" | "owner";
+export type Who = "signed_out" | "game_login" | "game_token_as_admin" | "nanoterra_login" | "unknown_via_login" | "other_wallet" | "no_address" | "expired_login" | "old_valid_row" | "owner";
 
 export type ConformanceRequest = { method: string; path: string; headers?: Record<string, string>; body?: string };
 
@@ -33,6 +36,12 @@ export type ConformanceHost = {
   basePath: string;
   /** The game's own origin, like "https://game.example": the suite sends it as the Origin of a good POST. */
   origin: string;
+  /**
+   * Other routes that the game's OWN router serves under the base path (an old route, a debug route, a route kept for an old page): `{ method, path }`. The suite sends each
+   * as every kind of visitor who is not the owner and requires a refusal: a route that the game's router answers BEFORE the handler, with no guard, must show up here.
+   * List every one you know of; the suite cannot find the ones your router hides from it.
+   */
+  otherRoutes?: readonly { method: string; path: string }[];
   request(who: Who, req: ConformanceRequest): Promise<Response>;
 };
 
@@ -41,10 +50,13 @@ export type ConformanceCase = { name: string; run: () => Promise<void> };
 const REFUSALS: { who: Who; status: number; reason?: string; words: string }[] = [
   { who: "signed_out", status: 401, words: "a visitor who is signed out" },
   { who: "game_login", status: 401, words: "a login that was made for the game's players" },
+  { who: "game_token_as_admin", status: 401, words: "the token of a player's login put in the admin cookie" },
   { who: "nanoterra_login", status: 403, reason: "nanoterra", words: "a Nanoterra sign-in (it names an address but proves no key)" },
+  { who: "unknown_via_login", status: 403, words: "an admin login that was made some way the game does not know (it must fail closed)" },
   { who: "other_wallet", status: 403, reason: "other_address", words: "a wallet that is not the owner's" },
   { who: "no_address", status: 403, reason: "no_address", words: "anyone, while the game has no owner address" },
-  { who: "expired_login", status: 401, words: "an admin login that is more than a day old" },
+  { who: "expired_login", status: 401, words: "an admin login that the game's own store has expired" },
+  { who: "old_valid_row", status: 401, words: "an admin login that is more than a day old but still valid in the game's store (only the guard's age check refuses it)" },
 ];
 
 function check(ok: boolean, message: string): void {
@@ -66,18 +78,37 @@ async function read(res: Response): Promise<{ status: number; text: string; json
 /** A refusal carries words and a reason and nothing else: no data of the game. */
 const REFUSAL_KEYS = new Set(["error", "reason", "signedInAs"]);
 
+/** Words of the game's data that a refusal or an answer to a visitor must never hold. */
+const DATA_WORDS = /"orders"|"players"|"totals"|"counts"|"character"|"signin"|"warnings"/;
+
 export function adminConformance(host: ConformanceHost): ConformanceCase[] {
   const cases: ConformanceCase[] = [];
   const add = (name: string, run: () => Promise<void>) => cases.push({ name, run });
   const good = (extra: Record<string, string> = {}) => ({ Origin: host.origin, "Content-Type": "application/json", ...extra });
-  const body = (r: AdminRoute) => (r.method === "POST" ? "{}" : undefined);
+  const body = (r: { method: string }) => (r.method === "POST" ? "{}" : undefined);
+  const NOT_OWNER = REFUSALS.map((r) => r.who);
 
   check(host.routes.length > 0, "the host lists no routes");
+
+  /**
+   * Sends a request and looks at the HEADERS of the answer: every answer to a request for the admin is `no-store` and has no CORS header, whatever the method and the
+   * status (a preflight answer that allows an origin, or a cached refusal, is a fault). `strict: false` is for paths that the game's own router may answer (a plain 404).
+   */
+  async function send(who: Who, req: ConformanceRequest, strict = true): Promise<Response> {
+    const res = await host.request(who, req);
+    let cors = "";
+    res.headers.forEach((v, k) => {
+      if (k.toLowerCase().startsWith("access-control-")) cors = `${k}: ${v}`;
+    });
+    check(cors === "", `${req.method} ${req.path} as ${who}: the answer has a CORS header (${cors})`);
+    if (strict) check((res.headers.get("cache-control") ?? "").includes("no-store"), `${req.method} ${req.path} as ${who}: the answer (${res.status}) is not "Cache-Control: no-store"`);
+    return res;
+  }
 
   for (const r of REFUSALS) {
     add(`every route refuses ${r.words} (${r.status}${r.reason ? `, ${r.reason}` : ""}) and gives it no data`, async () => {
       for (const route of host.routes) {
-        const got = await read(await host.request(r.who, { method: route.method, path: route.path, headers: good(), body: body(route) }));
+        const got = await read(await send(r.who, { method: route.method, path: route.path, headers: good(), body: body(route) }));
         const here = `${route.method} ${route.path} as ${r.who}`;
         check(got.status === r.status, `${here}: expected ${r.status}, got ${got.status}`);
         if (r.reason) check(got.json?.reason === r.reason, `${here}: expected reason "${r.reason}", got ${JSON.stringify(got.json?.reason)}`);
@@ -86,17 +117,40 @@ export function adminConformance(host: ConformanceHost): ConformanceCase[] {
     });
   }
 
+  add("OPTIONS and HEAD on every route are refused like any other method, with no CORS answer: no preflight is ever answered for a visitor", async () => {
+    for (const r of REFUSALS) {
+      for (const route of host.routes) {
+        for (const method of ["OPTIONS", "HEAD"]) {
+          const headers = method === "OPTIONS" ? good({ "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type" }) : good();
+          const got = await send(r.who, { method, path: route.path, headers });
+          check(got.status === r.status, `${method} ${route.path} as ${r.who}: expected ${r.status}, got ${got.status}`);
+        }
+      }
+    }
+  });
+
   add("an unknown path under the base is refused like any admin path (so the routes are not leaked): the same refusal for a visitor, 404 for the owner", async () => {
     const path = `${host.basePath}/no-such-page`;
     for (const r of REFUSALS) {
-      const got = await read(await host.request(r.who, { method: "GET", path }));
+      const got = await send(r.who, { method: "GET", path });
       check(got.status === r.status, `GET ${path} as ${r.who}: expected ${r.status}, got ${got.status}`);
     }
-    const owner = await read(await host.request("owner", { method: "GET", path }));
+    const owner = await send("owner", { method: "GET", path });
     check(owner.status === 404, `GET ${path} as owner: expected 404, got ${owner.status}`);
   });
 
-  add("other spellings of an admin path never open anything for a visitor (other case, a slash, a doubled slash, a percent code, a dot segment)", async () => {
+  add("the game's other routes under the base (the ones its own router serves) refuse every visitor who is not the owner", async () => {
+    for (const route of host.otherRoutes ?? []) {
+      for (const who of NOT_OWNER) {
+        const got = await read(await send(who, { method: route.method, path: route.path, headers: good(), body: body(route) }, false));
+        const here = `${route.method} ${route.path} as ${who}`;
+        check(got.status === 401 || got.status === 403, `${here}: expected 401 or 403, got ${got.status}`);
+        check(!DATA_WORDS.test(got.text), `${here}: the answer holds the game's data`);
+      }
+    }
+  });
+
+  add("other spellings of an admin path never open anything for a visitor, with any method (other case, a slash, a doubled slash, a percent code, a backslash, a dot segment)", async () => {
     const real = host.routes.find((r) => r.method === "GET")!.path;
     const last = real.slice(real.lastIndexOf("/") + 1);
     const tricks = [
@@ -107,19 +161,24 @@ export function adminConformance(host: ConformanceHost): ConformanceCase[] {
       real.replace(`/${last}`, `/x/../${last}`),
       `${host.basePath}%2f${last}`,
       `${host.basePath}\\${last}`,
+      `${host.basePath}%5c${last}`,
+      `${host.basePath.replace(/^\/(\w+)\//, "/$1%2f")}/${last}`,
+      `${host.basePath.replace(/^\/(\w)/, (_, c: string) => `/%${c.charCodeAt(0).toString(16)}`)}/${last}`,
     ];
     for (const path of tricks) {
-      for (const who of ["signed_out", "game_login", "nanoterra_login", "other_wallet", "expired_login"] as const) {
-        const got = await read(await host.request(who, { method: "GET", path }));
-        check([401, 403, 404].includes(got.status), `GET ${path} as ${who}: expected 401, 403 or 404, got ${got.status}`);
-        check(!/"orders"|"players"|"totals"|"counts"|"character"/.test(got.text), `GET ${path} as ${who}: the answer holds the game's data`);
+      for (const who of NOT_OWNER) {
+        for (const method of ["GET", "POST", "OPTIONS", "HEAD"]) {
+          const got = await read(await send(who, { method, path, headers: good(), body: body({ method }) }, false));
+          check([401, 403, 404, 405].includes(got.status), `${method} ${path} as ${who}: expected 401, 403, 404 or 405, got ${got.status}`);
+          check(!DATA_WORDS.test(got.text), `${method} ${path} as ${who}: the answer holds the game's data`);
+        }
       }
     }
   });
 
   add("the owner gets through the guard on every route", async () => {
     for (const route of host.routes) {
-      const res = await host.request("owner", { method: route.method, path: route.path, headers: good(), body: body(route) });
+      const res = await send("owner", { method: route.method, path: route.path, headers: good(), body: body(route) });
       const got = await read(res);
       check(![401, 403, 404, 405].includes(got.status) && got.status < 500, `${route.method} ${route.path} as owner: the guard let the owner through, but the status was ${got.status}`);
     }
@@ -127,20 +186,20 @@ export function adminConformance(host: ConformanceHost): ConformanceCase[] {
 
   add("a POST from another site is refused (403), even with the owner's cookie", async () => {
     for (const route of host.routes.filter((r) => r.method === "POST")) {
-      const other = await read(await host.request("owner", { method: "POST", path: route.path, headers: { Origin: "https://evil.example", "Content-Type": "application/json" }, body: "{}" }));
+      const other = await read(await send("owner", { method: "POST", path: route.path, headers: { Origin: "https://evil.example", "Content-Type": "application/json" }, body: "{}" }));
       check(other.status === 403, `POST ${route.path} with another Origin: expected 403, got ${other.status}`);
-      const fetchSite = await read(await host.request("owner", { method: "POST", path: route.path, headers: { "Sec-Fetch-Site": "cross-site", "Content-Type": "application/json" }, body: "{}" }));
+      const fetchSite = await read(await send("owner", { method: "POST", path: route.path, headers: { "Sec-Fetch-Site": "cross-site", "Content-Type": "application/json" }, body: "{}" }));
       check(fetchSite.status === 403, `POST ${route.path} with no Origin and Sec-Fetch-Site cross-site: expected 403, got ${fetchSite.status}`);
-      const none = await read(await host.request("owner", { method: "POST", path: route.path, headers: { "Content-Type": "application/json" }, body: "{}" }));
+      const none = await read(await send("owner", { method: "POST", path: route.path, headers: { "Content-Type": "application/json" }, body: "{}" }));
       check(none.status === 403, `POST ${route.path} with neither Origin nor Sec-Fetch-Site: expected 403, got ${none.status}`);
     }
   });
 
   add("a method that a route does not have is refused: the guard's answer for a visitor, 405 for the owner", async () => {
     for (const route of host.routes) {
-      const owner = await read(await host.request("owner", { method: "DELETE", path: route.path, headers: good() }));
+      const owner = await read(await send("owner", { method: "DELETE", path: route.path, headers: good() }));
       check(owner.status === 405, `DELETE ${route.path} as owner: expected 405, got ${owner.status}`);
-      const visitor = await read(await host.request("signed_out", { method: "DELETE", path: route.path, headers: good() }));
+      const visitor = await read(await send("signed_out", { method: "DELETE", path: route.path, headers: good() }));
       check(visitor.status === 401, `DELETE ${route.path} signed out: expected 401, got ${visitor.status}`);
     }
   });
@@ -148,23 +207,8 @@ export function adminConformance(host: ConformanceHost): ConformanceCase[] {
   add("a body that is far too big is refused and changes nothing", async () => {
     const big = JSON.stringify({ character: "own", pad: "x".repeat(100_000) });
     for (const route of host.routes.filter((r) => r.method === "POST" && r.path.endsWith("/game"))) {
-      const got = await read(await host.request("owner", { method: "POST", path: route.path, headers: good(), body: big }));
+      const got = await read(await send("owner", { method: "POST", path: route.path, headers: good(), body: big }));
       check(got.status === 413 || got.status === 400, `POST ${route.path} with 100 KB: expected 413 or 400, got ${got.status}`);
-    }
-  });
-
-  add("every answer is no-store and carries no CORS header", async () => {
-    for (const who of ["signed_out", "owner"] as const) {
-      for (const route of host.routes.filter((r) => r.method === "GET")) {
-        const res = await host.request(who, { method: "GET", path: route.path });
-        await res.text();
-        check((res.headers.get("cache-control") ?? "").includes("no-store"), `GET ${route.path} as ${who}: the answer is not "Cache-Control: no-store"`);
-        let cors = false;
-        res.headers.forEach((_, k) => {
-          if (k.toLowerCase().startsWith("access-control-")) cors = true;
-        });
-        check(!cors, `GET ${route.path} as ${who}: the answer has a CORS header`);
-      }
     }
   });
 

@@ -21,9 +21,10 @@ export type OrderRow = {
 
 export const ORDERS_SHOWN = 500;
 
+/** Cents from a dollar text like "0.25". Anything that is not plain dollars (a sign, an exponent, hex) counts as 0: a bad row must not change a total. */
 const toCents = (usd: string): number => {
-  const n = Math.round(Number(usd) * 100);
-  return Number.isFinite(n) ? n : 0;
+  if (typeof usd !== "string" || !/^\d{1,9}(\.\d{1,8})?$/.test(usd)) return 0;
+  return Math.round(Number(usd) * 100);
 };
 
 /** Money from rows that are all of one status: the count, the XNO text of the raw sum and the dollars (summed in cents, so 0.1 + 0.2 is 0.30). */
@@ -76,7 +77,7 @@ export function summarize(rows: readonly OrderRow[], owned: readonly { player: s
   const counts = { open: 0, paid: 0, expired: 0, paid_late: 0 };
   for (const o of rows) {
     const key = statusOf(o.status, o.expiresAt, now);
-    if (key in counts) counts[key as keyof typeof counts]++;
+    if (Object.hasOwn(counts, key)) counts[key as keyof typeof counts]++;
   }
   return {
     counts,
