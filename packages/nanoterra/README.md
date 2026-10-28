@@ -62,6 +62,7 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/looks` | the looks ladder | no | 1.9 kB (all), 0.9 kB (`checkLooks` alone) |
 | `@nano133/nanoterra/character` | the builder and `createCharacter` (it includes the record) | yes | 20.4 kB (all), 17.8 kB (`createCharacter` alone) |
 | `@nano133/nanoterra/admin` | the admin of a game: the guard, the handler, the store type (server code; not published yet) | no | 3.7 kB |
+| `@nano133/nanoterra/admin/d1`, `/admin/firestore` | the admin store for D1 (the starter's tables) or Firestore (a small interface, no Firebase dependency): `createD1Store`, `createFirestoreStore` (not published yet) | no | 1.5 kB each |
 | `@nano133/nanoterra/admin/panel` | the admin page, drawn in the browser into one element, and its stylesheet `@nano133/nanoterra/admin/style.css` (not published yet) | no | 8.5 kB + 2.4 kB of CSS |
 | `@nano133/nanoterra/admin/conformance` | test cases that a game runs against its own admin (a dev dependency in practice; not published yet) | no | n/a |
 
@@ -384,6 +385,25 @@ for (const c of adminConformance(host)) it(c.name, c.run);   // vitest, node:tes
 refusal; other spellings of an admin path (upper case, a doubled slash, a percent code, a dot segment) open nothing; a POST from another site is refused; a method that a
 route does not have is refused; a body that is too big is refused; and every answer is `no-store` with no CORS header. A route that someone adds later cannot skip the guard,
 because the suite walks the route list.
+
+### The store (an adapter for your database)
+
+`createAdminHandler` needs a store: three calls, `readSettings()`, `saveSettings(patch, now)` and `summary(now)`. Two adapters come with the package, and **both write only the two settings**
+(`setting:character` and `setting:signin`); every other call they make is a read. Both must pass the same **store contract**, `adminStoreConformance(make)` in
+`@nano133/nanoterra/admin/conformance`: the settings are kept and accumulate, saving changes no order, no owned look and no other row, an open order past its expiry counts as expired,
+the money is totalled right, the newest 500 orders come first, and a bad rate row is ignored. A game with another database writes its own store and runs the same contract.
+
+```ts
+import { createD1Store } from "@nano133/nanoterra/admin/d1";            // the game starter's tables: meta, orders, owned (migrations/0001_init.sql)
+const store = createD1Store(env.DB);                                      // Cloudflare's D1Database fits
+
+import { createFirestoreStore } from "@nano133/nanoterra/admin/firestore";   // Firestore (the Admin SDK's `Firestore` fits the small interface)
+const store = createFirestoreStore(db);                                   // meta/{key}, orders/{id}, owned/{player__lookId}; the three names can be changed
+```
+
+The D1 adapter uses the starter's own queries (the counts and the totals over all orders; the list is the newest 500). The Firestore adapter reads the newest 5000 orders and every owned look,
+so it is for a small game; its data model is in the file's top comment. **The Firestore adapter was tested against an in-memory fake of the interface, not against real Firestore.** The D1 adapter
+was tested on SQLite with the starter's tables, not on Cloudflare's D1.
 
 ### The panel
 

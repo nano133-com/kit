@@ -9,6 +9,8 @@
 // only for statuses and for the words "reason" and "error"; it never reads a cookie.
 
 import type { AdminRoute } from "./handler.js";
+import type { AdminStore } from "./store.js";
+import { ORDERS_SHOWN, type OrderRow } from "./summary.js";
 
 /**
  * The kinds of visitor the game must be able to make:
@@ -164,6 +166,107 @@ export function adminConformance(host: ConformanceHost): ConformanceCase[] {
         check(!cors, `GET ${route.path} as ${who}: the answer has a CORS header`);
       }
     }
+  });
+
+  return cases;
+}
+
+// ---- the store contract: every adapter (the memory store, D1, Firestore, a game's own) must pass these ----
+
+/** What a test gives to run the store contract: the store, and a way to put rows in the game's database the way the game's own code does (the store has no write for them). */
+export type StoreHarness = {
+  store: AdminStore;
+  seed(data: { orders?: OrderRow[]; owned?: { player: string; lookId: string; at: number }[]; rate?: { value: string; at: number } }): Promise<void>;
+  /** Every row that the store could change by mistake, as one text: the orders, the owned looks and the meta rows that are NOT the two settings. Same rows, same text. */
+  snapshot(): Promise<string>;
+};
+
+const rawOf = (xno: number): string => (BigInt(Math.round(xno * 10_000)) * 10n ** 26n).toString();
+
+export function adminStoreConformance(make: () => Promise<StoreHarness>): ConformanceCase[] {
+  const cases: ConformanceCase[] = [];
+  const add = (name: string, run: (h: StoreHarness) => Promise<void>) => cases.push({ name, run: async () => run(await make()) });
+  const NOW = 1_800_000_000_000;
+  const A = `nano_1${"a".repeat(59)}`;
+  const B = `nano_3${"b".repeat(59)}`;
+  const order = (id: string, over: Partial<OrderRow>): OrderRow => ({ id, player: A, lookId: "mint-cap", usd: "0.25", amountRaw: rawOf(0.25), status: "paid", createdAt: NOW - 1000, expiresAt: NOW + 1000, paidAt: NOW - 500, payer: A, hash: `H${id}`, ...over });
+
+  add("a new store has no settings of its own", async ({ store }) => {
+    const s = await store.readSettings();
+    check(s.character === undefined && s.signin === undefined, `expected no settings, got ${JSON.stringify(s)}`);
+  });
+
+  add("a patch saves only what it names; the next patch keeps the rest", async ({ store }) => {
+    await store.saveSettings({ signin: "none" }, NOW);
+    let s = await store.readSettings();
+    check(s.signin === "none" && s.character === undefined, `after signin none: ${JSON.stringify(s)}`);
+    await store.saveSettings({ character: "own" }, NOW + 1);
+    s = await store.readSettings();
+    check(s.signin === "none" && s.character === "own", `after character own: ${JSON.stringify(s)}`);
+    await store.saveSettings({ signin: "exchange", character: "nanoterra" }, NOW + 2);
+    s = await store.readSettings();
+    check(s.signin === "exchange" && s.character === "nanoterra", `after both: ${JSON.stringify(s)}`);
+  });
+
+  add("an empty patch writes nothing and does not fail", async ({ store }) => {
+    await store.saveSettings({}, NOW);
+    const s = await store.readSettings();
+    check(s.character === undefined && s.signin === undefined, "an empty patch must save nothing");
+  });
+
+  add("saving changes nothing but the two settings: no order, no owned look, no other meta row", async (h) => {
+    await h.seed({ orders: [order("1", {}), order("2", { status: "open" })], owned: [{ player: A, lookId: "mint-cap", at: NOW }], rate: { value: JSON.stringify({ usd: 1.2, sources: ["x"] }), at: NOW } });
+    const before = await h.snapshot();
+    await h.store.saveSettings({ character: "own", signin: "none" }, NOW + 5);
+    check((await h.snapshot()) === before, "the rows of the game changed after saving the settings");
+  });
+
+  add("the summary counts the orders by status, reads an open order past its expiry as expired, and totals the money", async ({ store, seed }) => {
+    await seed({
+      orders: [
+        order("a", { status: "paid", usd: "0.25", amountRaw: rawOf(0.25) }),
+        order("b", { status: "paid", usd: "0.50", amountRaw: rawOf(0.5) }),
+        order("c", { status: "paid_late", usd: "1.10", amountRaw: rawOf(0.9) }),
+        order("d", { status: "open", expiresAt: NOW + 1000, paidAt: null, payer: null, hash: null }),
+        order("e", { status: "open", expiresAt: NOW - 1000, paidAt: null, payer: null, hash: null }),
+        order("f", { status: "expired", expiresAt: NOW - 5000, paidAt: null, payer: null, hash: null }),
+      ],
+    });
+    const s = await store.summary(NOW);
+    check(JSON.stringify(s.counts) === JSON.stringify({ open: 1, paid: 2, expired: 2, paid_late: 1 }), `counts: ${JSON.stringify(s.counts)}`);
+    check(JSON.stringify(s.totals.paid) === JSON.stringify({ count: 2, xno: "0.75", usd: "0.75" }), `paid: ${JSON.stringify(s.totals.paid)}`);
+    check(JSON.stringify(s.totals.paidLate) === JSON.stringify({ count: 1, xno: "0.9", usd: "1.10" }), `paid late: ${JSON.stringify(s.totals.paidLate)}`);
+    const e = s.orders.find((o) => o.id === "e");
+    check(e?.status === "expired", `an open order past its expiry reads "expired", got ${e?.status}`);
+    check(s.orders.find((o) => o.id === "d")?.status === "open", "an open order that has not run out stays open");
+    const a = s.orders.find((o) => o.id === "a")!;
+    check(a.xno === "0.25" && a.usd === "0.25" && a.player === A && a.lookId === "mint-cap" && a.hash === "Ha" && a.payer === A && a.paidAt === NOW - 500, `an order's fields: ${JSON.stringify(a)}`);
+  });
+
+  add(`the summary lists the newest ${ORDERS_SHOWN} orders, newest first, and still counts them all`, async ({ store, seed }) => {
+    const rows: OrderRow[] = [];
+    for (let i = 0; i < ORDERS_SHOWN + 5; i++) rows.push(order(`o${String(i).padStart(4, "0")}`, { createdAt: NOW - 100_000 + i, status: "paid", hash: `H${i}` }));
+    await seed({ orders: rows });
+    const s = await store.summary(NOW);
+    check(s.orders.length === ORDERS_SHOWN, `expected ${ORDERS_SHOWN} orders, got ${s.orders.length}`);
+    check(s.orders[0].id === `o${String(ORDERS_SHOWN + 4).padStart(4, "0")}`, `the first order must be the newest, got ${s.orders[0].id}`);
+    check(s.orders.every((o, i, all) => i === 0 || all[i - 1].createdAt >= o.createdAt), "the orders are not newest first");
+    check(s.counts.paid === ORDERS_SHOWN + 5, `the count must be over all orders, got ${s.counts.paid}`);
+    check(s.totals.paid.count === ORDERS_SHOWN + 5, `the total must be over all orders, got ${s.totals.paid.count}`);
+  });
+
+  add("the summary lists the looks that players own, by player and in the order they were granted", async ({ store, seed }) => {
+    await seed({ owned: [{ player: B, lookId: "royal", at: NOW - 10 }, { player: A, lookId: "sunset", at: NOW - 30 }, { player: A, lookId: "mint-cap", at: NOW - 40 }] });
+    const s = await store.summary(NOW);
+    check(JSON.stringify(s.players) === JSON.stringify([{ player: A, looks: [{ id: "mint-cap", at: NOW - 40 }, { id: "sunset", at: NOW - 30 }] }, { player: B, looks: [{ id: "royal", at: NOW - 10 }] }]), JSON.stringify(s.players));
+  });
+
+  add("the rate is null when there is none, read when it is good, and null when the row is junk", async ({ store, seed }) => {
+    check((await store.summary(NOW)).rate === null, "no rate row must give null");
+    await seed({ rate: { value: JSON.stringify({ usd: 1.18, sources: ["a", "b"] }), at: NOW - 60 } });
+    check(JSON.stringify((await store.summary(NOW)).rate) === JSON.stringify({ usd: 1.18, sources: ["a", "b"], at: NOW - 60 }), "a good rate row must be read");
+    await seed({ rate: { value: "not json", at: NOW } });
+    check((await store.summary(NOW)).rate === null, "a junk rate row must give null");
   });
 
   return cases;

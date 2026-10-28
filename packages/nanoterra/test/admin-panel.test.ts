@@ -10,6 +10,7 @@ const OWNER = `nano_1${"a".repeat(59)}`;
 const OTHER = `nano_3${"b".repeat(59)}`;
 const ORIGIN = "https://game.example";
 const NOW = Date.now();
+const RAW_02 = (2n * 10n ** 29n).toString(); // 0.2 XNO
 const LOOKS: Look[] = [
   { id: "classic", name: "Classic", priceUsd: 0, change: { body: "#4aa8ff" } },
   { id: "mint-cap", name: "Mint Cap", priceUsd: 0.25, change: { body: "#3ddc97", hat: "cap", hatColor: "#1c6e4f" } },
@@ -31,8 +32,8 @@ before(async () => {
 function setup(over: { kind?: string | null; owner?: string | null; store?: ReturnType<typeof createMemoryStore>; check?: boolean } = {}) {
   const store = over.store ?? createMemoryStore({
     orders: [
-      { id: "o1", player: OTHER, lookId: "mint-cap", usd: "0.25", xno: "0.2", status: "paid", createdAt: NOW - 100, expiresAt: NOW + 100, paidAt: NOW - 50, payer: OTHER, hash: "H1" },
-      { id: "o2", player: OTHER, lookId: "mint-cap", usd: "0.25", xno: "0.2", status: "paid_late", createdAt: NOW - 90, expiresAt: NOW - 10, paidAt: NOW - 5, payer: OTHER, hash: "H2" },
+      { id: "o1", player: OTHER, lookId: "mint-cap", usd: "0.25", amountRaw: RAW_02, status: "paid", createdAt: NOW - 100, expiresAt: NOW + 100, paidAt: NOW - 50, payer: OTHER, hash: "H1" },
+      { id: "o2", player: OTHER, lookId: "mint-cap", usd: "0.25", amountRaw: RAW_02, status: "paid_late", createdAt: NOW - 90, expiresAt: NOW - 10, paidAt: NOW - 5, payer: OTHER, hash: "H2" },
     ],
     owned: [{ player: OTHER, lookId: "mint-cap", at: NOW - 40 }],
   });

@@ -13,6 +13,8 @@
     "./looks": { "types": "./dist/looks/index.d.ts", "import": "./dist/looks/index.js" },
     "./admin": { "types": "./dist/admin/index.d.ts", "import": "./dist/admin/index.js" },
     "./admin/conformance": { "types": "./dist/admin/conformance.d.ts", "import": "./dist/admin/conformance.js" },
+    "./admin/d1": { "types": "./dist/admin/adapters/d1.d.ts", "import": "./dist/admin/adapters/d1.js" },
+    "./admin/firestore": { "types": "./dist/admin/adapters/firestore.d.ts", "import": "./dist/admin/adapters/firestore.js" },
     "./admin/panel": { "types": "./dist/admin/panel/index.d.ts", "import": "./dist/admin/panel/index.js" },
     "./admin/style.css": "./src/admin/panel/style.css"
   },

@@ -8,6 +8,8 @@ const OTHER = `nano_3${"b".repeat(59)}`;
 const ORIGIN = "https://game.example";
 const NOW = 1_800_000_000_000;
 const DEFAULTS = { character: "nanoterra", signin: "exchange" } as const;
+const RAW_02 = (2n * 10n ** 29n).toString(); // 0.2 XNO
+const RAW_04 = (4n * 10n ** 28n).toString(); // 0.04 XNO
 
 /** What a game's own session code does: the ADMIN cookie holds the kind of login (a stand-in for a token), and only that cookie is read. */
 const KINDS: Record<string, AdminSession> = {
@@ -224,8 +226,8 @@ test("the summary has the status, the numbers, and names for the looks", async (
     lookName: (id) => ({ "mint-cap": "Mint Cap" })[id],
   });
   store.orders.push(
-    { id: "1", player: OTHER, lookId: "mint-cap", usd: "0.25", xno: "0.2", status: "paid", createdAt: NOW - 100, expiresAt: NOW + 100, paidAt: NOW - 50, payer: OTHER, hash: "H" },
-    { id: "2", player: OTHER, lookId: "gone", usd: "0.05", xno: "0.04", status: "open", createdAt: NOW - 1000, expiresAt: NOW - 10, paidAt: null, payer: null, hash: null },
+    { id: "1", player: OTHER, lookId: "mint-cap", usd: "0.25", amountRaw: RAW_02, status: "paid", createdAt: NOW - 100, expiresAt: NOW + 100, paidAt: NOW - 50, payer: OTHER, hash: "H" },
+    { id: "2", player: OTHER, lookId: "gone", usd: "0.05", amountRaw: RAW_04, status: "open", createdAt: NOW - 1000, expiresAt: NOW - 10, paidAt: null, payer: null, hash: null },
   );
   store.owned.push({ player: OTHER, lookId: "mint-cap", at: NOW - 40 });
   const s = await (await call(handler, "/api/admin/summary"))!.json();
