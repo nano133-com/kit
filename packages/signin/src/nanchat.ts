@@ -92,9 +92,9 @@ export async function answerNanchat(o: NanchatOptions, body: Record<string, unkn
 }
 
 /** Where the request with the browser's id `id` stands. `starter`: that browser's starter hash (gives `mine`). */
-export async function checkNanchat(o: Pick<NanchatOptions, "store" | "now">, id: string, starter?: string): Promise<RequestCheck> {
+export async function checkNanchat(o: Pick<NanchatOptions, "store" | "now"> & { deliverMs?: number }, id: string, starter?: string): Promise<RequestCheck> {
   if (!REQUEST_ID.test(id)) return { status: "expired" };
-  return checkOf(await o.store.find(id), o.now?.() ?? Date.now(), starter);
+  return checkOf(await o.store.find(id), o.now?.() ?? Date.now(), starter, o.deliverMs);
 }
 
 /**

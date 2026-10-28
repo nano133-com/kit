@@ -65,12 +65,16 @@ export function sameStarter(stored: unknown, starter: string | undefined): boole
   }
 }
 
-/** A request's state for the browser that asks. */
-export function checkOf(found: { key: string; request: WalletRequest } | null, now: number, starter?: string): RequestCheck {
+/**
+ * A request's state for the browser that asks. `deliverMs`: how long after the request expires a signature can still sign in the browser that started it
+ * (default DELIVER_MS, an hour). A site that wants a shorter life for a request (an admin sign-in) passes a shorter one.
+ */
+export function checkOf(found: { key: string; request: WalletRequest } | null, now: number, starter?: string, deliverMs: number = DELIVER_MS): RequestCheck {
   if (!found) return { status: "expired" };
   const r = found.request;
+  const late = Number.isFinite(deliverMs) && deliverMs >= 0 ? deliverMs : DELIVER_MS;
   if (r.status === "signedin")
-    return { status: "signedin", account: r.account, starter: r.starter, fresh: now < r.expiresAt + DELIVER_MS, key: found.key, ...(starter !== undefined ? { mine: sameStarter(r.starter, starter) && now < r.expiresAt + DELIVER_MS } : {}) };
+    return { status: "signedin", account: r.account, starter: r.starter, fresh: now < r.expiresAt + late, key: found.key, ...(starter !== undefined ? { mine: sameStarter(r.starter, starter) && now < r.expiresAt + late } : {}) };
   return now > r.expiresAt ? { status: "expired" } : { status: "waiting" };
 }
 

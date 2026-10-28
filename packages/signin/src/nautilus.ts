@@ -20,6 +20,10 @@ import { checkOf, REQUEST_ID, WalletRefused, type RequestCheck, type RequestStor
 export type NautilusOptions = {
   /** The site's name as people see it ("example.com"): in the label, the request's message and every reply. */
   site: string;
+  /** The words that stand for the site in the SIGNED label, when it is not the site's name: "ADMIN of example.com" for a request that opens the admin. Default: `site`. */
+  title?: string;
+  /** Words after the code in the SIGNED label (no colon): "from US", the place the request started. Default: none. */
+  note?: string;
   /** A Nano address of the site's own. Only named in the request and the signed text: no key is needed. */
   siteAddress: string;
   store: RequestStore;
@@ -36,7 +40,7 @@ export type NautilusOptions = {
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const ADDRESS = /^nano_[13][13456789abcdefghijkmnopqrstuwxyz]{59}$/;
 
-export const nautilusLabel = (site: string, code: string) => `${site} sign-in ${code}`;
+export const nautilusLabel = (site: string, code: string, note?: string) => `${site} sign-in ${code}${note ? ` ${note}` : ""}`;
 
 /** "ABCD-EFGH": 8 letters from CODE_ALPHABET. */
 export function nautilusCode() {
@@ -70,7 +74,7 @@ export async function startNautilus(o: NautilusOptions, p: { starter: string; an
   const now = o.now?.() ?? Date.now();
   const id = randomBytes(18).toString("base64url");
   const code = nautilusCode();
-  const label = nautilusLabel(o.site, code);
+  const label = nautilusLabel(o.title ?? o.site, code, o.note);
   const expiresAt = now + (o.ttlMs ?? 5 * 60_000);
   await o.store.create(id, { id, starter: p.starter, status: "waiting", expiresAt, label });
   return { id, code, link: nanoauthLink(o, label, p.answerUrl(id), now), expiresAt };
@@ -103,10 +107,10 @@ export async function answerNautilus(o: NautilusOptions, id: string, body: Recor
 }
 
 /** Where request `id` stands, for the browser that asks. `starter`: that browser's starter hash (gives `mine`). */
-export async function checkNautilus(o: Pick<NautilusOptions, "store" | "now">, id: string, starter?: string): Promise<RequestCheck> {
+export async function checkNautilus(o: Pick<NautilusOptions, "store" | "now"> & { deliverMs?: number }, id: string, starter?: string): Promise<RequestCheck> {
   if (!REQUEST_ID.test(id)) return { status: "expired" };
   const request = await o.store.get(id);
-  return checkOf(request ? { key: id, request } : null, o.now?.() ?? Date.now(), starter);
+  return checkOf(request ? { key: id, request } : null, o.now?.() ?? Date.now(), starter, o.deliverMs);
 }
 
 /** The JSON body of your answer route's reply (always with HTTP 200): 0 and the site's line, or 1 and the refusal. */
