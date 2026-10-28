@@ -559,6 +559,25 @@ The panel draws: the **Game** card (the two switches), what is still off (the st
 sign-in; a wrong wallet, a Nanoterra sign-in and a missing owner address each get their own screen and see no data. Options: `api` (the handler's base path), `noAddressHelp`,
 `lookPicture(look)` (your own picture of a look for the Shelf), `repoHelp`, and `fetch`.
 
+**The Shelf's pictures on the real character** (since 0.3.0). The panel has no Three.js, so it takes the pictures from you, lazily:
+
+```ts
+// admin.ts
+import { mountAdmin, previewPicture } from "@nano133/nanoterra/admin/panel";
+mountAdmin(el, { looks, signIn, signOut, lookPicture: previewPicture(() => import("./lookPreview").then((m) => m.render)) });
+
+// lookPreview.ts (loaded only when the Shelf shows a look)
+import { createLookPreview } from "@nano133/nanoterra/character";
+const preview = createLookPreview({ body: () => yourDressedCharacter() }); // left out: the package's character, its shirt in the look's colour
+export const render = (look) => preview.render(look);
+```
+
+`previewPicture(load)` shows the flat picture at once and puts the drawn one in its place when it is ready; with no WebGL, or when `load` fails, the
+flat picture stays. `createLookPreview({ size?, body?, record?, background?, key? })` draws each look once with ONE shared offscreen WebGL renderer
+(one context for the whole Shelf; a page may have about 16), one picture at a time, and keeps each picture (a PNG data URL) by the look's text.
+`body()` gives `{ object, dress(look), dispose() }`: your own character dressed in the look (a hat, a model that loads: `dress` may return a promise).
+`dispose()` frees the renderer and its context. The page's Content-Security-Policy must allow `img-src data:`.
+
 **The Shelf never writes.** It edits a draft in the owner's browser and gives text to copy (`looks.json`, or a message for an AI assistant): there is no call in the panel that
 changes a look, a price or an order, and a test proves that editing the Shelf sends no request. A change of looks is a change of your repository. The **Game** card writes only the
 two settings. The stylesheet is scoped under `.n133-admin`, so it cannot leak into your page; to theme it set `--n133-ink`, `--n133-ink-soft`, `--n133-paper`, `--n133-line`,

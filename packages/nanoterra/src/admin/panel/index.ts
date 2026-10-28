@@ -11,7 +11,7 @@ export type { MountedAdmin, MountOptions } from "./mount.js";
 export { ApiError, createApi } from "./api.js";
 export type { Api } from "./api.js";
 export { gameCard } from "./gameCard.js";
-export { lookPicture, shelfView } from "./shelf.js";
+export { lookPicture, previewPicture, shelfView } from "./shelf.js";
 export { DEFAULT_LOGINS_NOTE, signinsCard } from "./signins.js";
 export type { ShelfData } from "./shelf.js";
 export { aiPrompt, centsOf, changeText, ownedIds, shelfStats, soldText } from "./shelfData.js";

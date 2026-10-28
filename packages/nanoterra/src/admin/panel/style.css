@@ -264,6 +264,15 @@
   background: #e8f3fb;
 }
 
+.n133-admin .shelf-preview {
+  display: grid;
+  place-items: center;
+}
+
+.n133-admin .shelf-preview img {
+  display: block;
+}
+
 .n133-admin .shelf-text {
   display: grid;
   min-width: 0;

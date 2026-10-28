@@ -45,6 +45,30 @@ export function lookPicture(l: Look): Element {
   );
 }
 
+/**
+ * A Shelf picture that shows the look on the real character. `load` gives the drawing function (a look to a PNG address, or null), and is
+ * called once, the first time a picture is asked for: let it import your preview file dynamically, so Three.js loads only when the Shelf
+ * opens (this file never imports it; the game starter's src/client/admin.ts shows how). Until the picture is drawn, and when it cannot be (no WebGL, a failure), the flat picture stays.
+ * `@nano133/nanoterra/character` has `createLookPreview` to make the drawing function.
+ */
+export function previewPicture(load: () => Promise<(l: Look) => Promise<string | null>>, fallback: (l: Look) => Element = lookPicture, size = 64): (l: Look) => Element {
+  let ready: Promise<((l: Look) => Promise<string | null>) | null> | null = null;
+  return (l) => {
+    const box = h("span", { class: "shelf-preview" }, fallback(l));
+    ready ??= load().catch(() => null);
+    const look: Look = { ...l, change: { ...l.change }, ...(l.slots ? { slots: { ...l.slots } } : {}) };
+    void ready
+      .then((render) => (render ? render(look) : null))
+      .then((src) => {
+        if (!src) return;
+        const img = h("img", { src, width: size, height: size, alt: `${l.name || "A look"} on the character` }) as HTMLImageElement;
+        box.replaceChildren(img);
+      })
+      .catch(() => undefined);
+    return box;
+  };
+}
+
 const clone = (ls: readonly Look[]): Look[] => ls.map((l) => ({ id: l.id, name: l.name, priceUsd: l.priceUsd, change: { ...l.change }, ...(l.slots ? { slots: { ...l.slots } } : {}) }));
 
 /** "wings ember, trail #ffcf5a" */

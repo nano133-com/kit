@@ -18,6 +18,12 @@
   `HAND_ITEM` (its anchor is `grip_R`; `grip_L` is allowed), `BACK_ITEM`, and `COSMETIC_LIMITS` by socket; `ISLAND_MODEL` is the island's (a disc of 10 m
   radius, 18 m high). A misspelt marker with capitals in its name (`Grip_R`) now gets its rename line too.
 
+- **The Shelf's pictures on the real character**: `createLookPreview` (in `@nano133/nanoterra/character`) draws a look on a character (the game's own
+  `body`, else the package's character with its shirt in the look's colour) with one shared offscreen WebGL renderer, one picture at a time, kept by the
+  look's text; with no WebGL it answers null. `previewPicture(load)` (in `@nano133/nanoterra/admin/panel`, which still loads no Three.js) is a Shelf
+  `lookPicture` that shows the flat picture first and the drawn one when it is ready; `load` is called once, so a game imports its preview file only when
+  the Shelf opens. New CSS: `.shelf-preview`.
+
 ## 0.2.0 (2026-10-27)
 
 - **Slots** on a look (`@nano133/nanoterra/looks`, and the Shelf of `/admin/panel`): `slots?: Record<string, string>`, what a game defines for itself (a pair of wings, a trail colour). Names are 1 to 24
