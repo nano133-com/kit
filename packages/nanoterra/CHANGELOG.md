@@ -45,6 +45,9 @@
   none; the host may give `advance(ms)` to repeat the asks after the admin's request life; `adminSigninConformance(host, { signOutEverywhere: true })` fails a host that has no call; the store contract
   REQUIRES `seedRequests` and `pendingRequests` when the store has `signOutEverywhere`. `createD1Store(db, { logins: true })`'s `signOutEverywhere` also ends the pending admin requests
   (`expires_at = 0`). Eight fake chains (one good, seven wrong) run against the contract.
+  A fifth read of these fixes (same agent) found four small gaps, fixed: `adminSigninConformance(host, { advance: true })` fails a host that cannot move its clock (the time case could be skipped);
+  the late asks are made at 10 and at 55 minutes (a scope check that holds for 30 minutes passed); a collected request must give another browser no login either; and the kit's `dist` must be
+  built before `npm pack` (a packed tarball of an unbuilt change tested the old code). Ten fake chains (one good, nine wrong).
 - **A third security read** (another new fresh agent, 2026-10-27) found that the suite still passed four wirings that leak: a game that caches 200 answers by URL, one that keeps the sessions it has read
   in memory (a login that sign-out or Sign out everywhere ended still opens), one that also reads a player's token from a Bearer header, and one that reads it from the query. Fixed: the suite sends every
   refused visitor again right after the owner was served; `host.endLogin` and the login that used Sign out everywhere are used again and must be refused; `req.tokenAt` sends a player's token in other

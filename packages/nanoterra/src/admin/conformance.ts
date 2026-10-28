@@ -497,13 +497,13 @@ export type SigninHost = {
   /** Optional, but pass `{ signOutEverywhere: true }` to the contract when your admin has "Sign out everywhere". Signs out everywhere (from a fresh admin login of the owner). */
   signOutEverywhere?(): Promise<void>;
   /**
-   * Optional, recommended. Moves the game's clock forward by `ms` for every later call. The contract then repeats the cross-scope asks after the admin's window has ended, inside the
+   * Optional, recommended (pass `{ advance: true }` to the contract when the host has it: a host that then has none fails). Moves the game's clock forward by `ms` for every later call. The contract then repeats the cross-scope asks after the admin's window has ended, inside the
    * game's hour of delivery: a scope check that only works while a request is fresh fails here. The contract runs this case last.
    */
   advance?(ms: number): Promise<void>;
 };
 
-export function adminSigninConformance(host: SigninHost, options: { signOutEverywhere?: boolean } = {}): ConformanceCase[] {
+export function adminSigninConformance(host: SigninHost, options: { signOutEverywhere?: boolean; advance?: boolean } = {}): ConformanceCase[] {
   const cases: ConformanceCase[] = [];
   const add = (name: string, run: () => Promise<void>) => cases.push({ name, run });
   const SCOPES = ["game", "admin"] as const;
@@ -525,6 +525,8 @@ export function adminSigninConformance(host: SigninHost, options: { signOutEvery
       check(owns(got, scope), `a ${scope} request finished as ${scope} by its own browser: ${JSON.stringify(got)}`);
       const again = await host.finish(req, scope, "own");
       check(none(again), `a ${scope} request must sign in once: the second check gave ${JSON.stringify(again)}`);
+      const stranger = await host.finish(req, scope, "other");
+      check(none(stranger), `a ${scope} request that was already collected must give another browser no login either: ${JSON.stringify(stranger)}`);
     }
   });
 
@@ -575,18 +577,26 @@ export function adminSigninConformance(host: SigninHost, options: { signOutEvery
   });
 
   add("(when the host can move its clock) the cross-scope asks are refused after the admin's request life has ended too, inside the game's hour of delivery", async () => {
-    if (!host.advance) return;
+    if (!host.advance) {
+      check(!options.advance, "the host has no advance, but the contract was told that the game's clock can be moved");
+      return;
+    }
     const made: { req: unknown; scope: SigninScope }[] = [];
     for (const scope of SCOPES) {
       const req = await host.start(scope);
       await host.sign(req);
       made.push({ req, scope });
     }
-    await host.advance(10 * 60_000);
-    for (const { req, scope } of made) {
-      for (const credentials of ["own", "other", "retyped"] as const) {
-        const got = await host.finish(req, other(scope), credentials);
-        check(none(got), `ten minutes later, a ${scope} request finished as the ${other(scope)} with ${credentials} credentials made a login: ${JSON.stringify(got)}`);
+    // Ten minutes after the start (the admin's life and its minute of delivery are over, the game's five minutes too), and again at 55 minutes (a game request is still delivered inside its hour).
+    let waited = 0;
+    for (const minutes of [10, 55]) {
+      await host.advance((minutes - waited) * 60_000);
+      waited = minutes;
+      for (const { req, scope } of made) {
+        for (const credentials of ["own", "other", "retyped"] as const) {
+          const got = await host.finish(req, other(scope), credentials);
+          check(none(got), `${minutes} minutes later, a ${scope} request finished as the ${other(scope)} with ${credentials} credentials made a login: ${JSON.stringify(got)}`);
+        }
       }
     }
   });

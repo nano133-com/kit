@@ -433,11 +433,11 @@ served on the same URL (a game that caches answers by URL fails) and uses the lo
 **The sign-in chain contract** (`adminSigninConformance(host, { signOutEverywhere })`, in the same path) tests the code that MAKES the logins, which the suite above cannot see. Give it a host that drives your own sign-in:
 `start(scope)` (a new browser starts a request for the game or for the admin), `sign(request)` (the owner's wallet signs it; it MUST throw when the signature is refused, so a signature that stops working
 cannot make the contract pass), `finish(request, as, credentials)` (a browser asks to finish it as a scope with its own credentials, as another browser, or with its credentials "retyped" for the other
-scope: a cookie copied to the other scope's name, a value that the other scope's hashing would match), optionally `advance(ms)` (moves the game's clock; the cross-scope asks then repeat after the admin's
-request life has ended) and optionally `signOutEverywhere()`. It requires: a request started for the game never makes an admin login, a request started for the admin never makes a game login (a cross-scope
-ask gives NO login of either kind, and the request still signs in its own browser afterwards), each signs in once in its own scope, a request signs in only the browser that started it (also inside the same
-scope), and Sign out everywhere ends the admin's pending requests, those that are signed and those still waiting for a signature, and leaves a player's request alone. Pass `{ signOutEverywhere: true }`
-when your store has the call: a host that then has none fails the contract, so the case cannot be skipped by leaving the call out.
+scope: a cookie copied to the other scope's name, a value that the other scope's hashing would match), optionally `advance(ms)` (moves the game's clock; the cross-scope asks then repeat 10 and 55 minutes after the start, after the admin's
+request life has ended and inside the game's hour of delivery) and optionally `signOutEverywhere()`. It requires: a request started for the game never makes an admin login, a request started for the admin never makes a game login (a cross-scope
+ask gives NO login of either kind, and the request still signs in its own browser afterwards), each signs in once in its own scope (a request that was collected gives no other browser a login either), a request signs in only the browser that started it (also inside the same
+scope), and Sign out everywhere ends the admin's pending requests, those that are signed and those still waiting for a signature, and leaves a player's request alone. Pass `{ signOutEverywhere: true, advance: true }`
+when your store has the call and your host can move its clock: a host that then has none fails the contract, so the case cannot be skipped by leaving the call out.
 
 **List the other routes that your own router serves under the admin base** in `host.otherRoutes` (`{ method, path }`: an old `/api/admin/orders`, a debug route, a route kept for an old page).
 The suite sends each one as every visitor who is not the owner and requires a refusal. It cannot find a route that your router hides from it, so a route that answers BEFORE the handler with no
