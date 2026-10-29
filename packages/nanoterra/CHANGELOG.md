@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.2 (2026-10-29)
 
 - **The Game card's character switch says what On means when a game offers a choice.** Echo Island lets a player choose between the Nanoterra character
   and the game's own character (On), or plays only its own (Off). The card's words now hold for that game and for one with no choice (the starter): the title
