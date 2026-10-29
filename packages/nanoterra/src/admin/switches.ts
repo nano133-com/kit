@@ -45,9 +45,9 @@ export function mergeSettings(stored: { character?: unknown; signin?: unknown },
 export type SwitchId = "character" | "signin";
 export const SWITCHES: Record<SwitchId, { title: string; on: string; off: string }> = {
   character: {
-    title: "Players use their Nanoterra character",
-    on: "On: a player who signs in from Nanoterra plays as the character they picked there. Anyone else plays as the island's first character.",
-    off: "Off: every player plays as this game's own character.",
+    title: "Players can play as their Nanoterra character",
+    on: "On: a player who signs in from Nanoterra plays as the character they picked there. Anyone else plays as the island's first character. The game may also let a player switch to its own character.",
+    off: "Off: every player plays as this game's own character, with no choice.",
   },
   signin: {
     title: "Players can sign in with Nanoterra",
@@ -62,7 +62,7 @@ export const SWITCHES: Record<SwitchId, { title: string; on: string; off: string
  * to do (the starter's src/client/ui/player.ts draws no Nanoterra character while sign-in is Off); the card only says it.
  */
 export const CHARACTER_NEEDS_SIGNIN = "This needs “Players can sign in with Nanoterra” to be On: only a player who signs in from Nanoterra brings a character.";
-export const CHARACTER_SIGNIN_OFF = "Sign-in from Nanoterra is Off, so every player plays as the island's first character, a player who signed in from Nanoterra before included.";
+export const CHARACTER_SIGNIN_OFF = "Sign-in from Nanoterra is Off, so every player starts as the island's first character, a player who signed in from Nanoterra before included. The game may also let a player switch to its own character.";
 
 /** What to tell the creator under the sign-in switch about Nanoterra's review. A game cannot see that review: it says so. */
 export const REVIEW_NOTE =

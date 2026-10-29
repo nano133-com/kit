@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **The Game card's character switch says what On means when a game offers a choice.** Echo Island lets a player choose between the Nanoterra character
+  and the game's own character (On), or plays only its own (Off). The card's words now hold for that game and for one with no choice (the starter): the title
+  is "Players can play as their Nanoterra character"; On adds "The game may also let a player switch to its own character."; Off says "with no choice";
+  `CHARACTER_SIGNIN_OFF` says a player "starts as" the island's first character and adds the same sentence. The switch's values (`"nanoterra"`, `"own"`),
+  `CHARACTER_NEEDS_SIGNIN` and the API do not change.
+
 ## 0.3.1 (2026-10-29)
 
 - **`@nano133/nanoterra/input`: a character that does not walk on by itself.** A key that is down when the player leaves the page (another tab, another window, a pop-up,

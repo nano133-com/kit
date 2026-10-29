@@ -1,4 +1,4 @@
-// The "Game" card of /admin: two switches, "Players use their Nanoterra character" and "Players can sign in with Nanoterra". A press saves at once
+// The "Game" card of /admin: two switches, "Players can play as their Nanoterra character" and "Players can sign in with Nanoterra". A press saves at once
 // (POST {api}/game, behind the same admin guard as every admin call) and the game reads the setting at run time, so the creator pushes and deploys
 // nothing. The words are in ../switches.ts. The card changes ONLY these two settings: never a look, a price or an order.
 
