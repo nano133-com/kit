@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.1 (2026-10-29)
 
 - **`@nano133/nanoterra/input`: a character that does not walk on by itself.** A key that is down when the player leaves the page (another tab, another window, a pop-up,
   Cmd+Tab, another app on a phone) never sends its keyup to your game, so a "held keys" set kept it and the character walked on by itself on return (nano133.com's own
