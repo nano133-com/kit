@@ -68,7 +68,7 @@ test("the character's code and the admin's server code run in Node and in Worker
 test("the paths that must not load Three.js import no package at all (the record, the ticket, the looks, the small part)", () => {
   const record = graph("src/character/pure.ts");
   assert.deepEqual(record.packages, []);
-  for (const entry of ["src/index.ts", "src/character/pure.ts", "src/ticket/index.ts", "src/looks/index.ts", "src/model/index.ts", "src/admin/index.ts", "src/admin/conformance.ts", "src/admin/adapters/d1.ts", "src/admin/adapters/firestore.ts"]) {
+  for (const entry of ["src/index.ts", "src/character/pure.ts", "src/ticket/index.ts", "src/looks/index.ts", "src/model/index.ts", "src/input/index.ts", "src/admin/index.ts", "src/admin/conformance.ts", "src/admin/adapters/d1.ts", "src/admin/adapters/firestore.ts"]) {
     const g = graph(entry);
     assert.deepEqual(g.packages, [], `${entry} names ${g.packages.join(", ")}`);
     const drawing = g.files.filter((f) => !PURE.test(f) && f.startsWith("character/"));
@@ -109,10 +109,10 @@ test("package.json: no runtime dependency, three is an optional peer, version 0.
 
 test("the exports map: the small part, the character, its record, the ticket, the looks, the model check and the admin, each with types", () => {
   const pkg = JSON.parse(read("package.json"));
-  assert.deepEqual(Object.keys(pkg.exports), [".", "./character", "./character/record", "./ticket", "./looks", "./model", "./admin", "./admin/conformance", "./admin/d1", "./admin/firestore", "./admin/panel", "./admin/style.css"]);
+  assert.deepEqual(Object.keys(pkg.exports), [".", "./character", "./character/record", "./ticket", "./looks", "./model", "./input", "./admin", "./admin/conformance", "./admin/d1", "./admin/firestore", "./admin/panel", "./admin/style.css"]);
   assert.equal(pkg.exports["./admin/style.css"], "./src/admin/panel/style.css");
   assert.ok(existsSync(join(root, "src/admin/panel/style.css")), "the stylesheet is shipped in src");
-  const want: Record<string, string> = { ".": "index", "./character": "character/index", "./character/record": "character/pure", "./ticket": "ticket/index", "./looks": "looks/index", "./model": "model/index", "./admin": "admin/index", "./admin/conformance": "admin/conformance", "./admin/d1": "admin/adapters/d1", "./admin/firestore": "admin/adapters/firestore", "./admin/panel": "admin/panel/index" };
+  const want: Record<string, string> = { ".": "index", "./character": "character/index", "./character/record": "character/pure", "./ticket": "ticket/index", "./looks": "looks/index", "./model": "model/index", "./input": "input/index", "./admin": "admin/index", "./admin/conformance": "admin/conformance", "./admin/d1": "admin/adapters/d1", "./admin/firestore": "admin/adapters/firestore", "./admin/panel": "admin/panel/index" };
   for (const [path, file] of Object.entries(want)) {
     assert.deepEqual(pkg.exports[path], { types: `./dist/${file}.d.ts`, import: `./dist/${file}.js` }, path);
     assert.ok(existsSync(join(root, `src/${file}.ts`)), `${path} has its source src/${file}.ts`);
@@ -136,6 +136,7 @@ test("the built paths load, and the ones that must not load Three.js do not (a l
     ["ticket/index.js", "if (typeof m.readTicket !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["looks/index.js", "if (typeof m.checkLooks !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["model/index.js", "if (typeof m.checkModel !== 'function' || !m.HAND_ITEM || !m.ISLAND_MODEL) throw new Error('missing'); process.stdout.write('ok')"],
+    ["input/index.js", "if (typeof m.releaseWhenLost !== 'function' || typeof m.pauseWhenLeft !== 'function' || typeof m.swallowsKeyup !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["admin/index.js", "if (typeof m.adminAccess !== 'function' || typeof m.createAdminHandler !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["admin/conformance.js", "if (typeof m.adminConformance !== 'function' || typeof m.adminStoreConformance !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["admin/adapters/d1.js", "if (typeof m.createD1Store !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
@@ -155,7 +156,7 @@ test("npm pack would ship the built files, the sources, the README, the changelo
   const r = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { cwd: root, encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
   const files: string[] = JSON.parse(r.stdout)[0].files.map((f: { path: string }) => f.path);
-  for (const f of ["package.json", "README.md", "LICENSE", "CHANGELOG.md", "dist/index.js", "dist/character/index.js", "dist/character/pure.js", "dist/ticket/index.js", "dist/looks/index.js", "dist/model/index.js", "dist/admin/index.js", "dist/admin/conformance.js", "dist/admin/adapters/d1.js", "dist/admin/adapters/firestore.js", "dist/admin/panel/index.js", "src/admin/panel/style.css", "ai/PROMPT.md", "ai/SPEC.md"]) assert.ok(files.includes(f), `${f} is shipped`);
+  for (const f of ["package.json", "README.md", "LICENSE", "CHANGELOG.md", "dist/index.js", "dist/character/index.js", "dist/character/pure.js", "dist/ticket/index.js", "dist/looks/index.js", "dist/model/index.js", "dist/input/index.js", "dist/admin/index.js", "dist/admin/conformance.js", "dist/admin/adapters/d1.js", "dist/admin/adapters/firestore.js", "dist/admin/panel/index.js", "src/admin/panel/style.css", "ai/PROMPT.md", "ai/SPEC.md"]) assert.ok(files.includes(f), `${f} is shipped`);
   for (const f of files) {
     assert.ok(/^(dist|src|ai)\//.test(f) || ["package.json", "README.md", "CHANGELOG.md", "LICENSE"].includes(f), `${f} would be published`);
     assert.doesNotMatch(f, /^test\/|\.env|\.tsbuildinfo|\.test\.|secret|\.key$/i, `${f} must not be published`);
@@ -166,7 +167,7 @@ test("the README and the changelog say what the code says", () => {
   const readme = read("README.md");
   assert.ok(readme.includes(`HEIGHT\` = ${HEIGHT} m`), "the README states HEIGHT");
   assert.ok(readme.includes(`RADIUS\` = ${RADIUS} m`), "the README states RADIUS");
-  for (const part of ["createCharacter", "update", "wave", "setLook", "setColors", "dispose", "readTicket", "record", "fromLegacy", "toLegacy", "packRecord", "unpackRecord", "diceRecord", "checkLooks", "PRICE_LADDER", "socket", "setWorn", "checkModel", "HAND_ITEM", "@nano133/nanoterra/model", "@nano133/nanoterra/character", "@nano133/nanoterra/character/record", "@nano133/nanoterra/ticket", "@nano133/nanoterra/looks"]) {
+  for (const part of ["createCharacter", "update", "wave", "setLook", "setColors", "dispose", "readTicket", "record", "fromLegacy", "toLegacy", "packRecord", "unpackRecord", "diceRecord", "checkLooks", "PRICE_LADDER", "socket", "setWorn", "checkModel", "HAND_ITEM", "@nano133/nanoterra/model", "releaseWhenLost", "pauseWhenLeft", "@nano133/nanoterra/input", "@nano133/nanoterra/character", "@nano133/nanoterra/character/record", "@nano133/nanoterra/ticket", "@nano133/nanoterra/looks"]) {
     assert.ok(readme.includes(part), `the README names ${part}`);
   }
   assert.match(read("CHANGELOG.md"), /@nano133\/character`? 0\.1\.0/);

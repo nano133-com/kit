@@ -1,7 +1,14 @@
 # Changelog
 
-## 0.3.1 (not published yet)
+## Unreleased
 
+- **`@nano133/nanoterra/input`: a character that does not walk on by itself.** A key that is down when the player leaves the page (another tab, another window, a pop-up,
+  Cmd+Tab, another app on a phone) never sends its keyup to your game, so a "held keys" set kept it and the character walked on by itself on return (nano133.com's own
+  island had it, and the starter: Wes, 2026-10-29). `releaseWhenLost(release)` calls your `release` at a blur, a focus, a page hide, a hidden tab, the Cmd key and a
+  menu (keys only), and, new, drops every key REPEAT after a leave until a key goes down again (one more repeat could arrive after the release and put the key back: the
+  player now presses the key again to walk on). `pauseWhenLeft(pause)` calls your `pause` when the tab is hidden or the window loses the focus to another window.
+  `swallowsKeyup(event)` is for a keydown with Cmd, which is never held. No package, plain browser events. A round that costs money must not pause: keep the release
+  and leave `pauseWhenLeft` out.
 - **`ISLAND_MODEL`'s zone is a disc of 9 m radius** (18 m across), not 10 m (20 m across). nano133.com made its creator plots 30 m across instead of 36 m
   (Wes, 2026-10-28; the gates' standing places moved in, so the plot's free middle is 9 m). A model that reaches 9.0 to 10.0 m from its middle passed 0.3.0
   and fails now: the fix line names the zone as before (18.0 m across).

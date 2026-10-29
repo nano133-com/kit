@@ -12,6 +12,7 @@
     "./ticket": { "types": "./dist/ticket/index.d.ts", "import": "./dist/ticket/index.js" },
     "./looks": { "types": "./dist/looks/index.d.ts", "import": "./dist/looks/index.js" },
     "./model": { "types": "./dist/model/index.d.ts", "import": "./dist/model/index.js" },
+    "./input": { "types": "./dist/input/index.d.ts", "import": "./dist/input/index.js" },
     "./admin": { "types": "./dist/admin/index.d.ts", "import": "./dist/admin/index.js" },
     "./admin/conformance": { "types": "./dist/admin/conformance.d.ts", "import": "./dist/admin/conformance.js" },
     "./admin/d1": { "types": "./dist/admin/adapters/d1.d.ts", "import": "./dist/admin/adapters/d1.js" },

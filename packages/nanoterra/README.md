@@ -4,11 +4,12 @@ Stage: Pre-alpha. What this means: https://nano133.com/stages
 
 Nanoterra for your game, in **one package**. [Nanoterra](https://nano133.com/build/nanoterra) is
 nano133.com's island. A player who is signed in there presses Play, and arrives at your game as
-themselves. This package gives your game three things:
+themselves. This package gives your game four things:
 
 - **The sign-in ticket** (`/ticket`): the player's name, Nano address and character, read in the browser. No server, no secret.
 - **The player's character** (`/character`): the same toon body that the player has on the island, drawn with Three.js. Six bases, faces, hair, clothes, sizes and colours.
 - **The looks ladder** (`/looks`): the rules of `looks.json`, the price steps, and what a change does to the players who own a look.
+- **Held input that does not stick** (`/input`, since 0.3.1): lets go of the keys and the stick when the player leaves the page, so the character never walks on by itself, and pauses a free round.
 
 It replaces `@nano133/character` 0.1.0, `@nano133/ticket` 0.1.0 and `@nano133/looks` 0.1.0
 (see "Moving from the three old packages"). Sign-in, checkout and late returns stay in their own packages
@@ -62,6 +63,7 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/looks` | the looks ladder | no | 1.9 kB (all), 0.9 kB (`checkLooks` alone) |
 | `@nano133/nanoterra/character` | the builder and `createCharacter` (it includes the record), with the three sockets | yes | 21.8 kB (all, with the sockets and `createLookPreview` of 0.3.0; 20.4 kB on 0.2.0), 17.8 kB (`createCharacter` alone, measured on 0.2.0) |
 | `@nano133/nanoterra/model` | the 3D model check: a `.glb` against the island's limits or a cosmetic's (since 0.3.0) | no | 8.8 kB |
+| `@nano133/nanoterra/input` | let go of held keys and sticks when the player leaves the page, and pause: `releaseWhenLost`, `pauseWhenLeft`, `swallowsKeyup` (since 0.3.1) | no | 0.5 kB |
 | `@nano133/nanoterra/admin` | the admin of a game: the guard, the handler, the store type (server code; since 0.2.0) | no | 3.7 kB |
 | `@nano133/nanoterra/admin/d1`, `/admin/firestore` | the admin store for D1 (the starter's tables) or Firestore (a small interface, no Firebase dependency): `createD1Store`, `createFirestoreStore` (since 0.2.0) | no | 1.5 kB each |
 | `@nano133/nanoterra/admin/panel` | the admin page, drawn in the browser into one element, and its stylesheet `@nano133/nanoterra/admin/style.css` (since 0.2.0) | no | 10.6 kB on 0.3.0 (8.5 kB measured on 0.2.0) + 2.4 kB of CSS |
@@ -230,6 +232,35 @@ tall, its origin the socket's point (a hand item's `grip_R` marker when it has o
 
 Every preset refuses skins, animations, morph targets, lights, external files and compressed meshes (Draco, meshopt): a worn thing is rigid on its socket.
 `COSMETIC_LIMITS` gives the preset of each socket by its name. The island preset is nano133.com's (its "Launch my game" check uses this same code).
+
+## Leaving the page (`@nano133/nanoterra/input`; since 0.3.1)
+
+The browser sends a key's "up" only to the window that has the focus. A key that is down when the player leaves the page (another tab, another window, a pop-up,
+Cmd+Tab, another app on a phone) never sends it to your game. A game that keeps a "held keys" set keeps the key, and the character **walks on by itself** when the
+player comes back. nano133.com's island had this, and so did the starter. One call fixes it, and one more pauses a free round:
+
+```ts
+import { pauseWhenLeft, releaseWhenLost, swallowsKeyup } from "@nano133/nanoterra/input";
+
+const keys = new Set<string>();
+window.addEventListener("keydown", (e) => { if (!swallowsKeyup(e)) keys.add(e.key); }); // a key with Cmd is the browser's shortcut: never held
+window.addEventListener("keyup", (e) => keys.delete(e.key));
+releaseWhenLost(() => { keys.clear(); stick.reset(); queuedJump = false; });             // at each leave: let go of everything
+pauseWhenLeft(() => { game.paused = true; resumeCard.hidden = false; });                // a FREE round: stop the clock, show Resume
+```
+
+- `releaseWhenLost(release, keysOnly?)` calls `release` at a window **blur**, **focus**, **pagehide**, a **hidden tab**, and the **Cmd key** (on a Mac a key that is released
+  while Cmd is down sends no keyup). `keysOnly` is called when a menu opens (a right click): a menu takes a keyup, but a long press on a touch screen asks for a menu too,
+  so a thumb on a stick must not lose its walk for it. A menu that your page stopped (`preventDefault`) lets go of nothing.
+- **After a leave, a key repeat is dropped until a key goes down again.** One more repeat of the held key can arrive after the release, or the repeats go on when the
+  player comes back, and they put the key back (its keyup went to the other window). The helper stops such a repeat in the capture phase, so your own key handlers
+  never see it. The player presses the key again to walk on. A menu is no leave: its repeats still put the key back.
+- `pauseWhenLeft(pause)` calls `pause` when the tab is hidden or the window loses the focus to another window (a real `blur`: not a script's, and not a focus that moves
+  inside your page into a dialog). It can call `pause` twice for one leave, so make it safe to call twice. Show a Resume key and start nothing until it is tapped.
+- **A round that costs money must not pause**: its deadline must not move (nano133.com's arcade has the same rule). Keep `releaseWhenLost` (the character always stops)
+  and leave `pauseWhenLeft` out.
+- It returns the function that takes its listeners away. It names no package and reads only plain browser events. The same code runs in nano133.com's island and rooms,
+  and in the [game starter](https://github.com/nano133-com/nano-game-starter).
 
 ## The sign-in ticket
 

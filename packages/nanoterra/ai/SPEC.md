@@ -1,8 +1,8 @@
 # Nanoterra for a game: implementation spec
 
 Package: `@nano133/nanoterra` (0.1.0 or later). Follow these steps in order. Each step ends with a check. Ask the owner when a step says
-"ask". The package has three parts, on three paths: the sign-in ticket (`/ticket`), the player's character (`/character`, Three.js) and the
-looks ladder (`/looks`). Use only the parts the game needs. It has no network, wallet or Nano code. Read the package README first.
+"ask". The package has four parts, on four paths: the sign-in ticket (`/ticket`), the player's character (`/character`, Three.js), the
+looks ladder (`/looks`) and held input that does not stick (`/input`). Use only the parts the game needs. It has no network, wallet or Nano code. Read the package README first.
 
 ## 0. What the owner decides (ask)
 
@@ -104,7 +104,19 @@ export const LOOKS = checkLooks(rawLooksJson); // throws with the first mistake 
 
 **Check:** `checkLooks` passes at start; a removed look that is owned is refused; a changed slot on an owned look is refused.
 
-## 8. Do not
+## 8. Leaving the page (any game that a player walks in with keys or a stick)
+
+```ts
+import { pauseWhenLeft, releaseWhenLost, swallowsKeyup } from "@nano133/nanoterra/input";
+```
+
+- A key that is down when the player leaves the page never sends its keyup, so the character walks on by itself on return. Call `releaseWhenLost(release)` once; in `release`
+  clear every held key, stick, drag and queued jump. A keydown with `swallowsKeyup(e)` true (Cmd is down) is never held. After a leave the helper drops key repeats until a key goes down again.
+- Call `pauseWhenLeft(pause)` for a **free** round: stop the clock, show a Resume key, start nothing until it is tapped. A round that costs money must **not** pause (its deadline must not move): keep `releaseWhenLost`, leave `pauseWhenLeft` out.
+
+**Check:** hold a move key, hide the tab or switch windows, come back: the character stands still until the key is pressed again.
+
+## 9. Do not
 
 - Do not edit the geometry, the skeleton or the toon and ink materials.
 - Do not add the katana, the headband or other brands' art. A game's own worn model goes on a socket (`c.socket("head" | "hand" | "back")` or
