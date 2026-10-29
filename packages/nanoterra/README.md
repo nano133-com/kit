@@ -226,7 +226,7 @@ tall, its origin the socket's point (a hand item's `grip_R` marker when it has o
 | `HEAD_ITEM` | 0.9 x 0.9 x 0.8, from 0.1 below the socket | 3,000 | 1 of 512 px | 2 | 300 KB |
 | `HAND_ITEM` | 0.96 x 0.68 x 1.6, from 1.17 below the grip to 0.43 above (a tool held near its top) | 3,000 | 1 of 512 px | 2 | 300 KB |
 | `BACK_ITEM` | 1.0 x 0.6 x 1.2, from 0.6 below the socket | 4,000 | 1 of 512 px | 2 | 400 KB |
-| `ISLAND_MODEL` | a disc of 10 m radius, 18 m high, from the ground | 50,000 | 8 of 1,024 px | no limit | 5 MB |
+| `ISLAND_MODEL` | a disc of 9 m radius (18 m across), 18 m high, from the ground | 50,000 | 8 of 1,024 px | no limit | 5 MB |
 
 Every preset refuses skins, animations, morph targets, lights, external files and compressed meshes (Draco, meshopt): a worn thing is rigid on its socket.
 `COSMETIC_LIMITS` gives the preset of each socket by its name. The island preset is nano133.com's (its "Launch my game" check uses this same code).

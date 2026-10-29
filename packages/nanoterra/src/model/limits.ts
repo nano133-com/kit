@@ -78,9 +78,10 @@ export const PLAIN_EXTENSIONS = [
 
 /**
  * A creator's island model (the creator islands gameplan, phase 2; Wes approved it on 2026-10-27): the entry of their
- * game on their plot. 5 MB, 50,000 triangles, 8 textures of at most 1,024 px, inside a disc of 10 m radius (20 m across)
+ * game on their plot. 5 MB, 50,000 triangles, 8 textures of at most 1,024 px, inside a disc of 9 m radius (18 m across)
  * and 18 m high on the plot's middle: the plot's free middle (PLOT_FREE_R in app/nanoterra/wheel/plots.ts; Wes chose the
- * disc over a 24 x 24 m box on 2026-10-28, as the box reached the gates' standing places); an empty `nano_door` where Play stands, an optional empty `nano_spawn` (the arrival point) and an
+ * disc over a 24 x 24 m box on 2026-10-28, as the box reached the gates' standing places; it was 10 m radius until the plots
+ * were made 30 m across instead of 36 m, 2026-10-28); an empty `nano_door` where Play stands, an optional empty `nano_spawn` (the arrival point) and an
  * optional simple `nano_collide` mesh. No lights, no scripts, nothing outside the file. A still model for now.
  */
 export const ISLAND_MODEL: ModelLimits = {
@@ -90,7 +91,7 @@ export const ISLAND_MODEL: ModelLimits = {
   maxTriangles: 50_000,
   maxTextures: 8,
   maxTextureSide: 1024,
-  zone: { radius: 10, height: 18, below: 0 },
+  zone: { radius: 9, height: 18, below: 0 },
   markers: [
     { name: "nano_door", required: true, kind: "empty", purpose: "where Play stands" },
     { name: "nano_spawn", required: false, kind: "empty", purpose: "where players arrive" },

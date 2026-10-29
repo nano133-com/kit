@@ -199,7 +199,7 @@ test("the presets: the table's numbers", () => {
     [4000, 1, 512, 2, 400],
   ]);
   assert.deepEqual(Object.keys(COSMETIC_LIMITS), ["head", "hand", "back"]);
-  assert.deepEqual(ISLAND_MODEL.zone, { radius: 10, height: 18, below: 0 });
+  assert.deepEqual(ISLAND_MODEL.zone, { radius: 9, height: 18, below: 0 });
   for (const L of [HEAD_ITEM, HAND_ITEM, BACK_ITEM]) assert.ok(!L.allowSkins && !L.allowAnimations && !L.allowMorphTargets, `${L.what} is rigid`);
 });
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 (not published yet)
+
+- **`ISLAND_MODEL`'s zone is a disc of 9 m radius** (18 m across), not 10 m (20 m across). nano133.com made its creator plots 30 m across instead of 36 m
+  (Wes, 2026-10-28; the gates' standing places moved in, so the plot's free middle is 9 m). A model that reaches 9.0 to 10.0 m from its middle passed 0.3.0
+  and fails now: the fix line names the zone as before (18.0 m across).
+
 ## 0.3.0 (2026-10-28)
 
 - **Sockets** (`@nano133/nanoterra/character`): three attach points on the character, `c.socket("head" | "hand" | "back")`, each a `THREE.Object3D` on a bone
