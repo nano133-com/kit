@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 (2026-10-30)
 
 - **The admin panel (`@nano133/nanoterra/admin/panel`) has a new layout: the game at a glance, in tabs.** A top bar (who is signed in, Live or Test mode, the bot
   check, Sign out), the warnings as one banner, four numbers (Earned, Open now, To send back, Players; each opens its list), then five tabs: Overview (best sellers
