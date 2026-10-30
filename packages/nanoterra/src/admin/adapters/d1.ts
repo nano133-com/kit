@@ -1,5 +1,5 @@
 // The admin store for a game on Cloudflare D1, with the tables of the game starter (migrations/0001_init.sql): `meta`, `orders` and `owned`.
-// It writes ONLY the two settings (`setting:character`, `setting:signin` in `meta`); everything else it does is a read, except when the game turns the sign-in list on
+// It writes ONLY the three settings (`setting:character`, `setting:signin`, `setting:friends` in `meta`); everything else it does is a read, except when the game turns the sign-in list on
 // (`logins: true`): then the one other write is `DELETE FROM sessions WHERE scope = 'admin'` ("sign out everywhere").
 //
 //   import { createD1Store } from "@nano133/nanoterra/admin/d1";
@@ -21,7 +21,7 @@ export interface D1Like {
   batch(statements: D1StatementLike[]): Promise<unknown[]>;
 }
 
-export const D1_KEYS = { character: "setting:character", signin: "setting:signin" } as const;
+export const D1_KEYS = { character: "setting:character", signin: "setting:signin", friends: "setting:friends" } as const;
 
 type Row = { id: string; player: string; look_id: string; usd: string; amount: string; status: string; created_at: number; expires_at: number; paid_at: number | null; payer: string | null; hash: string | null };
 
@@ -34,9 +34,9 @@ type Row = { id: string; player: string; look_id: string; usd: string; amount: s
 export function createD1Store(db: D1Like, options: { logins?: boolean } = {}): AdminStore {
   const store: AdminStore = {
     async readSettings() {
-      const rows = (await db.prepare("SELECT key, value FROM meta WHERE key IN (?, ?)").bind(D1_KEYS.character, D1_KEYS.signin).all<{ key: string; value: string }>()).results;
+      const rows = (await db.prepare("SELECT key, value FROM meta WHERE key IN (?, ?, ?)").bind(D1_KEYS.character, D1_KEYS.signin, D1_KEYS.friends).all<{ key: string; value: string }>()).results;
       const row = (key: string) => rows.find((r) => r.key === key)?.value;
-      return { character: row(D1_KEYS.character), signin: row(D1_KEYS.signin) };
+      return { character: row(D1_KEYS.character), signin: row(D1_KEYS.signin), friends: row(D1_KEYS.friends) };
     },
 
     async saveSettings(patch: GamePatch, now: number) {
@@ -45,6 +45,7 @@ export function createD1Store(db: D1Like, options: { logins?: boolean } = {}): A
       const batch = [];
       if (patch.character) batch.push(write(D1_KEYS.character, patch.character));
       if (patch.signin) batch.push(write(D1_KEYS.signin, patch.signin));
+      if (patch.friends) batch.push(write(D1_KEYS.friends, patch.friends));
       if (batch.length) await db.batch(batch);
     },
 

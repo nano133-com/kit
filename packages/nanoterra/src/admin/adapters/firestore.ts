@@ -1,8 +1,8 @@
 // The admin store for a game on Firestore (the Admin SDK). The package has no Firebase dependency: the adapter uses the small interface below, which the
-// Admin SDK's `Firestore` fits. It writes ONLY the two settings; everything else it does is a read.
+// Admin SDK's `Firestore` fits. It writes ONLY the three settings; everything else it does is a read.
 //
 // The data model (the names a game must have; only the three collection names can be changed):
-//   meta/{key}          { value: string, at: number }          keys "setting:character", "setting:signin", "rate" (value is JSON { usd, sources })
+//   meta/{key}          { value: string, at: number }          keys "setting:character", "setting:signin", "setting:friends", "rate" (value is JSON { usd, sources })
 //   orders/{id}         { player, lookId, usd, amount, status, createdAt, expiresAt, paidAt, payer, hash }   `amount` is the raw amount as text
 //   owned/{player__lookId}  { player, lookId, orderId, grantedAt }
 //
@@ -33,7 +33,7 @@ export interface FirestoreLike {
 }
 
 export const FIRESTORE_SCAN_LIMIT = 5000;
-export const FIRESTORE_KEYS = { character: "setting:character", signin: "setting:signin" } as const;
+export const FIRESTORE_KEYS = { character: "setting:character", signin: "setting:signin", friends: "setting:friends" } as const;
 
 const text = (v: unknown, fallback = ""): string => (typeof v === "string" ? v : fallback);
 const num = (v: unknown, fallback = 0): number => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
@@ -49,8 +49,8 @@ export function createFirestoreStore(db: FirestoreLike, collections: { meta?: st
   };
   return {
     async readSettings() {
-      const [character, signin] = await Promise.all([valueOf(FIRESTORE_KEYS.character), valueOf(FIRESTORE_KEYS.signin)]);
-      return { character: character?.value, signin: signin?.value };
+      const [character, signin, friends] = await Promise.all([valueOf(FIRESTORE_KEYS.character), valueOf(FIRESTORE_KEYS.signin), valueOf(FIRESTORE_KEYS.friends)]);
+      return { character: character?.value, signin: signin?.value, friends: friends?.value };
     },
 
     async saveSettings(patch: GamePatch, now: number) {
@@ -58,6 +58,7 @@ export function createFirestoreStore(db: FirestoreLike, collections: { meta?: st
       let n = 0;
       if (patch.character) (batch.set(db.collection(meta).doc(FIRESTORE_KEYS.character), { value: patch.character, at: now }), n++);
       if (patch.signin) (batch.set(db.collection(meta).doc(FIRESTORE_KEYS.signin), { value: patch.signin, at: now }), n++);
+      if (patch.friends) (batch.set(db.collection(meta).doc(FIRESTORE_KEYS.friends), { value: patch.friends, at: now }), n++);
       if (n) await batch.commit();
     },
 

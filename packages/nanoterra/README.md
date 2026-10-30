@@ -10,6 +10,7 @@ themselves. This package gives your game four things:
 - **The player's character** (`/character`): the same toon body that the player has on the island, drawn with Three.js. Six bases, faces, hair, clothes, sizes and colours.
 - **The looks ladder** (`/looks`): the rules of `looks.json`, the price steps, and what a change does to the players who own a look.
 - **Held input that does not stick** (`/input`, since 0.3.1): lets go of the keys and the stick when the player leaves the page, so the character never walks on by itself, and pauses a free round.
+- **A friends list** (`/friends`, unreleased): a Friends key that holds the player's Nanoterra friends (a nano133 window), or a full friends list of the game's own players on the game's own database, as the admin's Game card chooses.
 
 It replaces `@nano133/character` 0.1.0, `@nano133/ticket` 0.1.0 and `@nano133/looks` 0.1.0
 (see "Moving from the three old packages"). Sign-in, checkout and late returns stay in their own packages
@@ -68,8 +69,12 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/admin/d1`, `/admin/firestore` | the admin store for D1 (the starter's tables) or Firestore (a small interface, no Firebase dependency): `createD1Store`, `createFirestoreStore` (since 0.2.0) | no | 1.5 kB each |
 | `@nano133/nanoterra/admin/panel` | the admin page, drawn in the browser into one element, and its stylesheet `@nano133/nanoterra/admin/style.css` (since 0.2.0) | no | 18.9 kB with the tabbed layout (10.6 kB on 0.3.0, 8.5 kB on 0.2.0) + 5.9 kB of CSS (minified) |
 | `@nano133/nanoterra/admin/conformance` | test cases that a game runs against its own admin (a dev dependency in practice; since 0.2.0) | no | n/a |
+| `@nano133/nanoterra/friends` | the game's own friends list: the handler, the rules, a memory store (server code; unreleased) | no | 3.7 kB |
+| `@nano133/nanoterra/friends/d1`, `/friends/firestore` | the friends store for D1 (with the migration `/friends/d1.sql`) or Firestore (a small interface, no Firebase dependency): `createD1Friends`, `createFirestoreFriends` (unreleased) | no | 3.0 kB each |
+| `@nano133/nanoterra/friends/panel` | the Friends key and panel: the nano133 window, or the game's own list, and its stylesheet `@nano133/nanoterra/friends/style.css` (unreleased) | no | 5.0 kB + 4.8 kB of CSS (minified) |
+| `@nano133/nanoterra/friends/conformance` | the friends rules as test cases, for a store a game writes itself (unreleased) | no | n/a |
 
-Measured 2026-10-26: `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
+Measured 2026-10-26 (the friends paths 2026-10-30): `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
 All four paths together: 23.6 kB. A test of the package proves that the record, the ticket, the looks and the small part import no package at all.
 
 ## The character
@@ -480,7 +485,7 @@ import { createAdminHandler } from "@nano133/nanoterra/admin";
 
 const admin = createAdminHandler({
   store,                                   // your database: readSettings(), saveSettings(patch, now), summary(now)  (a memory store is in the package, for tests)
-  defaults: { character: "nanoterra", signin: "exchange" },   // what the two switches are until /admin sets them (your game.config.json)
+  defaults: { character: "nanoterra", signin: "exchange", friends: "nanoterra" },   // what the switches are until /admin sets them (your game.config.json; friends may be left out)
   owner: ownerAddress,                     // "nano_..." lowercase, its checksum checked by you; null when none is set
   session: (req, now) => readAdminSession(req, now),          // YOUR admin login: its own cookie; return { address, createdAt, via: "wallet" } or null
   status: (now, summary) => ({ address: ownerAddress, testMode, warnings }),   // what only your game knows (the store's numbers come too, for a warning like "2 payments came late")
@@ -506,7 +511,7 @@ neither header (curl) and the browser's own address bar (`Sec-Fetch-Site: none`)
 **The handler** sends every request under the base path (`/api/admin` by default) through the guard first, before the route is looked up: a visitor who is not the owner
 gets 401 or 403 for any path, so nothing about the routes leaks. A POST must come from the game's own page (`Origin`, else `Sec-Fetch-Site: same-origin`). It sets no CORS
 header, always sends `Cache-Control: no-store`, reads at most 512 bytes of a press, and limits presses to 30 a minute. A fault in your store gives a plain 500 that shows
-nothing of the fault (`onError` hears it). The only writes are the two settings (and, when the game turns on the sign-in list, the deletion of the admin sessions), **never a look, a price or an order**: a change of looks stays a change of your repository.
+nothing of the fault (`onError` hears it). The only writes are the three settings (and, when the game turns on the sign-in list, the deletion of the admin sessions), **never a look, a price or an order**: a change of looks stays a change of your repository.
 
 **Your own routes read the switches** with `loadGameSettings(store, defaults)` (for the listing file's `signin` word and for the character): the stored word, else your default,
 and your defaults when the store fails.
@@ -554,8 +559,8 @@ admin may make an admin login, and never from another sign-in. A security read f
 
 ### The store (an adapter for your database)
 
-`createAdminHandler` needs a store: three calls, `readSettings()`, `saveSettings(patch, now)` and `summary(now)`. Two adapters come with the package, and **both write only the two settings** (the D1 store also deletes the admin sessions, but only when the game turns on the sign-in list: see below)
-(`setting:character` and `setting:signin`); every other call they make is a read. Both must pass the same **store contract**, `adminStoreConformance(make)` in
+`createAdminHandler` needs a store: three calls, `readSettings()`, `saveSettings(patch, now)` and `summary(now)`. Two adapters come with the package, and **both write only the three settings** (the D1 store also deletes the admin sessions, but only when the game turns on the sign-in list: see below)
+(`setting:character`, `setting:signin` and `setting:friends`); every other call they make is a read. Both must pass the same **store contract**, `adminStoreConformance(make)` in
 `@nano133/nanoterra/admin/conformance`: the settings are kept and accumulate, saving changes no order, no owned look and no other row, an open order past its expiry counts as expired,
 the money is totalled right, the newest 500 orders come first, and a bad rate row is ignored. A game with another database writes its own store and runs the same contract.
 
@@ -614,10 +619,10 @@ mountAdmin(document.getElementById("admin")!, {
 
 The panel draws, from the top: a bar with who is signed in (the short address and a copy key), Live or Test mode, the bot check and Sign out; what is still off (the
 status warnings, one banner); four numbers (Earned, Open now, To send back, Players: a press opens the list behind each); then five tabs. **Overview**: the best-selling
-looks with their share of the money, the last five orders, the two switches as On or Off and the shelf in numbers (a game with no order yet gets three first steps).
+looks with their share of the money, the last five orders, the switches as On or Off (and the friends list's choice) and the shelf in numbers (a game with no order yet gets three first steps).
 **Cosmetics**: the **Shelf** (below). **Orders**: a filter by status with its count, a search (a look, an address or a block), "Check payments now" when the game gave a
 check, "Paid late" with the address to send the money back to, 20 orders at a time; a card each on a phone, a table on a wide panel. **Players**: each player who owns a
-look, with their looks. **Settings**: the **Game** card (the two switches), the Sign-ins card and the facts (the address, the mode, the nodes, the last price). The tabs are
+look, with their looks. **Settings**: the **Game** card (the two switches and the friends list's three-way choice), the Sign-ins card and the facts (the address, the mode, the nodes, the last price). The tabs are
 real tabs (the arrow keys, Home and End work); every tab is made once, so a draft, a search and a switch keep their state, and the panel never writes the page's address.
 A visitor who is signed out gets the game's sign-in; a wrong wallet, a Nanoterra sign-in and a missing owner address each get their own screen and see no data (a sign-out
 takes the drawn data off the page). Options: `api` (the handler's base path), `noAddressHelp`, `lookPicture(look)` (your own picture of a look for the Shelf), `repoHelp`,
@@ -652,13 +657,133 @@ flat picture stays. `createLookPreview({ size?, body?, record?, background?, key
 
 **The Shelf never writes.** It edits a draft in the owner's browser and gives text to copy (`looks.json`, or a message for an AI assistant): there is no call in the panel that
 changes a look, a price or an order, and a test proves that editing the Shelf sends no request. A change of looks is a change of your repository. The **Game** card writes only the
-two settings. The stylesheet is scoped under `.n133-admin`, so it cannot leak into your page; to theme it set `--n133-ink`, `--n133-ink-soft`, `--n133-paper`, `--n133-line`,
+three settings. The stylesheet is scoped under `.n133-admin`, so it cannot leak into your page; to theme it set `--n133-ink`, `--n133-ink-soft`, `--n133-paper`, `--n133-line`,
 `--n133-gem`, `--n133-gem-dark`, `--n133-sea`, `--n133-radius`, `--n133-font`, `--n133-ground` (the wells inside a card), `--n133-warn`, `--n133-bad` or `--n133-shadow` on the
 element that holds it. The keys, inputs, switches, swatches and price steps are 44 px or more; the tabs, filter keys and copy keys 40 px. The layout follows the panel's own
 width (a container query), not the window's: on a phone two cards a row and the five tabs as icons over their words; three cards a row and the orders as a table from
 760 px; four cards from 1000 px. The panel can be up to 1200 px wide: the page that holds it sets the width (the starter's admin page is 900 px).
 
 The wallet sign-in stays yours (`signIn`), because only your game can start a request in the ADMIN scope with its own cookie. The panel never signs anyone in.
+
+## The friends list (`/friends`; unreleased)
+
+A Friends key for the game, and a list behind it. The admin's **Game** card chooses which list (`friends` in the settings; Nanoterra by default):
+
+| Choice | The word | What the player gets |
+|---|---|---|
+| Nanoterra | `"nanoterra"` | their **Nanoterra friends**, in a small nano133 window in the game. Friends on Nano Island see "Playing <game>" with Join. The friends stay on nano133: the game gets none of them. |
+| The game's own | `"own"` | a friends list of **the game's own players**, on the game's own database (this package's handler and stores). Nanoterra friends do not show. |
+| Off | `"off"` | nothing. |
+
+```ts
+import { mountFriends } from "@nano133/nanoterra/friends/panel";
+import "@nano133/nanoterra/friends/style.css";
+
+const settings = await (await fetch("/api/settings")).json();       // your route: loadGameSettings(store, defaults) from "@nano133/nanoterra/admin"
+const friends = mountFriends(document.getElementById("friends")!, {
+  mode: settings.friends,          // "nanoterra" | "own" | "off"
+  game: "echo-island",             // your game's id on Nanoterra (its listing's id)
+  where: "Lobby",                  // where the player is, in your words: friends see it
+  onJoin: (target, friend) => go(target),   // optional: "nanoterra" gives a friend's https address, "own" an invite's place
+});
+friends.setWhere("Level 2");       // when the player moves; null for no place
+// friends.open(), friends.close(), friends.destroy()
+```
+
+The key is 44 px, with a badge (requests and invites). The panel is a sheet from the bottom on a phone held upright and from the right on a wide or sideways screen;
+Escape and its close key close it. Theme it with the same `--n133-*` properties as the admin panel, and `--n133-friends-z` for its z-index (default 1000).
+
+### The nano133 window (contract v1 with the site)
+
+In `"nanoterra"` mode the panel holds an `<iframe>` of `https://nano133.com/embed/friends?game=<game>` (`origin` changes the host, for a test). The site lets only
+a **listed** game's own address frame it. This is the contract between the kit and the site, version 1 (agreed 2026-10-30):
+
+- **Loaded at once, kept while closed.** The window is made when `mountFriends` runs (no lazy loading) and stays while the panel is closed: it holds the player's
+  live connection to nano133's room server, which shows "Playing <game>" to their friends and keeps the badge true. Closed, it is hidden (`visibility: hidden`, moved
+  off the screen, `aria-hidden="true"` and `tabindex="-1"`), never `display: none` and never removed. `open` and `closed` change only the window's own view.
+  `destroy()` removes it.
+- **The frame:** `title="Your Nanoterra friends"`, `referrerpolicy="origin"`, `allow="storage-access"`, and
+  `sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-storage-access-by-user-activation"`: no top navigation,
+  so the window can never move the game's page.
+- **Messages** are objects `{ type, v: 1, ... }`. The kit sends with nano133's origin as the target, and hears a message only when `event.origin` is that origin AND
+  `event.source` is the frame's own window; a message with another `v`, another type or a bad field is ignored.
+
+| Direction | `type` | Fields | When |
+|---|---|---|---|
+| window → game | `n133-friends:ready` | | the window can hear messages |
+| game → window | `n133-friends:hello` | `game`, `where`, `open` | the answer to `ready` (nothing is sent before it) |
+| game → window | `n133-friends:where` | `where` | `setWhere` |
+| game → window | `n133-friends:open`, `n133-friends:closed` | | the panel opens or closes |
+| window → game | `n133-friends:badge` | `count` (0 to 99; the key shows "9+" from 10) | the window's count of new requests and invites |
+| window → game | `n133-friends:close` | | the window's own close key |
+| window → game | `n133-friends:join` | `url`, `name` | the player chose Join on a friend |
+
+- **`where` is plain text, and friends see it.** The kit removes control characters, trims it and cuts it to 64 characters before it sends it; it may send null (no
+  place). The site does the same again and shows it as text only.
+- **Join:** `url` is **https only** (no user name or password in it): an island friend gives `https://nano133.com/nanoterra?room=<code>`, a friend in a game gives that
+  game's listed address. The kit asks the player "Leave this game to join <name>?" first; then it calls `onJoin(url, { name })`, or goes to the address when there is no
+  `onJoin`.
+- **Safari, and any browser that blocks third-party cookies:** the window needs one "Show my friends" tap (the Storage Access API) on each page load of the game
+  before the player shows online there. Chrome with third-party cookies on needs none.
+
+### The game's own list
+
+The server part, `@nano133/nanoterra/friends`, has no database and reads no cookie: **the game gives a store, a directory of its players and its signed-in player**.
+
+```ts
+import { createFriendsHandler } from "@nano133/nanoterra/friends";
+import { createD1Friends } from "@nano133/nanoterra/friends/d1";
+
+const friends = createFriendsHandler({
+  store: createD1Friends(env.DB),                  // or createFirestoreFriends(getFirestore()), or createMemoryFriends() for a test
+  directory: {
+    byName: (name) => findPlayerIdByName(name),    // your players: an id for a name, or null
+    names: (ids) => namesOf(ids),                  // a Map of id -> the name to show
+  },
+  player: (req) => signedInPlayerId(req),         // YOUR player's sign-in (not the admin's): an id, or null
+  base: "/friends",                                // the default
+});
+const answer = await friends.handle(request);      // null when the request is not for /friends
+if (answer) return answer;
+```
+
+- `GET /friends` gives `{ showOnline, people }`: one row a person, `{ edge, name, state, online, where, invite }`, `state` one of `"friend"`, `"incoming"`,
+  `"outgoing"`, `"blocked"`. **No answer holds a player id:** a row names a player by the directory's name and an opaque `edge`.
+- `POST /friends` takes one `{ op, ... }`: `request { name }`, `accept`, `decline`, `remove`, `block`, `unblock { edge }`, `invite { edge, where }`, `pulse { where, lease }`
+  (`where` null: this tab leaves) and `visibility { showOnline }`. It answers the new view (a pulse answers `{ ok: true }`), or `{ error }` with words a player can read.
+- A visitor who is not signed in gets 401. A POST must come from the game's own page and a read must not come from another page (403). Each player has 30 calls a
+  minute (429); a body is at most 1 KB. A fault in the store is a plain 500 that shows nothing of it (`onError` hears it).
+
+**The rules** (every store keeps them; `friendsStoreConformance` proves it):
+
+- A pair of players has at most one edge: a request (from one of them), a friendship or a block. A request to a player who already asked you is an accept.
+- **A block wins** over a friendship or a request, and hides the pair from the player who is blocked, both ways. The player who blocked sees a "blocked" row, to
+  unblock it; unblock leaves no edge (not friends again). Neither can ask while a block stands.
+- `FRIEND_LIMIT` (100) live rows a player (friends, requests both ways, blocks): a full list refuses a new request, on either side.
+- A request nobody answers goes after `FRIEND_REQUEST_MS` (30 days): not shown, not counted.
+- An invite is only between friends, and the friend sees it for `FRIEND_INVITE_MS` (10 minutes). Its place is plain text, cut to 64 characters.
+- A friend is online only for `FRIEND_LIVE_MS` (2 minutes) after a pulse, and only while they show online. A pulse carries a lease for each tab, so an old tab that
+  leaves cannot clear a newer tab's place.
+- `forget(player)` (for "Delete my data") leaves no row of the player.
+
+**The stores.** Each writes ONLY its friend rows, presence rows and the show-online choice:
+
+- **D1:** add `@nano133/nanoterra/friends/d1.sql` to your migrations (the tables `friend_edges`, `friend_presence`, `friend_prefs`). D1 has no transaction that reads and
+  then writes, so each write is one statement with its own check: a change says which `rev` it read (a row that changed in between is refused, 409, "Try again"), and a
+  new edge counts both players' rows in the same INSERT.
+- **Firestore:** `createFirestoreFriends(db, { edges, presence, prefs })` (the default names `friend_edges`, `friend_presence`, `friend_prefs`). A pair is one document named
+  by a SHA-256 digest, so two requests at the same moment meet in their transactions; the indexes Firestore makes by itself are enough.
+- **Your own database:** write a `FriendsStore` and run the rules on it:
+
+```ts
+import { friendsStoreConformance } from "@nano133/nanoterra/friends/conformance";
+for (const c of friendsStoreConformance(async () => ({ store: newEmptyStore(), dump: () => allRowsAsText() }))) it(c.name, c.run);
+```
+
+**The panel in `"own"` mode** reads the view at once, every 20 s while open and every 60 s while closed (for the badge), pulses every 45 s while it has a `where`, and
+sends a leaving pulse when the page goes away. It draws Requests (Accept, Decline), Friends (online and the place, Invite to your `where`, Join an invite when you
+give `onJoin`, Remove, Block), Sent (Cancel) and Blocked (Unblock), an add-by-name field and the "show friends when I am online" choice. The game's own friends have
+no live connection: only Nanoterra's do.
 
 ## Moving from the three old packages
 

@@ -35,11 +35,12 @@ export function createMemoryStore(seed: { orders?: OrderRow[]; owned?: { player:
     pendingAdminRequests: 0,
     pendingGameRequests: 0,
     async readSettings() {
-      return { character: store.rows.get("setting:character"), signin: store.rows.get("setting:signin") };
+      return { character: store.rows.get("setting:character"), signin: store.rows.get("setting:signin"), friends: store.rows.get("setting:friends") };
     },
     async saveSettings(patch: GamePatch) {
       if (patch.character) store.rows.set("setting:character", patch.character);
       if (patch.signin) store.rows.set("setting:signin", patch.signin);
+      if (patch.friends) store.rows.set("setting:friends", patch.friends);
       store.writes++;
     },
     async summary(now: number): Promise<StoreSummary> {

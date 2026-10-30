@@ -334,24 +334,30 @@ test("GET game gives the defaults, and says that /admin has set nothing yet", as
   const { handler } = make();
   const res = (await call(handler, "/api/admin/game"))!;
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { character: "nanoterra", signin: "exchange", fromAdmin: { character: false, signin: false } });
+  assert.deepEqual(await res.json(), { character: "nanoterra", signin: "exchange", friends: "nanoterra", fromAdmin: { character: false, signin: false, friends: false } });
 });
 
-test("a press is saved, read back, and writes only the two setting rows", async () => {
+test("a press is saved, read back, and writes only the setting rows", async () => {
   const { handler, store } = make();
   const res = (await call(handler, "/api/admin/game", { method: "POST", body: JSON.stringify({ signin: "none" }) }))!;
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { character: "nanoterra", signin: "none", fromAdmin: { character: false, signin: true } });
+  assert.deepEqual(await res.json(), { character: "nanoterra", signin: "none", friends: "nanoterra", fromAdmin: { character: false, signin: true, friends: false } });
   const res2 = (await call(handler, "/api/admin/game", { method: "POST", body: JSON.stringify({ character: "own", signin: "exchange" }) }))!;
-  assert.deepEqual(await res2.json(), { character: "own", signin: "exchange", fromAdmin: { character: true, signin: true } });
+  assert.deepEqual(await res2.json(), { character: "own", signin: "exchange", friends: "nanoterra", fromAdmin: { character: true, signin: true, friends: false } });
   assert.deepEqual([...store.rows.keys()].sort(), ["setting:character", "setting:signin"]);
+  // The friends list is its own setting, with three words.
+  for (const friends of ["own", "off", "nanoterra"] as const) {
+    const res3 = (await call(handler, "/api/admin/game", { method: "POST", body: JSON.stringify({ friends }) }))!;
+    assert.deepEqual(await res3.json(), { character: "own", signin: "exchange", friends, fromAdmin: { character: true, signin: true, friends: true } });
+  }
+  assert.deepEqual([...store.rows.keys()].sort(), ["setting:character", "setting:friends", "setting:signin"]);
   assert.equal(store.orders.length, 0);
   assert.equal(store.owned.length, 0);
 });
 
 test("a bad press is refused with its reason and saves nothing", async () => {
   const { handler, store } = make();
-  for (const body of ['{"signin":"ticket"}', '{"character":"robot"}', '{"price":1}', "{}", "[]", "null", "not json", '{"signin":"none","extra":1}']) {
+  for (const body of ['{"signin":"ticket"}', '{"character":"robot"}', '{"friends":"on"}', '{"friends":true}', '{"price":1}', "{}", "[]", "null", "not json", '{"signin":"none","extra":1}']) {
     const res = (await call(handler, "/api/admin/game", { method: "POST", body }))!;
     assert.equal(res.status, 400, body);
   }
@@ -484,12 +490,18 @@ test("the base path must be a path", () => {
 
 test("loadGameSettings: the stored words, the defaults for a missing or odd word, and the defaults when the store fails", async () => {
   const store = createMemoryStore();
-  assert.deepEqual(await loadGameSettings(store, DEFAULTS), { character: "nanoterra", signin: "exchange", fromAdmin: { character: false, signin: false } });
+  assert.deepEqual(await loadGameSettings(store, DEFAULTS), { character: "nanoterra", signin: "exchange", friends: "nanoterra", fromAdmin: { character: false, signin: false, friends: false } });
   store.rows.set("setting:character", "own");
   store.rows.set("setting:signin", "ticket"); // not a word a press can set: ignored
-  assert.deepEqual(await loadGameSettings(store, DEFAULTS), { character: "own", signin: "exchange", fromAdmin: { character: true, signin: false } });
+  assert.deepEqual(await loadGameSettings(store, DEFAULTS), { character: "own", signin: "exchange", friends: "nanoterra", fromAdmin: { character: true, signin: false, friends: false } });
   const broken = { readSettings: async () => { throw new Error("down"); } };
-  assert.deepEqual(await loadGameSettings(broken, { character: "own", signin: "none" }), { character: "own", signin: "none", fromAdmin: { character: false, signin: false } });
+  assert.deepEqual(await loadGameSettings(broken, { character: "own", signin: "none" }), { character: "own", signin: "none", friends: "nanoterra", fromAdmin: { character: false, signin: false, friends: false } });
+  // The game's own word for the friends list is its default; a stored word wins; an odd stored word is ignored.
+  assert.equal((await loadGameSettings(createMemoryStore(), { ...DEFAULTS, friends: "off" })).friends, "off");
+  store.rows.set("setting:friends", "own");
+  assert.equal((await loadGameSettings(store, { ...DEFAULTS, friends: "off" })).friends, "own");
+  store.rows.set("setting:friends", "everyone");
+  assert.deepEqual((await loadGameSettings(store, DEFAULTS)).fromAdmin, { character: true, signin: false, friends: false });
 });
 
 // ---- what the security read found ----

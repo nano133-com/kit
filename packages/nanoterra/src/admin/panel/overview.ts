@@ -4,7 +4,7 @@
 import type { Look } from "../../looks/look.js";
 import { priceText } from "../../looks/ladder.js";
 import type { AdminSummary } from "../store.js";
-import { SWITCHES, stateOf, type GameState } from "../switches.js";
+import { FRIENDS_CHOICES, FRIENDS_TITLE, SWITCHES, stateOf, type GameState } from "../switches.js";
 import { dollars, h, plural } from "./dom.js";
 import { icon } from "./icons.js";
 import { orderRow, type OrderFilter } from "./orders.js";
@@ -29,7 +29,7 @@ export function bestSellers(s: Pick<AdminSummary, "orders" | "players">, looks: 
 export type OverviewView = {
   el: HTMLElement;
   update(s: AdminSummary): void;
-  /** The two switches as they are now (null: they could not be read). */
+  /** The game switches as they are now (null: they could not be read). */
   setGame(state: GameState | null): void;
 };
 
@@ -51,9 +51,10 @@ export function overviewView(looks: readonly Look[], colourOf: (lookId: string) 
       const on = game ? stateOf(id, game) : null;
       return h("li", {}, h("span", {}, SWITCHES[id].title), on === null ? h("span", { class: "pill" }, "Unknown") : h("span", { class: `pill ${on ? "pill-on" : "pill-off"}` }, on ? "On" : "Off"));
     });
+    if (game) rows.push(h("li", {}, h("span", {}, FRIENDS_TITLE), h("span", { class: `pill ${game.friends === "off" ? "pill-off" : "pill-on"}` }, FRIENDS_CHOICES[game.friends]?.name ?? "Unknown")));
     gameBox.replaceChildren(
       h("div", { class: "card-head" }, h("h2", { id: "n133-glance-game" }, "Game switches"), linkKey("Change", () => go("settings"))),
-      game ? h("ul", { class: "glance-list" }, ...rows) : h("p", { class: "fine" }, "The two switches could not be read. Reload the page to try again."),
+      game ? h("ul", { class: "glance-list" }, ...rows) : h("p", { class: "fine" }, "The game switches could not be read. Reload the page to try again."),
     );
   }
 

@@ -1,45 +1,71 @@
-// The two switches of the "Game" card in /admin, and the words that say what each does. The handler checks a press with `parsePatch`; the panel
-// draws the card from `SWITCHES`. A switch changes ONLY these two settings; never a look, a price or an order.
+// The switches of the "Game" card in /admin, and the words that say what each does. The handler checks a press with `parsePatch`; the panel
+// draws the card from `SWITCHES` and `FRIENDS_CHOICES`. A switch changes ONLY these three settings; never a look, a price or an order.
 
 /** Which character the player is: Nanoterra's island character (the one the player has there) or the game's own. */
 export type Character = "nanoterra" | "own";
 /** How the game signs a Nanoterra player in: the code exchange, a signed ticket (a game with no server), or not at all. */
 export type Signin = "exchange" | "ticket" | "none";
-export type GameSettings = { character: Character; signin: Signin };
+/**
+ * Which friends list the game shows: Nanoterra's (the nano133 window, "@nano133/nanoterra/friends/panel"), the game's own (its own players and store), or none.
+ * A three-way choice, not an On/Off switch.
+ */
+export type Friends = "nanoterra" | "own" | "off";
+/** The game's own words for the switches. `friends` may be left out: it is "nanoterra" then (on by default). */
+export type GameSettings = { character: Character; signin: Signin; friends?: Friends };
 /** What a press can set: sign-in is on ("exchange": a game with a server) or off ("none"). */
-export type GamePatch = { character?: Character; signin?: "exchange" | "none" };
+export type GamePatch = { character?: Character; signin?: "exchange" | "none"; friends?: Friends };
 /** The settings as they are now, and which ones /admin has set (the others still have the game's default). */
-export type GameState = GameSettings & { fromAdmin: { character: boolean; signin: boolean } };
+export type GameState = { character: Character; signin: Signin; friends: Friends; fromAdmin: { character: boolean; signin: boolean; friends: boolean } };
 
 export const isCharacter = (v: unknown): v is Character => v === "nanoterra" || v === "own";
 export const isSigninChoice = (v: unknown): v is "exchange" | "none" => v === "exchange" || v === "none";
 export const isSignin = (v: unknown): v is Signin => v === "exchange" || v === "ticket" || v === "none";
+export const isFriends = (v: unknown): v is Friends => v === "nanoterra" || v === "own" || v === "off";
+/** The friends list a game shows while neither its own words nor /admin say: Nanoterra's. */
+export const DEFAULT_FRIENDS: Friends = "nanoterra";
 /** The sign-in switch is on for any way but "none". */
 export const signinOn = (s: Signin): boolean => s !== "none";
 
 /** A request body for a press: only the two known words, at least one. Anything else is refused, with the reason in words. */
 export function parsePatch(body: unknown): { ok: true; patch: GamePatch } | { ok: false; error: string } {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, error: 'Send an object with "character" or "signin".' };
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, error: 'Send an object with "character", "signin" or "friends".' };
   const patch: GamePatch = {};
   for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
     if (key === "character" && isCharacter(value)) patch.character = value;
     else if (key === "signin" && isSigninChoice(value)) patch.signin = value;
+    else if (key === "friends" && isFriends(value)) patch.friends = value;
+    else if (key === "friends") return { ok: false, error: '"friends" must be "nanoterra", "own" or "off".' };
     else if (key === "character") return { ok: false, error: '"character" must be "nanoterra" or "own".' };
     else if (key === "signin") return { ok: false, error: '"signin" must be "exchange" or "none".' };
     else return { ok: false, error: `"${key}" is not a game switch.` };
   }
-  if (!Object.keys(patch).length) return { ok: false, error: 'Send "character" or "signin".' };
+  if (!Object.keys(patch).length) return { ok: false, error: 'Send "character", "signin" or "friends".' };
   return { ok: true, patch };
 }
 
 /** The settings from what the store kept and the game's defaults. A stored value that is not one of the known words is ignored. */
-export function mergeSettings(stored: { character?: unknown; signin?: unknown }, defaults: GameSettings): GameState {
+export function mergeSettings(stored: { character?: unknown; signin?: unknown; friends?: unknown }, defaults: GameSettings): GameState {
   return {
     character: isCharacter(stored.character) ? stored.character : defaults.character,
     signin: isSigninChoice(stored.signin) ? stored.signin : defaults.signin,
-    fromAdmin: { character: isCharacter(stored.character), signin: isSigninChoice(stored.signin) },
+    friends: isFriends(stored.friends) ? stored.friends : isFriends(defaults.friends) ? defaults.friends : DEFAULT_FRIENDS,
+    fromAdmin: { character: isCharacter(stored.character), signin: isSigninChoice(stored.signin), friends: isFriends(stored.friends) },
   };
 }
+
+/** The friends choice of the card: its title, and for each choice its short name (the card's three keys) and one plain sentence. Nanoterra's is the default. */
+export const FRIENDS_TITLE = "Friends list";
+export const FRIENDS_CHOICES: Record<Friends, { name: string; note: string }> = {
+  nanoterra: {
+    name: "Nanoterra",
+    note: "Nanoterra: a player signed in on nano133 sees their Nanoterra friends in a small nano133 frame in your game, and their friends see that they are playing it. The friends stay on nano133: your game gets none of them.",
+  },
+  own: {
+    name: "The game's own",
+    note: "The game's own: a friends list of this game's players, kept in this game's own database. Nanoterra friends do not show.",
+  },
+  off: { name: "Off", note: "Off: the game shows no friends list." },
+};
 
 /** One switch of the card: its title, and one plain sentence for each state. */
 export type SwitchId = "character" | "signin";

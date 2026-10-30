@@ -1679,7 +1679,16 @@
   font-size: 12px;
 }
 
-/* ---- The "Game" card: two switches (gameCard.ts). Each is a button of at least 44 px ---- */
+/* ---- The "Game" card: two switches and the friends choice (gameCard.ts). Each is a button of at least 44 px ---- */
+
+/* The friends choice: three keys in a row that wraps on a narrow phone, each 44 px tall. */
+.n133-admin .game-card .friends-row .switch-head {
+  flex-wrap: wrap;
+}
+
+.n133-admin .game-card .friends-choice .seg-btn {
+  min-height: 44px;
+}
 
 .n133-admin .game-card .switch-row {
   display: grid;

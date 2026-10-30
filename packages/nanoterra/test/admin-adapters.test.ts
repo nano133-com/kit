@@ -130,7 +130,7 @@ function d1Harness(withLogins = true): StoreHarness & { log: { sql: string; args
     },
     async snapshot() {
       const q = (sql: string) => JSON.stringify(db.prepare(sql).all());
-      return [q("SELECT * FROM orders ORDER BY id"), q("SELECT * FROM owned ORDER BY player, look_id"), q("SELECT * FROM meta WHERE key NOT IN ('setting:character', 'setting:signin') ORDER BY key")].join("|");
+      return [q("SELECT * FROM orders ORDER BY id"), q("SELECT * FROM owned ORDER BY player, look_id"), q("SELECT * FROM meta WHERE key NOT IN ('setting:character', 'setting:signin', 'setting:friends') ORDER BY key")].join("|");
     },
   };
 }
@@ -251,7 +251,7 @@ function firestoreHarness() {
     },
     async snapshot() {
       const dump = (name: string, skipKeys: string[] = []) => JSON.stringify([...f.col(name)].filter(([id]) => !skipKeys.includes(id)).sort(([a], [b]) => (a < b ? -1 : 1)));
-      return [dump("orders"), dump("owned"), dump("meta", ["setting:character", "setting:signin"])].join("|");
+      return [dump("orders"), dump("owned"), dump("meta", ["setting:character", "setting:signin", "setting:friends"])].join("|");
     },
   };
   return h;

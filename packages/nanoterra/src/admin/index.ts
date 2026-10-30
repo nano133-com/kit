@@ -2,7 +2,7 @@
 //
 //   adminAccess            the guard: one pure function, who may open /admin
 //   createAdminHandler     the routes, on Request and Response
-//   loadGameSettings       the two switches for the game's own routes
+//   loadGameSettings       the game switches for the game's own routes
 //   createMemoryStore      a store in memory, for tests
 //   (the conformance suite is its own path: "@nano133/nanoterra/admin/conformance"; the adapters are "/admin/d1" and "/admin/firestore")
 
@@ -17,5 +17,5 @@ export type { AdminLogin, AdminOrder, AdminPlayer, AdminStatus, AdminStore, Admi
 export { ORDERS_SHOWN, moneyOf, parseRate, shapeOrders, shapePlayers, statusOf, summarize } from "./summary.js";
 export type { OrderRow } from "./summary.js";
 export { RAW_PER_XNO, xnoText } from "./amount.js";
-export { CHARACTER_NEEDS_SIGNIN, CHARACTER_SIGNIN_OFF, REVIEW_LINK, REVIEW_NOTE, SWITCHES, isCharacter, isSignin, isSigninChoice, mergeSettings, parsePatch, pressOf, signinOn, stateOf } from "./switches.js";
-export type { Character, GamePatch, GameSettings, GameState, Signin, SwitchId } from "./switches.js";
+export { CHARACTER_NEEDS_SIGNIN, CHARACTER_SIGNIN_OFF, DEFAULT_FRIENDS, FRIENDS_CHOICES, FRIENDS_TITLE, REVIEW_LINK, REVIEW_NOTE, SWITCHES, isCharacter, isFriends, isSignin, isSigninChoice, mergeSettings, parsePatch, pressOf, signinOn, stateOf } from "./switches.js";
+export type { Character, Friends, GamePatch, GameSettings, GameState, Signin, SwitchId } from "./switches.js";

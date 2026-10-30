@@ -48,13 +48,13 @@ export type AdminLogin = { at: number; country: string | null; browser: string }
 export const ADMIN_LOGINS_SHOWN = 10;
 
 /**
- * The game's database, as the handler needs it. An adapter writes ONLY what these calls say: the two settings and, when the game turns it on, the deletion of the admin sessions
+ * The game's database, as the handler needs it. An adapter writes ONLY what these calls say: the three settings and, when the game turns it on, the deletion of the admin sessions
  * (`signOutEverywhere`). Nothing else.
  * (There is no call that writes a look, a price or an order: the Shelf gives text to copy, and a change of looks is a change of the repository.)
  */
 export interface AdminStore {
   /** The settings that /admin has saved. A value that is not a known word is ignored by the handler, so an adapter returns what it holds. */
-  readSettings(): Promise<{ character?: unknown; signin?: unknown }>;
+  readSettings(): Promise<{ character?: unknown; signin?: unknown; friends?: unknown }>;
   /** Saves a checked patch: all of it or none of it. */
   saveSettings(patch: GamePatch, now: number): Promise<void>;
   summary(now: number): Promise<StoreSummary>;

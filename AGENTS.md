@@ -63,8 +63,8 @@ prize. Follow `packages/three/ai/SPEC.md` step by step.
 
 Use it when a game wants the player's Nanoterra identity: a sign-in ticket (a game on a
 **static site**), the player's character in a Three.js scene, or the looks ladder for a game
-that sells looks. One package, three paths: `/ticket`, `/character` (and `/character/record`
-with no Three.js) and `/looks`. Follow `packages/nanoterra/ai/SPEC.md` step by step.
+that sells looks, or a friends list. One package; the main paths: `/ticket`, `/character` (and `/character/record`
+with no Three.js), `/looks` and `/friends`. Follow `packages/nanoterra/ai/SPEC.md` step by step.
 
 - **The ticket** (`/ticket`): a game with a server uses the code exchange, not this. A ticket
   proves nothing to a server: never give a sale, a prize or a score on it. Ask "Sign in as
@@ -86,6 +86,12 @@ with no Three.js) and `/looks`. Follow `packages/nanoterra/ai/SPEC.md` step by s
   is an item of the game's own wear slot (a tool's skin, a charm) and has no `change`. Never change or
   remove the id, or change the wear slot, of a look that someone owns. Never send looks, prices or
   sales to another site.
+- **The friends list** (`/friends`, `/friends/panel`): the admin's `friends` setting chooses it, `"nanoterra"`
+  (the default: the nano133 window), `"own"` (the game's own players on the game's own database) or `"off"`. Mount
+  the panel when the game starts and never hide it with `display: none`: the nano133 window holds the player's live
+  connection. `where` is plain text that friends see. For `"own"`, the handler's `player(req)` reads the game's
+  PLAYER sign-in, never the admin's; call `forget(player)` from "Delete my data"; a store the game writes itself
+  passes `friendsStoreConformance` first. Never send a player id to the browser.
 
 ## Working in this repository
 

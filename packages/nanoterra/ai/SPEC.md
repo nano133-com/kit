@@ -1,8 +1,8 @@
 # Nanoterra for a game: implementation spec
 
 Package: `@nano133/nanoterra` (0.1.0 or later). Follow these steps in order. Each step ends with a check. Ask the owner when a step says
-"ask". The package has four parts, on four paths: the sign-in ticket (`/ticket`), the player's character (`/character`, Three.js), the
-looks ladder (`/looks`) and held input that does not stick (`/input`). Use only the parts the game needs. It has no network, wallet or Nano code. Read the package README first.
+"ask". The package has five parts: the sign-in ticket (`/ticket`), the player's character (`/character`, Three.js), the
+looks ladder (`/looks`), held input that does not stick (`/input`) and the friends list (`/friends`, with its panel). Use only the parts the game needs. It has no network, wallet or Nano code. Read the package README first.
 
 ## 0. What the owner decides (ask)
 
@@ -13,6 +13,7 @@ looks ladder (`/looks`) and held input that does not stick (`/input`). Use only 
 3. The quality: `"high"` (toon body and ink outline, 2 draws) or `"low"` (no outline, 1 draw, for slow phones).
 4. How the game moves the character: speed in metres a second, gravity and jump. The package animates; it does not move the object.
 5. Does the game sell looks? If yes, the game is the seller (its own checkout); see step 7.
+6. The friends list (step 9): Nanoterra's (the default), the game's own, or none. It is the admin's `friends` setting; ask which one the game starts with.
 
 **Check:** the owner has named the server (yes or no), the source of the character and the quality.
 
@@ -117,7 +118,28 @@ import { pauseWhenLeft, releaseWhenLost, swallowsKeyup } from "@nano133/nanoterr
 
 **Check:** hold a move key, hide the tab or switch windows, come back: the character stands still until the key is pressed again.
 
-## 9. Do not
+## 9. The friends list (the admin's `friends` setting)
+
+```ts
+import { mountFriends } from "@nano133/nanoterra/friends/panel";
+import "@nano133/nanoterra/friends/style.css";
+```
+
+- Read the setting on the server with `loadGameSettings(store, defaults)` (`friends` is `"nanoterra"`, `"own"` or `"off"`) and pass it as `mode`. Do not read it in a
+  second place.
+- `"nanoterra"`: `mountFriends(el, { mode, game })` with the game's id on Nanoterra. Mount it when the game starts, not when the key is pressed: the window holds the
+  player's live connection. Never hide its element with `display: none` or remove it; `destroy()` is for the end of the game. Call `setWhere(text)` when the player moves
+  (plain text, friends see it). Give `onJoin` only to save the game before it leaves; the kit asks the player first and accepts only https addresses.
+- `"own"`: add `createFriendsHandler({ store, directory, player })` from `@nano133/nanoterra/friends` to the server, with `createD1Friends(env.DB)` (add
+  `@nano133/nanoterra/friends/d1.sql` to the migrations) or `createFirestoreFriends(db)`. `player(req)` reads the game's own PLAYER sign-in, never the admin's.
+  `directory.byName` and `directory.names` read the game's own player names. Call `store.forget(player)` from the game's "Delete my data".
+- A store of the game's own (another database) passes `friendsStoreConformance` from `@nano133/nanoterra/friends/conformance` before it is used.
+
+**Check:** with `"nanoterra"`, the key shows and the window loads at once (the network tab shows `/embed/friends` before the key is pressed). With `"own"`, two players
+in two browsers: one adds the other by name, the other accepts, both show online with their place, an invite shows, a block hides the blocker from the other. With
+`"off"`, no key.
+
+## 10. Do not
 
 - Do not edit the geometry, the skeleton or the toon and ink materials.
 - Do not add the katana, the headband or other brands' art. A game's own worn model goes on a socket (`c.socket("head" | "hand" | "back")` or

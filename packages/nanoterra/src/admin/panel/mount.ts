@@ -69,7 +69,7 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
   let gameState: GameState | null = null;
   let dash: Dashboard | null = null;
 
-  /** The card, made once. A fault in reading the two switches must not hide the orders: the card is left out and the rest still shows. */
+  /** The card, made once. A fault in reading the game switches must not hide the orders: the card is left out and the rest still shows. */
   async function gameSection(): Promise<HTMLElement | null> {
     if (game) return game;
     try {

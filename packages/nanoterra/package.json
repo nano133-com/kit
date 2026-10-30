@@ -1,7 +1,7 @@
 {
   "name": "@nano133/nanoterra",
   "version": "0.5.0",
-  "description": "Nanoterra for a creator's game, in one package: the player's sign-in ticket, the player's character (a toon body on the island's skeleton) and the looks ladder.",
+  "description": "Nanoterra for a creator's game, in one package: the player's sign-in ticket, the player's character (a toon body on the island's skeleton), the looks ladder, the admin and the friends list.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -18,7 +18,14 @@
     "./admin/d1": { "types": "./dist/admin/adapters/d1.d.ts", "import": "./dist/admin/adapters/d1.js" },
     "./admin/firestore": { "types": "./dist/admin/adapters/firestore.d.ts", "import": "./dist/admin/adapters/firestore.js" },
     "./admin/panel": { "types": "./dist/admin/panel/index.d.ts", "import": "./dist/admin/panel/index.js" },
-    "./admin/style.css": "./src/admin/panel/style.css"
+    "./admin/style.css": "./src/admin/panel/style.css",
+    "./friends": { "types": "./dist/friends/index.d.ts", "import": "./dist/friends/index.js" },
+    "./friends/conformance": { "types": "./dist/friends/conformance.d.ts", "import": "./dist/friends/conformance.js" },
+    "./friends/d1": { "types": "./dist/friends/adapters/d1.d.ts", "import": "./dist/friends/adapters/d1.js" },
+    "./friends/d1.sql": "./src/friends/adapters/d1.sql",
+    "./friends/firestore": { "types": "./dist/friends/adapters/firestore.d.ts", "import": "./dist/friends/adapters/firestore.js" },
+    "./friends/panel": { "types": "./dist/friends/panel/index.d.ts", "import": "./dist/friends/panel/index.js" },
+    "./friends/style.css": "./src/friends/panel/style.css"
   },
   "sideEffects": false,
   "files": ["dist", "src", "README.md", "CHANGELOG.md", "LICENSE", "ai"],
@@ -46,5 +53,5 @@
   },
   "homepage": "https://nano133.com/build/nanoterra",
   "license": "MIT",
-  "keywords": ["nano", "gltf", "glb", "model check", "xno", "nanoterra", "sign in", "ticket", "character", "avatar", "three", "three.js", "toon", "looks", "cosmetics"]
+  "keywords": ["nano", "gltf", "glb", "model check", "xno", "nanoterra", "sign in", "ticket", "character", "avatar", "three", "three.js", "toon", "looks", "cosmetics", "friends", "friends list"]
 }
