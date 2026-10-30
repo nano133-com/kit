@@ -53,6 +53,11 @@
   text-align: center;
 }
 
+/* No requests: the badge counts the friends online, in the gem colour. */
+.n133-friends .n133f-badge.is-online {
+  background: var(--gem-dark);
+}
+
 .n133-friends .n133f-panel {
   position: fixed;
   z-index: var(--n133-friends-z, 1000);

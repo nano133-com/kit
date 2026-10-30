@@ -684,47 +684,47 @@ const friends = mountFriends(document.getElementById("friends")!, {
   mode: settings.friends,          // "nanoterra" | "own" | "off"
   game: "echo-island",             // your game's id on Nanoterra (its listing's id)
   where: "Lobby",                  // where the player is, in your words: friends see it
-  onJoin: (target, friend) => go(target),   // optional: "nanoterra" gives a friend's https address, "own" an invite's place
+  onJoin: (target) => go(target),  // optional: "nanoterra" gives a friend's https address, "own" an invite's place (and the friend's name)
 });
 friends.setWhere("Level 2");       // when the player moves; null for no place
 // friends.open(), friends.close(), friends.destroy()
 ```
 
-The key is 44 px, with a badge (requests and invites). The panel is a sheet from the bottom on a phone held upright and from the right on a wide or sideways screen;
+The key is 44 px, with a badge (the requests, or else the friends online). The panel is a sheet from the bottom on a phone held upright and from the right on a wide or sideways screen;
 Escape and its close key close it. Theme it with the same `--n133-*` properties as the admin panel, and `--n133-friends-z` for its z-index (default 1000).
 
 ### The nano133 window (contract v1 with the site)
 
-In `"nanoterra"` mode the panel holds an `<iframe>` of `https://nano133.com/embed/friends?game=<game>` (`origin` changes the host, for a test). The site lets only
-a **listed** game's own address frame it. This is the contract between the kit and the site, version 1 (agreed 2026-10-30):
+In `"nanoterra"` mode the panel holds an `<iframe>` of `https://nano133.com/embed/friends?game=<gameId>&v=1` (`origin` changes the host, for a test). The site lets
+only a **listed** game's own address frame it. This is the contract between the kit and the site, version 1 (accepted by the site on 2026-10-30):
 
 - **Loaded at once, kept while closed.** The window is made when `mountFriends` runs (no lazy loading) and stays while the panel is closed: it holds the player's
   live connection to nano133's room server, which shows "Playing <game>" to their friends and keeps the badge true. Closed, it is hidden (`visibility: hidden`, moved
   off the screen, `aria-hidden="true"` and `tabindex="-1"`), never `display: none` and never removed. `open` and `closed` change only the window's own view.
   `destroy()` removes it.
-- **The frame:** `title="Your Nanoterra friends"`, `referrerpolicy="origin"`, `allow="storage-access"`, and
+- **The frame:** `title="Friends"`, `referrerpolicy="origin"`, `allow="storage-access"`, and
   `sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-storage-access-by-user-activation"`: no top navigation,
   so the window can never move the game's page.
-- **Messages** are objects `{ type, v: 1, ... }`. The kit sends with nano133's origin as the target, and hears a message only when `event.origin` is that origin AND
-  `event.source` is the frame's own window; a message with another `v`, another type or a bad field is ignored.
+- **Messages** are objects `{ source: "nanoterra-friends", v: 1, type, ... }`, both ways. The window sends with `parent.postMessage(msg, <the game's origin>)`; the kit
+  sends with `iframe.contentWindow.postMessage(msg, <nano133's origin>)`. Both sides check `event.origin` and `event.source`. A message with another `source`, another
+  `v`, another type or a bad field is ignored. **No message carries an address, a pass or a player id.**
 
-| Direction | `type` | Fields | When |
+| Direction | `type` | Fields | What the other side does |
 |---|---|---|---|
-| window → game | `n133-friends:ready` | | the window can hear messages |
-| game → window | `n133-friends:hello` | `game`, `where`, `open` | the answer to `ready` (nothing is sent before it) |
-| game → window | `n133-friends:where` | `where` | `setWhere` |
-| game → window | `n133-friends:open`, `n133-friends:closed` | | the panel opens or closes |
-| window → game | `n133-friends:badge` | `count` (0 to 99; the key shows "9+" from 10) | the window's count of new requests and invites |
-| window → game | `n133-friends:close` | | the window's own close key |
-| window → game | `n133-friends:join` | `url`, `name` | the player chose Join on a friend |
+| window → game | `ready` | | the window has loaded. The kit answers at once with `where`, then `open` or `closed` (it sends nothing before `ready`). |
+| window → game | `size` | `height` (CSS pixels its content needs) | the kit sets the frame's height to it, at most the panel's own height |
+| window → game | `badge` | `online`, `requests` (each 0 to 99) | the key's badge shows the requests (the thing to do) when there are any, else the friends online in the gem colour; "9+" from 10. The key's name says both ("Friends, 2 requests, 5 online"). |
+| window → game | `join` | `url` | the player chose Join on a friend. The kit asks "Leave this game to join your friend?" (the window sends no name), then calls `onJoin(url)`, or goes to the address when there is no `onJoin`. |
+| window → game | `signin` | | the window needs a tap for Storage Access, inside itself. The panel stays as it is; the kit does nothing else. |
+| game → window | `where` | `where` (text or null) | after `ready`, and again on each `setWhere` |
+| game → window | `open`, `closed` | | after `ready` (after `where`), and when the panel opens or closes |
 
 - **`where` is plain text, and friends see it.** The kit removes control characters, trims it and cuts it to 64 characters before it sends it; it may send null (no
   place). The site does the same again and shows it as text only.
 - **Join:** `url` is **https only** (no user name or password in it): an island friend gives `https://nano133.com/nanoterra?room=<code>`, a friend in a game gives that
-  game's listed address. The kit asks the player "Leave this game to join <name>?" first; then it calls `onJoin(url, { name })`, or goes to the address when there is no
-  `onJoin`.
+  game's listed address.
 - **Safari, and any browser that blocks third-party cookies:** the window needs one "Show my friends" tap (the Storage Access API) on each page load of the game
-  before the player shows online there. Chrome with third-party cookies on needs none.
+  before the player shows online there (the window says `signin` when it shows that tap). Chrome with third-party cookies on needs none.
 
 ### The game's own list
 

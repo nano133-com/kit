@@ -5,9 +5,10 @@
 - **A friends list for the game's players** (`@nano133/nanoterra/friends`, `/friends/d1`, `/friends/firestore`, `/friends/conformance`, `/friends/panel` and
   `/friends/style.css`). The admin's Game card has a third choice, **"Friends list: Nanoterra / The game's own / Off"** (Nanoterra by default):
   - **Nanoterra:** `mountFriends(el, { mode: "nanoterra", game })` puts a Friends key in the game and holds nano133's friends window
-    (`https://nano133.com/embed/friends?game=<id>`) in its panel. The friends stay on nano133; the game gets none of them, only a count for the badge and a
-    friend's https address to join (the kit asks the player first). The window is loaded at once and kept while the panel is closed, because it holds the
-    player's live connection ("Playing <game>" for their friends). The messages are contract v1 with the site (README, "The nano133 window").
+    (`https://nano133.com/embed/friends?game=<id>&v=1`) in its panel. The friends stay on nano133; the game gets none of them, only the window's height, two
+    counts for the badge (requests, else friends online) and a friend's https address to join (the kit asks the player first). The window
+    is loaded at once and kept while the panel is closed, because it holds the player's live connection ("Playing <game>" for their friends). The messages
+    are contract v1 with the site, `{ source: "nanoterra-friends", v: 1, type }` (README, "The nano133 window").
   - **The game's own:** a full friends list of the game's own players on the game's own database: requests (by name, through the game's `PlayerDirectory`),
     accept, decline, remove, block and unblock, invites ("come to Level 2"), and online with a place. `createFriendsHandler` gives the routes (GET the view,
     POST an op; same origin, 30 calls a minute for each player; no answer holds a player id). The stores: `createMemoryFriends`, `createD1Friends` (with the

@@ -9,5 +9,5 @@
 
 export { FRIENDS_TIMING, mountFriends } from "./mount.js";
 export type { FriendsMode, FriendsMountOptions, MountedFriends } from "./mount.js";
-export { WINDOW_PREFIX, WINDOW_V, readWindowMessage, whereText, windowUrl } from "./window.js";
+export { WINDOW_SOURCE, WINDOW_V, readWindowMessage, toWindow, whereText, windowUrl } from "./window.js";
 export type { FromWindow, ToWindow } from "./window.js";

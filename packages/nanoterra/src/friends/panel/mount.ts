@@ -3,7 +3,8 @@
 //
 //   "nanoterra"  the key opens the nano133 window (./window.ts, contract v1). The window is made at once and kept while the panel is closed: it holds
 //                the player's live connection, which tells their friends "Playing <game>" and keeps the badge true. Closed, it is hidden (not shown,
-//                off the screen, out of the tab order), never removed or `display: none`. `destroy()` removes it.
+//                off the screen, out of the tab order), never removed or `display: none`. `destroy()` removes it. The badge shows the requests
+//                (the thing to do) when there are any, else the friends online, in another colour.
 //   "own"        the key opens the game's own list, from the handler of "@nano133/nanoterra/friends" at `base`: the view every 20 s while open (every
 //                60 s while closed, for the badge), a pulse every 45 s with this tab's lease, and a "leave" pulse when the page goes away.
 //   "off"        nothing is drawn.
@@ -14,7 +15,7 @@ import { ApiError, createApi, type Api } from "../../admin/panel/api.js";
 import { h } from "../../admin/panel/dom.js";
 import { icon } from "../../admin/panel/icons.js";
 import type { FriendRow, FriendView } from "../types.js";
-import { WINDOW_V, readWindowMessage, whereText, windowUrl, type ToWindow } from "./window.js";
+import { readWindowMessage, toWindow, whereText, windowUrl, type ToWindow } from "./window.js";
 
 export type FriendsMode = "nanoterra" | "own" | "off";
 
@@ -29,10 +30,11 @@ export type FriendsMountOptions = {
   /** Where the player is now, in the game's own words ("Level 2", a room): friends see it. Plain text, at most 64 characters. Change it with `setWhere`. */
   where?: string | null;
   /**
-   * The player chose to join a friend. "nanoterra": `target` is the friend's https address (the kit has asked the player already); with no `onJoin`
-   * the page goes there. "own": `target` is the `where` of the friend's invite, for the game to move the player (with no `onJoin`, there is no Join key).
+   * The player chose to join a friend. "nanoterra": `target` is the friend's https address (the kit has asked the player already) and there is no
+   * `friend` (the window sends no name); with no `onJoin` the page goes there. "own": `target` is the `where` of the friend's invite, for the game to
+   * move the player, and `friend` names them (with no `onJoin`, there is no Join key).
    */
-  onJoin?: (target: string, friend: { name: string }) => void;
+  onJoin?: (target: string, friend?: { name: string }) => void;
   /** The `fetch` to use (default: the page's). */
   fetch?: typeof fetch;
   /** Asks the player a yes or no question (default: `window.confirm`). */
@@ -75,10 +77,14 @@ export function mountFriends(root: HTMLElement, options: FriendsMountOptions): M
   const wrap = h("div", { class: "n133-friends" }, key, panel);
   root.append(wrap);
 
-  const setBadge = (count: number) => {
-    badge.hidden = count <= 0;
-    badge.textContent = count > 9 ? "9+" : String(count);
-    key.setAttribute("aria-label", count > 0 ? `Friends, ${count} new` : "Friends");
+  /** The requests (the thing to do) when there are any, else the friends online (another colour). The key's name says both. */
+  const setBadge = ({ requests, online }: { requests: number; online: number }) => {
+    const shown = requests > 0 ? requests : online;
+    badge.hidden = shown <= 0;
+    badge.classList.toggle("is-online", requests <= 0 && online > 0);
+    badge.textContent = shown > 9 ? "9+" : String(shown);
+    const parts = [requests > 0 ? `${requests} ${requests === 1 ? "request" : "requests"}` : "", online > 0 ? `${online} online` : ""].filter(Boolean);
+    key.setAttribute("aria-label", parts.length ? `Friends, ${parts.join(", ")}` : "Friends");
   };
 
   let onOpen = () => {};
@@ -114,7 +120,7 @@ export function mountFriends(root: HTMLElement, options: FriendsMountOptions): M
     const frame = h("iframe", {
       class: "n133f-window",
       src: windowUrl(origin, options.game),
-      title: "Your Nanoterra friends",
+      title: "Friends",
       referrerpolicy: "origin",
       allow: "storage-access",
       sandbox: "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-storage-access-by-user-activation",
@@ -136,28 +142,34 @@ export function mountFriends(root: HTMLElement, options: FriendsMountOptions): M
     };
     onOpen = () => {
       hideFrame(false);
-      send({ type: "n133-friends:open", v: WINDOW_V });
+      send(toWindow({ type: "open" }));
     };
     onClose = () => {
       hideFrame(true);
-      send({ type: "n133-friends:closed", v: WINDOW_V });
+      send(toWindow({ type: "closed" }));
     };
-    setWhereHere = (w) => send({ type: "n133-friends:where", v: WINDOW_V, where: w });
+    setWhereHere = (w) => send(toWindow({ type: "where", where: w }));
     const onMessage = (e: MessageEvent) => {
       // Only the window itself, from nano133's origin.
       if (e.origin !== origin || e.source !== frame.contentWindow) return;
       const m = readWindowMessage(e.data);
       if (!m) return;
-      if (m.type === "n133-friends:ready") {
+      if (m.type === "ready") {
+        // Right after ready: where the player is, then whether the panel is open.
         ready = true;
-        send({ type: "n133-friends:hello", v: WINDOW_V, game: options.game, where, open: isOpen });
-      } else if (m.type === "n133-friends:badge") setBadge(m.count);
-      else if (m.type === "n133-friends:close") close();
-      else if (m.type === "n133-friends:join") {
-        if (!ask(`Leave this game to join ${m.name}?`)) return;
-        if (options.onJoin) options.onJoin(m.url, { name: m.name });
+        send(toWindow({ type: "where", where }));
+        send(toWindow({ type: isOpen ? "open" : "closed" }));
+      } else if (m.type === "size") {
+        // The height its content needs, at most the panel's own room.
+        const room = body.clientHeight;
+        frame.style.height = `${room > 0 ? Math.min(m.height, room) : m.height}px`;
+      } else if (m.type === "badge") setBadge(m);
+      else if (m.type === "join") {
+        if (!ask("Leave this game to join your friend?")) return;
+        if (options.onJoin) options.onJoin(m.url);
         else window.location.assign(m.url);
       }
+      // "signin": the window needs a tap (Storage Access) inside itself. The panel stays as it is; the kit does nothing else.
     };
     window.addEventListener("message", onMessage);
     cleanup.push(() => window.removeEventListener("message", onMessage));
@@ -186,7 +198,7 @@ export function mountFriends(root: HTMLElement, options: FriendsMountOptions): M
 }
 
 /** The game's own list in `body`. */
-function ownList(body: HTMLElement, options: FriendsMountOptions, whereNow: () => string | null, setBadge: (n: number) => void, ask: (q: string) => boolean) {
+function ownList(body: HTMLElement, options: FriendsMountOptions, whereNow: () => string | null, setBadge: (n: { requests: number; online: number }) => void, ask: (q: string) => boolean) {
   const api: Api = createApi(options.base ?? "/friends", options.fetch);
   const lease = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
   const status = h("p", { class: "n133f-status", role: "status", "aria-live": "polite" });
@@ -209,8 +221,8 @@ function ownList(body: HTMLElement, options: FriendsMountOptions, whereNow: () =
   const draw = () => {
     if (!view) return;
     show.checked = view.showOnline;
-    const unread = view.people.filter((p) => p.state === "incoming" || (p.state === "friend" && p.invite)).length;
-    setBadge(unread);
+    const requests = view.people.filter((p) => p.state === "incoming" || (p.state === "friend" && p.invite)).length;
+    setBadge({ requests, online: view.people.filter((p) => p.state === "friend" && p.online).length });
     const groups: [string, FriendRow[]][] = [
       ["Requests", view.people.filter((p) => p.state === "incoming")],
       ["Friends", view.people.filter((p) => p.state === "friend")],

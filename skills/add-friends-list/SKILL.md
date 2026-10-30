@@ -13,6 +13,9 @@ Follow step 9 of the package's `ai/SPEC.md` (https://nano133.com/build/nanoterra
 2. Mount the key when the game starts: `mountFriends(el, { mode, game })`, with the stylesheet
    `@nano133/nanoterra/friends/style.css`. Never `display: none` it; `destroy()` only at the end.
 3. Call `setWhere(text)` when the player moves. It is plain text and friends see it.
+   The kit and nano133's window speak contract v1 (README, "The nano133 window"):
+   messages `{ source: "nanoterra-friends", v: 1, type }`, the window at
+   `/embed/friends?game=<id>&v=1`. Do not post to the window yourself.
 4. The game's own list: add `createFriendsHandler({ store, directory, player })` at `/friends`,
    with `createD1Friends` (add `friends/d1.sql` to the migrations) or `createFirestoreFriends`.
    `player(req)` is the PLAYER sign-in, never the admin's.

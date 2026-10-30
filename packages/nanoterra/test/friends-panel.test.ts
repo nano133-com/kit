@@ -32,28 +32,39 @@ const root = () => {
 
 // ---- the window's messages, pure ----
 
-test("the window's address and the where text (control characters out, 64 characters at most, null when empty)", () => {
-  assert.equal(windowUrl(NANO, "my game/1"), "https://nano133.com/embed/friends?game=my%20game%2F1");
+const W = { source: "nanoterra-friends", v: 1 } as const;
+
+test("the window's address (with v=1) and the where text (control characters out, 64 characters at most, null when empty)", () => {
+  assert.equal(windowUrl(NANO, "my game/1"), "https://nano133.com/embed/friends?game=my%20game%2F1&v=1");
   assert.equal(whereText("  Level\u0000 2\n "), "Level 2");
   assert.equal(Array.from(whereText("é".repeat(100))!).length, 64);
   assert.equal(whereText(" \t\n "), null);
   assert.equal(whereText(42), null);
 });
 
-test("a message from the window is read field by field; anything odd is ignored", () => {
-  assert.deepEqual(readWindowMessage({ type: "n133-friends:ready", v: 1 }), { type: "n133-friends:ready", v: 1 });
-  assert.deepEqual(readWindowMessage({ type: "n133-friends:badge", v: 1, count: 250 }), { type: "n133-friends:badge", v: 1, count: 99 });
-  assert.deepEqual(readWindowMessage({ type: "n133-friends:badge", v: 1, count: "x" }), { type: "n133-friends:badge", v: 1, count: 0 });
-  assert.deepEqual(readWindowMessage({ type: "n133-friends:join", v: 1, url: "https://nano133.com/nanoterra?room=abcde", name: "Ann\u0000" }), { type: "n133-friends:join", v: 1, url: "https://nano133.com/nanoterra?room=abcde", name: "Ann" });
+test("a message from the window is read field by field; another source, another v or a bad field is ignored", () => {
+  assert.deepEqual(readWindowMessage({ ...W, type: "ready" }), { ...W, type: "ready" });
+  assert.deepEqual(readWindowMessage({ ...W, type: "signin" }), { ...W, type: "signin" });
+  assert.deepEqual(readWindowMessage({ ...W, type: "size", height: 412.4 }), { ...W, type: "size", height: 413 });
+  assert.deepEqual(readWindowMessage({ ...W, type: "badge", online: 250, requests: 2 }), { ...W, type: "badge", online: 99, requests: 2 });
+  assert.deepEqual(readWindowMessage({ ...W, type: "join", url: "https://nano133.com/nanoterra?room=abcde" }), { ...W, type: "join", url: "https://nano133.com/nanoterra?room=abcde" });
   for (const bad of [
     null,
-    "n133-friends:ready",
-    { type: "n133-friends:ready", v: 2 },
-    { type: "n133-friends:other", v: 1 },
-    { type: "n133-friends:join", v: 1, url: "javascript:alert(1)", name: "x" },
-    { type: "n133-friends:join", v: 1, url: "http://game.example/", name: "x" },
-    { type: "n133-friends:join", v: 1, url: "https://user:pw@game.example/", name: "x" },
-    { type: "n133-friends:join", v: 1, url: "not a url", name: "x" },
+    "ready",
+    { type: "ready", v: 1 },
+    { source: "other", v: 1, type: "ready" },
+    { ...W, v: 2, type: "ready" },
+    { ...W, type: "hello" },
+    { ...W, type: "close" },
+    { ...W, type: "size", height: -1 },
+    { ...W, type: "size", height: "big" },
+    { ...W, type: "badge", online: 1 },
+    { ...W, type: "badge", online: 1, requests: -2 },
+    { ...W, type: "badge", online: "1", requests: 0 },
+    { ...W, type: "join", url: "javascript:alert(1)" },
+    { ...W, type: "join", url: "http://game.example/" },
+    { ...W, type: "join", url: "https://user:pw@game.example/" },
+    { ...W, type: "join", url: "not a url" },
   ]) assert.equal(readWindowMessage(bad), null, JSON.stringify(bad));
 });
 
@@ -88,12 +99,12 @@ function nanoterra(over: Partial<Parameters<typeof mountFriends>[1]> = {}) {
 
 test("nanoterra: the window is made at once (not lazy), with the agreed address and attributes, and hidden while closed", () => {
   const { el, f, frame } = nanoterra();
-  assert.equal(frame.getAttribute("src"), "https://nano133.com/embed/friends?game=echo-island");
+  assert.equal(frame.getAttribute("src"), "https://nano133.com/embed/friends?game=echo-island&v=1");
+  assert.equal(frame.getAttribute("title"), "Friends");
   assert.equal(frame.getAttribute("loading"), null, "no lazy loading");
   assert.equal(frame.getAttribute("referrerpolicy"), "origin");
-  assert.match(frame.getAttribute("sandbox")!, /allow-scripts/);
-  assert.match(frame.getAttribute("sandbox")!, /allow-storage-access-by-user-activation/);
-  assert.doesNotMatch(frame.getAttribute("sandbox")!, /allow-top-navigation/, "the window cannot move the game's page");
+  assert.equal(frame.getAttribute("allow"), "storage-access");
+  assert.equal(frame.getAttribute("sandbox"), "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-storage-access-by-user-activation");
   const panel = el.querySelector(".n133f-panel") as HTMLElement;
   assert.equal(panel.dataset.open, "false");
   assert.equal(frame.getAttribute("aria-hidden"), "true");
@@ -108,55 +119,71 @@ test("nanoterra: the window is made at once (not lazy), with the agreed address 
   assert.equal(el.querySelector("iframe"), null, "destroy removes it");
 });
 
-test("nanoterra: hello after ready (with the where and the open state), then where, open and closed; nothing is sent before ready", () => {
+test("nanoterra: right after ready the kit sends where, then open or closed; then where on each setWhere, and open and closed; nothing before ready", () => {
   const { f, sent, say } = nanoterra();
   f.setWhere("Level 2");
   f.open();
   assert.deepEqual(sent, [], "nothing before the window says ready");
-  say({ type: "n133-friends:ready", v: 1 });
-  assert.deepEqual(sent.shift(), { type: "n133-friends:hello", v: 1, game: "echo-island", where: "Level 2", open: true });
+  say({ ...W, type: "ready" });
+  assert.deepEqual(sent.splice(0), [{ ...W, type: "where", where: "Level 2" }, { ...W, type: "open" }]);
   f.setWhere("  Boss\u0007 room ");
-  assert.deepEqual(sent.shift(), { type: "n133-friends:where", v: 1, where: "Boss room" });
+  assert.deepEqual(sent.shift(), { ...W, type: "where", where: "Boss room" });
   f.setWhere(null);
-  assert.deepEqual(sent.shift(), { type: "n133-friends:where", v: 1, where: null });
+  assert.deepEqual(sent.shift(), { ...W, type: "where", where: null });
   f.close();
-  assert.deepEqual(sent.shift(), { type: "n133-friends:closed", v: 1 });
+  assert.deepEqual(sent.shift(), { ...W, type: "closed" });
   f.open();
-  assert.deepEqual(sent.shift(), { type: "n133-friends:open", v: 1 });
+  assert.deepEqual(sent.shift(), { ...W, type: "open" });
+  assert.equal(sent.length, 0);
   f.destroy();
+  const closed = nanoterra({ where: null });
+  closed.say({ ...W, type: "ready" });
+  assert.deepEqual(closed.sent, [{ ...W, type: "where", where: null }, { ...W, type: "closed" }]);
+  closed.f.destroy();
 });
 
-test("nanoterra: only the window itself, from nano133's origin, is heard", () => {
+test("nanoterra: only the window itself, from nano133's origin, is heard; the badge shows requests first, else the friends online", () => {
   const { el, f, say } = nanoterra();
   const badge = el.querySelector(".n133f-badge") as HTMLElement;
-  say({ type: "n133-friends:badge", v: 1, count: 3 }, { origin: "https://evil.example" });
-  say({ type: "n133-friends:badge", v: 1, count: 3 }, { source: window });
+  const key = el.querySelector(".n133f-key")!;
+  say({ ...W, type: "badge", online: 0, requests: 3 }, { origin: "https://evil.example" });
+  say({ ...W, type: "badge", online: 0, requests: 3 }, { source: window });
   assert.equal(badge.hidden, true);
-  say({ type: "n133-friends:badge", v: 1, count: 3 });
-  assert.equal(badge.hidden, false);
-  assert.equal(badge.textContent, "3");
-  assert.equal(el.querySelector(".n133f-key")!.getAttribute("aria-label"), "Friends, 3 new");
-  say({ type: "n133-friends:badge", v: 1, count: 12 });
-  assert.equal(badge.textContent, "9+");
-  say({ type: "n133-friends:badge", v: 1, count: 0 });
+  say({ ...W, type: "badge", online: 4, requests: 3 });
+  assert.deepEqual([badge.hidden, badge.textContent, badge.classList.contains("is-online")], [false, "3", false]);
+  assert.equal(key.getAttribute("aria-label"), "Friends, 3 requests, 4 online");
+  say({ ...W, type: "badge", online: 12, requests: 0 });
+  assert.deepEqual([badge.hidden, badge.textContent, badge.classList.contains("is-online")], [false, "9+", true]);
+  assert.equal(key.getAttribute("aria-label"), "Friends, 12 online");
+  say({ ...W, type: "badge", online: 0, requests: 1 });
+  assert.equal(key.getAttribute("aria-label"), "Friends, 1 request");
+  say({ ...W, type: "badge", online: 0, requests: 0 });
   assert.equal(badge.hidden, true);
-  f.open();
-  say({ type: "n133-friends:close", v: 1 });
-  assert.equal((el.querySelector(".n133f-panel") as HTMLElement).dataset.open, "false");
+  assert.equal(key.getAttribute("aria-label"), "Friends");
   f.destroy();
 });
 
-test("nanoterra: a join asks the player first, then calls onJoin with the https address", () => {
+test("nanoterra: size sets the frame's height, at most the panel's room; signin keeps the panel as it is", () => {
+  const { el, f, frame, say } = nanoterra();
+  say({ ...W, type: "size", height: 420 });
+  assert.equal(frame.style.height, "420px");
+  f.open();
+  say({ ...W, type: "signin" });
+  assert.equal((el.querySelector(".n133f-panel") as HTMLElement).dataset.open, "true", "the panel stays open");
+  f.destroy();
+});
+
+test("nanoterra: a join asks the player first (the window sends no name), then calls onJoin with the https address", () => {
   const joins: string[] = [];
   let answer = false;
   const questions: string[] = [];
   const { f, say } = nanoterra({ onJoin: (url) => joins.push(url), confirm: (q) => (questions.push(q), answer) });
-  say({ type: "n133-friends:join", v: 1, url: "https://nano133.com/nanoterra?room=abcde", name: "Ann" });
+  say({ ...W, type: "join", url: "https://nano133.com/nanoterra?room=abcde" });
   assert.deepEqual(joins, []);
-  assert.deepEqual(questions, ["Leave this game to join Ann?"]);
+  assert.deepEqual(questions, ["Leave this game to join your friend?"]);
   answer = true;
-  say({ type: "n133-friends:join", v: 1, url: "https://nano133.com/nanoterra?room=abcde", name: "Ann" });
-  say({ type: "n133-friends:join", v: 1, url: "javascript:alert(1)", name: "Ann" });
+  say({ ...W, type: "join", url: "https://nano133.com/nanoterra?room=abcde" });
+  say({ ...W, type: "join", url: "javascript:alert(1)" });
   assert.deepEqual(joins, ["https://nano133.com/nanoterra?room=abcde"]);
   f.destroy();
 });
@@ -167,7 +194,7 @@ test("nanoterra: Escape closes the panel; destroy stops listening", () => {
   document.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Escape" }) as unknown as Event);
   assert.equal((el.querySelector(".n133f-panel") as HTMLElement).dataset.open, "false");
   f.destroy();
-  say({ type: "n133-friends:badge", v: 1, count: 5 });
+  say({ ...W, type: "badge", online: 5, requests: 0 });
 });
 
 // ---- "own": the game's own list, against the real handler ----
