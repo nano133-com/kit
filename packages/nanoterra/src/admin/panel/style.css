@@ -595,21 +595,17 @@
   gap: 8px 12px;
 }
 
+/* The keys wrap onto a second line on a narrow phone: a row that scrolls sideways with no bar cut "Not sold yet" and its count off at the edge. */
 .n133-admin .seg {
   display: flex;
   flex: 0 1 auto;
+  flex-wrap: wrap;
   gap: 4px;
   min-width: 0;
   max-width: 100%;
   padding: 4px;
-  overflow-x: auto;
   border-radius: 14px;
   background: var(--ground);
-  scrollbar-width: none;
-}
-
-.n133-admin .seg::-webkit-scrollbar {
-  display: none;
 }
 
 .n133-admin .seg-btn {
