@@ -10,7 +10,7 @@ import { diffLooks, removalProblems } from "../../looks/change.js";
 import { SLOTS_MAX } from "../../looks/look.js";
 import { looksJson, slugId } from "../../looks/json.js";
 import { PRICE_LADDER, priceText, rungOf, rungUsd } from "../../looks/ladder.js";
-import { COLOR_PATTERN, HATS, lookProblems, usdText, type Hat, type Look, type Problem } from "../../looks/look.js";
+import { COLOR_PATTERN, HATS, isOutfit, lookProblems, OUTFIT, SLOT_NAME_PATTERN, usdText, wearOf, type Change, type Hat, type Look, type Problem } from "../../looks/look.js";
 import { copy, dollars, h, plural } from "./dom.js";
 import { icon } from "./icons.js";
 import { aiPrompt, changeText, ownedIds, shelfStats, soldText, type LookStats, type ShelfOrder, type ShelfPlayer } from "./shelfData.js";
@@ -38,8 +38,23 @@ function hatShapes(hat: Hat, fill: string): Element[] {
   return hats[hat]();
 }
 
-/** A small flat picture of a look: the body in its colour and the hat in its colour. (The game draws the real character; a game can give its own picture.) */
+/**
+ * A small flat picture of a look: an outfit's body in its colour and its hat in its colour; an item of another wear slot as a tag with the slot's name (the game
+ * knows what the item is). (The game draws the real thing; a game can give its own picture.)
+ */
 export function lookPicture(l: Look): Element {
+  if (!isOutfit(l)) {
+    const wear = wearOf(l);
+    const label = svg("text", { x: 33, y: 40, "font-size": 9, "font-family": "system-ui, sans-serif", "text-anchor": "middle", fill: INK });
+    label.textContent = wear.slice(0, 8);
+    return svg(
+      "svg",
+      { viewBox: "0 0 64 72", width: 56, height: 63, role: "img", "aria-label": `${l.name}: worn in the ${wear} slot` },
+      shape("path", { d: "M14 20 L36 20 L52 36 L36 52 L14 52 Z", fill: "#f6e7c1" }),
+      shape("circle", { cx: 22, cy: 36, r: 3.5, fill: "#ffffff" }),
+      label,
+    );
+  }
   const hat = l.change.hat;
   return svg(
     "svg",
@@ -72,7 +87,7 @@ export function previewPicture(load: () => Promise<(l: Look) => Promise<string |
   return (l) => {
     const box = h("span", { class: "shelf-preview" }, fallback(l));
     ready ??= load().catch(() => null);
-    const look: Look = { ...l, change: { ...l.change }, ...(l.slots ? { slots: { ...l.slots } } : {}) };
+    const look = copyLook(l);
     void ready
       .then((render) => (render ? render(look) : null))
       .then((src) => {
@@ -85,7 +100,9 @@ export function previewPicture(load: () => Promise<(l: Look) => Promise<string |
   };
 }
 
-const clone = (ls: readonly Look[]): Look[] => ls.map((l) => ({ id: l.id, name: l.name, priceUsd: l.priceUsd, change: { ...l.change }, ...(l.slots ? { slots: { ...l.slots } } : {}) }));
+/** A copy of a look that shares nothing with it: its wear slot, an outfit's change, its slots. */
+const copyLook = (l: Look): Look => ({ id: l.id, name: l.name, priceUsd: l.priceUsd, ...(l.wear !== undefined ? { wear: l.wear } : {}), ...(l.change ? { change: { ...l.change } } : {}), ...(l.slots ? { slots: { ...l.slots } } : {}) });
+const clone = (ls: readonly Look[]): Look[] => ls.map(copyLook);
 
 /** The names of the slots that differ between two looks (added, removed or another value). */
 function slotNamesChanged(before: Look, after: Look): string {
@@ -98,7 +115,8 @@ function fieldWords(d: ReturnType<typeof diffLooks>["changed"][number]): string 
     if (f === "name") return `name "${d.before.name}" to "${d.after.name}"`;
     if (f === "priceUsd") return `price ${usdText(d.before.priceUsd)} to ${usdText(d.after.priceUsd)}`;
     if (f === "body") return "body colour";
-    if (f === "hat") return `hat ${d.before.change.hat ?? "none"} to ${d.after.change.hat ?? "none"}`;
+    if (f === "hat") return `hat ${d.before.change?.hat ?? "none"} to ${d.after.change?.hat ?? "none"}`;
+    if (f === "wear") return `wear slot ${wearOf(d.before)} to ${wearOf(d.after)}`;
     if (f === "slots") return `slots changed (${slotNamesChanged(d.before, d.after)})`;
     return "hat colour";
   });
@@ -187,7 +205,12 @@ export function shelfView(first: ShelfData, looks: readonly Look[], picture: (l:
   const stats = () => shelfStats(data.orders, data.players);
   const owned = () => ownedIds(data.players);
   const isOriginal = (id: string) => LOOKS.some((l) => l.id === id);
-  const freeCount = () => draft.filter((l) => l.priceUsd === 0).length;
+  /** Free outfits in the draft: one must stay (every player starts with it). */
+  const freeCount = () => draft.filter((l) => l.priceUsd === 0 && wearOf(l) === OUTFIT).length;
+  /** The wear slots that the draft uses besides the outfit, for the wear slot field's suggestions. */
+  const wearSlots = () => [...new Set(draft.map(wearOf).filter((w) => w !== OUTFIT))].sort();
+  /** What a card says under the price: who has it (a free outfit), what it sold, or that it is new. */
+  const fineWords = (l: Look, s: LookStats | undefined) => (l.priceUsd === 0 && wearOf(l) === OUTFIT ? "Every player starts with it" : soldText(s));
   /** Whether the draft differs from the game's looks.json in any way, the order of the looks too (the file's own text is compared). */
   const changedFromGame = () => looksJson(draft) !== looksJson(LOOKS);
 
@@ -198,7 +221,7 @@ export function shelfView(first: ShelfData, looks: readonly Look[], picture: (l:
   const pictures = new Map<string, Element>();
   let used = new Set<string>();
   function pictureOf(l: Look): Element {
-    const key = JSON.stringify([l.id, l.name, l.priceUsd, l.change, l.slots ?? null]);
+    const key = JSON.stringify([l.id, l.name, l.priceUsd, l.wear ?? null, l.change ?? null, l.slots ?? null]);
     const kept = pictures.get(key);
     if (kept && !used.has(key)) {
       used.add(key);
@@ -331,8 +354,14 @@ export function shelfView(first: ShelfData, looks: readonly Look[], picture: (l:
 
   function stage(l: Look, ...extra: (Node | null)[]): HTMLElement {
     const box = h("div", { class: "shelf-stage" }, h("div", { class: "shelf-pic" }, pictureOf(l)), ...extra);
-    if (COLOR_PATTERN.test(l.change.body)) box.style.setProperty("--tint", l.change.body);
+    const body = l.change?.body;
+    if (body && COLOR_PATTERN.test(body)) box.style.setProperty("--tint", body);
     return box;
+  }
+
+  /** An item's wear slot, under its name ("Worn in the shovel slot"); nothing for an outfit. */
+  function wearLine(l: Look): HTMLElement | null {
+    return wearOf(l) === OUTFIT ? null : h("span", { class: "fine shelf-wear" }, `Worn in the ${wearOf(l)} slot`);
   }
 
   function slotList(l: Look): HTMLElement | null {
@@ -353,7 +382,8 @@ export function shelfView(first: ShelfData, looks: readonly Look[], picture: (l:
         "div",
         { class: "shelf-body" },
         h("strong", { class: "shelf-name" }, l.name || "(no name)"),
-        h("span", { class: "fine" }, l.priceUsd === 0 ? "Every player starts with it" : soldText(s)),
+        wearLine(l),
+        h("span", { class: "fine" }, fineWords(l, s)),
         share ? h("div", { class: "share", title: `${share}% of the money from sales` }, bar, h("span", { class: "fine" }, `${share}% of sales`)) : null,
         slotList(l),
       ),
@@ -400,7 +430,8 @@ export function shelfView(first: ShelfData, looks: readonly Look[], picture: (l:
         { class: "shelf-body" },
         h("strong", { class: "shelf-name" }, l.name || "(no name)"),
         h("span", { class: "shelf-price" }, priceWords(l.priceUsd)),
-        h("span", { class: "fine" }, isOriginal(l.id) ? (l.priceUsd === 0 ? "Every player starts with it" : soldText(st.get(l.id))) : "New: not in your game yet"),
+        wearLine(l),
+        h("span", { class: "fine" }, isOriginal(l.id) ? fineWords(l, st.get(l.id)) : "New: not in your game yet"),
         marks(l, own, mine, mark),
       ),
       h(
@@ -448,7 +479,7 @@ export function shelfView(first: ShelfData, looks: readonly Look[], picture: (l:
     const stageBox = h("div", { class: "shelf-stage is-big" }, pic);
     const nameLine = h("strong", { class: "shelf-name" }, l.name || "(no name)");
     const priceLine = h("span", { class: "shelf-price" }, priceWords(l.priceUsd));
-    const tint = () => (COLOR_PATTERN.test(l.change.body) ? stageBox.style.setProperty("--tint", l.change.body) : stageBox.style.removeProperty("--tint"));
+    const tint = () => (l.change && COLOR_PATTERN.test(l.change.body) ? stageBox.style.setProperty("--tint", l.change.body) : stageBox.style.removeProperty("--tint"));
     tint();
     // The real picture is drawn a moment after the last change: a colour dragged across the picker draws once, not at every step.
     let later: ReturnType<typeof setTimeout> | null = null;
@@ -459,8 +490,10 @@ export function shelfView(first: ShelfData, looks: readonly Look[], picture: (l:
       if (later) clearTimeout(later);
       later = setTimeout(() => pic.replaceChildren(pictureOf(l)), 150);
       ladder.querySelectorAll<HTMLButtonElement>("button").forEach((c) => c.setAttribute("aria-pressed", Number(c.dataset.usd) === l.priceUsd ? "true" : "false"));
-      swatches.querySelectorAll<HTMLButtonElement>("button").forEach((c) => c.setAttribute("aria-pressed", c.dataset.colour === l.change.body.toLowerCase() ? "true" : "false"));
-      hatChoices.style.setProperty("color", l.change.hatColor ?? "#9aa4b2");
+      if (outfit) {
+        lookParts?.swatches.querySelectorAll<HTMLButtonElement>("button").forEach((c) => c.setAttribute("aria-pressed", c.dataset.colour === outfit.change.body.toLowerCase() ? "true" : "false"));
+        lookParts?.hatChoices.style.setProperty("color", outfit.change.hatColor ?? "#9aa4b2");
+      }
       refreshFoot();
     };
 
@@ -486,6 +519,85 @@ export function shelfView(first: ShelfData, looks: readonly Look[], picture: (l:
     ladder.append(step(0, "Free", "everyone", "Every player has it"));
     for (const r of PRICE_LADDER) ladder.append(step(rungUsd(r), priceText(rungUsd(r)), r.name, `${r.name}: ${r.for}`));
 
+    // An outfit's body colour and hat (an item of another wear slot has neither).
+    const outfit = isOutfit(l) ? l : null;
+    const lookParts = outfit ? outfitFields(outfit, i, sync) : null;
+    const lastFree = l.priceUsd === 0 && wearOf(l) === OUTFIT && freeCount() === 1;
+    const keep = isOriginal(l.id) && own.has(l.id);
+    const remove = h("button", { class: "btn btn-danger", type: "button", disabled: keep || lastFree, title: keep ? "A player owns this look. Keep it in the file." : lastFree ? "Keep one free outfit: every player starts with it." : "", onclick: () => {
+      draft = draft.filter((x) => x !== l);
+      open = null;
+      redraw();
+    } }, icon("trash", 18), "Remove");
+    const dup = h("button", { class: "btn", type: "button", onclick: () => addLook(l) }, icon("dup", 18), "Duplicate");
+
+    const openMarks = marks(l, own, mine, mark);
+    const openProblems = h("ul", { class: "card-problems" }, ...mine.map((p) => h("li", {}, p.message)));
+    openProblems.hidden = !mine.length;
+    openParts = { marks: openMarks, problems: openProblems };
+    const group = (title: string, ...kids: (Node | null)[]) => h("div", { class: "edit-group" }, h("h3", {}, title), ...kids);
+    return h(
+      "article",
+      { class: `shelf-card shelf-editing${mark ? ` is-${mark}` : ""}${mine.length ? " has-problem" : ""}`, tabindex: -1, "aria-label": `Editing ${l.name || "a look"}` },
+      h(
+        "div",
+        { class: "edit-top" },
+        stageBox,
+        h(
+          "div",
+          { class: "shelf-body" },
+          nameLine,
+          priceLine,
+          wearLine(l),
+          h("span", { class: "fine" }, isOriginal(l.id) ? fineWords(l, st.get(l.id)) : "New: not in your game yet"),
+          openMarks,
+        ),
+        h("button", { class: "btn btn-small card-done", type: "button", "aria-expanded": "true", onclick: () => openCard(null) }, icon("check", 16), "Done"),
+      ),
+      openProblems,
+      h(
+        "div",
+        { class: "edit-groups" },
+        group("Name", h("label", { class: "field" }, h("span", {}, "What players read"), name)),
+        group("Price", h("label", { class: "field" }, h("span", {}, "Price in US dollars"), priceInput), ladder),
+        wearEditor(l, keep || lastFree, i),
+        lookParts?.group ?? null,
+        slotsEditor(l, isOriginal(l.id) && own.has(l.id)),
+      ),
+      keep ? h("p", { class: "fine owned-note" }, icon("lock", 14), "A player owns this look: its id stays, and it cannot be removed.") : null,
+      h("div", { class: "shelf-actions" }, dup, remove),
+    );
+  }
+
+  /**
+   * The wear slot of a look: "outfit" (the character's own look) or one of the game's own slots ("shovel"). Typed, with the slots the draft already uses as
+   * suggestions. Locked for a look that a player owns (it stays in its slot) and for the last free outfit. An outfit that becomes an item loses its colours; an
+   * item that becomes an outfit gets the free look's blue body.
+   */
+  function wearEditor(l: Look, locked: boolean, i: number): HTMLElement {
+    const list = `n133-wears-${i}`;
+    const input = h("input", { class: "input", type: "text", maxlength: 24, value: wearOf(l), list, autocapitalize: "none", spellcheck: false, disabled: locked, "aria-label": `Wear slot of ${l.name}`, onchange: (e: Event) => {
+      const v = (e.target as HTMLInputElement).value.trim();
+      if (v === "" || v === OUTFIT) {
+        delete l.wear;
+        l.change ??= { body: "#4aa8ff" };
+      } else {
+        l.wear = v;
+        if (SLOT_NAME_PATTERN.test(v)) delete l.change;
+      }
+      redraw();
+    } });
+    return h(
+      "div",
+      { class: "edit-group" },
+      h("h3", {}, "Wear slot"),
+      h("label", { class: "field" }, h("span", {}, "outfit (the character's colour and hat), or a slot of your game for an item (shovel, charm)"), input),
+      h("datalist", { id: list }, ...[OUTFIT, ...wearSlots()].map((w) => h("option", { value: w }))),
+    );
+  }
+
+  /** An outfit's fields: the body colour (swatches and a picker), the hat (pictures) and the hat colour, as the editor's "Look" group. */
+  function outfitFields(l: Look & { change: Change }, i: number, sync: () => void): { group: HTMLElement; swatches: HTMLElement; hatChoices: HTMLElement } {
     const body = h("input", { class: "colour", type: "color", value: l.change.body, "aria-label": `Body colour of ${l.name}`, oninput: (e: Event) => {
       l.change.body = (e.target as HTMLInputElement).value;
       sync();
@@ -524,61 +636,19 @@ export function shelfView(first: ShelfData, looks: readonly Look[], picture: (l:
       hatChoices.append(h("label", { class: `hat-choice${(l.change.hat ?? null) === x ? " is-on" : ""}` }, input, hatChoicePicture(x), h("span", {}, x ? HAT_WORDS[x] : "No hat")));
     }
     hatChoices.style.setProperty("color", l.change.hatColor ?? "#9aa4b2");
-
-    const lastFree = l.priceUsd === 0 && freeCount() === 1;
-    const keep = isOriginal(l.id) && own.has(l.id);
-    const remove = h("button", { class: "btn btn-danger", type: "button", disabled: keep || lastFree, title: keep ? "A player owns this look. Keep it in the file." : lastFree ? "Keep one free look: every player starts with it." : "", onclick: () => {
-      draft = draft.filter((x) => x !== l);
-      open = null;
-      redraw();
-    } }, icon("trash", 18), "Remove");
-    const dup = h("button", { class: "btn", type: "button", onclick: () => addLook(l) }, icon("dup", 18), "Duplicate");
-
-    const openMarks = marks(l, own, mine, mark);
-    const openProblems = h("ul", { class: "card-problems" }, ...mine.map((p) => h("li", {}, p.message)));
-    openProblems.hidden = !mine.length;
-    openParts = { marks: openMarks, problems: openProblems };
-    const group = (title: string, ...kids: (Node | null)[]) => h("div", { class: "edit-group" }, h("h3", {}, title), ...kids);
-    return h(
-      "article",
-      { class: `shelf-card shelf-editing${mark ? ` is-${mark}` : ""}${mine.length ? " has-problem" : ""}`, tabindex: -1, "aria-label": `Editing ${l.name || "a look"}` },
+    const group = h(
+      "div",
+      { class: "edit-group group-look" },
+      h("h3", {}, "Look"),
       h(
         "div",
-        { class: "edit-top" },
-        stageBox,
-        h(
-          "div",
-          { class: "shelf-body" },
-          nameLine,
-          priceLine,
-          h("span", { class: "fine" }, isOriginal(l.id) ? (l.priceUsd === 0 ? "Every player starts with it" : soldText(st.get(l.id))) : "New: not in your game yet"),
-          openMarks,
-        ),
-        h("button", { class: "btn btn-small card-done", type: "button", "aria-expanded": "true", onclick: () => openCard(null) }, icon("check", 16), "Done"),
+        { class: "look-fields" },
+        h("div", { class: "field" }, h("span", {}, "Body colour"), h("div", { class: "colour-row" }, swatches, body)),
+        h("div", { class: "field" }, h("span", {}, "Hat"), hatChoices),
+        h("label", { class: "field" }, h("span", {}, "Hat colour"), hatColor),
       ),
-      openProblems,
-      h(
-        "div",
-        { class: "edit-groups" },
-        group("Name", h("label", { class: "field" }, h("span", {}, "What players read"), name)),
-        group("Price", h("label", { class: "field" }, h("span", {}, "Price in US dollars"), priceInput), ladder),
-        h(
-          "div",
-          { class: "edit-group group-look" },
-          h("h3", {}, "Look"),
-          h(
-            "div",
-            { class: "look-fields" },
-            h("div", { class: "field" }, h("span", {}, "Body colour"), h("div", { class: "colour-row" }, swatches, body)),
-            h("div", { class: "field" }, h("span", {}, "Hat"), hatChoices),
-            h("label", { class: "field" }, h("span", {}, "Hat colour"), hatColor),
-          ),
-        ),
-        slotsEditor(l, isOriginal(l.id) && own.has(l.id)),
-      ),
-      keep ? h("p", { class: "fine owned-note" }, icon("lock", 14), "A player owns this look: its id stays, and it cannot be removed.") : null,
-      h("div", { class: "shelf-actions" }, dup, remove),
     );
+    return { group, swatches, hatChoices };
   }
 
   /** The slots of a look: names and values (words or #rrggbb colours) that the game reads. Rows to type in, at most SLOTS_MAX. */
@@ -622,7 +692,7 @@ export function shelfView(first: ShelfData, looks: readonly Look[], picture: (l:
 
   function addLook(from?: Look) {
     const name = from ? `${from.name} copy`.slice(0, 40) : "New look";
-    const base: Look = from ? { id: "", name, priceUsd: from.priceUsd, change: { ...from.change }, ...(from.slots ? { slots: { ...from.slots } } : {}) } : { id: "", name, priceUsd: 0.05, change: { body: "#4aa8ff" } };
+    const base: Look = from ? { ...copyLook(from), id: "", name } : { id: "", name, priceUsd: 0.05, change: { body: "#4aa8ff" } };
     // An id that a player owns is never given to a new look (even when that look is not in looks.json now): the new look would be what the owners own.
     base.id = slugId(name, [...draft.map((x) => x.id), ...owned()]);
     const at = from ? draft.indexOf(from) + 1 : draft.length;

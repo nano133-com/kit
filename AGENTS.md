@@ -82,8 +82,10 @@ with no Three.js) and `/looks`. Follow `packages/nanoterra/ai/SPEC.md` step by s
 - Keep the choice between the Nanoterra character and the game's own in ONE place (the game
   starter: `"character"` in `game.config.json`).
 - **The looks** (`/looks`): the game is the seller. A look only changes how the character
-  looks: never a score, a speed or a rule, never random. Keep one free look. Never change or
-  remove the id of a look that someone owns. Never send looks, prices or sales to another site.
+  looks: never a score, a speed or a rule, never random. Keep one free outfit. A look with `wear`
+  is an item of the game's own wear slot (a tool's skin, a charm) and has no `change`. Never change or
+  remove the id, or change the wear slot, of a look that someone owns. Never send looks, prices or
+  sales to another site.
 
 ## Working in this repository
 

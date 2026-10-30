@@ -1,17 +1,22 @@
-import { cleanSlots, ID_PATTERN, type Look } from "./look.js";
+import { cleanSlots, ID_PATTERN, isOutfit, OUTFIT, wearOf, type Look } from "./look.js";
 
 /**
- * The text of looks.json for a list of looks: one look on each line, in the order id, name, priceUsd, change (and slots, when the look has any), as the game
- * starter's file is written, so a change of one look is a change of one line in a diff. A look with no slots is written exactly as before. It ends with a new line.
+ * The text of looks.json for a list of looks: one look on each line, in the order id, name, priceUsd, wear (an item of a wear slot other than the outfit's),
+ * change (an outfit) and slots (when the look has any), as the game starter's file is written, so a change of one look is a change of one line in a diff. An
+ * outfit with no slots is written exactly as before. It ends with a new line.
  */
 export function looksJson(looks: readonly Look[]): string {
   const row = (l: Look) => {
-    const change = [`"body": ${JSON.stringify(l.change.body)}`];
-    if (l.change.hat !== undefined) change.push(`"hat": ${JSON.stringify(l.change.hat)}`);
-    if (l.change.hatColor !== undefined) change.push(`"hatColor": ${JSON.stringify(l.change.hatColor)}`);
+    let middle: string;
+    if (isOutfit(l)) {
+      const change = [`"body": ${JSON.stringify(l.change.body)}`];
+      if (l.change.hat !== undefined) change.push(`"hat": ${JSON.stringify(l.change.hat)}`);
+      if (l.change.hatColor !== undefined) change.push(`"hatColor": ${JSON.stringify(l.change.hatColor)}`);
+      middle = `, "change": { ${change.join(", ")} }`;
+    } else middle = wearOf(l) === OUTFIT ? "" : `, "wear": ${JSON.stringify(wearOf(l))}`;
     const slots = cleanSlots(l.slots);
     const tail = slots ? `, "slots": { ${Object.keys(slots).map((k) => `${JSON.stringify(k)}: ${JSON.stringify(slots[k])}`).join(", ")} }` : "";
-    return `  { "id": ${JSON.stringify(l.id)}, "name": ${JSON.stringify(l.name)}, "priceUsd": ${l.priceUsd}, "change": { ${change.join(", ")} }${tail} }`;
+    return `  { "id": ${JSON.stringify(l.id)}, "name": ${JSON.stringify(l.name)}, "priceUsd": ${l.priceUsd}${middle}${tail} }`;
   };
   return `[\n${looks.map(row).join(",\n")}\n]\n`;
 }

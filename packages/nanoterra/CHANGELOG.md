@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- **Wear slots** (`@nano133/nanoterra/looks`, and the Shelf of `/admin/panel`): a look fills one wear slot, and a player wears one look in each slot at once. An outfit (no
+  `wear`, or `"outfit"`: `OUTFIT`) is the character's own look, with its `change` (the body colour and the hat), as before. Any other `wear` is the game's own slot (a tool's
+  skin, a charm: `"wear": "shovel"`): an item there has no `change`. `lookProblems` refuses a bad slot name (field `wear`) and a `change` on an item (field `change`), and
+  now asks for one free OUTFIT (a list of outfits only keeps the starter's words); `checkLooks` leaves `wear` out for an outfit and `change` out for an item; `looksJson`
+  writes `wear` after `priceUsd`; `removalProblems` refuses a changed wear slot on an owned look (field `wear`); `diffLooks` lists `"wear"`. New: `OUTFIT`, `wearOf`,
+  `isOutfit`, the type `Change`. **`Look.change` is optional in the type now** (read an outfit's colours after `isOutfit`): a game that reads `look.change.body` directly
+  changes that line. The Shelf shows an item's slot and a tag picture, edits its wear slot (locked for an owned look and the last free outfit) in place of the body and hat,
+  and its message for an AI assistant names the wear rule. A file of outfits only reads and writes exactly as before. Echo Island sells shovel and Pinger skins and charms
+  with it (Wes, 2026-10-30).
+
 ## 0.4.0 (2026-10-30)
 
 - **The admin panel (`@nano133/nanoterra/admin/panel`) has a new layout: the game at a glance, in tabs.** A top bar (who is signed in, Live or Test mode, the bot

@@ -156,8 +156,8 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
     return shelf.el;
   }
 
-  /** A look's body colour, while the game still has the look (for the dots in the lists). */
-  const colourOf = (id: string): string | null => options.looks.find((l) => l.id === id)?.change.body ?? null;
+  /** An outfit's body colour, while the game still has the look (for the dots in the lists); none for an item of another wear slot. */
+  const colourOf = (id: string): string | null => options.looks.find((l) => l.id === id)?.change?.body ?? null;
 
   function build(): Dashboard {
     const tabs = tabBar("overview");

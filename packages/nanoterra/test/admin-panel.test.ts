@@ -30,7 +30,8 @@ before(async () => {
   ({ mountAdmin } = await import("../src/admin/panel/index.js"));
 });
 
-function setup(over: { kind?: string | null; owner?: string | null; store?: ReturnType<typeof createMemoryStore>; check?: boolean } = {}) {
+function setup(over: { kind?: string | null; owner?: string | null; store?: ReturnType<typeof createMemoryStore>; check?: boolean; looks?: Look[] } = {}) {
+  const looks = over.looks ?? LOOKS;
   const store = over.store ?? createMemoryStore({
     orders: [
       { id: "o1", player: OTHER, lookId: "mint-cap", usd: "0.25", amountRaw: RAW_02, status: "paid", createdAt: NOW - 100, expiresAt: NOW + 100, paidAt: NOW - 50, payer: OTHER, hash: "H1" },
@@ -46,7 +47,7 @@ function setup(over: { kind?: string | null; owner?: string | null; store?: Retu
     session: async () => (kind ? KINDS[kind] ?? null : null),
     now: () => NOW,
     limit: () => true,
-    lookName: (id) => LOOKS.find((l) => l.id === id)?.name,
+    lookName: (id) => looks.find((l) => l.id === id)?.name,
     ...(over.check === false ? {} : { check: async () => ({ scanned: true, settled: [] }) }),
   });
   const calls: { method: string; path: string }[] = [];
@@ -63,7 +64,7 @@ function setup(over: { kind?: string | null; owner?: string | null; store?: Retu
   const signOuts: number[] = [];
   const signIns: { done: () => void; into: HTMLElement }[] = [];
   const options: MountOptions = {
-    looks: LOOKS,
+    looks,
     fetch: send,
     signOut: async () => {
       signOuts.push(1);
@@ -687,4 +688,26 @@ test("signing out takes the drawn data away: a signed-out page holds no orders",
   assert.ok(text(root).includes("Sign in with your game's address"));
   assert.equal(root.querySelector(".order"), null);
   assert.ok(!text(root).includes("Mint Cap"));
+});
+
+test("wear: an item shows its slot and has no body or hat; its slot may change while nobody owns it, and is held once a player does", async () => {
+  const looks: Look[] = [...LOOKS, { id: "toy-spade", name: "Toy Spade", priceUsd: 0.1, wear: "shovel" }, { id: "echo-bat", name: "Echo Bat", priceUsd: 1, wear: "pinger" }];
+  const store = createMemoryStore({ orders: [], owned: [{ player: OTHER, lookId: "echo-bat", at: NOW - 40 }] });
+  const { root, mounted } = setup({ looks, store });
+  await mounted.ready;
+  assert.ok(text(cardOf(root, "Toy Spade")).includes("Worn in the shovel slot"));
+  assert.ok(!text(cardOf(root, "Classic")).includes("Worn in"));
+  const wear = (card: Element) => card.querySelector('input[aria-label^="Wear slot of"]') as HTMLInputElement;
+  openLook(root, "Echo Bat");
+  assert.equal(wear(cardOf(root, "Echo Bat")).disabled, true, "an owned item stays in its slot");
+  openLook(root, "Toy Spade");
+  assert.ok(!text(cardOf(root, "Toy Spade")).includes("Body colour"), "an item has no body colour or hat");
+  assert.equal(wear(cardOf(root, "Toy Spade")).value, "shovel");
+  const w = wear(cardOf(root, "Toy Spade"));
+  w.value = "charm";
+  w.dispatchEvent(new win.Event("change", { bubbles: true }) as unknown as Event);
+  assert.ok(text(root).includes("Toy Spade: wear slot shovel to charm"), text(root).slice(0, 400));
+  assert.ok(text(root).includes('"wear": "charm"'), "looks.json has the new slot on the item's line");
+  openLook(root, "Classic");
+  assert.ok(text(cardOf(root, "Classic")).includes("Body colour"), "an outfit keeps its body colour and hat");
 });

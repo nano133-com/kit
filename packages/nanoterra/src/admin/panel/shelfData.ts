@@ -76,7 +76,7 @@ export function aiPrompt(text: string, diff: LooksDiff, owned: readonly string[]
     diff.changed.length ? `Changed: ${names(diff.changed.map((c) => c.after))}.` : "",
     "",
     `Looks that players own and that must stay in the file with the same id: ${ownedOk.length ? quote(ownedOk) : "none yet"}${odd ? ` (and ${odd} more with an id that is not a valid look id: do not remove any look)` : ""}.`,
-    `Rules: keep one free look (priceUsd 0), prices in US dollars with at most 2 decimals, never change or remove the id of a look that someone owns, never change the slots of a look that someone owns (slots are words and #rrggbb colours that the game reads, at most 8 on a look), and a look never changes a score or a rule. (The file had ${before.length} looks before.)`,
+    `Rules: keep one free outfit (priceUsd 0, no "wear"), prices in US dollars with at most 2 decimals, never change or remove the id of a look that someone owns, never change the wear slot or the slots of a look that someone owns (a look with "wear" is an item of that slot, such as a shovel, and has no "change"; slots are words and #rrggbb colours that the game reads, at most 8 on a look), and a look never changes a score or a rule. (The file had ${before.length} looks before.)`,
     "",
     "looks.json:",
     "```json",

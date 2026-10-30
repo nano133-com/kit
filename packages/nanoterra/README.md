@@ -380,10 +380,37 @@ type Look = {
   id: string; // 1 to 40 lowercase letters, digits or dashes: "mint-cap"
   name: string; // 1 to 40 characters
   priceUsd: number; // US dollars, at most 2 decimals; 0 is the free look
-  change: { body: string; hat?: "cap" | "beanie" | "crown" | "tophat"; hatColor?: string }; // colours are "#rrggbb"
+  wear?: string; // the wear slot it fills: none (an outfit), or your game's own slot ("shovel"): see "Wear slots" below
+  change?: { body: string; hat?: "cap" | "beanie" | "crown" | "tophat"; hatColor?: string }; // an outfit's colours ("#rrggbb"); an item of another slot has none
   slots?: Record<string, string>; // what YOUR game defines for itself: see "Slots" below. Optional.
 };
 ```
+
+### Wear slots: an outfit, and the items beside it
+
+A look fills one **wear slot**, and a player wears one look in each slot at once. An **outfit** (no `wear`, or `"wear": "outfit"`) is the character's own look: its body colour and
+its hat (`change`). Every other wear slot is **your game's own**: a tool's skin, a charm, a trail. An item there has **no `change`** (it does not change the body); your game knows
+what it is from its id or its `slots`:
+
+```json
+{ "id": "classic", "name": "Classic", "priceUsd": 0, "change": { "body": "#4aa8ff" } },
+{ "id": "toy-spade", "name": "Toy Spade", "priceUsd": 0.1, "wear": "shovel" },
+{ "id": "echo-bat", "name": "Echo Bat", "priceUsd": 1, "wear": "pinger", "slots": { "ring": "ripples" } }
+```
+
+- A wear slot's name is like a slot's: 1 to 24 lowercase letters, digits or dashes, starting with a letter (`SLOT_NAME_PATTERN`); `outfit` (`OUTFIT`) is the outfit's.
+- **Keep one free OUTFIT:** every player starts with it. A free item is fine beside it, but it does not count.
+- `"change"` on an item is a mistake (`lookProblems`, field `change`): an item never changes the body. An outfit still needs its `change.body`.
+- `checkLooks` leaves `wear` out for an outfit (no `wear` and `"wear": "outfit"` are the same look) and `change` out for an item; `looksJson` writes `wear` after `priceUsd`, on the
+  look's own line. `wearOf(look)` gives the slot (`OUTFIT` for an outfit); `isOutfit(look)` tells an outfit (with its `change`) from an item.
+- **Players own a look by its id, so the wear slot of a look that a player owns must not change:** a shovel that a player owns stays a shovel. `removalProblems` reports it with the
+  field `"wear"`; `diffLooks` lists it as `"wear"`.
+- The Shelf shows an item's slot on its card ("Worn in the shovel slot") and a tag in place of the character picture (give the Shelf your own `picture` to draw the real item), and
+  its editor has a **Wear slot** field (locked for an owned look and the last free outfit) in place of the body and hat of an outfit.
+- What a player wears in each slot is your game's to keep (the starter keeps the outfit in the browser); ownership stays by id, as before.
+
+A file of outfits only reads and writes exactly as it did. `change` is optional in the type now: read an outfit's colours after `isOutfit(look)` (or `look.change?.body`). This is a
+minor change (0.5.0); a game on 0.4 or before drops `wear`, so a game with items must move to the new version in the game, the server and the Shelf.
 
 ### Slots: what your game defines on a look
 
