@@ -1,14 +1,23 @@
 // The admin panel: orders, owned looks, totals and the two game switches, from the game's own database. Only the game's owner can read them (the
 // handler checks it on every call); this page only shows them. `mountAdmin(element, options)` draws the panel into `element`.
+//
+// The page: a top bar (who is signed in, Live or Test mode, Sign out), what is still off (one banner), four numbers (earned, open now, to send back, players;
+// each opens its list), then five tabs: Overview, Cosmetics (the Shelf), Orders, Players and Settings (the Game card, the sign-ins, the facts). Every tab is
+// made once; a new read of the summary fills them again and keeps the chosen tab, the Shelf's draft, a search and the Game card.
 
 import type { Look } from "../../looks/look.js";
 import type { AdminSummary } from "../store.js";
 import type { GameState } from "../switches.js";
 import { ApiError, createApi, type Api } from "./api.js";
-import { h, shortAddress } from "./dom.js";
+import { copyKey, h, plural, shortAddress } from "./dom.js";
 import { gameCard } from "./gameCard.js";
+import { icon, type IconName } from "./icons.js";
+import { ordersView, type OrderFilter } from "./orders.js";
+import { overviewView } from "./overview.js";
+import { playersView } from "./players.js";
 import { shelfView } from "./shelf.js";
 import { signinsCard } from "./signins.js";
+import { tabBar, type TabId } from "./tabs.js";
 
 export type MountOptions = {
   /** The game's looks now (its looks.json). The Shelf starts from them. */
@@ -40,33 +49,49 @@ export type MountedAdmin = {
   ready: Promise<void>;
 };
 
-const STATUS_WORDS: Record<string, string> = { open: "Open", paid: "Paid", expired: "Expired", paid_late: "Paid late" };
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const when = (ms: number | null) => (ms ? new Date(ms).toLocaleString() : "");
+
+/** The drawn page, made at the first read that the owner may see. */
+type Dashboard = { update(s: AdminSummary): void; setGame(state: GameState | null): void };
 
 export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdmin {
   const api: Api = createApi(options.api ?? "/api/admin", options.fetch);
-  const gate = h("section", { id: "n133-gate", class: "admin-card", "aria-live": "polite" });
+  const gate = h("section", { id: "n133-gate", class: "admin-card gate", "aria-live": "polite" });
   const data = h("section", { id: "n133-data" });
   data.hidden = true;
   root.classList.add("n133-admin");
   root.replaceChildren(gate, data);
 
-  let filter = "all";
   /** The Shelf keeps its draft while the page redraws (a tab, a payment check): one view for the life of the page. */
   let shelf: ReturnType<typeof shelfView> | null = null;
   /** The "Game" card keeps its own state for the life of the page (a payment check redraws the rest, not this). */
   let game: HTMLElement | null = null;
+  let gameState: GameState | null = null;
+  let dash: Dashboard | null = null;
 
   /** The card, made once. A fault in reading the two switches must not hide the orders: the card is left out and the rest still shows. */
   async function gameSection(): Promise<HTMLElement | null> {
     if (game) return game;
     try {
-      game = gameCard(api, await api.get<GameState>("/game"), options.defaultsFile);
+      gameState = await api.get<GameState>("/game");
+      game = gameCard(api, gameState, options.defaultsFile, (state) => {
+        gameState = state;
+        dash?.setGame(state);
+      });
     } catch {
       game = null;
+      gameState = null;
     }
     return game;
+  }
+
+  /** The gate's screen: an icon, a title and what to do. The data drawn before goes (a signed-out page holds none); the Shelf's draft and the Game card stay in memory. */
+  function showGate(kind: IconName, title: string, ...body: (Node | null)[]) {
+    data.hidden = true;
+    data.replaceChildren();
+    dash = null;
+    gate.hidden = false;
+    gate.replaceChildren(h("div", { class: "gate-icon", "aria-hidden": "true" }, icon(kind, 28)), h("h2", {}, title), ...body.filter((b): b is Node => b !== null));
   }
 
   async function load(): Promise<void> {
@@ -77,43 +102,34 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
       render(s);
     } catch (e) {
       if (!(e instanceof ApiError)) {
+        // The data already drawn (if any) stays: a failed new read does not take it away.
         gate.hidden = false;
-        gate.replaceChildren(h("p", {}, "The game's server did not answer. Try again."));
+        gate.replaceChildren(h("div", { class: "gate-icon", "aria-hidden": "true" }, icon("alert", 28)), h("p", {}, "The game's server did not answer. Try again."), h("button", { class: "btn", type: "button", onclick: () => void load() }, "Try again"));
         return;
       }
-      data.hidden = true;
-      gate.hidden = false;
       if (e.status === 403 && e.body.signedInAs) {
-        gate.replaceChildren(
-          h("h2", {}, "Not the game's address"),
-          h("p", {}, `You are signed in as ${shortAddress(String(e.body.signedInAs))}. Only the game's owner address can open this page.`),
-          signOutButton(),
-        );
+        showGate("lock", "Not the game's address", h("p", {}, `You are signed in as ${shortAddress(String(e.body.signedInAs))}. Only the game's owner address can open this page.`), signOutButton());
         return;
       }
       if (e.status === 403 && e.body.reason === "nanoterra") {
-        gate.replaceChildren(
-          h("h2", {}, "You signed in from Nanoterra"),
-          h("p", {}, "A Nanoterra sign-in names your address but proves no key, so it cannot open this page. Sign out, then sign in with the wallet that holds your game's address."),
-          signOutButton(),
-        );
+        showGate("lock", "You signed in from Nanoterra", h("p", {}, "A Nanoterra sign-in names your address but proves no key, so it cannot open this page. Sign out, then sign in with the wallet that holds your game's address."), signOutButton());
         return;
       }
       if (e.status === 403 && e.body.reason === "no_address") {
-        gate.replaceChildren(h("h2", {}, "No owner address yet"), h("p", {}, e.message), h("p", { class: "fine" }, options.noAddressHelp ?? "Set the game's owner address, then deploy again."));
+        showGate("alert", "No owner address yet", h("p", {}, e.message), h("p", { class: "fine" }, options.noAddressHelp ?? "Set the game's owner address, then deploy again."));
         return;
       }
       if (e.status === 403) {
-        gate.replaceChildren(h("h2", {}, "This page is closed to you"), h("p", {}, e.message), signOutButton());
+        showGate("lock", "This page is closed to you", h("p", {}, e.message), signOutButton());
         return;
       }
       if (e.status === 401) {
-        const into = h("div", {});
-        gate.replaceChildren(h("h2", {}, "Sign in with your game's address"), h("p", {}, e.message), into);
+        const into = h("div", { class: "gate-signin" });
+        showGate("lock", "Sign in with your game's address", h("p", {}, e.message), into);
         options.signIn(into, () => void load());
         return;
       }
-      gate.replaceChildren(h("p", {}, e.message));
+      showGate("alert", "Something went wrong", h("p", {}, e.message));
     }
   }
 
@@ -128,6 +144,7 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
           void load();
         },
       },
+      icon("out", 18),
       "Sign out",
     );
   }
@@ -139,89 +156,91 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
     return shelf.el;
   }
 
+  /** A look's body colour, while the game still has the look (for the dots in the lists). */
+  const colourOf = (id: string): string | null => options.looks.find((l) => l.id === id)?.change.body ?? null;
+
+  function build(): Dashboard {
+    const tabs = tabBar("overview");
+    const go = (tab: TabId, filter?: OrderFilter) => {
+      if (filter) orders.setFilter(filter);
+      tabs.select(tab);
+    };
+    const overview = overviewView(options.looks, colourOf, go);
+    const orders = ordersView(api, colourOf, (s) => render(s));
+    const players = playersView(colourOf);
+    tabs.panels.overview.append(overview.el);
+    tabs.panels.orders.append(orders.el);
+    tabs.panels.players.append(players.el);
+
+    const who = h("div", { class: "who" });
+    const chips = h("div", { class: "chips" });
+    const top = h("header", { class: "topbar" }, h("div", { class: "who-mark", "aria-hidden": "true" }, icon("lock", 18)), who, chips, h("div", { class: "topbar-keys" }, signOutButton()));
+    const banner = h("div", { class: "banner warnings", role: "alert" });
+    const kpis = h("div", { class: "kpis", role: "group", "aria-label": "Your game in numbers" });
+    const settings = h("div", { class: "settings-grid" });
+    tabs.panels.settings.append(settings);
+    data.replaceChildren(top, banner, kpis, tabs.bar, ...Object.values(tabs.panels));
+
+    const kpi = (cls: string, mark: IconName, label: string, value: string, sub: string, open: () => void, alert = false) =>
+      h("button", { class: `kpi kpi-${cls}${alert ? " is-alert" : ""}`, type: "button", onclick: open }, h("span", { class: "kpi-top" }, h("span", { class: "kpi-icon", "aria-hidden": "true" }, icon(mark, 18)), h("span", { class: "kpi-label" }, label)), h("strong", { class: "kpi-value" }, value), h("span", { class: "kpi-sub" }, sub));
+
+    function about(s: AdminSummary): HTMLElement {
+      const facts: [string, Node | string][] = [];
+      if (s.address) facts.push(["Signed in as", h("span", { class: "fact-address" }, h("code", {}, s.address), copyKey(s.address, "Copy your address", icon("copy", 14)))]);
+      facts.push(["Mode", s.testMode ? "Test mode: payments are not real" : "Live: payments are real"]);
+      if (s.turnstile !== undefined) facts.push(["Bot check", s.turnstile ? "On" : "Off"]);
+      if (s.nodes?.length) facts.push(["Payments are checked on", s.nodes.join(", ")]);
+      if (s.rate) facts.push(["Last price", `$${s.rate.usd} per XNO (${s.rate.sources.join(", ")}), ${when(s.rate.at)}`]);
+      return h(
+        "section",
+        { class: "admin-card about-card", "aria-labelledby": "n133-about-title" },
+        h("h2", { id: "n133-about-title" }, "About this admin"),
+        h("dl", { class: "facts" }, ...facts.map(([k, v]) => h("div", {}, h("dt", {}, k), h("dd", {}, v)))),
+        signOutButton(),
+      );
+    }
+
+    return {
+      setGame: (state) => overview.setGame(state),
+      update(s) {
+        who.replaceChildren(h("span", { class: "who-label" }, "Signed in as"), s.address ? h("span", { class: "who-address" }, h("code", { title: s.address }, shortAddress(s.address)), copyKey(s.address, "Copy your address", icon("copy", 14))) : h("span", {}, "the game's owner"));
+        chips.replaceChildren(
+          h("span", { class: `chip ${s.testMode ? "chip-warn" : "chip-ok"}`, title: s.testMode ? "Payments are not real" : "Payments are real" }, h("span", { class: "chip-dot", "aria-hidden": "true" }), s.testMode ? "Test mode" : "Live"),
+          s.turnstile === undefined ? "" : h("span", { class: `chip ${s.turnstile ? "chip-ok" : "chip-warn"}` }, h("span", { class: "chip-dot", "aria-hidden": "true" }), s.turnstile ? "Bot check on" : "Bot check off"),
+        );
+        banner.hidden = !s.warnings.length;
+        banner.replaceChildren(h("div", { class: "banner-icon", "aria-hidden": "true" }, icon("alert", 20)), h("div", {}, h("h2", {}, "Check these"), h("ul", {}, ...s.warnings.map((w) => h("li", {}, w)))));
+
+        const ownedLooks = s.players.reduce((n, p) => n + p.looks.length, 0);
+        const late = s.totals.paidLate.count;
+        kpis.replaceChildren(
+          kpi("earned", "coin", "Earned", `${s.totals.paid.xno} XNO`, `$${s.totals.paid.usd} · ${plural(s.totals.paid.count, "order")}`, () => go("orders", "paid")),
+          kpi("open", "clock", "Open now", String(s.counts.open), `${s.counts.expired} expired`, () => go("orders", "open")),
+          kpi("late", "back", "To send back", `${s.totals.paidLate.xno} XNO`, late ? `$${s.totals.paidLate.usd} · ${plural(late, "order")}` : "Nothing to send back", () => go("orders", "paid_late"), late > 0),
+          kpi("players", "players", "Players", String(s.players.length), `${plural(ownedLooks, "look")} owned`, () => go("players")),
+        );
+
+        tabs.setCount("cosmetics", options.looks.length);
+        tabs.setCount("orders", s.orders.length);
+        tabs.setCount("players", s.players.length);
+        overview.update(s);
+        overview.setGame(gameState);
+        const shelfEl = shelfCard(s);
+        if (shelfEl.parentNode !== tabs.panels.cosmetics) tabs.panels.cosmetics.replaceChildren(shelfEl);
+        orders.update(s);
+        players.update(s);
+        // The Game card is the same element at every redraw: moving it keeps its state.
+        settings.replaceChildren(...[game, signinsCard(s, api, () => void load(), options.loginsNote), about(s)].filter((p): p is HTMLElement => p !== null));
+      },
+    };
+  }
+
   function render(s: AdminSummary): void {
     data.hidden = false;
-    const check = h("button", { class: "btn btn-primary", type: "button" }, "Check payments now");
-    const checkNote = h("span", { class: "fine", role: "status" });
-    check.addEventListener("click", async () => {
-      check.disabled = true;
-      checkNote.textContent = "Checking…";
-      try {
-        const r = await api.post<{ scan: { scanned: boolean; settled: unknown[]; error?: string }; summary: AdminSummary }>("/check");
-        render(r.summary);
-      } catch (e) {
-        checkNote.textContent = e instanceof Error ? e.message : "The check failed.";
-        check.disabled = false;
-      }
-    });
-
-    const tabs = h("div", { class: "tabs", role: "group", "aria-label": "Show orders" });
-    for (const key of ["all", "open", "paid", "expired", "paid_late"]) {
-      const n = key === "all" ? s.orders.length : s.counts[key as keyof AdminSummary["counts"]];
-      tabs.append(
-        h(
-          "button",
-          {
-            class: `tab${filter === key ? " tab-on" : ""}`,
-            type: "button",
-            "aria-pressed": filter === key ? "true" : "false",
-            onclick: () => {
-              filter = key;
-              render(s);
-            },
-          },
-          `${key === "all" ? "All" : STATUS_WORDS[key]} (${n})`,
-        ),
-      );
-    }
-
-    const rows = s.orders.filter((o) => filter === "all" || o.status === filter);
-    const orders = h("div", { class: "orders" });
-    if (!rows.length) orders.append(h("p", { class: "fine" }, "No orders here yet."));
-    for (const o of rows) {
-      orders.append(
-        h(
-          "article",
-          { class: `order order-${o.status}` },
-          h("div", { class: "order-top" }, h("strong", {}, o.look), h("span", { class: `badge badge-${o.status}` }, STATUS_WORDS[o.status] ?? o.status)),
-          h("div", { class: "order-amount" }, `${o.xno} XNO · $${o.usd}`),
-          h("div", { class: "fine" }, `Player ${shortAddress(o.player)} · made ${when(o.createdAt)}`),
-          o.paidAt ? h("div", { class: "fine" }, `Payment seen ${when(o.paidAt)}${o.payer ? ` from ${shortAddress(o.payer)}` : ""}`) : null,
-          o.status === "paid_late" && o.payer ? h("div", { class: "late-note" }, "Send this amount back by hand to ", h("code", {}, o.payer), ". The game holds no key, so it cannot send it.") : null,
-          o.hash ? h("div", { class: "fine hash" }, `Block ${o.hash}`) : null,
-        ),
-      );
-    }
-
-    const players = h("div", { class: "players" });
-    if (!s.players.length) players.append(h("p", { class: "fine" }, "Nobody owns a paid look yet."));
-    for (const p of s.players) players.append(h("div", { class: "player" }, h("code", {}, p.player), h("span", {}, p.looks.map((l) => l.name).join(", "))));
-
-    const parts: (Node | null)[] = [
-      s.warnings.length ? h("section", { class: "admin-card warnings", role: "alert" }, h("h2", {}, "Check these"), h("ul", {}, ...s.warnings.map((w) => h("li", {}, w)))) : null,
-      game,
-      h(
-        "section",
-        { class: "totals" },
-        h("div", { class: "total" }, h("span", {}, "Paid"), h("strong", {}, `${s.totals.paid.xno} XNO`), h("small", {}, `$${s.totals.paid.usd} · ${plural(s.totals.paid.count, "order")}`)),
-        h("div", { class: "total" }, h("span", {}, "Paid late (send back)"), h("strong", {}, `${s.totals.paidLate.xno} XNO`), h("small", {}, `$${s.totals.paidLate.usd} · ${plural(s.totals.paidLate.count, "order")}`)),
-        h("div", { class: "total" }, h("span", {}, "Open now"), h("strong", {}, String(s.counts.open)), h("small", {}, `${s.counts.expired} expired`)),
-      ),
-      shelfCard(s),
-      h("section", { class: "admin-card" }, h("div", { class: "card-head" }, h("h2", {}, "Orders"), h("div", {}, ...(s.canCheck === false ? [] : [check, " ", checkNote]))), tabs, orders),
-      h("section", { class: "admin-card" }, h("h2", {}, "Owned looks"), players),
-      signinsCard(s, api, () => void load(), options.loginsNote),
-      h(
-        "section",
-        { class: "admin-card fine" },
-        s.address ? h("p", {}, "Signed in as ", h("code", {}, s.address), ".") : null,
-        s.nodes?.length ? h("p", {}, `Payments are checked on: ${s.nodes.join(", ")}.`) : null,
-        s.rate ? h("p", {}, `Last price: $${s.rate.usd} per XNO (${s.rate.sources.join(", ")}), ${when(s.rate.at)}.`) : null,
-        signOutButton(),
-      ),
-    ];
-    data.replaceChildren(...parts.filter((p): p is Node => p !== null));
+    dash ??= build();
+    dash.update(s);
   }
 
   return { reload: () => load(), ready: load() };
 }
+

@@ -1,7 +1,10 @@
 /* The admin panel's styles (mountAdmin in ./mount.ts). Every rule is under .n133-admin, so nothing leaks into the page that holds the panel and the page's own
-   styles do not reach in by accident. Phone first: every control is at least 40 px high (the order tabs), the rest 44 px or more; one column, two from 640px.
+   styles do not reach in by accident. Phone first: the keys, inputs, switches, swatches and price steps are 44 px or more; the tabs, filter keys, copy keys and
+   small keys 40 px. The layout follows the PANEL's width (a container query), not the window's: one column on a phone, two from 560 px, three cards a row and the
+   orders as a table from 760 px.
    To theme it, set the --n133-* custom properties on the element that holds the panel (or on any parent): --n133-ink, --n133-ink-soft, --n133-paper, --n133-line,
-   --n133-gem, --n133-gem-dark, --n133-sea, --n133-radius and --n133-font. */
+   --n133-gem, --n133-gem-dark, --n133-sea, --n133-radius and --n133-font; and, with the tabbed layout, --n133-ground (the wells inside a card), --n133-warn and
+   --n133-bad (the amber and red of a warning and a problem) and --n133-shadow (the cards' shadow). */
 
 .n133-admin {
   --font: var(--n133-font, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
@@ -13,11 +16,17 @@
   --paper: var(--n133-paper, #ffffff);
   --radius: var(--n133-radius, 18px);
   --sea: var(--n133-sea, #1f8fc4);
+  --ground: var(--n133-ground, #f4f7fb);
+  --warn: var(--n133-warn, #8a4b00);
+  --bad: var(--n133-bad, #b4142f);
+  --shadow: var(--n133-shadow, 0 1px 2px rgb(16 24 40 / 0.05), 0 6px 18px -6px rgb(16 24 40 / 0.1));
+  --gap: 12px;
+  container: n133 / inline-size;
   box-sizing: border-box;
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
   color: var(--ink);
-  font-family: var(--font);
+  font: 15px/1.45 var(--font);
   -webkit-text-size-adjust: 100%;
 }
 
@@ -31,30 +40,65 @@
   display: none !important;
 }
 
+.n133-admin h2,
+.n133-admin h3,
+.n133-admin p {
+  margin: 0;
+}
+
+.n133-admin code {
+  font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.n133-admin .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.n133-admin .icon {
+  flex: none;
+}
+
+.n133-admin .fine {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+/* ---- Keys ---- */
+
 .n133-admin .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 48px;
-  padding: 0 18px;
-  border: 2px solid var(--line);
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--paper);
   color: var(--ink);
-  font: 700 16px/1 var(--font);
+  font: 650 15px/1 var(--font);
   text-decoration: none;
+  white-space: nowrap;
   cursor: pointer;
   touch-action: manipulation;
+  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 
-.n133-admin .btn:focus-visible {
-  outline: 3px solid var(--sea);
-  outline-offset: 2px;
+@media (hover: hover) {
+  .n133-admin .btn:not(:disabled):hover {
+    border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
+    box-shadow: 0 1px 3px rgb(16 24 40 / 0.1);
+  }
 }
 
 .n133-admin .btn:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: default;
 }
 
@@ -64,28 +108,139 @@
   color: #062b23;
 }
 
+@media (hover: hover) {
+  .n133-admin .btn-primary:not(:disabled):hover {
+    border-color: var(--gem-dark);
+    background: color-mix(in srgb, var(--gem) 85%, #ffffff);
+  }
+}
+
+.n133-admin .btn-danger {
+  color: var(--bad);
+}
+
 .n133-admin .btn-small {
   min-height: 40px;
   padding: 0 12px;
   font-size: 14px;
 }
 
-.n133-admin .fine {
+.n133-admin .btn-quiet {
+  border-color: transparent;
+  background: transparent;
+}
+
+.n133-admin .copy-key {
+  gap: 5px;
+  padding: 0 10px;
   color: var(--ink-soft);
   font-size: 13px;
 }
 
+.n133-admin .link-key {
+  gap: 6px;
+  color: var(--sea);
+  font-weight: 700;
+}
+
+.n133-admin :is(.btn, .tabbar-tab, .seg-btn, .kpi, .ladder-step, .swatch-btn, .switch, .shelf-add-tile, .input, .colour, summary):focus-visible,
+.n133-admin .hat-choice:has(input:focus-visible),
+.n133-admin .tabpanel:focus-visible {
+  outline: 3px solid var(--sea);
+  outline-offset: 2px;
+}
+
+.n133-admin .tabpanel:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ---- Inputs ---- */
+
+.n133-admin .input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--ink) 18%, var(--line));
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1 var(--font);
+}
+
+.n133-admin .input-num {
+  max-width: 160px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* WebKit draws a select at its own height and ignores min-height: take over the drawing, so it is 44px (a finger) on an iPad too. */
+.n133-admin select.input {
+  width: auto;
+  height: 44px;
+  padding-right: 34px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%), linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 19px, calc(100% - 13px) 19px;
+  background-repeat: no-repeat;
+  background-size: 5px 5px, 5px 5px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.n133-admin .colour {
+  width: 56px;
+  min-height: 44px;
+  padding: 3px;
+  border: 1px solid color-mix(in srgb, var(--ink) 18%, var(--line));
+  border-radius: 12px;
+  background: var(--paper);
+  cursor: pointer;
+}
+
+.n133-admin .colour:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.n133-admin .search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.n133-admin .search .icon {
+  position: absolute;
+  left: 12px;
+  color: var(--ink-soft);
+  pointer-events: none;
+}
+
+.n133-admin .search-input {
+  padding-left: 40px;
+}
+
+/* ---- Cards ---- */
+
 .n133-admin .admin-card {
-  margin: 12px 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  align-content: start;
+  min-width: 0;
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--paper);
+  box-shadow: var(--shadow);
 }
 
 .n133-admin .admin-card h2 {
-  margin: 0 0 10px;
-  font-size: 19px;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.n133-admin .card-head .link-key {
+  margin-right: -10px;
 }
 
 .n133-admin .card-head {
@@ -93,175 +248,982 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 8px 12px;
 }
 
-.n133-admin .card-head h2 {
-  margin: 0;
-}
-
-.n133-admin .warnings {
-  border-color: #f2b8c1;
-  background: #fff4f6;
-}
-
-.n133-admin .warnings ul {
-  margin: 0;
-  padding-left: 20px;
-}
-
-.n133-admin .totals {
+.n133-admin .card-title {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
+  gap: 2px;
+  min-width: 0;
 }
 
-.n133-admin .total {
+.n133-admin .card-keys {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.n133-admin .empty {
+  padding: 24px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+/* ---- The gate: the screen before the data (sign in, the wrong address, no owner address) ---- */
+
+.n133-admin .gate {
+  justify-items: center;
+  max-width: 560px;
+  margin: 24px auto;
+  padding: 28px 20px;
+  text-align: center;
+}
+
+.n133-admin .gate h2 {
+  font-size: 21px;
+}
+
+.n133-admin .gate p {
+  max-width: 46ch;
+  color: var(--ink-soft);
+}
+
+.n133-admin .gate-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--gem) 16%, var(--paper));
+  color: var(--gem-dark);
+}
+
+.n133-admin .gate-signin {
+  justify-self: stretch;
+  text-align: left;
+}
+
+/* ---- The top bar ---- */
+
+.n133-admin #n133-data {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gap);
+}
+
+.n133-admin .topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--paper);
+  box-shadow: var(--shadow);
 }
 
-.n133-admin .total span {
-  color: var(--ink-soft);
-  font-size: 14px;
-}
-
-.n133-admin .total strong {
-  font-size: 24px;
-  font-variant-numeric: tabular-nums;
-}
-
-.n133-admin .tabs {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 6px;
-}
-
-.n133-admin .tab {
+.n133-admin .who-mark {
+  display: grid;
   flex: none;
-  min-height: 40px;
-  padding: 0 14px;
-  border: 2px solid var(--line);
-  border-radius: 999px;
-  background: #fff;
-  font: 700 14px/1 var(--font);
-  cursor: pointer;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--gem) 16%, var(--paper));
+  color: var(--gem-dark);
 }
 
-.n133-admin .tab-on {
-  border-color: var(--ink);
-  background: var(--ink);
-  color: #fff;
+.n133-admin .who {
+  display: grid;
+  flex: 1 1 180px;
+  min-width: 0;
 }
 
-.n133-admin .order {
-  padding: 12px 0;
-  border-bottom: 1px solid var(--line);
+.n133-admin .who-label {
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.n133-admin .order-top {
+.n133-admin .who-address,
+.n133-admin .fact-address,
+.n133-admin .player-id {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 2px 4px;
+  min-width: 0;
 }
 
-.n133-admin .order-amount {
-  margin: 4px 0;
-  font-variant-numeric: tabular-nums;
+.n133-admin .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-.n133-admin .badge {
-  padding: 4px 10px;
+.n133-admin .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
   border-radius: 999px;
-  background: #eef1f4;
   font-size: 13px;
   font-weight: 700;
 }
 
+.n133-admin .chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.n133-admin .chip-ok {
+  background: #dcf6ec;
+  color: #0b6a52;
+}
+
+.n133-admin .chip-warn {
+  background: #fff1d6;
+  color: var(--warn);
+}
+
+.n133-admin .topbar-keys {
+  display: flex;
+  margin-left: auto;
+}
+
+/* ---- What is still off: one banner ---- */
+
+.n133-admin .banner {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #f3c27a;
+  border-radius: var(--radius);
+  background: #fff7e8;
+  color: #4a2d00;
+}
+
+.n133-admin .banner h2 {
+  margin-bottom: 4px;
+  font-size: 16px;
+}
+
+.n133-admin .banner ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.n133-admin .banner-icon {
+  flex: none;
+  color: var(--warn);
+}
+
+/* ---- The four numbers ---- */
+
+.n133-admin .kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap);
+}
+
+.n133-admin .kpi {
+  --accent: var(--gem-dark);
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+@media (hover: hover) {
+  .n133-admin .kpi:hover {
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+    transform: translateY(-1px);
+  }
+}
+
+.n133-admin .kpi-open {
+  --accent: #1d5fa8;
+}
+
+.n133-admin .kpi-late {
+  --accent: #6b7686;
+}
+
+.n133-admin .kpi-late.is-alert {
+  --accent: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 45%, var(--line));
+  background: color-mix(in srgb, var(--bad) 5%, var(--paper));
+}
+
+.n133-admin .kpi-players {
+  --accent: #6d3fc0;
+}
+
+.n133-admin .kpi-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.n133-admin .kpi-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 13%, var(--paper));
+  color: var(--accent);
+}
+
+.n133-admin .kpi-label {
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.n133-admin .kpi-value {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  font-size: 20px;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.n133-admin .kpi-late.is-alert .kpi-value {
+  color: var(--bad);
+}
+
+.n133-admin .kpi-sub {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+/* ---- The tabs: a bar that stays at the top of the screen; on a phone it scrolls sideways ---- */
+
+.n133-admin .tabbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  box-shadow: var(--shadow);
+  scrollbar-width: none;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.n133-admin .tabbar::-webkit-scrollbar {
+  display: none;
+}
+
+.n133-admin .tabbar-tab {
+  display: inline-flex;
+  flex: 1 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: 650 14px/1 var(--font);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .n133-admin .tabbar-tab:not(.is-on):hover {
+    background: var(--ground);
+    color: var(--ink);
+  }
+}
+
+.n133-admin .tabbar-tab.is-on {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.n133-admin .tab-count {
+  min-width: 22px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.n133-admin .tabpanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gap);
+  min-width: 0;
+  scroll-margin-top: 72px;
+}
+
+/* ---- Filter keys (a segmented row) and the tool row above a list ---- */
+
+.n133-admin .toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.n133-admin .seg {
+  display: flex;
+  flex: 0 1 auto;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 4px;
+  overflow-x: auto;
+  border-radius: 14px;
+  background: var(--ground);
+  scrollbar-width: none;
+}
+
+.n133-admin .seg::-webkit-scrollbar {
+  display: none;
+}
+
+.n133-admin .seg-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: 650 14px/1 var(--font);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.n133-admin .seg-btn.is-on {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgb(16 24 40 / 0.14);
+}
+
+.n133-admin .seg-btn.is-alert:not(.is-on) {
+  color: var(--bad);
+}
+
+.n133-admin .seg-count {
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.n133-admin .sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.n133-admin .list-count {
+  margin-top: -4px;
+}
+
+/* ---- Badges, pills, dots, marks ---- */
+
+.n133-admin .badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #eef1f4;
+  color: #3f4a5a;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .n133-admin .badge-paid {
-  background: #dcf8ef;
-  color: #0b6d5a;
+  background: #dcf6ec;
+  color: #0b6a52;
 }
 
 .n133-admin .badge-open {
-  background: #e3f1ff;
+  background: #e3f0ff;
   color: #134e86;
 }
 
 .n133-admin .badge-paid_late {
   background: #ffe3e8;
-  color: #a1122a;
+  color: #9e1029;
+}
+
+.n133-admin .pill {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #eef1f4;
+  color: #3f4a5a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.n133-admin .pill-on {
+  background: #dcf6ec;
+  color: #0b6a52;
+}
+
+.n133-admin .look-dot,
+.n133-admin .swatch {
+  --swatch: #c9d3df;
+  display: inline-block;
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgb(0 0 0 / 0.18);
+  border-radius: 50%;
+  background: var(--swatch);
+}
+
+.n133-admin .marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.n133-admin .marks:empty {
+  display: none;
+}
+
+.n133-admin .mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef1f4;
+  color: #3f4a5a;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.n133-admin .mark-new {
+  background: #e3f0ff;
+  color: #134e86;
+}
+
+.n133-admin .mark-changed {
+  background: #fff1d6;
+  color: var(--warn);
+}
+
+.n133-admin .mark-bad {
+  background: #ffe3e8;
+  color: var(--bad);
+}
+
+.n133-admin .mark-ok {
+  background: #dcf6ec;
+  color: #0b6a52;
+}
+
+.n133-admin .share {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.n133-admin .share-bar {
+  --share: 0%;
+  position: relative;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--ground);
+}
+
+.n133-admin .share-bar::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--share);
+  border-radius: inherit;
+  background: var(--gem);
 }
 
 .n133-admin .late-note {
-  margin-top: 6px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: #fff4f6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff1f3;
+  color: #5c0716;
   font-size: 14px;
 }
 
-.n133-admin .late-note code,
-.n133-admin .player code,
-.n133-admin .admin-card code {
-  word-break: break-all;
-  font-size: 12px;
+.n133-admin .late-note > span {
+  flex: 1 1 220px;
+  min-width: 0;
 }
 
-.n133-admin .hash {
-  word-break: break-all;
+.n133-admin .late-note ul {
+  flex-basis: 100%;
+  margin: 0;
+  padding-left: 20px;
 }
 
-.n133-admin .player {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--line);
-}
+/* ---- Overview ---- */
 
-/* The Shelf (src/client/shelf.ts): phone first, one column; two from 640px. */
-.n133-admin .shelf-list {
+.n133-admin .overview,
+.n133-admin .overview-main,
+.n133-admin .overview-side {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gap);
+  align-content: start;
+  min-width: 0;
+}
+
+.n133-admin .glance-list,
+.n133-admin .best-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.n133-admin .glance-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+
+.n133-admin .glance-list li:first-child {
+  border-top: 0;
+}
+
+.n133-admin .best-list li {
+  display: grid;
+  grid-template-columns: 22px 12px minmax(0, 1fr);
+  align-items: center;
   gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
 }
 
-@media (min-width: 640px) {
-.n133-admin .shelf-list {
-    grid-template-columns: 1fr 1fr;
-  }
+.n133-admin .best-list li:first-child {
+  border-top: 0;
 }
 
-.n133-admin .shelf-card {
+.n133-admin .best-rank {
+  color: var(--ink-soft);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.n133-admin .best-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.n133-admin .best-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.n133-admin .best-top strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.n133-admin .best-money {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.n133-admin .start-card {
+  border-style: dashed;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--gem) 8%, var(--paper)), var(--paper));
+  box-shadow: none;
+}
+
+.n133-admin .start-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--gem) 18%, var(--paper));
+  color: var(--gem-dark);
+}
+
+.n133-admin .start-steps {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.n133-admin .start-steps li {
+  padding-left: 4px;
+}
+
+.n133-admin .start-steps .link-key {
+  min-height: 36px;
+  padding: 0 6px;
+}
+
+/* ---- Orders: a card each on a phone, a table from 760 px ---- */
+
+.n133-admin .orders {
+  display: grid;
+  gap: 8px;
+}
+
+.n133-admin .order {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "look status" "amount when" "player player" "extra extra";
+  align-items: center;
+  gap: 6px 10px;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: #fbfdff;
+  background: var(--paper);
 }
 
-.n133-admin .shelf-top {
+.n133-admin .order-paid_late {
+  border-color: color-mix(in srgb, var(--bad) 35%, var(--line));
+}
+
+.n133-admin .order-look {
   display: flex;
+  grid-area: look;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  min-width: 0;
+}
+
+.n133-admin .order-look strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.n133-admin .order-status {
+  grid-area: status;
+  justify-self: end;
+}
+
+.n133-admin .order-amount {
+  display: flex;
+  grid-area: amount;
+  align-items: baseline;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.n133-admin .order-player {
+  display: flex;
+  grid-area: player;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+  min-width: 0;
+}
+
+.n133-admin .order-when {
+  display: grid;
+  grid-area: when;
+  justify-items: end;
+  color: var(--ink-soft);
+  font-size: 13px;
+  text-align: right;
+}
+
+.n133-admin .order-extra {
+  grid-column: 1 / -1;
+}
+
+.n133-admin .order-hash {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+}
+
+.n133-admin .order-table-head {
+  display: none;
+}
+
+/* The five last orders on the Overview: one line each. */
+.n133-admin .orders.is-compact {
+  gap: 0;
+}
+
+.n133-admin .order.is-compact {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "look status" "amount when";
+  padding: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.n133-admin .orders.is-compact .order:first-child {
+  border-top: 0;
+}
+
+.n133-admin .order.is-compact .order-player {
+  display: none;
+}
+
+.n133-admin .order.is-compact .order-when {
+  justify-self: end;
+}
+
+.n133-admin .more-key {
+  justify-self: center;
+}
+
+/* ---- Players ---- */
+
+.n133-admin .players {
+  display: grid;
+  gap: 8px;
+}
+
+.n133-admin .player {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: start;
+  gap: 4px 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.n133-admin .player-mark {
+  --hue: 200;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, hsl(var(--hue) 70% 62%), hsl(calc(var(--hue) + 40) 70% 48%));
+}
+
+.n133-admin .player-main {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.n133-admin .player-count {
+  grid-column: 2;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.n133-admin .look-chips,
+.n133-admin .slot-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.n133-admin .look-chip,
+.n133-admin .slot-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 2px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--ground);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.n133-admin .slot-name {
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
+/* ---- Settings ---- */
+
+.n133-admin .settings-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gap);
+  align-items: start;
+}
+
+.n133-admin .facts {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.n133-admin .facts div {
+  display: grid;
+  gap: 2px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.n133-admin .facts div:first-child {
+  border-top: 0;
+}
+
+.n133-admin .facts dt {
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.n133-admin .facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.n133-admin .about-card > .btn {
+  justify-self: start;
+}
+
+/* ---- The Shelf ---- */
+
+.n133-admin .shelf-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.n133-admin .shelf-stats li {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--ground);
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.n133-admin .shelf-stats strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.n133-admin .draft-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 10px 12px;
+  border: 1px solid #f3c27a;
+  border-radius: 14px;
+  background: #fff7e8;
+  color: #4a2d00;
+  font-size: 14px;
+}
+
+.n133-admin .draft-note > span {
+  flex: 1 1 200px;
+}
+
+.n133-admin .shelf-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.n133-admin .shelf-list.is-editing {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.n133-admin .shelf-list > .empty {
+  grid-column: 1 / -1;
+}
+
+.n133-admin .shelf-card {
+  position: relative;
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+}
+
+/* The stage: the picture on a soft tint of the look's own body colour. */
+.n133-admin .shelf-stage {
+  --tint: #9fb3c8;
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 128px;
+  background: radial-gradient(circle at 50% 70%, color-mix(in srgb, var(--tint) 30%, var(--paper)), color-mix(in srgb, var(--tint) 10%, var(--paper)) 70%);
 }
 
 .n133-admin .shelf-pic {
   display: grid;
-  flex: none;
-  width: 68px;
-  height: 76px;
   place-items: center;
-  border-radius: 12px;
-  background: #e8f3fb;
+  width: 112px;
+  height: 112px;
+}
+
+.n133-admin .shelf-pic > svg,
+.n133-admin .shelf-preview > svg {
+  width: 96px;
+  height: auto;
 }
 
 .n133-admin .shelf-preview {
@@ -271,219 +1233,311 @@
 
 .n133-admin .shelf-preview img {
   display: block;
+  width: 112px;
+  height: 112px;
 }
 
-.n133-admin .shelf-text {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-}
-
-.n133-admin .shelf-text strong {
-  overflow-wrap: anywhere;
-}
-
-.n133-admin .shelf-price {
-  font-weight: 700;
+.n133-admin .price-pill {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--paper);
+  box-shadow: 0 1px 3px rgb(16 24 40 / 0.15);
+  font-size: 13px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 
-.n133-admin .shelf-field {
+.n133-admin .price-pill.is-free {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.n133-admin .shelf-body {
   display: grid;
-  gap: 4px;
-  margin-top: 10px;
-}
-
-.n133-admin .shelf-field > span {
-  color: var(--ink-soft);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.n133-admin .shelf-input {
-  width: 100%;
-  min-height: 44px;
-  padding: 0 12px;
-  border: 2px solid var(--line);
-  border-radius: 12px;
-  background: #fff;
-  color: var(--ink);
-  font: 16px/1 var(--font);
-}
-
-.n133-admin .shelf-color {
-  width: 100%;
-  min-height: 44px;
-  padding: 2px;
-  border: 2px solid var(--line);
-  border-radius: 12px;
-  background: #fff;
-}
-
-.n133-admin .shelf-color:disabled {
-  opacity: 0.45;
-}
-
-.n133-admin .shelf-colors {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
-  gap: 8px;
-}
-
-.n133-admin .shelf-ladder {
-  display: flex;
-  flex-wrap: wrap;
   gap: 6px;
+  align-content: start;
+  min-width: 0;
+  padding: 10px 12px 12px;
 }
 
-.n133-admin .chip {
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0 12px;
-  border: 2px solid var(--line);
-  border-radius: 999px;
-  background: #fff;
-  color: var(--ink);
-  font: 700 14px/1 var(--font);
+.n133-admin .shelf-name {
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.n133-admin .shelf-price {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The editor: compact cards, one open card that takes the whole row, a tile to add a look. */
+.n133-admin .shelf-card.is-compact {
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  align-items: center;
   cursor: pointer;
 }
 
-.n133-admin .shelf-actions,
-.n133-admin .shelf-add {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
+.n133-admin .shelf-card.is-compact .shelf-stage {
+  align-self: stretch;
+  min-height: 108px;
 }
 
-.n133-admin .shelf-foot {
+.n133-admin .shelf-card.is-compact .shelf-pic {
+  width: 84px;
+  height: 84px;
+}
+
+.n133-admin .shelf-card.is-compact .shelf-pic > svg,
+.n133-admin .shelf-card.is-compact .shelf-preview > svg {
+  width: 64px;
+}
+
+.n133-admin .shelf-card.is-compact .shelf-preview img {
+  width: 84px;
+  height: 84px;
+}
+
+.n133-admin .shelf-card.is-compact .card-open {
+  align-self: start;
+  margin: 10px 10px 0 0;
+}
+
+/* The whole card opens it: the Edit key's press area covers the card (the card is its positioned parent). */
+.n133-admin .shelf-card.is-compact .card-open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.n133-admin .shelf-card.is-new {
+  border-color: color-mix(in srgb, #1d5fa8 45%, var(--line));
+}
+
+.n133-admin .shelf-card.is-changed {
+  border-color: color-mix(in srgb, #c47a00 50%, var(--line));
+}
+
+.n133-admin .shelf-card.has-problem {
+  border-color: color-mix(in srgb, var(--bad) 55%, var(--line));
+}
+
+.n133-admin .shelf-editing {
+  grid-column: 1 / -1;
+  gap: 0;
+  border-width: 2px;
+  border-color: var(--ink);
+  box-shadow: 0 10px 30px -10px rgb(16 24 40 / 0.25);
+}
+
+.n133-admin .shelf-editing:focus {
+  outline: none;
+}
+
+.n133-admin .edit-top {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+}
+
+.n133-admin .edit-top .shelf-stage {
+  align-self: stretch;
+  min-height: 128px;
+}
+
+.n133-admin .edit-top .shelf-pic {
+  width: 104px;
+  height: 104px;
+}
+
+.n133-admin .edit-top .shelf-preview img {
+  width: 104px;
+  height: 104px;
+}
+
+.n133-admin .edit-top .shelf-pic > svg,
+.n133-admin .edit-top .shelf-preview > svg {
+  width: 80px;
+}
+
+.n133-admin .edit-top .shelf-stage {
+  grid-row: span 2;
+}
+
+.n133-admin .card-done {
+  grid-column: 2;
+  justify-self: start;
+  margin: 0 12px 12px;
+}
+
+.n133-admin .card-problems {
+  margin: 12px 14px 0;
+  padding: 10px 12px 10px 30px;
+  border-radius: 12px;
+  background: #fff1f3;
+  color: #5c0716;
+  font-size: 14px;
+}
+
+.n133-admin .edit-groups {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.n133-admin .edit-group {
   display: grid;
   gap: 10px;
-  margin-top: 14px;
+  align-content: start;
+  min-width: 0;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--ground);
 }
 
-.n133-admin .shelf-changes ul,
-.n133-admin .late-note ul {
-  margin: 4px 0 0;
-  padding-left: 20px;
+.n133-admin .edit-group h3 {
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-.n133-admin .shelf-file pre {
-  max-height: 320px;
-  margin: 8px 0 0;
-  padding: 12px;
-  overflow: auto;
-  border-radius: 12px;
-  background: #0f172a;
-  color: #e6edf6;
-  font-size: 13px;
+.n133-admin .look-fields {
+  display: grid;
+  gap: 12px;
 }
 
-/* WebKit draws a select at its own height and ignores min-height: take over the drawing, so it is 44px (a finger) on an iPad too. */
-.n133-admin select.shelf-input {
-  height: 44px;
-  padding-right: 32px;
-  background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%), linear-gradient(135deg, var(--ink) 50%, transparent 50%);
-  background-position: calc(100% - 18px) 19px, calc(100% - 13px) 19px;
-  background-repeat: no-repeat;
-  background-size: 5px 5px, 5px 5px;
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-/* The "Game" card: two switches (src/client/gameSwitches.ts). Each is a button of at least 44 px, on a phone first. */
-.n133-admin .game-card .switch-row {
+.n133-admin .field {
   display: grid;
   gap: 6px;
-  padding: 14px 0;
-  border-top: 1px solid var(--line);
-}
-
-.n133-admin .game-card .switch-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.n133-admin .game-card .switch-title {
-  font: 700 16px/1.3 var(--font);
-  flex: 1 1 14rem;
   min-width: 0;
 }
 
-.n133-admin .game-card .switch-note {
-  margin: 0;
-  color: var(--ink-soft);
-  font-size: 15px;
-  line-height: 1.45;
-  max-width: 60ch;
+.n133-admin .field > span {
+  font-size: 14px;
+  font-weight: 650;
 }
 
-.n133-admin .game-card .switch-review {
-  margin: 4px 0 0;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
+.n133-admin .ladder {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 6px;
 }
 
-.n133-admin .game-card .switch-review a {
-  display: inline-block;
-  padding: 10px 0;
-  color: var(--ink);
-  font-weight: 700;
-}
-
-.n133-admin .switch {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-width: 96px;
-  min-height: 44px;
-  /* Off: the knob is on the left and the word on the right. On: the word on the left and the knob on the right (the usual switch). */
-  flex-direction: row-reverse;
-  padding: 0 14px 0 6px;
-  border: 2px solid var(--line);
-  border-radius: 999px;
+.n133-admin .ladder-step {
+  display: grid;
+  place-content: center;
+  gap: 2px;
+  min-height: 52px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
   background: var(--paper);
   color: var(--ink);
-  font: 700 14px/1 var(--font);
+  font: inherit;
+  text-align: center;
   cursor: pointer;
 }
 
-.n133-admin .switch .switch-knob {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--line);
+.n133-admin .ladder-step strong {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
 }
 
-.n133-admin .switch.switch-on {
+.n133-admin .ladder-step span {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.n133-admin .ladder-step[aria-pressed="true"] {
   border-color: var(--gem-dark);
-  background: var(--gem);
-  color: #052b23;
-  flex-direction: row;
-  padding: 0 6px 0 14px;
+  background: color-mix(in srgb, var(--gem) 18%, var(--paper));
+  box-shadow: inset 0 0 0 1px var(--gem-dark);
 }
 
-.n133-admin .switch.switch-on .switch-knob {
-  background: var(--paper);
-}
-
-.n133-admin .switch:focus-visible {
-  outline: 3px solid var(--sea);
-  outline-offset: 2px;
-}
-
-.n133-admin .switch:disabled {
-  opacity: 0.6;
-  cursor: progress;
-}
-
-/* The slots of a look in the Shelf's editor: a name and a value in a row, and Remove; on a narrow phone Remove goes under them. */
-.n133-admin .shelf-slots-edit {
+.n133-admin .colour-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+}
+
+.n133-admin .swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.n133-admin .swatch-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.n133-admin .swatch-btn .swatch {
+  width: 32px;
+  height: 32px;
+}
+
+.n133-admin .swatch-btn[aria-pressed="true"] {
+  border-color: var(--ink);
+}
+
+.n133-admin .hat-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 6px;
+}
+
+.n133-admin .hat-choice {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-height: 72px;
+  padding: 8px 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.n133-admin .hat-choice span {
+  color: var(--ink);
+}
+
+.n133-admin .hat-choice input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.n133-admin .hat-choice.is-on {
+  border-color: var(--gem-dark);
+  background: color-mix(in srgb, var(--gem) 18%, var(--paper));
+  box-shadow: inset 0 0 0 1px var(--gem-dark);
 }
 
 .n133-admin .shelf-slot-list {
@@ -498,54 +1552,509 @@
   align-items: center;
 }
 
-@media (max-width: 480px) {
-  .n133-admin .shelf-slot {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .n133-admin .shelf-slot .btn {
-    grid-column: 1 / -1;
-  }
-}
-
 .n133-admin .shelf-slots-edit > .btn {
   justify-self: start;
 }
 
-.n133-admin .shelf-slots {
-  overflow-wrap: anywhere;
+.n133-admin .owned-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
 }
 
-/* The Sign-ins card: a list of the last sign-ins, and the two-step "Sign out everywhere". */
-.n133-admin .signin-list {
+.n133-admin .shelf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 14px 14px;
+}
+
+.n133-admin .shelf-ghost {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 12px 4px 0;
+  border: 1px dashed var(--line);
+  border-radius: 16px;
+  opacity: 0.8;
+}
+
+.n133-admin .shelf-ghost .shelf-name {
+  text-decoration: line-through;
+}
+
+.n133-admin .shelf-add-tile {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  min-height: 108px;
+  border: 2px dashed color-mix(in srgb, var(--ink) 22%, var(--line));
+  border-radius: 16px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: 700 15px/1 var(--font);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .n133-admin .shelf-add-tile:hover {
+    border-color: var(--gem-dark);
+    color: var(--gem-dark);
+  }
+}
+
+/* The change bar: it stays at the bottom of the screen while the Shelf is edited. Only the state and the two copy keys: about 110 px on a phone. */
+.n133-admin .shelf-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
   display: grid;
   gap: 8px;
-  margin: 8px 0;
+  margin: 0 -16px;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 96%, transparent);
+  box-shadow: 0 -8px 24px -12px rgb(16 24 40 / 0.25);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.n133-admin .foot-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.n133-admin .foot-keys {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.n133-admin .foot-keys .btn {
+  min-width: 0;
+  padding: 0 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* What comes after the bar: the problems in full, GitHub and Start over, what changed, the new file. */
+.n133-admin .shelf-foot-more {
+  display: grid;
+  gap: 8px;
+}
+
+.n133-admin .foot-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.n133-admin .foot-more summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  color: var(--sea);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.n133-admin .foot-more ul {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 14px;
+}
+
+.n133-admin .shelf-file pre {
+  max-height: 260px;
+  margin: 6px 0 0;
+  padding: 12px;
+  overflow: auto;
+  border-radius: 12px;
+  background: #0f172a;
+  color: #e6edf6;
+  font-size: 12px;
+}
+
+/* ---- The "Game" card: two switches (gameCard.ts). Each is a button of at least 44 px ---- */
+
+.n133-admin .game-card .switch-row {
+  display: grid;
+  gap: 6px;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.n133-admin .game-card .switch-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.n133-admin .game-card .switch-title {
+  flex: 1 1 14rem;
+  min-width: 0;
+  font: 700 16px/1.3 var(--font);
+}
+
+.n133-admin .game-card .switch-note {
+  max-width: 62ch;
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.n133-admin .game-card .switch-review {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.n133-admin .game-card .switch-review a {
+  display: inline-block;
+  padding: 10px 0;
+  color: var(--sea);
+  font-weight: 700;
+}
+
+.n133-admin .switch {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 96px;
+  min-height: 44px;
+  /* Off: the knob is on the left and the word on the right. On: the word on the left and the knob on the right (the usual switch). */
+  flex-direction: row-reverse;
+  padding: 0 14px 0 6px;
+  border: 1px solid color-mix(in srgb, var(--ink) 18%, var(--line));
+  border-radius: 999px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 700 14px/1 var(--font);
+  cursor: pointer;
+}
+
+.n133-admin .switch .switch-knob {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: 0 1px 3px rgb(16 24 40 / 0.25);
+}
+
+.n133-admin .switch.switch-on {
+  flex-direction: row;
+  padding: 0 6px 0 14px;
+  border-color: var(--gem-dark);
+  background: var(--gem);
+  color: #052b23;
+}
+
+.n133-admin .switch:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* ---- The Sign-ins card: the last sign-ins, and the two-step "Sign out everywhere" ---- */
+
+.n133-admin .signin-list {
+  display: grid;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .n133-admin .signin-list li {
-  padding: 8px 0;
-  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
   overflow-wrap: anywhere;
+}
+
+.n133-admin .signin-list li:first-child {
+  border-top: 0;
 }
 
 .n133-admin .signout-box {
   display: grid;
   gap: 8px;
   justify-items: start;
-  margin-top: 8px;
 }
 
 .n133-admin .signout-confirm {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 12px;
   border-radius: 12px;
-  background: #fff4f6;
+  background: #fff1f3;
 }
 
 .n133-admin .signout-confirm p {
-  margin: 0;
+  flex-basis: 100%;
+}
+
+/* ---- Wider panels ---- */
+
+@container n133 (min-width: 560px) {
+  .n133-admin .kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .n133-admin .kpi {
+    gap: 4px;
+    padding: 14px;
+  }
+
+  .n133-admin .kpi-value {
+    font-size: 24px;
+  }
+
+  .n133-admin .admin-card {
+    padding: 18px 20px;
+  }
+
+  .n133-admin .shelf-foot {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    margin: 0 -20px;
+    padding-inline: 20px;
+  }
+
+  .n133-admin .foot-keys {
+    grid-template-columns: auto auto;
+  }
+
+  .n133-admin .shelf-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--gap);
+  }
+
+  .n133-admin .shelf-stage {
+    min-height: 148px;
+  }
+
+  .n133-admin .shelf-pic,
+  .n133-admin .shelf-preview img {
+    width: 128px;
+    height: 128px;
+  }
+
+  .n133-admin .shelf-body {
+    padding: 12px 14px 14px;
+  }
+
+  .n133-admin .shelf-name {
+    font-size: 16px;
+  }
+
+  .n133-admin .edit-top {
+    grid-template-columns: 136px minmax(0, 1fr) auto;
+  }
+
+  .n133-admin .edit-top .shelf-pic,
+  .n133-admin .edit-top .shelf-preview img {
+    width: 128px;
+    height: 128px;
+  }
+
+  .n133-admin .edit-top .shelf-stage {
+    min-height: 148px;
+  }
+
+  .n133-admin .edit-top .shelf-stage {
+    grid-row: auto;
+  }
+
+  .n133-admin .card-done {
+    grid-column: auto;
+    align-self: start;
+    margin: 14px 14px 0 0;
+  }
+
+  .n133-admin .player {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .n133-admin .player-count {
+    grid-column: auto;
+  }
+}
+
+@container n133 (min-width: 760px) {
+  .n133-admin .overview {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  }
+
+  .n133-admin .settings-grid {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  }
+
+  .n133-admin .settings-grid > .game-card {
+    grid-row: span 2;
+  }
+
+  .n133-admin .shelf-list.is-editing {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .n133-admin .edit-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* The Look group takes the whole row: the colours, the hats and the hat colour side by side. */
+  .n133-admin .edit-groups > .group-look,
+  .n133-admin .edit-groups > .shelf-slots-edit {
+    grid-column: 1 / -1;
+  }
+
+  .n133-admin .look-fields {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 12px 28px;
+  }
+
+  .n133-admin .swatches {
+    max-width: 200px;
+  }
+
+  .n133-admin .hat-choices {
+    grid-template-columns: repeat(5, 72px);
+  }
+
+  .n133-admin .tabbar-tab {
+    flex: 1 1 0;
+  }
+
+  /* Orders as a table: one line each, with the column names above. */
+  .n133-admin .order-table-head,
+  .n133-admin .orders:not(.is-compact) .order {
+    grid-template-columns: minmax(0, 1.3fr) 96px minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1fr);
+    grid-template-areas: "look status amount player when";
+    gap: 6px 14px;
+  }
+
+  .n133-admin .order-table-head {
+    display: grid;
+    padding: 0 12px;
+    color: var(--ink-soft);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .n133-admin .orders:not(.is-compact) .order {
+    padding: 10px 12px;
+  }
+
+  .n133-admin .orders:not(.is-compact) .order-status {
+    justify-self: start;
+  }
+
+  .n133-admin .orders:not(.is-compact) .order-amount {
+    display: grid;
+    gap: 0;
+  }
+
+  .n133-admin .orders:not(.is-compact) .order-when {
+    display: grid;
+    gap: 0;
+  }
+
+  .n133-admin .orders:not(.is-compact) .cell-label,
+  .n133-admin .orders:not(.is-compact) .order-player .copy-word {
+    display: none;
+  }
+
+  .n133-admin .orders:not(.is-compact) .order-player {
+    flex-wrap: nowrap;
+  }
+
+  .n133-admin .orders:not(.is-compact) .order-player code {
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .n133-admin .orders:not(.is-compact) .order-player .copy-key {
+    flex: none;
+    padding: 0 8px;
+  }
+
+  .n133-admin .order-table-head span:last-child {
+    text-align: right;
+  }
+}
+
+@container n133 (min-width: 1000px) {
+  .n133-admin .shelf-list:not(.is-editing) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .n133-admin .shelf-list.is-editing {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* A narrow panel (a phone): the five tabs fit across, each an icon over its word, the count on the icon's corner. */
+@container n133 (max-width: 559px) {
+  .n133-admin .tabbar {
+    gap: 2px;
+    padding: 4px;
+  }
+
+  .n133-admin .tabbar-tab {
+    position: relative;
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    min-height: 54px;
+    padding: 6px 2px 5px;
+    font-size: 12px;
+  }
+
+  .n133-admin .tab-count {
+    position: absolute;
+    top: 3px;
+    left: calc(50% + 6px);
+    min-width: 18px;
+    padding: 2px 5px;
+    background: var(--ground);
+    color: var(--ink-soft);
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  .n133-admin .tabbar-tab.is-on .tab-count {
+    background: var(--gem);
+    color: #062b23;
+  }
+}
+
+@container n133 (max-width: 420px) {
+  .n133-admin .shelf-slot {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .n133-admin .shelf-slot .btn {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .n133-admin .sort {
+    margin-left: 0;
+  }
+
 }

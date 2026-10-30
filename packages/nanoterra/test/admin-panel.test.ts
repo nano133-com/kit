@@ -78,12 +78,14 @@ function setup(over: { kind?: string | null; owner?: string | null; store?: Retu
 const text = (el: Element) => el.textContent ?? "";
 const buttonWith = (root: Element, words: string) => [...root.querySelectorAll("button")].find((b) => text(b).trim().startsWith(words)) as HTMLButtonElement;
 const tick = () => new Promise((r) => setTimeout(r, 10));
+const tabOf = (root: Element, name: string) => [...root.querySelectorAll('[role="tab"]')].find((t) => text(t).startsWith(name)) as HTMLButtonElement;
+const panelOf = (root: Element, id: string) => root.querySelector(`#n133-panel-${id}`) as HTMLElement;
 
 test("the owner sees every card: the two switches, the numbers, the Shelf, the orders and the looks that players own", async () => {
   const { root, mounted } = setup();
   await mounted.ready;
   const all = text(root);
-  for (const part of ["Game", SWITCHES.character.title, SWITCHES.signin.title, "Paid", "Paid late (send back)", "Open now", "Shelf", "Mint Cap", "Orders", "All (2)", "Paid late (1)", "Owned looks", "Signed in as", "Sign out"]) assert.ok(all.includes(part), part);
+  for (const part of ["Overview", "Cosmetics", "Settings", "Game", SWITCHES.character.title, SWITCHES.signin.title, "Earned", "To send back", "Open now", "Shelf", "Mint Cap", "Orders", "All (2)", "Paid late (1)", "Players who own a look", "Signed in as", "Sign out"]) assert.ok(all.includes(part), part);
   assert.ok(all.includes("They start from game.config.json"));
   assert.ok(root.classList.contains("n133-admin"));
   const switches = [...root.querySelectorAll(".switch")];
@@ -131,7 +133,7 @@ test("the Shelf makes no call to the server: editing a draft and copying looks.j
   const { root, mounted, calls } = setup();
   await mounted.ready;
   const before = calls.length;
-  buttonWith(root, "Edit the shelf").click();
+  openLook(root, "Classic");
   const price = root.querySelector('input[type="number"]') as HTMLInputElement;
   assert.ok(price, "the editor opened");
   price.value = "0.5";
@@ -146,7 +148,7 @@ test("'Check payments now' redraws with the answer's summary, keeps the same Gam
   const { root, mounted, calls } = setup();
   await mounted.ready;
   const card = root.querySelector(".game-card");
-  buttonWith(root, "Edit the shelf").click();
+  openLook(root, "Classic");
   (root.querySelector('input[type="number"]') as HTMLInputElement).value = "0.75";
   (root.querySelector('input[type="number"]') as HTMLInputElement).dispatchEvent(new win.Event("input", { bubbles: true }) as unknown as Event);
   buttonWith(root, "Check payments now").click();
@@ -216,13 +218,21 @@ const typeInto = (input: Element, value: string) => {
 };
 const slotInputs = (card: Element) => [...card.querySelectorAll(".shelf-slot input")] as HTMLInputElement[];
 const addSlot = (card: Element) => (buttonWith(card, "Add a slot") as HTMLButtonElement).click();
+/** Opens the Shelf's editor (when it is closed) and then the card of one look: one card is open at a time. */
+function openLook(root: Element, name: string) {
+  if (!root.querySelector(".shelf-list.is-editing")) buttonWith(root, "Edit the shelf").click();
+  buttonWith(cardOf(root, name), "Edit").click();
+  assert.ok(cardOf(root, name).classList.contains("shelf-editing"), `the card of ${name} is open`);
+}
 
 test("slots: a look's slots show on its card, and the editor shows them as rows", async () => {
   const { root, mounted } = setup();
   await mounted.ready;
-  assert.ok(text(cardOf(root, "Ember Wings")).includes("Slots: wings ember, trail #ffcf5a"));
-  assert.ok(!text(cardOf(root, "Classic")).includes("Slots:"));
-  buttonWith(root, "Edit the shelf").click();
+  const chips = [...cardOf(root, "Ember Wings").querySelectorAll(".slot-chip")].map((c) => text(c));
+  assert.deepEqual(chips, ["wings ember", "trail #ffcf5a"]);
+  assert.equal(cardOf(root, "Ember Wings").querySelectorAll(".slot-chip .swatch").length, 1, "a colour value shows a swatch");
+  assert.equal(cardOf(root, "Classic").querySelector(".slot-chip"), null);
+  openLook(root, "Ember Wings");
   const inputs = slotInputs(cardOf(root, "Ember Wings"));
   assert.deepEqual(inputs.map((i) => i.value), ["wings", "ember", "trail", "#ffcf5a"]);
   assert.ok(text(cardOf(root, "Ember Wings")).includes("Slots (2 of 8)"));
@@ -234,7 +244,7 @@ test("slots: add a slot to a look nobody owns; the change is listed and looks.js
   const { root, mounted, calls } = setup();
   await mounted.ready;
   const before = calls.length;
-  buttonWith(root, "Edit the shelf").click();
+  openLook(root, "Classic");
   addSlot(cardOf(root, "Classic"));
   let inputs = slotInputs(cardOf(root, "Classic"));
   assert.deepEqual(inputs.map((i) => i.value), ["slot-1", ""], "a new row has a name and no value");
@@ -252,7 +262,7 @@ test("slots: add a slot to a look nobody owns; the change is listed and looks.js
 test("slots: a look that a player owns cannot have its slots changed: the mistake is shown, with the way out, and the copy buttons wait", async () => {
   const { root, mounted } = setup();
   await mounted.ready;
-  buttonWith(root, "Edit the shelf").click();
+  openLook(root, "Mint Cap");
   const mint = cardOf(root, "Mint Cap");
   assert.ok(text(mint).includes("A player owns this look: its slots cannot change"));
   addSlot(mint);
@@ -273,7 +283,7 @@ test("slots: a look that a player owns cannot have its slots changed: the mistak
 test("slots: a price, a name or a colour of an owned look may still change; only its slots are held", async () => {
   const { root, mounted } = setup();
   await mounted.ready;
-  buttonWith(root, "Edit the shelf").click();
+  openLook(root, "Mint Cap");
   const price = cardOf(root, "Mint Cap").querySelector('input[type="number"]') as HTMLInputElement;
   typeInto(price, "0.5");
   assert.ok(!text(root).includes("Fix these first"));
@@ -284,7 +294,7 @@ test("slots: a price, a name or a colour of an owned look may still change; only
 test("slots: a name twice, a bad name and a bad value are each named; at most 8 slots", async () => {
   const { root, mounted } = setup();
   await mounted.ready;
-  buttonWith(root, "Edit the shelf").click();
+  openLook(root, "Classic");
   const card = () => cardOf(root, "Classic");
   addSlot(card());
   addSlot(card());
@@ -312,7 +322,7 @@ test("slots: a name twice, a bad name and a bad value are each named; at most 8 
 test("slots: Duplicate copies the slots, and Start over brings the game's looks back", async () => {
   const { root, mounted } = setup();
   await mounted.ready;
-  buttonWith(root, "Edit the shelf").click();
+  openLook(root, "Ember Wings");
   buttonWith(cardOf(root, "Ember Wings"), "Duplicate").click();
   const copy = cardOf(root, "Ember Wings copy");
   assert.deepEqual(slotInputs(copy).map((i) => i.value), ["wings", "ember", "trail", "#ffcf5a"]);
@@ -427,4 +437,254 @@ test("slots: an id that a player owns is never given to a new look, even when th
   // The new look is not "mint-cap": its id is the next free one, and the owned id is left for the look that players own.
   assert.ok(!/"id": "mint-cap"/.test(root.querySelector(".shelf-file pre")?.textContent ?? ""), json.slice(0, 300));
   assert.ok(/"id": "mint-cap-2"/.test(root.querySelector(".shelf-file pre")?.textContent ?? ""), json.slice(0, 300));
+});
+
+// ---- the tabs, the numbers, the Overview, the lists (0.4.0 layout) ----
+
+test("tabs: five real tabs, the Overview first; a press or an arrow key changes the tab, and only its panel shows", async () => {
+  const { root, mounted } = setup();
+  await mounted.ready;
+  const tabs = [...root.querySelectorAll('[role="tab"]')] as HTMLButtonElement[];
+  assert.deepEqual(tabs.map((t) => text(t.querySelector(".tab-label")!)), ["Overview", "Cosmetics", "Orders", "Players", "Settings"]);
+  assert.deepEqual(tabs.map((t) => t.getAttribute("aria-selected")), ["true", "false", "false", "false", "false"]);
+  assert.deepEqual(tabs.map((t) => t.tabIndex), [0, -1, -1, -1, -1], "only the chosen tab is in the Tab order");
+  assert.equal(panelOf(root, "overview").hidden, false);
+  assert.equal(panelOf(root, "orders").hidden, true);
+  tabOf(root, "Orders").click();
+  assert.equal(panelOf(root, "orders").hidden, false);
+  assert.equal(panelOf(root, "overview").hidden, true);
+  assert.equal(tabOf(root, "Orders").getAttribute("aria-selected"), "true");
+  tabOf(root, "Orders").dispatchEvent(new win.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }) as unknown as Event);
+  assert.equal(panelOf(root, "players").hidden, false);
+  tabOf(root, "Players").dispatchEvent(new win.KeyboardEvent("keydown", { key: "End", bubbles: true }) as unknown as Event);
+  assert.equal(panelOf(root, "settings").hidden, false);
+  tabOf(root, "Settings").dispatchEvent(new win.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }) as unknown as Event);
+  assert.equal(panelOf(root, "overview").hidden, false, "after the last tab comes the first");
+  // The counts on the tabs.
+  assert.equal(text(tabOf(root, "Cosmetics").querySelector(".tab-count")!), "3");
+  assert.equal(text(tabOf(root, "Orders").querySelector(".tab-count")!), "2");
+});
+
+test("tabs: the Shelf's open card and its draft stay when the creator goes to another tab and back, and after a new read", async () => {
+  const { root, mounted } = setup();
+  await mounted.ready;
+  tabOf(root, "Cosmetics").click();
+  openLook(root, "Mint Cap");
+  typeInto(cardOf(root, "Mint Cap").querySelector('input[type="number"]')!, "0.5");
+  tabOf(root, "Orders").click();
+  tabOf(root, "Cosmetics").click();
+  assert.equal((cardOf(root, "Mint Cap").querySelector('input[type="number"]') as HTMLInputElement).value, "0.5");
+  await mounted.reload();
+  assert.equal(tabOf(root, "Cosmetics").getAttribute("aria-selected"), "true", "a new read keeps the tab");
+  assert.equal((cardOf(root, "Mint Cap").querySelector('input[type="number"]') as HTMLInputElement).value, "0.5");
+});
+
+test("numbers: four tiles; a paid-late order makes 'To send back' red, and a press on it opens the Orders tab on that status", async () => {
+  const { root, mounted } = setup();
+  await mounted.ready;
+  const tiles = [...root.querySelectorAll(".kpi")] as HTMLButtonElement[];
+  assert.deepEqual(tiles.map((t) => text(t.querySelector(".kpi-label")!)), ["Earned", "Open now", "To send back", "Players"]);
+  assert.equal(text(tiles[0].querySelector(".kpi-value")!), "0.2 XNO");
+  assert.ok(text(tiles[0]).includes("$0.25 · 1 order"));
+  assert.ok(tiles[2].classList.contains("is-alert"));
+  tiles[2].click();
+  assert.equal(panelOf(root, "orders").hidden, false);
+  const pressed = [...panelOf(root, "orders").querySelectorAll(".seg-btn")].filter((b) => b.getAttribute("aria-pressed") === "true").map((b) => text(b));
+  assert.deepEqual(pressed, ["Paid late (1)"]);
+  assert.equal(panelOf(root, "orders").querySelectorAll(".order").length, 1);
+  tiles[3].click();
+  assert.equal(panelOf(root, "players").hidden, false);
+});
+
+test("numbers: with no late payment 'To send back' says so and is not red", async () => {
+  const store = createMemoryStore({ orders: [{ id: "o1", player: OTHER, lookId: "mint-cap", usd: "0.25", amountRaw: RAW_02, status: "paid", createdAt: NOW - 100, expiresAt: NOW + 100, paidAt: NOW - 50, payer: OTHER, hash: "H1" }] });
+  const { root, mounted } = setup({ store });
+  await mounted.ready;
+  const late = root.querySelector(".kpi-late") as HTMLElement;
+  assert.ok(text(late).includes("Nothing to send back"));
+  assert.ok(!late.classList.contains("is-alert"));
+});
+
+test("overview: the best sellers, the last orders and the two switches; a key opens each tab", async () => {
+  const { root, mounted } = setup();
+  await mounted.ready;
+  const overview = panelOf(root, "overview");
+  const best = overview.querySelector(".best-card") as HTMLElement;
+  assert.equal(best.hidden, false);
+  assert.ok(text(best).includes("Mint Cap") && text(best).includes("$0.25") && text(best).includes("1 sale · 100%"), text(best));
+  assert.equal(overview.querySelectorAll(".recent-card .order").length, 2);
+  assert.equal((overview.querySelector(".start-card") as HTMLElement).hidden, true, "a game with orders gets no first steps");
+  const glance = text(overview.querySelector(".glance-card")!);
+  assert.ok(glance.includes(SWITCHES.character.title) && glance.includes("On"), glance);
+  // A switch pressed in Settings shows on the Overview at once.
+  (root.querySelectorAll(".switch")[1] as HTMLButtonElement).click();
+  await tick();
+  const pills = [...overview.querySelectorAll(".glance-card .pill")].map((p) => text(p));
+  assert.deepEqual(pills.slice(0, 2), ["On", "Off"]);
+  buttonWith(overview, "See all orders").click();
+  assert.equal(panelOf(root, "orders").hidden, false);
+});
+
+test("overview: a game with no order yet gets three first steps instead of empty lists", async () => {
+  const { root, mounted } = setup({ store: createMemoryStore() });
+  await mounted.ready;
+  const overview = panelOf(root, "overview");
+  assert.equal((overview.querySelector(".start-card") as HTMLElement).hidden, false);
+  assert.ok(text(overview).includes("No sales yet"));
+  assert.equal((overview.querySelector(".best-card") as HTMLElement).hidden, true);
+  assert.equal((overview.querySelector(".recent-card") as HTMLElement).hidden, true);
+  buttonWith(overview, "Open the shelf").click();
+  assert.equal(panelOf(root, "cosmetics").hidden, false);
+});
+
+test("bestSellers: by money, then by owners; a look no longer in looks.json keeps its orders' name", async () => {
+  const { bestSellers } = await import("../src/admin/panel/index.js");
+  const orders = [
+    { lookId: "a", look: "A", status: "paid", usd: "0.05" },
+    { lookId: "b", look: "B", status: "paid", usd: "0.25" },
+    { lookId: "gone", look: "Old Hat", status: "paid", usd: "0.05" },
+    { lookId: "b", look: "B", status: "open", usd: "0.25" },
+  ] as never;
+  const players = [{ player: OTHER, looks: [{ id: "a", name: "A", at: 1 }, { id: "gone", name: "Old Hat", at: 1 }] }, { player: OWNER, looks: [{ id: "a", name: "A", at: 1 }] }];
+  const best = bestSellers({ orders, players }, [{ id: "a", name: "Alpha", priceUsd: 0.05, change: { body: "#000000" } }]);
+  assert.deepEqual(best.map((b) => [b.name, b.cents, b.owners]), [["B", 25, 0], ["Alpha", 5, 2], ["Old Hat", 5, 1]]);
+});
+
+test("shelf: filters and sorts: For sale, Free, Not sold yet; Best selling, price and name", async () => {
+  const { root, mounted } = setup();
+  await mounted.ready;
+  const names = () => [...panelOf(root, "cosmetics").querySelectorAll(".shelf-card .shelf-name")].map((n) => text(n));
+  const filterKey = (words: string) => [...panelOf(root, "cosmetics").querySelectorAll(".seg-btn")].find((b) => text(b).startsWith(words)) as HTMLButtonElement;
+  assert.deepEqual(names(), ["Mint Cap", "Classic", "Ember Wings"], "best selling first, then the file's order");
+  assert.deepEqual([...panelOf(root, "cosmetics").querySelectorAll(".seg-btn")].map((b) => text(b)), ["All3", "For sale2", "Free1", "Not sold yet1"]);
+  filterKey("Free").click();
+  assert.deepEqual(names(), ["Classic"]);
+  filterKey("Not sold yet").click();
+  assert.deepEqual(names(), ["Ember Wings"]);
+  filterKey("For sale").click();
+  assert.deepEqual(names(), ["Mint Cap", "Ember Wings"]);
+  filterKey("All").click();
+  const sort = root.querySelector('select[aria-label="Sort the looks"]') as HTMLSelectElement;
+  sort.value = "name";
+  sort.dispatchEvent(new win.Event("change", { bubbles: true }) as unknown as Event);
+  assert.deepEqual(names(), ["Classic", "Ember Wings", "Mint Cap"]);
+  const s2 = root.querySelector('select[aria-label="Sort the looks"]') as HTMLSelectElement;
+  s2.value = "price-asc";
+  s2.dispatchEvent(new win.Event("change", { bubbles: true }) as unknown as Event);
+  assert.deepEqual(names(), ["Classic", "Mint Cap", "Ember Wings"]);
+});
+
+test("shelf: the price on each card names its step of the ladder, and a look that sold shows its share", async () => {
+  const { root, mounted } = setup();
+  await mounted.ready;
+  assert.equal(text(cardOf(root, "Mint Cap").querySelector(".price-pill")!), "25¢ · statement");
+  assert.equal(text(cardOf(root, "Classic").querySelector(".price-pill")!), "Free");
+  assert.ok(text(cardOf(root, "Mint Cap")).includes("100% of sales"));
+  assert.equal(cardOf(root, "Ember Wings").querySelector(".share"), null);
+});
+
+test("shelf: one card is open at a time; Done closes it; a changed look is marked, and to see shows the game's looks with a note about the draft", async () => {
+  const { root, mounted } = setup();
+  await mounted.ready;
+  openLook(root, "Classic");
+  openLook(root, "Mint Cap");
+  assert.equal(root.querySelectorAll(".shelf-editing").length, 1);
+  assert.ok(cardOf(root, "Mint Cap").classList.contains("shelf-editing"));
+  typeInto(cardOf(root, "Mint Cap").querySelector('input[type="number"]')!, "0.5");
+  assert.ok(text(cardOf(root, "Mint Cap").querySelector(".marks")!).includes("Changed"), "the open card is marked at once");
+  buttonWith(cardOf(root, "Mint Cap"), "Done").click();
+  assert.equal(root.querySelectorAll(".shelf-editing").length, 0);
+  assert.ok(cardOf(root, "Mint Cap").classList.contains("is-changed"));
+  buttonWith(root, "Close the editor").click();
+  // To see: the price the game has NOW, and a note that a draft waits.
+  assert.equal(text(cardOf(root, "Mint Cap").querySelector(".price-pill")!), "25¢ · statement");
+  assert.ok(text(root).includes("You have a draft that is not in your game yet: 0 added, 1 changed, 0 removed."));
+  buttonWith(root, "Open the draft").click();
+  assert.ok(root.querySelector(".shelf-list.is-editing"));
+});
+
+test("shelf: the price ladder and the hat choices set the look; a removed look can be put back", async () => {
+  const { root, mounted } = setup();
+  await mounted.ready;
+  openLook(root, "Ember Wings");
+  const card = () => cardOf(root, "Ember Wings");
+  const steps = [...card().querySelectorAll(".ladder-step")] as HTMLButtonElement[];
+  assert.deepEqual(steps.map((s) => text(s)), ["Freeeveryone", "1¢dye", "2¢charm", "5¢piece", "25¢statement", "50¢set", "$1outfit"]);
+  steps[3].click();
+  assert.equal((card().querySelector('input[type="number"]') as HTMLInputElement).value, "0.05");
+  assert.equal(steps[3].getAttribute("aria-pressed"), "true");
+  const crown = [...card().querySelectorAll('.hat-choice input')].find((i) => (i as HTMLInputElement).value === "crown") as HTMLInputElement;
+  crown.checked = true;
+  crown.dispatchEvent(new win.Event("change", { bubbles: true }) as unknown as Event);
+  assert.ok(text(root).includes("Ember Wings: price $0.25 to $0.05, hat none to crown"), text(root.querySelector(".shelf-foot")!));
+  // The look's own Remove (the slots have Remove keys too).
+  buttonWith(card().querySelector(".shelf-actions")!, "Remove").click();
+  assert.ok(!cardOf(root, "Ember Wings"), "the look is out of the draft");
+  assert.ok(text(root).includes("Removed: Ember Wings"));
+  buttonWith(root.querySelector(".shelf-ghost")!, "Put back").click();
+  assert.ok(cardOf(root, "Ember Wings"));
+  assert.ok(text(root).includes("No change yet"));
+});
+
+test("shelfFilter and shelfSort are pure and keep the file's order for equal looks", async () => {
+  const { shelfFilter, shelfSort } = await import("../src/admin/panel/index.js");
+  const stats = new Map([["mint-cap", { owners: 1, paid: 1, paidCents: 25, late: 0 }]]);
+  assert.deepEqual(LOOKS.filter((l) => shelfFilter(l, "unsold", stats.get(l.id))).map((l) => l.id), ["ember-wings"]);
+  assert.deepEqual(shelfSort(LOOKS, "best", stats).map((l) => l.id), ["mint-cap", "classic", "ember-wings"]);
+  assert.deepEqual(shelfSort(LOOKS, "price-desc", stats).map((l) => l.id), ["mint-cap", "ember-wings", "classic"]);
+  assert.deepEqual(shelfSort(LOOKS, "file", stats).map((l) => l.id), LOOKS.map((l) => l.id));
+});
+
+test("orders: a search finds a look, an address or a block; no match says so; the hash is short with a copy key", async () => {
+  const { root, mounted } = setup();
+  await mounted.ready;
+  tabOf(root, "Orders").click();
+  const panel = panelOf(root, "orders");
+  const search = panel.querySelector('input[type="search"]') as HTMLInputElement;
+  typeInto(search, "mint");
+  assert.equal(panel.querySelectorAll(".order").length, 2);
+  assert.ok(text(panel).includes("2 orders of 2 match “mint”."));
+  typeInto(search, "h2");
+  assert.equal(panel.querySelectorAll(".order").length, 1, "the block H2");
+  typeInto(search, "nothing-like-this");
+  assert.equal(panel.querySelectorAll(".order").length, 0);
+  assert.ok(text(panel).includes("No order matches your search."));
+  typeInto(search, "");
+  assert.equal(panel.querySelectorAll(".order").length, 2);
+  assert.ok(panel.querySelector(".order-hash .copy-key"), "the block has a copy key");
+});
+
+test("orderMatches and playerMatches: upper or lower case does not matter; an empty search matches all", async () => {
+  const { orderMatches, playerMatches } = await import("../src/admin/panel/index.js");
+  const o = { id: "o", player: OTHER, lookId: "mint-cap", look: "Mint Cap", usd: "0.25", xno: "0.2", status: "paid", createdAt: 0, expiresAt: 0, paidAt: 0, payer: null, hash: "ABC" };
+  assert.ok(orderMatches(o, "MINT"));
+  assert.ok(orderMatches(o, "abc"));
+  assert.ok(orderMatches(o, "  "));
+  assert.ok(!orderMatches(o, "crown"));
+  const p = { player: OTHER, looks: [{ id: "mint-cap", name: "Mint Cap", at: 0 }] };
+  assert.ok(playerMatches(p, "mint cap"));
+  assert.ok(playerMatches(p, OTHER.slice(0, 12).toUpperCase()));
+  assert.ok(!playerMatches(p, "crown"));
+});
+
+test("players: each player with a short address, a copy key and their looks as chips", async () => {
+  const { root, mounted } = setup();
+  await mounted.ready;
+  const panel = panelOf(root, "players");
+  const rows = panel.querySelectorAll(".player");
+  assert.equal(rows.length, 1);
+  assert.ok(text(rows[0]).includes("nano_3bbbb…bbbbbb"));
+  assert.deepEqual([...rows[0].querySelectorAll(".look-chip")].map((c) => text(c)), ["Mint Cap"]);
+  assert.ok(rows[0].querySelector(".copy-key"));
+});
+
+test("signing out takes the drawn data away: a signed-out page holds no orders", async () => {
+  const { root, mounted } = setup();
+  await mounted.ready;
+  assert.ok(root.querySelector(".order"));
+  buttonWith(root.querySelector(".topbar")!, "Sign out").click();
+  await tick();
+  assert.ok(text(root).includes("Sign in with your game's address"));
+  assert.equal(root.querySelector(".order"), null);
+  assert.ok(!text(root).includes("Mint Cap"));
 });

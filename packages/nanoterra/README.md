@@ -66,7 +66,7 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/input` | let go of held keys and sticks when the player leaves the page, and pause: `releaseWhenLost`, `pauseWhenLeft`, `swallowsKeyup` (since 0.3.1) | no | 0.5 kB |
 | `@nano133/nanoterra/admin` | the admin of a game: the guard, the handler, the store type (server code; since 0.2.0) | no | 3.7 kB |
 | `@nano133/nanoterra/admin/d1`, `/admin/firestore` | the admin store for D1 (the starter's tables) or Firestore (a small interface, no Firebase dependency): `createD1Store`, `createFirestoreStore` (since 0.2.0) | no | 1.5 kB each |
-| `@nano133/nanoterra/admin/panel` | the admin page, drawn in the browser into one element, and its stylesheet `@nano133/nanoterra/admin/style.css` (since 0.2.0) | no | 10.6 kB on 0.3.0 (8.5 kB measured on 0.2.0) + 2.4 kB of CSS |
+| `@nano133/nanoterra/admin/panel` | the admin page, drawn in the browser into one element, and its stylesheet `@nano133/nanoterra/admin/style.css` (since 0.2.0) | no | 18.9 kB with the tabbed layout (10.6 kB on 0.3.0, 8.5 kB on 0.2.0) + 5.9 kB of CSS (minified) |
 | `@nano133/nanoterra/admin/conformance` | test cases that a game runs against its own admin (a dev dependency in practice; since 0.2.0) | no | n/a |
 
 Measured 2026-10-26: `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
@@ -585,10 +585,24 @@ mountAdmin(document.getElementById("admin")!, {
 });
 ```
 
-The panel draws: the **Game** card (the two switches), what is still off (the status warnings), the totals, the **Shelf** (the looks with what each has sold, and a draft you can change),
-**Orders** (with "Paid late" and a "Check payments now" button when the game gave a check), the looks that players own, and Sign out. A visitor who is signed out gets the game's
-sign-in; a wrong wallet, a Nanoterra sign-in and a missing owner address each get their own screen and see no data. Options: `api` (the handler's base path), `noAddressHelp`,
-`lookPicture(look)` (your own picture of a look for the Shelf), `repoHelp`, and `fetch`.
+The panel draws, from the top: a bar with who is signed in (the short address and a copy key), Live or Test mode, the bot check and Sign out; what is still off (the
+status warnings, one banner); four numbers (Earned, Open now, To send back, Players: a press opens the list behind each); then five tabs. **Overview**: the best-selling
+looks with their share of the money, the last five orders, the two switches as On or Off and the shelf in numbers (a game with no order yet gets three first steps).
+**Cosmetics**: the **Shelf** (below). **Orders**: a filter by status with its count, a search (a look, an address or a block), "Check payments now" when the game gave a
+check, "Paid late" with the address to send the money back to, 20 orders at a time; a card each on a phone, a table on a wide panel. **Players**: each player who owns a
+look, with their looks. **Settings**: the **Game** card (the two switches), the Sign-ins card and the facts (the address, the mode, the nodes, the last price). The tabs are
+real tabs (the arrow keys, Home and End work); every tab is made once, so a draft, a search and a switch keep their state, and the panel never writes the page's address.
+A visitor who is signed out gets the game's sign-in; a wrong wallet, a Nanoterra sign-in and a missing owner address each get their own screen and see no data (a sign-out
+takes the drawn data off the page). Options: `api` (the handler's base path), `noAddressHelp`, `lookPicture(look)` (your own picture of a look for the Shelf), `repoHelp`,
+`loginsNote` and `fetch`.
+
+**The Shelf** shows the looks your game sells now in a grid of cards: a big picture on a soft tint of the look's colour, the price with its step on the ladder ("25¢ ·
+statement"), what it has sold and its share of the sales, its slots as chips; filters (All, For sale, Free, Not sold yet) and a sort (Best selling, price, name, the
+file's order). **Edit the shelf** opens the draft: one card at a time opens with its fields in groups (the name; the price, with the ladder's seven steps as keys; the
+look: body colour swatches and any colour, the hat as pictures, the hat colour; the slots), and each card says "New", "Changed", "Owned" or how many problems it has.
+A bar at the bottom of the screen holds the state of the draft and the two copy keys ("Copy looks.json", "Copy for my AI"); under the cards are the full list of
+problems, GitHub, Start over, what changed and the new file. A removed look can be put back. The pure helpers are exported for a game's own page: `shelfFilter`,
+`shelfSort`, `bestSellers`, `orderMatches`, `playerMatches`.
 
 **The Shelf's pictures on the real character** (since 0.3.0). The panel has no Three.js, so it takes the pictures from you, lazily:
 
@@ -612,7 +626,10 @@ flat picture stays. `createLookPreview({ size?, body?, record?, background?, key
 **The Shelf never writes.** It edits a draft in the owner's browser and gives text to copy (`looks.json`, or a message for an AI assistant): there is no call in the panel that
 changes a look, a price or an order, and a test proves that editing the Shelf sends no request. A change of looks is a change of your repository. The **Game** card writes only the
 two settings. The stylesheet is scoped under `.n133-admin`, so it cannot leak into your page; to theme it set `--n133-ink`, `--n133-ink-soft`, `--n133-paper`, `--n133-line`,
-`--n133-gem`, `--n133-gem-dark`, `--n133-sea`, `--n133-radius` or `--n133-font` on the element that holds it. Every control is at least 40 px high (the order tabs); the switches, the price chips, the inputs and the buttons are 44 px or more. One column on a phone, two from 640 px.
+`--n133-gem`, `--n133-gem-dark`, `--n133-sea`, `--n133-radius`, `--n133-font`, `--n133-ground` (the wells inside a card), `--n133-warn`, `--n133-bad` or `--n133-shadow` on the
+element that holds it. The keys, inputs, switches, swatches and price steps are 44 px or more; the tabs, filter keys and copy keys 40 px. The layout follows the panel's own
+width (a container query), not the window's: on a phone two cards a row and the five tabs as icons over their words; three cards a row and the orders as a table from
+760 px; four cards from 1000 px. The panel can be up to 1200 px wide: the page that holds it sets the width (the starter's admin page is 900 px).
 
 The wallet sign-in stays yours (`signIn`), because only your game can start a request in the ADMIN scope with its own cookie. The panel never signs anyone in.
 

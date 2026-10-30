@@ -6,14 +6,17 @@ import { CHARACTER_NEEDS_SIGNIN, CHARACTER_SIGNIN_OFF, REVIEW_LINK, REVIEW_NOTE,
 import { ApiError, type Api } from "./api.js";
 import { h } from "./dom.js";
 
-/** The card for the settings `initial`. It keeps its own state: a press shows "Saving…", then "Saved." or the server's words. `defaultsFile` is where the game's defaults are written ("game.config.json"). */
-export function gameCard(api: Api, initial: GameState, defaultsFile = "the game's own settings"): HTMLElement {
+/**
+ * The card for the settings `initial`. It keeps its own state: a press shows "Saving…", then "Saved." or the server's words. `defaultsFile` is where the game's defaults are
+ * written ("game.config.json"). `onChange` hears each saved state (the panel's Overview shows the two switches too).
+ */
+export function gameCard(api: Api, initial: GameState, defaultsFile = "the game's own settings", onChange?: (state: GameState) => void): HTMLElement {
   let state = initial;
   const rows = new Map<SwitchId, { button: HTMLButtonElement; sentence: HTMLElement; status: HTMLElement }>();
   /** Under the character switch: it works only through sign-in, so it says so, and says what a player gets while sign-in is Off. */
   const needs = h("p", { class: "fine switch-needs" });
-  const card = h("section", { class: "admin-card game-card", "aria-labelledby": "game-title" }, h("h2", { id: "game-title" }, "Game"));
-  card.append(h("p", { class: "fine" }, `Two choices about your game. A press saves at once: you push nothing and deploy nothing. They start from ${defaultsFile}, and a press here wins.`));
+  const card = h("section", { class: "admin-card game-card", "aria-labelledby": "game-title" }, h("div", { class: "card-head" }, h("h2", { id: "game-title" }, "Game")));
+  card.append(h("p", { class: "fine card-intro" }, `Two choices about your game. A press saves at once: you push nothing and deploy nothing. They start from ${defaultsFile}, and a press here wins.`));
 
   const draw = () => {
     for (const [id, row] of rows) {
@@ -35,6 +38,7 @@ export function gameCard(api: Api, initial: GameState, defaultsFile = "the game'
       state = await api.post<GameState>("/game", pressOf(id, state));
       row.status.textContent = "Saved.";
       draw();
+      onChange?.(state);
     } catch (e) {
       row.status.textContent = e instanceof ApiError ? e.message : "The game's server did not answer. Nothing was changed.";
     } finally {

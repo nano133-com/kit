@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- **The admin panel (`@nano133/nanoterra/admin/panel`) has a new layout: the game at a glance, in tabs.** A top bar (who is signed in, Live or Test mode, the bot
+  check, Sign out), the warnings as one banner, four numbers (Earned, Open now, To send back, Players; each opens its list), then five tabs: Overview (best sellers
+  with their share of the money, the last five orders, the switches as On or Off, the shelf in numbers, first steps for a game with no order), Cosmetics (the
+  Shelf), Orders (a filter with counts, a search, a table on a wide panel, 20 at a time), Players (with a search) and Settings (the Game card, the sign-ins, the
+  facts). Wes asked for less scrolling and reading, clear sections, and a much better cosmetics screen (2026-10-30).
+- **The Shelf**: a grid of cards with a big picture on a tint of the look's colour, the price with its ladder step, the share of the sales, slot chips; filters and a
+  sort. Its editor opens one card at a time, with grouped fields (the ladder's seven steps as keys, colour swatches, the hats as pictures), "New", "Changed",
+  "Owned" and problem marks on each card, a short change bar at the bottom of the screen, and "Put back" for a removed look. The editor's rules do not change: the
+  Shelf still writes nothing, and an owned look's id and slots stay.
+- New exports: `shelfFilter`, `shelfSort`, `BODY_COLOURS`, `ordersView`, `orderMatches`, `overviewView`, `bestSellers`, `playersView`, `playerMatches`, `tabBar`,
+  `TABS`, `icon`, and their types. `gameCard` takes an optional fourth argument, `onChange(state)`. `mountAdmin`'s options and the handler's routes do not change.
+- New CSS custom properties: `--n133-ground`, `--n133-warn`, `--n133-bad`, `--n133-shadow`. The stylesheet uses a container query on the panel (`container: n133`).
+  Words that changed: the totals are "Earned", "Open now" and "To send back"; "Owned looks" is "Players who own a look"; "Copy a message for my AI" is "Copy for
+  my AI" (its tooltip says the rest). A sign-out now takes the drawn data off the page.
+
 ## 0.3.2 (2026-10-29)
 
 - **The Game card's character switch says what On means when a game offers a choice.** Echo Island lets a player choose between the Nanoterra character
