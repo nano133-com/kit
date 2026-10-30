@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 (2026-10-30)
 
 - **Wear slots** (`@nano133/nanoterra/looks`, and the Shelf of `/admin/panel`): a look fills one wear slot, and a player wears one look in each slot at once. An outfit (no
   `wear`, or `"outfit"`: `OUTFIT`) is the character's own look, with its `change` (the body colour and the hat), as before. Any other `wear` is the game's own slot (a tool's

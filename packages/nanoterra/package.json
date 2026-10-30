@@ -1,6 +1,6 @@
 {
   "name": "@nano133/nanoterra",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Nanoterra for a creator's game, in one package: the player's sign-in ticket, the player's character (a toon body on the island's skeleton) and the looks ladder.",
   "type": "module",
   "main": "dist/index.js",
