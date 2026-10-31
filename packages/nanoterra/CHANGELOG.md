@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.1 (2026-10-30)
 
 - **Friends: a name may be 80 characters** (it was 64), so a whole Nano address (65 with `nano_`) reaches the game's `PlayerDirectory`: the handler's
   `FRIENDS_LIMITS.nameMax` and the panel's name field.
