@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.1 (2026-10-31)
 
 - **Friends: the panel asks in the panel, never in a browser dialog.** Remove, Block and Join (both modes) showed `window.confirm`; now the question and a key for
   each answer show at the top of the panel, which opens for it. Escape or closing the panel answers no. The `confirm` option stays, and may return a promise.
