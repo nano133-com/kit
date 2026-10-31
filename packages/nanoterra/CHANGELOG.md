@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 (2026-10-30)
 
 - **The admin panel has a light and a dark theme** (`/admin/panel`, `/admin/style.css`). A theme key in the top bar (and on the signed-out screen) opens Device,
   Light and Dark; Device is the default and follows `prefers-color-scheme` live. The choice is kept in this browser (`localStorage`, `n133-admin-theme`); a refused
