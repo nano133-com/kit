@@ -682,7 +682,7 @@ import "@nano133/nanoterra/friends/style.css";
 const settings = await (await fetch("/api/settings")).json();       // your route: loadGameSettings(store, defaults) from "@nano133/nanoterra/admin"
 const friends = mountFriends(document.getElementById("friends")!, {
   mode: settings.friends,          // "nanoterra" | "own" | "off"
-  game: "echo-island",             // your game's id on Nanoterra (its listing's id)
+  game: "my-game",                 // your game's id on Nanoterra (its listing's id: Echo Island's is "gem-island")
   where: "Lobby",                  // where the player is, in your words: friends see it
   onJoin: (target) => go(target),  // optional: "nanoterra" gives a friend's https address, "own" an invite's place (and the friend's name)
 });
