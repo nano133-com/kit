@@ -87,6 +87,15 @@ test("the whole flow: request by name, accept, invite, pulse, visibility, block,
   for (const t of texts) assert.doesNotMatch(t, /uid-/, t);
 });
 
+test("a whole nano_ address (65 characters) reaches the directory as a name", async () => {
+  const address = "nano_1" + "3".repeat(59);
+  assert.equal(address.length, 65);
+  const seen: string[] = [];
+  const { call } = make({ directory: { byName: async (name) => (seen.push(name), null), names: async () => new Map() } });
+  assert.equal((await call("POST", { op: "request", name: address }))!.status, 404);
+  assert.deepEqual(seen, [address]);
+});
+
 test("bad bodies are refused with words, and change nothing", async () => {
   const { call, store } = make();
   const cases: [unknown, number][] = [

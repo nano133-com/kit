@@ -202,7 +202,7 @@ function ownList(body: HTMLElement, options: FriendsMountOptions, whereNow: () =
   const api: Api = createApi(options.base ?? "/friends", options.fetch);
   const lease = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
   const status = h("p", { class: "n133f-status", role: "status", "aria-live": "polite" });
-  const nameInput = h("input", { class: "n133f-input", type: "text", name: "friend", maxlength: 64, autocomplete: "off", placeholder: "A player's name", "aria-label": "A player's name" });
+  const nameInput = h("input", { class: "n133f-input", type: "text", name: "friend", maxlength: 80, autocomplete: "off", placeholder: "A player's name", "aria-label": "A player's name" });
   const addKey = h("button", { class: "n133f-btn n133f-primary", type: "submit" }, "Add");
   const form = h("form", { class: "n133f-add" }, nameInput, addKey);
   const list = h("div", { class: "n133f-list" });

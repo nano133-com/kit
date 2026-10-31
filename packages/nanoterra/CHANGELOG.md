@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Friends: a name may be 80 characters** (it was 64), so a whole Nano address (65 with `nano_`) reaches the game's `PlayerDirectory`: the handler's
+  `FRIENDS_LIMITS.nameMax` and the panel's name field.
+
 ## 0.6.0 (2026-10-30)
 
 - **A friends list for the game's players** (`@nano133/nanoterra/friends`, `/friends/d1`, `/friends/firestore`, `/friends/conformance`, `/friends/panel` and

@@ -38,8 +38,8 @@ export const FRIENDS_LIMITS = {
   calls: { limit: 30, windowMs: 60_000 },
   /** The biggest body of a POST. */
   bodyMax: 1024,
-  /** The longest name a request may send. */
-  nameMax: 64,
+  /** The longest name a request may send: room for a whole Nano address (65 characters with "nano_"), which a directory may accept as a name. */
+  nameMax: 80,
 } as const;
 
 const sharedLimit = memoryLimiter();
