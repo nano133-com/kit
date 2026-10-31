@@ -812,9 +812,12 @@ for (const c of friendsStoreConformance(async () => ({ store: newEmptyStore(), d
 ```
 
 **The panel in `"own"` mode** reads the view at once, every 20 s while open and every 60 s while closed (for the badge), pulses every 45 s while it has a `where`, and
-sends a leaving pulse when the page goes away. It draws Requests (Accept, Decline), Friends (online and the place, Invite to your `where`, Join an invite when you
+sends a leaving pulse when the page goes away. It draws Requests (Accept, Decline), Friends (online and the place, Invite to your `where` and Join an invite, both only when you
 give `onJoin`, Remove, Block), Sent (Cancel) and Blocked (Unblock), an add-by-name field and the "show friends when I am online" choice. The game's own friends have
 no live connection: only Nanoterra's do.
+
+**Questions.** Remove, Block and (in both modes) Join ask the player first, in the panel itself: the question and a key for each answer; Escape or closing the
+panel answers no. The kit never opens a browser dialog. To ask in your game's own dialog, pass `confirm(question)`, which returns a boolean or a promise of one.
 
 ## Moving from the three old packages
 

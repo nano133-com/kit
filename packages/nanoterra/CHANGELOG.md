@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Friends: the panel asks in the panel, never in a browser dialog.** Remove, Block and Join (both modes) showed `window.confirm`; now the question and a key for
+  each answer show at the top of the panel, which opens for it. Escape or closing the panel answers no. The `confirm` option stays, and may return a promise.
+- **Friends, "own": no Invite key without `onJoin`.** A game with no way to join a friend gave an invite that led nowhere.
+
 ## 0.7.0 (2026-10-30)
 
 - **The admin panel has a light and a dark theme** (`/admin/panel`, `/admin/style.css`). A theme key in the top bar (and on the signed-out screen) opens Device,

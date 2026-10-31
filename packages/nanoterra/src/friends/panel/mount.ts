@@ -32,13 +32,13 @@ export type FriendsMountOptions = {
   /**
    * The player chose to join a friend. "nanoterra": `target` is the friend's https address (the kit has asked the player already) and there is no
    * `friend` (the window sends no name); with no `onJoin` the page goes there. "own": `target` is the `where` of the friend's invite, for the game to
-   * move the player, and `friend` names them (with no `onJoin`, there is no Join key).
+   * move the player, and `friend` names them (with no `onJoin`, there is no Join key and no Invite key: an invite would lead nowhere).
    */
   onJoin?: (target: string, friend?: { name: string }) => void;
   /** The `fetch` to use (default: the page's). */
   fetch?: typeof fetch;
-  /** Asks the player a yes or no question (default: `window.confirm`). */
-  confirm?: (question: string) => boolean;
+  /** Asks the player a yes or no question (default: a question in the panel, with a key for each answer; never a browser dialog). */
+  confirm?: (question: string) => boolean | Promise<boolean>;
 };
 
 export type MountedFriends = {
@@ -60,7 +60,6 @@ export function mountFriends(root: HTMLElement, options: FriendsMountOptions): M
   if (options.mode !== "nanoterra" && options.mode !== "own") return NOTHING;
   const n = ++mounts;
   const origin = (options.origin ?? "https://nano133.com").replace(/\/+$/, "");
-  const ask = options.confirm ?? ((q: string) => window.confirm(q));
   let where = options.where === undefined ? null : whereText(options.where);
   let isOpen = false;
   let destroyed = false;
@@ -73,7 +72,12 @@ export function mountFriends(root: HTMLElement, options: FriendsMountOptions): M
   const title = h("h2", { class: "n133f-title", id: `n133f-title-${n}` }, "Friends");
   const closeKey = h("button", { class: "n133f-close", type: "button", "aria-label": "Close friends" }, icon("close", 20));
   const body = h("div", { class: "n133f-body" });
-  const panel = h("section", { class: `n133f-panel n133f-${options.mode}`, id: `n133f-panel-${n}`, role: "dialog", "aria-labelledby": `n133f-title-${n}`, "data-open": "false" }, h("header", { class: "n133f-head" }, title, closeKey), body);
+  const question = h("p", { class: "n133f-ask-q", id: `n133f-ask-${n}` });
+  const yesKey = h("button", { class: "n133f-btn n133f-primary", type: "button" });
+  const noKey = h("button", { class: "n133f-btn", type: "button" }, "Cancel");
+  const askBox = h("div", { class: "n133f-ask", role: "alertdialog", "aria-labelledby": `n133f-ask-${n}` }, question, h("div", { class: "n133f-ask-keys" }, yesKey, noKey));
+  askBox.hidden = true;
+  const panel = h("section", { class: `n133f-panel n133f-${options.mode}`, id: `n133f-panel-${n}`, role: "dialog", "aria-labelledby": `n133f-title-${n}`, "data-open": "false" }, h("header", { class: "n133f-head" }, title, closeKey), askBox, body);
   const wrap = h("div", { class: "n133-friends" }, key, panel);
   root.append(wrap);
 
@@ -99,6 +103,7 @@ export function mountFriends(root: HTMLElement, options: FriendsMountOptions): M
   };
   const close = () => {
     if (destroyed || !isOpen) return;
+    answer?.(false);
     isOpen = false;
     panel.dataset.open = "false";
     key.setAttribute("aria-expanded", "false");
@@ -107,8 +112,34 @@ export function mountFriends(root: HTMLElement, options: FriendsMountOptions): M
   };
   key.addEventListener("click", () => (isOpen ? close() : open()));
   closeKey.addEventListener("click", close);
+
+  /** The question in the panel: one at a time (a new one answers the old with no), and closing the panel answers no. */
+  let answer: ((yes: boolean) => void) | null = null;
+  const askInPanel = (q: string, yesWord: string) =>
+    new Promise<boolean>((resolve) => {
+      answer?.(false);
+      question.textContent = q;
+      yesKey.textContent = yesWord;
+      askBox.hidden = false;
+      answer = (yes) => {
+        answer = null;
+        askBox.hidden = true;
+        resolve(yes);
+        if (isOpen && !destroyed) closeKey.focus();
+      };
+      open();
+      yesKey.focus();
+    });
+  yesKey.addEventListener("click", () => answer?.(true));
+  noKey.addEventListener("click", () => answer?.(false));
+  const ask = (q: string, yesWord: string): Promise<boolean> => (options.confirm ? Promise.resolve(options.confirm(q)) : askInPanel(q, yesWord));
+  cleanup.push(() => answer?.(false));
+
   const onKey = (e: KeyboardEvent) => {
-    if (e.key === "Escape" && isOpen) close();
+    if (e.key !== "Escape" || !isOpen) return;
+    // Escape answers an open question first, then closes the panel.
+    if (answer) answer(false);
+    else close();
   };
   document.addEventListener("keydown", onKey);
   cleanup.push(() => document.removeEventListener("keydown", onKey));
@@ -165,9 +196,12 @@ export function mountFriends(root: HTMLElement, options: FriendsMountOptions): M
         frame.style.height = `${room > 0 ? Math.min(m.height, room) : m.height}px`;
       } else if (m.type === "badge") setBadge(m);
       else if (m.type === "join") {
-        if (!ask("Leave this game to join your friend?")) return;
-        if (options.onJoin) options.onJoin(m.url);
-        else window.location.assign(m.url);
+        const url = m.url;
+        void ask("Leave this game to join your friend?", "Join").then((yes) => {
+          if (!yes || destroyed) return;
+          if (options.onJoin) options.onJoin(url);
+          else window.location.assign(url);
+        });
       }
       // "signin": the window needs a tap (Storage Access) inside itself. The panel stays as it is; the kit does nothing else.
     };
@@ -198,7 +232,7 @@ export function mountFriends(root: HTMLElement, options: FriendsMountOptions): M
 }
 
 /** The game's own list in `body`. */
-function ownList(body: HTMLElement, options: FriendsMountOptions, whereNow: () => string | null, setBadge: (n: { requests: number; online: number }) => void, ask: (q: string) => boolean) {
+function ownList(body: HTMLElement, options: FriendsMountOptions, whereNow: () => string | null, setBadge: (n: { requests: number; online: number }) => void, ask: (q: string, yesWord: string) => Promise<boolean>) {
   const api: Api = createApi(options.base ?? "/friends", options.fetch);
   const lease = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
   const status = h("p", { class: "n133f-status", role: "status", "aria-live": "polite" });
@@ -253,9 +287,9 @@ function ownList(body: HTMLElement, options: FriendsMountOptions, whereNow: () =
     if (p.state === "friend") {
       if (p.invite && options.onJoin) keys.push(btn("Join", () => options.onJoin!(p.invite!.where, { name: p.name }), "n133f-primary"));
       const here = whereNow();
-      if (here) keys.push(btn("Invite", () => void act({ op: "invite", edge: p.edge, where: here }, `Invited ${p.name}.`)));
-      keys.push(btn("Remove", () => ask(`Remove ${p.name} from your friends?`) && void act({ op: "remove", edge: p.edge })));
-      keys.push(btn("Block", () => ask(`Block ${p.name}? They will not see you or be able to ask you again.`) && void act({ op: "block", edge: p.edge }), "n133f-quiet"));
+      if (here && options.onJoin) keys.push(btn("Invite", () => void act({ op: "invite", edge: p.edge, where: here }, `Invited ${p.name}.`)));
+      keys.push(btn("Remove", () => void ask(`Remove ${p.name} from your friends?`, "Remove").then((yes) => (yes ? act({ op: "remove", edge: p.edge }) : undefined))));
+      keys.push(btn("Block", () => void ask(`Block ${p.name}? They will not see you or be able to ask you again.`, "Block").then((yes) => (yes ? act({ op: "block", edge: p.edge }) : undefined)), "n133f-quiet"));
     }
     if (p.state === "outgoing") keys.push(btn("Cancel", () => void act({ op: "decline", edge: p.edge })));
     if (p.state === "blocked") keys.push(btn("Unblock", () => void act({ op: "unblock", edge: p.edge })));

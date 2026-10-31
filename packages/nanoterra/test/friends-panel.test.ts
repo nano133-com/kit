@@ -173,19 +173,54 @@ test("nanoterra: size sets the frame's height, at most the panel's room; signin 
   f.destroy();
 });
 
-test("nanoterra: a join asks the player first (the window sends no name), then calls onJoin with the https address", () => {
+test("nanoterra: a join asks the player first (the window sends no name), then calls onJoin with the https address", async () => {
   const joins: string[] = [];
   let answer = false;
   const questions: string[] = [];
   const { f, say } = nanoterra({ onJoin: (url) => joins.push(url), confirm: (q) => (questions.push(q), answer) });
   say({ ...W, type: "join", url: "https://nano133.com/nanoterra?room=abcde" });
+  await settle();
   assert.deepEqual(joins, []);
   assert.deepEqual(questions, ["Leave this game to join your friend?"]);
   answer = true;
   say({ ...W, type: "join", url: "https://nano133.com/nanoterra?room=abcde" });
   say({ ...W, type: "join", url: "javascript:alert(1)" });
+  await settle();
   assert.deepEqual(joins, ["https://nano133.com/nanoterra?room=abcde"]);
   f.destroy();
+});
+
+test("nanoterra: with no confirm option the join is asked in the panel, never with a browser dialog; Cancel and Escape say no", async () => {
+  const dialog = win.confirm;
+  win.confirm = () => assert.fail("a browser dialog");
+  try {
+    const joins: string[] = [];
+    const { el, f, say } = nanoterra({ onJoin: (url) => joins.push(url) });
+    const box = el.querySelector(".n133f-ask") as HTMLElement;
+    const keys = () => [...box.querySelectorAll("button")] as HTMLButtonElement[];
+    assert.equal(box.hidden, true);
+    say({ ...W, type: "join", url: "https://nano133.com/nanoterra?room=abcde" });
+    assert.equal(box.hidden, false);
+    assert.equal((el.querySelector(".n133f-panel") as HTMLElement).dataset.open, "true", "the question opens the panel");
+    assert.match(box.textContent!, /Leave this game to join your friend\?/);
+    assert.deepEqual(keys().map((b) => b.textContent), ["Join", "Cancel"]);
+    keys()[1].click();
+    await settle();
+    assert.equal(box.hidden, true);
+    say({ ...W, type: "join", url: "https://nano133.com/nanoterra?room=abcde" });
+    document.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Escape" }) as unknown as Event);
+    await settle();
+    assert.equal(box.hidden, true);
+    assert.equal((el.querySelector(".n133f-panel") as HTMLElement).dataset.open, "true", "Escape answers the question, the panel stays open");
+    assert.deepEqual(joins, []);
+    say({ ...W, type: "join", url: "https://nano133.com/nanoterra?room=fghij" });
+    keys()[0].click();
+    await settle();
+    assert.deepEqual(joins, ["https://nano133.com/nanoterra?room=fghij"]);
+    f.destroy();
+  } finally {
+    win.confirm = dialog;
+  }
 });
 
 test("nanoterra: Escape closes the panel; destroy stops listening", () => {
@@ -255,6 +290,49 @@ test("own: a request shows under Requests with Accept, the badge counts it, and 
   assert.deepEqual(words, ["Invite", "Remove", "Block"]);
   assert.equal((el.querySelector(".n133f-badge") as HTMLElement).hidden, true);
   f.destroy();
+});
+
+test("own: with no onJoin there is no Invite key (an invite would lead nowhere)", async () => {
+  const store = createMemoryFriends();
+  const now = Date.now();
+  await store.request("uid-bob", "uid-ann", now);
+  await store.request("uid-ann", "uid-bob", now + 1);
+  const { el, f } = own(store, "uid-ann", { where: "Room 4" });
+  await settle();
+  assert.deepEqual([...el.querySelectorAll(".n133f-row button")].map((b) => b.textContent), ["Remove", "Block"]);
+  f.destroy();
+});
+
+test("own: with no confirm option Remove and Block ask in the panel; Cancel keeps the friend, Remove removes them, never a browser dialog", async () => {
+  const dialog = win.confirm;
+  win.confirm = () => assert.fail("a browser dialog");
+  try {
+    const store = createMemoryFriends();
+    const now = Date.now();
+    await store.request("uid-bob", "uid-ann", now);
+    await store.request("uid-ann", "uid-bob", now + 1);
+    const { el, f } = own(store, "uid-ann", { confirm: undefined });
+    await settle();
+    const box = el.querySelector(".n133f-ask") as HTMLElement;
+    const rowKey = (w: string) => [...el.querySelectorAll(".n133f-row button")].find((b) => b.textContent === w) as HTMLButtonElement;
+    const askKeys = () => [...box.querySelectorAll("button")] as HTMLButtonElement[];
+    rowKey("Block").click();
+    assert.equal(box.hidden, false);
+    assert.match(box.textContent!, /Block Bob\?/);
+    assert.deepEqual(askKeys().map((b) => b.textContent), ["Block", "Cancel"]);
+    askKeys()[1].click();
+    await settle();
+    assert.match(el.textContent!, /Friends \(1\)/, "Cancel keeps the friend");
+    rowKey("Remove").click();
+    assert.match(box.textContent!, /Remove Bob from your friends\?/);
+    askKeys()[0].click();
+    await settle();
+    assert.equal(box.hidden, true);
+    assert.match(el.textContent!, /No friends yet/);
+    f.destroy();
+  } finally {
+    win.confirm = dialog;
+  }
 });
 
 test("own: a friend's invite shows, and Join calls onJoin with its where", async () => {
