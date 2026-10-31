@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 (2026-10-30)
 
 - **A friends list for the game's players** (`@nano133/nanoterra/friends`, `/friends/d1`, `/friends/firestore`, `/friends/conformance`, `/friends/panel` and
   `/friends/style.css`). The admin's Game card has a third choice, **"Friends list: Nanoterra / The game's own / Off"** (Nanoterra by default):
