@@ -4,30 +4,104 @@
    orders as a table from 760 px.
    To theme it, set the --n133-* custom properties on the element that holds the panel (or on any parent): --n133-ink, --n133-ink-soft, --n133-paper, --n133-line,
    --n133-gem, --n133-gem-dark, --n133-sea, --n133-radius and --n133-font; and, with the tabbed layout, --n133-ground (the wells inside a card), --n133-warn and
-   --n133-bad (the amber and red of a warning and a problem) and --n133-shadow (the cards' shadow). */
+   --n133-bad (the amber and red of a warning and a problem) and --n133-shadow (the cards' shadow). Every other colour has a hook too (the list below, e.g.
+   --n133-ok-bg). Those set the LIGHT theme. The DARK theme reads the twins with "dark-" in the name: --n133-dark-ink, --n133-dark-paper, --n133-dark-shadow and so
+   on. The panel's theme key (theme.ts) sets data-theme="light" or "dark" on the panel. */
 
 .n133-admin {
   --font: var(--n133-font, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
-  --gem: var(--n133-gem, #20c9a6);
-  --gem-dark: var(--n133-gem-dark, #0e8a72);
+  --radius: var(--n133-radius, 18px);
   --ink: var(--n133-ink, #16202e);
   --ink-soft: var(--n133-ink-soft, #4a5568);
-  --line: var(--n133-line, #dbe4ee);
   --paper: var(--n133-paper, #ffffff);
-  --radius: var(--n133-radius, 18px);
-  --sea: var(--n133-sea, #1f8fc4);
   --ground: var(--n133-ground, #f4f7fb);
+  --line: var(--n133-line, #dbe4ee);
+  --gem: var(--n133-gem, #20c9a6);
+  --gem-dark: var(--n133-gem-dark, #0e8a72);
+  --on-gem: var(--n133-on-gem, #062b23);
+  --sea: var(--n133-sea, #1f8fc4);
   --warn: var(--n133-warn, #8a4b00);
   --bad: var(--n133-bad, #b4142f);
-  --shadow: var(--n133-shadow, 0 1px 2px rgb(16 24 40 / 0.05), 0 6px 18px -6px rgb(16 24 40 / 0.1));
+  --ok-bg: var(--n133-ok-bg, #dcf6ec);
+  --ok-ink: var(--n133-ok-ink, #0b6a52);
+  --info: var(--n133-info, #1d5fa8);
+  --info-bg: var(--n133-info-bg, #e3f0ff);
+  --info-ink: var(--n133-info-ink, #134e86);
+  --warn-bg: var(--n133-warn-bg, #fff1d6);
+  --bad-bg: var(--n133-bad-bg, #ffe3e8);
+  --bad-ink: var(--n133-bad-ink, #9e1029);
+  --neutral-bg: var(--n133-neutral-bg, #eef1f4);
+  --neutral-ink: var(--n133-neutral-ink, #3f4a5a);
+  --note-bg: var(--n133-note-bg, #fff7e8);
+  --note-line: var(--n133-note-line, #f3c27a);
+  --note-ink: var(--n133-note-ink, #4a2d00);
+  --alarm-bg: var(--n133-alarm-bg, #fff1f3);
+  --alarm-ink: var(--n133-alarm-ink, #5c0716);
+  --quiet: var(--n133-quiet, #6b7686);
+  --violet: var(--n133-violet, #6d3fc0);
+  --changed: var(--n133-changed, #c47a00);
+  --stage: var(--n133-stage, #ffffff);
+  --tint-empty: var(--n133-tint-empty, #9fb3c8);
+  --swatch-empty: var(--n133-swatch-empty, #c9d3df);
+  --swatch-edge: var(--n133-swatch-edge, rgb(0 0 0 / 0.18));
+  --code-bg: var(--n133-code-bg, #0f172a);
+  --code-ink: var(--n133-code-ink, #e6edf6);
+  /* The colour of every shadow (r g b), and the shadow of a card. */
+  --shade: 16 24 40;
+  --shadow: var(--n133-shadow, 0 1px 2px rgb(var(--shade) / 0.05), 0 6px 18px -6px rgb(var(--shade) / 0.1));
+  --gem-hover: color-mix(in srgb, var(--gem) 85%, #ffffff);
   --gap: 12px;
   container: n133 / inline-size;
   box-sizing: border-box;
   max-width: 1200px;
   margin: 0 auto;
   color: var(--ink);
+  color-scheme: light;
   font: 15px/1.45 var(--font);
   -webkit-text-size-adjust: 100%;
+}
+
+/* Dark: mountAdmin sets data-theme="dark" on the panel (the owner's choice, or the device's setting). Each colour has a --n133-dark-* twin; the shadows go
+   black and faint, so the cards stand on their borders. */
+.n133-admin[data-theme="dark"] {
+  --ink: var(--n133-dark-ink, #e7edf5);
+  --ink-soft: var(--n133-dark-ink-soft, #a9b5c5);
+  --paper: var(--n133-dark-paper, #171f2b);
+  --ground: var(--n133-dark-ground, #0f151e);
+  --line: var(--n133-dark-line, #303c4e);
+  --gem: var(--n133-dark-gem, #20c9a6);
+  --gem-dark: var(--n133-dark-gem-dark, #3fd8b6);
+  --on-gem: var(--n133-dark-on-gem, #062b23);
+  --sea: var(--n133-dark-sea, #62bcec);
+  --warn: var(--n133-dark-warn, #f2b45c);
+  --bad: var(--n133-dark-bad, #ff8293);
+  --ok-bg: var(--n133-dark-ok-bg, #14392f);
+  --ok-ink: var(--n133-dark-ok-ink, #7fe4c4);
+  --info: var(--n133-dark-info, #6eaaf0);
+  --info-bg: var(--n133-dark-info-bg, #172f4c);
+  --info-ink: var(--n133-dark-info-ink, #a3ccf6);
+  --warn-bg: var(--n133-dark-warn-bg, #3a2a12);
+  --bad-bg: var(--n133-dark-bad-bg, #45171f);
+  --bad-ink: var(--n133-dark-bad-ink, #ffa7b4);
+  --neutral-bg: var(--n133-dark-neutral-bg, #263040);
+  --neutral-ink: var(--n133-dark-neutral-ink, #c8d1dc);
+  --note-bg: var(--n133-dark-note-bg, #2a2113);
+  --note-line: var(--n133-dark-note-line, #7a5a22);
+  --note-ink: var(--n133-dark-note-ink, #f6dfb8);
+  --alarm-bg: var(--n133-dark-alarm-bg, #3a161d);
+  --alarm-ink: var(--n133-dark-alarm-ink, #ffcad2);
+  --quiet: var(--n133-dark-quiet, #98a5b7);
+  --violet: var(--n133-dark-violet, #bba3f6);
+  --changed: var(--n133-dark-changed, #e3a440);
+  --stage: var(--n133-dark-stage, #2a3546);
+  --tint-empty: var(--n133-dark-tint-empty, #6f86a0);
+  --swatch-empty: var(--n133-dark-swatch-empty, #66748a);
+  --swatch-edge: var(--n133-dark-swatch-edge, rgb(255 255 255 / 0.4));
+  --code-bg: var(--n133-dark-code-bg, #0a0f17);
+  --code-ink: var(--n133-dark-code-ink, #e6edf6);
+  --shade: 0 0 0;
+  --shadow: var(--n133-dark-shadow, 0 1px 2px rgb(0 0 0 / 0.3));
+  color-scheme: dark;
 }
 
 .n133-admin *,
@@ -93,7 +167,7 @@
 @media (hover: hover) {
   .n133-admin .btn:not(:disabled):hover {
     border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
-    box-shadow: 0 1px 3px rgb(16 24 40 / 0.1);
+    box-shadow: 0 1px 3px rgb(var(--shade) / 0.1);
   }
 }
 
@@ -105,13 +179,13 @@
 .n133-admin .btn-primary {
   border-color: var(--gem-dark);
   background: var(--gem);
-  color: #062b23;
+  color: var(--on-gem);
 }
 
 @media (hover: hover) {
   .n133-admin .btn-primary:not(:disabled):hover {
     border-color: var(--gem-dark);
-    background: color-mix(in srgb, var(--gem) 85%, #ffffff);
+    background: var(--gem-hover);
   }
 }
 
@@ -386,18 +460,104 @@
 }
 
 .n133-admin .chip-ok {
-  background: #dcf6ec;
-  color: #0b6a52;
+  background: var(--ok-bg);
+  color: var(--ok-ink);
 }
 
 .n133-admin .chip-warn {
-  background: #fff1d6;
+  background: var(--warn-bg);
   color: var(--warn);
 }
 
 .n133-admin .topbar-keys {
   display: flex;
+  align-items: center;
+  gap: 6px;
   margin-left: auto;
+}
+
+/* ---- The theme key (theme.ts): a 44 px round key that opens a menu of Device, Light and Dark ---- */
+
+.n133-admin .theme-key {
+  position: relative;
+}
+
+.n133-admin .gate {
+  position: relative;
+}
+
+.n133-admin .gate > .theme-key {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.n133-admin .theme-summary {
+  width: 44px;
+  padding: 0;
+  color: var(--ink-soft);
+  list-style: none;
+}
+
+.n133-admin .theme-summary::-webkit-details-marker {
+  display: none;
+}
+
+.n133-admin .theme-key[open] > .theme-summary {
+  border-color: var(--line);
+  background: var(--ground);
+  color: var(--ink);
+}
+
+.n133-admin .theme-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  gap: 2px;
+  min-width: 156px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+  box-shadow: 0 10px 30px -10px rgb(var(--shade) / 0.35);
+  text-align: left;
+}
+
+.n133-admin .theme-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font: 650 15px/1 var(--font);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+@media (hover: hover) {
+  .n133-admin .theme-choice:hover {
+    background: var(--ground);
+  }
+}
+
+.n133-admin .theme-choice[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--gem) 16%, var(--paper));
+  color: var(--ink);
+}
+
+.n133-admin .theme-choice[aria-pressed="true"] .icon {
+  color: var(--gem-dark);
+}
+
+.n133-admin .theme-choice:focus-visible {
+  outline: 3px solid var(--sea);
+  outline-offset: -3px;
 }
 
 /* ---- What is still off: one banner ---- */
@@ -406,10 +566,10 @@
   display: flex;
   gap: 12px;
   padding: 14px 16px;
-  border: 1px solid #f3c27a;
+  border: 1px solid var(--note-line);
   border-radius: var(--radius);
-  background: #fff7e8;
-  color: #4a2d00;
+  background: var(--note-bg);
+  color: var(--note-ink);
 }
 
 .n133-admin .banner h2 {
@@ -461,11 +621,11 @@
 }
 
 .n133-admin .kpi-open {
-  --accent: #1d5fa8;
+  --accent: var(--info);
 }
 
 .n133-admin .kpi-late {
-  --accent: #6b7686;
+  --accent: var(--quiet);
 }
 
 .n133-admin .kpi-late.is-alert {
@@ -475,7 +635,7 @@
 }
 
 .n133-admin .kpi-players {
-  --accent: #6d3fc0;
+  --accent: var(--violet);
 }
 
 .n133-admin .kpi-top {
@@ -627,7 +787,7 @@
 .n133-admin .seg-btn.is-on {
   background: var(--paper);
   color: var(--ink);
-  box-shadow: 0 1px 3px rgb(16 24 40 / 0.14);
+  box-shadow: 0 1px 3px rgb(var(--shade) / 0.14);
 }
 
 .n133-admin .seg-btn.is-alert:not(.is-on) {
@@ -661,51 +821,51 @@
   align-items: center;
   padding: 3px 10px;
   border-radius: 999px;
-  background: #eef1f4;
-  color: #3f4a5a;
+  background: var(--neutral-bg);
+  color: var(--neutral-ink);
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
 }
 
 .n133-admin .badge-paid {
-  background: #dcf6ec;
-  color: #0b6a52;
+  background: var(--ok-bg);
+  color: var(--ok-ink);
 }
 
 .n133-admin .badge-open {
-  background: #e3f0ff;
-  color: #134e86;
+  background: var(--info-bg);
+  color: var(--info-ink);
 }
 
 .n133-admin .badge-paid_late {
-  background: #ffe3e8;
-  color: #9e1029;
+  background: var(--bad-bg);
+  color: var(--bad-ink);
 }
 
 .n133-admin .pill {
   flex: none;
   padding: 3px 10px;
   border-radius: 999px;
-  background: #eef1f4;
-  color: #3f4a5a;
+  background: var(--neutral-bg);
+  color: var(--neutral-ink);
   font-size: 13px;
   font-weight: 700;
 }
 
 .n133-admin .pill-on {
-  background: #dcf6ec;
-  color: #0b6a52;
+  background: var(--ok-bg);
+  color: var(--ok-ink);
 }
 
 .n133-admin .look-dot,
 .n133-admin .swatch {
-  --swatch: #c9d3df;
+  --swatch: var(--swatch-empty);
   display: inline-block;
   flex: none;
   width: 12px;
   height: 12px;
-  border: 1px solid rgb(0 0 0 / 0.18);
+  border: 1px solid var(--swatch-edge);
   border-radius: 50%;
   background: var(--swatch);
 }
@@ -726,31 +886,31 @@
   gap: 4px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #eef1f4;
-  color: #3f4a5a;
+  background: var(--neutral-bg);
+  color: var(--neutral-ink);
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
 }
 
 .n133-admin .mark-new {
-  background: #e3f0ff;
-  color: #134e86;
+  background: var(--info-bg);
+  color: var(--info-ink);
 }
 
 .n133-admin .mark-changed {
-  background: #fff1d6;
+  background: var(--warn-bg);
   color: var(--warn);
 }
 
 .n133-admin .mark-bad {
-  background: #ffe3e8;
+  background: var(--bad-bg);
   color: var(--bad);
 }
 
 .n133-admin .mark-ok {
-  background: #dcf6ec;
-  color: #0b6a52;
+  background: var(--ok-bg);
+  color: var(--ok-ink);
 }
 
 .n133-admin .share {
@@ -785,8 +945,8 @@
   gap: 6px 8px;
   padding: 10px 12px;
   border-radius: 12px;
-  background: #fff1f3;
-  color: #5c0716;
+  background: var(--alarm-bg);
+  color: var(--alarm-ink);
   font-size: 14px;
 }
 
@@ -1163,10 +1323,10 @@
   align-items: center;
   gap: 8px 10px;
   padding: 10px 12px;
-  border: 1px solid #f3c27a;
+  border: 1px solid var(--note-line);
   border-radius: 14px;
-  background: #fff7e8;
-  color: #4a2d00;
+  background: var(--note-bg);
+  color: var(--note-ink);
   font-size: 14px;
 }
 
@@ -1201,12 +1361,12 @@
 
 /* The stage: the picture on a soft tint of the look's own body colour. */
 .n133-admin .shelf-stage {
-  --tint: #9fb3c8;
+  --tint: var(--tint-empty);
   position: relative;
   display: grid;
   place-items: center;
   min-height: 128px;
-  background: radial-gradient(circle at 50% 70%, color-mix(in srgb, var(--tint) 30%, var(--paper)), color-mix(in srgb, var(--tint) 10%, var(--paper)) 70%);
+  background: radial-gradient(circle at 50% 70%, color-mix(in srgb, var(--tint) 30%, var(--stage)), color-mix(in srgb, var(--tint) 10%, var(--stage)) 70%);
 }
 
 .n133-admin .shelf-pic {
@@ -1244,7 +1404,7 @@
   padding: 4px 10px;
   border-radius: 999px;
   background: var(--paper);
-  box-shadow: 0 1px 3px rgb(16 24 40 / 0.15);
+  box-shadow: 0 1px 3px rgb(var(--shade) / 0.15);
   font-size: 13px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
@@ -1315,11 +1475,11 @@
 }
 
 .n133-admin .shelf-card.is-new {
-  border-color: color-mix(in srgb, #1d5fa8 45%, var(--line));
+  border-color: color-mix(in srgb, var(--info) 45%, var(--line));
 }
 
 .n133-admin .shelf-card.is-changed {
-  border-color: color-mix(in srgb, #c47a00 50%, var(--line));
+  border-color: color-mix(in srgb, var(--changed) 50%, var(--line));
 }
 
 .n133-admin .shelf-card.has-problem {
@@ -1331,7 +1491,7 @@
   gap: 0;
   border-width: 2px;
   border-color: var(--ink);
-  box-shadow: 0 10px 30px -10px rgb(16 24 40 / 0.25);
+  box-shadow: 0 10px 30px -10px rgb(var(--shade) / 0.25);
 }
 
 .n133-admin .shelf-editing:focus {
@@ -1379,8 +1539,8 @@
   margin: 12px 14px 0;
   padding: 10px 12px 10px 30px;
   border-radius: 12px;
-  background: #fff1f3;
-  color: #5c0716;
+  background: var(--alarm-bg);
+  color: var(--alarm-ink);
   font-size: 14px;
 }
 
@@ -1616,7 +1776,7 @@
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--paper) 96%, transparent);
-  box-shadow: 0 -8px 24px -12px rgb(16 24 40 / 0.25);
+  box-shadow: 0 -8px 24px -12px rgb(var(--shade) / 0.25);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
@@ -1674,8 +1834,8 @@
   padding: 12px;
   overflow: auto;
   border-radius: 12px;
-  background: #0f172a;
-  color: #e6edf6;
+  background: var(--code-bg);
+  color: var(--code-ink);
   font-size: 12px;
 }
 
@@ -1753,7 +1913,7 @@
   height: 30px;
   border-radius: 50%;
   background: var(--paper);
-  box-shadow: 0 1px 3px rgb(16 24 40 / 0.25);
+  box-shadow: 0 1px 3px rgb(var(--shade) / 0.25);
 }
 
 .n133-admin .switch.switch-on {
@@ -1761,7 +1921,7 @@
   padding: 0 6px 0 14px;
   border-color: var(--gem-dark);
   background: var(--gem);
-  color: #052b23;
+  color: var(--on-gem);
 }
 
 .n133-admin .switch:disabled {
@@ -1801,7 +1961,7 @@
   gap: 8px;
   padding: 12px;
   border-radius: 12px;
-  background: #fff1f3;
+  background: var(--alarm-bg);
 }
 
 .n133-admin .signout-confirm p {
@@ -2044,7 +2204,7 @@
 
   .n133-admin .tabbar-tab.is-on .tab-count {
     background: var(--gem);
-    color: #062b23;
+    color: var(--on-gem);
   }
 }
 

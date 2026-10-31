@@ -1,7 +1,7 @@
 // The admin panel: orders, owned looks, totals and the two game switches, from the game's own database. Only the game's owner can read them (the
 // handler checks it on every call); this page only shows them. `mountAdmin(element, options)` draws the panel into `element`.
 //
-// The page: a top bar (who is signed in, Live or Test mode, Sign out), what is still off (one banner), four numbers (earned, open now, to send back, players;
+// The page: a top bar (who is signed in, Live or Test mode, the light/dark theme key, Sign out), what is still off (one banner), four numbers (earned, open now, to send back, players;
 // each opens its list), then five tabs: Overview, Cosmetics (the Shelf), Orders, Players and Settings (the Game card, the sign-ins, the facts). Every tab is
 // made once; a new read of the summary fills them again and keeps the chosen tab, the Shelf's draft, a search and the Game card.
 
@@ -18,6 +18,7 @@ import { playersView } from "./players.js";
 import { shelfView } from "./shelf.js";
 import { signinsCard } from "./signins.js";
 import { tabBar, type TabId } from "./tabs.js";
+import { createTheme, themeKey, type ThemeControl } from "./theme.js";
 
 export type MountOptions = {
   /** The game's looks now (its looks.json). The Shelf starts from them. */
@@ -47,6 +48,10 @@ export type MountedAdmin = {
   reload(): Promise<void>;
   /** Resolves when the first read has been drawn (a test waits for it). */
   ready: Promise<void>;
+  /** The light or dark theme (the owner's choice in the top bar, kept in this browser). */
+  theme: Pick<ThemeControl, "choice" | "resolved" | "set" | "onChange">;
+  /** Stops following the device's theme and takes data-n133-theme off the page's <html>. */
+  destroy(): void;
 };
 
 const when = (ms: number | null) => (ms ? new Date(ms).toLocaleString() : "");
@@ -61,6 +66,11 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
   data.hidden = true;
   root.classList.add("n133-admin");
   root.replaceChildren(gate, data);
+  // Before the first read, so the gate is drawn in the chosen theme too.
+  const theme = createTheme(root);
+  /** The two theme keys (the gate's and the top bar's), made once: each one listens to the theme for the life of the page. */
+  const gateKey = themeKey(theme);
+  const barKey = themeKey(theme);
 
   /** The Shelf keeps its draft while the page redraws (a tab, a payment check): one view for the life of the page. */
   let shelf: ReturnType<typeof shelfView> | null = null;
@@ -91,7 +101,7 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
     data.replaceChildren();
     dash = null;
     gate.hidden = false;
-    gate.replaceChildren(h("div", { class: "gate-icon", "aria-hidden": "true" }, icon(kind, 28)), h("h2", {}, title), ...body.filter((b): b is Node => b !== null));
+    gate.replaceChildren(gateKey, h("div", { class: "gate-icon", "aria-hidden": "true" }, icon(kind, 28)), h("h2", {}, title), ...body.filter((b): b is Node => b !== null));
   }
 
   async function load(): Promise<void> {
@@ -104,7 +114,7 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
       if (!(e instanceof ApiError)) {
         // The data already drawn (if any) stays: a failed new read does not take it away.
         gate.hidden = false;
-        gate.replaceChildren(h("div", { class: "gate-icon", "aria-hidden": "true" }, icon("alert", 28)), h("p", {}, "The game's server did not answer. Try again."), h("button", { class: "btn", type: "button", onclick: () => void load() }, "Try again"));
+        gate.replaceChildren(gateKey, h("div", { class: "gate-icon", "aria-hidden": "true" }, icon("alert", 28)), h("p", {}, "The game's server did not answer. Try again."), h("button", { class: "btn", type: "button", onclick: () => void load() }, "Try again"));
         return;
       }
       if (e.status === 403 && e.body.signedInAs) {
@@ -174,7 +184,7 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
 
     const who = h("div", { class: "who" });
     const chips = h("div", { class: "chips" });
-    const top = h("header", { class: "topbar" }, h("div", { class: "who-mark", "aria-hidden": "true" }, icon("lock", 18)), who, chips, h("div", { class: "topbar-keys" }, signOutButton()));
+    const top = h("header", { class: "topbar" }, h("div", { class: "who-mark", "aria-hidden": "true" }, icon("lock", 18)), who, chips, h("div", { class: "topbar-keys" }, barKey, signOutButton()));
     const banner = h("div", { class: "banner warnings", role: "alert" });
     const kpis = h("div", { class: "kpis", role: "group", "aria-label": "Your game in numbers" });
     const settings = h("div", { class: "settings-grid" });
@@ -241,6 +251,6 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
     dash.update(s);
   }
 
-  return { reload: () => load(), ready: load() };
+  return { reload: () => load(), ready: load(), theme, destroy: () => theme.destroy() };
 }
 

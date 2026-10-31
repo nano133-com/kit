@@ -21,6 +21,8 @@ export type { BestSeller, OverviewView } from "./overview.js";
 export { playerMatches, playersView } from "./players.js";
 export { TABS, tabBar } from "./tabs.js";
 export type { TabBar, TabId } from "./tabs.js";
+export { THEME_CHOICES, THEME_KEY, createTheme, readThemeChoice, resolveTheme, themeKey, themeLabel } from "./theme.js";
+export type { Theme, ThemeChoice, ThemeControl, ThemeOptions } from "./theme.js";
 export { icon } from "./icons.js";
 export type { IconName } from "./icons.js";
 export { aiPrompt, centsOf, changeText, ownedIds, shelfStats, soldText } from "./shelfData.js";

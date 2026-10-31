@@ -665,6 +665,37 @@ width (a container query), not the window's: on a phone two cards a row and the 
 
 The wallet sign-in stays yours (`signIn`), because only your game can start a request in the ADMIN scope with its own cookie. The panel never signs anyone in.
 
+**Light and dark** (unreleased). The top bar has a theme key (44 px, a half circle, a sun or a moon; its name says the choice: "Theme: Dark", "Theme: Device (dark
+now)"). A press opens a menu of three: **Device** (the default: it follows the device's setting, `prefers-color-scheme`, and a live change of it), **Light** and **Dark**.
+The signed-out screen has the same key. The choice is kept in this browser only, in `localStorage` under `n133-admin-theme`: no server call and no admin setting. A
+browser that refuses storage (some private windows) reads Device, and a choice there holds for the page.
+
+The panel gets `data-theme="light"` or `"dark"` on its root element and sets `color-scheme` to match (form controls, scroll bars, the colour picker). Every colour of the
+stylesheet is a variable with a hook: `--n133-<name>` sets the light value, as before, and its twin `--n133-dark-<name>` sets the dark value. The names: `ink`,
+`ink-soft`, `paper`, `ground`, `line`, `gem`, `gem-dark` (the green of text and marks), `on-gem` (text on a green fill), `sea` (links and the focus ring), `warn`, `bad`,
+`ok-bg`, `ok-ink`, `info`, `info-bg`, `info-ink`, `warn-bg`, `bad-bg`, `bad-ink`, `neutral-bg`, `neutral-ink` (the badges and chips), `note-bg`, `note-line`, `note-ink`
+(the "Check these" banner and the draft note), `alarm-bg`, `alarm-ink` (a late payment, a card's problems, Sign out everywhere), `quiet`, `violet`, `changed` (the accents
+of the numbers and of a changed look), `stage` (the backdrop of a look's picture), `tint-empty`, `swatch-empty`, `swatch-edge`, `code-bg`, `code-ink`, and `shadow`
+(`--n133-dark-shadow`). The dark defaults keep body text at 4.5:1 or more on the dark paper (most pairs are 7:1 or more).
+
+**The page around the panel.** While the panel is mounted, `mountAdmin` also sets `data-n133-theme="light" | "dark"` on the page's `<html>`, so your page can follow it
+with CSS alone. `destroy()` (on what `mountAdmin` returns) stops following the device and takes the attribute off. `theme` on the same object reads and sets the choice
+(`theme.choice`, `theme.resolved`, `theme.set("dark")`, `theme.onChange(fn)`). The starter's `src/client/admin.css`:
+
+```css
+html[data-n133-theme="dark"]:has(.admin-page) {
+  --ink: #e7edf5; --ink-soft: #a9b5c5; --paper: #171f2b; --line: #303c4e; --gem-dark: #3fd8b6; --sea: #62bcec;
+  color-scheme: dark;
+}
+html[data-n133-theme="dark"]:has(.admin-page),
+html[data-n133-theme="dark"] body.admin-page {
+  background: #0f151e;
+}
+```
+
+The pictures: a look's flat picture and the character previews (`createLookPreview` draws with a clear background) stand on the `stage` colour, which is a mid grey
+blue in dark, so a dark outfit and the outlines still show. The panel draws no QR code.
+
 ## The friends list (`/friends`; unreleased)
 
 A Friends key for the game, and a list behind it. The admin's **Game** card chooses which list (`friends` in the settings; Nanoterra by default):

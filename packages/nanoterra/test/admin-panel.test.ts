@@ -92,6 +92,16 @@ test("the owner sees every card: the two switches, the numbers, the Shelf, the o
   const switches = [...root.querySelectorAll(".switch")];
   assert.deepEqual(switches.map((s) => s.getAttribute("aria-checked")), ["true", "true"]);
   assert.ok(text(root).includes("Send this amount back by hand"), "a late payment says what to do");
+  // The theme: drawn on the panel and on the page's <html> while mounted; the top bar has its key.
+  assert.match(root.getAttribute("data-theme") ?? "", /^(light|dark)$/);
+  assert.equal(win.document.documentElement.getAttribute("data-n133-theme"), root.getAttribute("data-theme"));
+  assert.ok(root.querySelector(".topbar .theme-key summary[aria-label^='Theme: ']"));
+  mounted.theme.set("dark");
+  assert.equal(root.getAttribute("data-theme"), "dark");
+  assert.equal(win.document.documentElement.getAttribute("data-n133-theme"), "dark");
+  mounted.theme.set("device");
+  mounted.destroy();
+  assert.equal(win.document.documentElement.hasAttribute("data-n133-theme"), false);
 });
 
 test("a press on a switch saves it, says Saved, and the character note changes with the sign-in switch", async () => {

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **The admin panel has a light and a dark theme** (`/admin/panel`, `/admin/style.css`). A theme key in the top bar (and on the signed-out screen) opens Device,
+  Light and Dark; Device is the default and follows `prefers-color-scheme` live. The choice is kept in this browser (`localStorage`, `n133-admin-theme`); a refused
+  storage reads Device. The panel gets `data-theme` and `color-scheme`; the page's `<html>` gets `data-n133-theme` while the panel is mounted, so the host page can
+  follow (README, "Light and dark"). Every colour of the stylesheet is a variable now: `--n133-*` sets the light value as before, and each has a `--n133-dark-*`
+  twin. `mountAdmin` returns `theme` and `destroy()` too. New exports: `createTheme`, `themeKey`, `resolveTheme`, `readThemeChoice`, `themeLabel`, `THEME_KEY`,
+  `THEME_CHOICES` and their types.
+
 ## 0.6.1 (2026-10-30)
 
 - **Friends: a name may be 80 characters** (it was 64), so a whole Nano address (65 with `nano_`) reaches the game's `PlayerDirectory`: the handler's
