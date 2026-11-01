@@ -1,7 +1,7 @@
-// The "Game" card of /admin: two switches, "Players can play as their Nanoterra character" and "Players can sign in with Nanoterra", and one three-way
-// choice, "Friends list: Nanoterra / The game's own / Off". A press saves at once (POST {api}/game, behind the same admin guard as every admin call) and
-// the game reads the setting at run time, so the creator pushes and deploys nothing. The words are in ../switches.ts. The card changes ONLY these three
-// settings: never a look, a price or an order.
+// The "Game" card of /admin: two switches, "Players can play as their Nanoterra character" and "Players can sign in with Nanoterra", one three-way
+// choice, "Friends list: Nanoterra / The game's own / Off", and the switch "Allow Nanoterra emotes". A press saves at once (POST {api}/game, behind the
+// same admin guard as every admin call) and the game reads the setting at run time, so the creator pushes and deploys nothing. The words are in
+// ../switches.ts. The card changes ONLY these four settings: never a look, a price or an order.
 
 import { CHARACTER_NEEDS_SIGNIN, CHARACTER_SIGNIN_OFF, FRIENDS_CHOICES, FRIENDS_TITLE, REVIEW_LINK, REVIEW_NOTE, SWITCHES, pressOf, signinOn, stateOf, type Friends, type GameState, type SwitchId } from "../switches.js";
 import { ApiError, type Api } from "./api.js";
@@ -17,7 +17,7 @@ export function gameCard(api: Api, initial: GameState, defaultsFile = "the game'
   /** Under the character switch: it works only through sign-in, so it says so, and says what a player gets while sign-in is Off. */
   const needs = h("p", { class: "fine switch-needs" });
   const card = h("section", { class: "admin-card game-card", "aria-labelledby": "game-title" }, h("div", { class: "card-head" }, h("h2", { id: "game-title" }, "Game")));
-  card.append(h("p", { class: "fine card-intro" }, `Three choices about your game. A press saves at once: you push nothing and deploy nothing. They start from ${defaultsFile}, and a press here wins.`));
+  card.append(h("p", { class: "fine card-intro" }, `Four choices about your game. A press saves at once: you push nothing and deploy nothing. They start from ${defaultsFile}, and a press here wins.`));
   /** The friends choice: a radio group of three keys (arrow keys move between them, as a radio group does). */
   const friendsKeys = new Map<Friends, HTMLButtonElement>();
   const friendsNote = h("p", { class: "switch-note", id: "switch-friends-note" });
@@ -74,7 +74,8 @@ export function gameCard(api: Api, initial: GameState, defaultsFile = "the game'
     }
   };
 
-  for (const id of ["character", "signin"] as const) {
+  /** A switch's row: its title, the On/Off key, the sentence for its state and the save status. */
+  const switchRow = (id: SwitchId) => {
     const label = h("span", { class: "switch-title", id: `switch-${id}-label` }, SWITCHES[id].title);
     const button = h(
       "button",
@@ -87,9 +88,11 @@ export function gameCard(api: Api, initial: GameState, defaultsFile = "the game'
     button.addEventListener("click", () => void press(id));
     rows.set(id, { button, sentence, status });
     card.append(h("div", { class: "switch-row" }, h("div", { class: "switch-head" }, label, button), sentence, id === "character" ? needs : null, status));
-    // The sign-in word is part of the listing file: Nanoterra's review decides what Nanoterra shows. This page cannot see that review.
-    if (id === "signin") card.append(h("p", { class: "fine switch-review" }, REVIEW_NOTE, " ", h("a", { href: REVIEW_LINK, target: "_blank", rel: "noopener noreferrer" }, "Open the launch page")));
-  }
+  };
+  switchRow("character");
+  switchRow("signin");
+  // The sign-in word is part of the listing file: Nanoterra's review decides what Nanoterra shows. This page cannot see that review.
+  card.append(h("p", { class: "fine switch-review" }, REVIEW_NOTE, " ", h("a", { href: REVIEW_LINK, target: "_blank", rel: "noopener noreferrer" }, "Open the launch page")));
 
   const order = Object.keys(FRIENDS_CHOICES) as Friends[];
   const group = h("div", { class: "seg friends-choice", role: "radiogroup", "aria-labelledby": "switch-friends-label", "aria-describedby": "switch-friends-note" });
@@ -108,6 +111,7 @@ export function gameCard(api: Api, initial: GameState, defaultsFile = "the game'
     group.append(key);
   }
   card.append(h("div", { class: "switch-row friends-row" }, h("div", { class: "switch-head" }, h("span", { class: "switch-title", id: "switch-friends-label" }, FRIENDS_TITLE), group), friendsNote, friendsStatus));
+  switchRow("emotes");
   draw();
   return card;
 }

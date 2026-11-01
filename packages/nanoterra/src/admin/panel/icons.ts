@@ -32,6 +32,7 @@ const SHAPES = {
   moon: [["path", { d: "M20 14.5A8.5 8.5 0 1 1 9.5 4a6.8 6.8 0 0 0 10.5 10.5Z" }]],
   device: [["circle", { cx: 12, cy: 12, r: 8.5 }], ["path", { d: "M12 3.5a8.5 8.5 0 0 1 0 17Z", fill: "currentColor" }]],
   sparkle: [["path", { d: "M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6" }]],
+  smile: [["circle", { cx: 12, cy: 12, r: 9 }], ["path", { d: "M8.2 14.2a4.6 4.6 0 0 0 7.6 0" }], ["path", { d: "M9 9.6h.01M15 9.6h.01", "stroke-width": 2.6 }]],
 } satisfies Record<string, Shape[]>;
 
 export type IconName = keyof typeof SHAPES;

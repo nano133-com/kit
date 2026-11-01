@@ -1,0 +1,413 @@
+/* The Emotes key and the emote wheel (mountEmotes in ./mount.ts). Every rule is under .n133-emotes, so nothing leaks into the game's page.
+   Phone first: the key is 44 px, each place of the wheel 58 px or more, each tile of Edit 70 px. The wheel's sizes follow the screen's short side
+   (a phone on its side too): --r is the ring's radius, --slot a place's size, as on nano133.com's island.
+   To theme it, set the --n133-* custom properties on the element that holds the key (or a parent): --n133-ink, --n133-ink-soft, --n133-paper,
+   --n133-ground, --n133-line, --n133-gem, --n133-gem-dark, --n133-radius, --n133-font and --n133-emotes-z (the wheel's z-index, default 1000).
+   Those set the LIGHT theme; the dark one reads the twins with "dark-" in the name (--n133-dark-ink and so on), as the admin panel does.
+   mountEmotes sets data-theme="light" or "dark" on .n133-emotes. */
+
+.n133-emotes {
+  --font: var(--n133-font, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+  --radius: var(--n133-radius, 18px);
+  --ink: var(--n133-ink, #16202e);
+  --ink-soft: var(--n133-ink-soft, #4a5568);
+  --paper: var(--n133-paper, #ffffff);
+  --ground: var(--n133-ground, #f4f7fb);
+  --line: var(--n133-line, #dbe4ee);
+  --gem: var(--n133-gem, #20c9a6);
+  --gem-dark: var(--n133-gem-dark, #0e8a72);
+  --on-gem: var(--n133-on-gem, #062b23);
+  --dim: rgb(16 24 40 / 0.36);
+  --shade: 16 24 40;
+  display: inline-block;
+  color: var(--ink);
+  color-scheme: light;
+  font: 15px/1.4 var(--font);
+}
+
+.n133-emotes[data-theme="dark"] {
+  --ink: var(--n133-dark-ink, #e7edf5);
+  --ink-soft: var(--n133-dark-ink-soft, #a9b5c5);
+  --paper: var(--n133-dark-paper, #171f2b);
+  --ground: var(--n133-dark-ground, #0f151e);
+  --line: var(--n133-dark-line, #3a475b);
+  --gem: var(--n133-dark-gem, #20c9a6);
+  --gem-dark: var(--n133-dark-gem-dark, #3fd8b6);
+  --on-gem: var(--n133-dark-on-gem, #062b23);
+  --dim: rgb(0 0 0 / 0.5);
+  --shade: 0 0 0;
+  color-scheme: dark;
+}
+
+.n133-emotes *,
+.n133-emotes *::before,
+.n133-emotes *::after {
+  box-sizing: border-box;
+}
+
+/* The key. A hold on it that slides onto the wheel must not scroll or zoom the page, nor open the phone's own menu. */
+.n133-emotes .n133e-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 650 15px/1 var(--font);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.n133-emotes .n133e-key[hidden] {
+  display: none;
+}
+
+/* The dim page and the wheel in the middle of it. */
+.n133-emotes .n133e-layer {
+  position: fixed;
+  z-index: var(--n133-emotes-z, 1000);
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: max(10px, env(safe-area-inset-top, 0px)) max(10px, env(safe-area-inset-right, 0px)) max(10px, env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px));
+  background: var(--dim);
+  touch-action: none;
+}
+
+.n133-emotes .n133e-layer[hidden] {
+  display: none;
+}
+
+.n133-emotes .n133e-wheel {
+  --r: clamp(96px, 29vmin, 140px);
+  --slot: clamp(66px, 20vmin, 90px);
+  position: relative;
+  flex: none;
+  width: calc(2 * var(--r) + var(--slot) + 8px);
+  height: calc(2 * var(--r) + var(--slot) + 8px);
+}
+
+/* A low screen (a phone on its side): a little smaller, so the top place stays inside the screen. */
+@media (max-height: 500px) {
+  .n133-emotes .n133e-wheel {
+    --r: clamp(84px, 26vmin, 120px);
+    --slot: clamp(60px, 18vmin, 80px);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .n133-emotes .n133e-wheel {
+    animation: n133e-in 0.12s ease-out;
+  }
+}
+
+@keyframes n133e-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+.n133-emotes .n133e-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(2 * var(--r) + var(--slot) * 0.7);
+  height: calc(2 * var(--r) + var(--slot) * 0.7);
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--paper) 94%, transparent);
+  box-shadow: 0 10px 40px rgb(var(--shade) / 0.28);
+}
+
+.n133-emotes .n133e-slot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: var(--slot);
+  height: var(--slot);
+  margin: calc(var(--slot) / -2) 0 0 calc(var(--slot) / -2);
+  padding: 0 0 4px;
+  transform: translate(calc(var(--x) * var(--r)), calc(var(--y) * var(--r)));
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--ground);
+  color: var(--ink);
+  box-shadow: 0 2px 6px rgb(var(--shade) / 0.14);
+  font: 700 11px/1.05 var(--font);
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.n133-emotes .n133e-slot.is-lit {
+  border-color: var(--gem-dark);
+  background: var(--gem);
+  color: var(--on-gem);
+  scale: 1.1;
+}
+
+.n133-emotes .n133e-slot.is-empty {
+  border-style: dashed;
+  background: transparent;
+  box-shadow: none;
+}
+
+.n133-emotes .n133e-pic,
+.n133-emotes .n133e-tile-pic {
+  background-repeat: no-repeat;
+}
+
+.n133-emotes .n133e-pic {
+  width: 62%;
+  height: 62%;
+}
+
+.n133-emotes .is-own {
+  background-position: center;
+  background-size: contain;
+}
+
+.n133-emotes .n133e-name {
+  max-width: 92%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.n133-emotes .n133e-plus {
+  font: 700 26px/1 var(--font);
+  opacity: 0.55;
+}
+
+/* A place's key (1 to 8): only where there is a keyboard and a mouse. */
+.n133-emotes .n133e-num,
+.n133-emotes .n133e-off {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  background: var(--ink);
+  color: var(--paper);
+  font: 700 12px/22px var(--font);
+  text-align: center;
+}
+
+.n133-emotes .n133e-num {
+  display: none;
+}
+
+.n133-emotes .n133e-off {
+  font-size: 16px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .n133-emotes .n133e-num {
+    display: block;
+  }
+
+  .n133-emotes .n133e-slot:hover:not(.is-empty) {
+    border-color: var(--gem-dark);
+    background: var(--gem);
+    color: var(--on-gem);
+  }
+}
+
+/* The middle disc: the name of the place under the finger, and Edit. */
+.n133-emotes .n133e-hub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: calc(2 * (var(--r) - var(--slot) / 2) - 14px);
+  height: calc(2 * (var(--r) - var(--slot) / 2) - 14px);
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ink);
+  text-align: center;
+}
+
+.n133-emotes .n133e-hub-name {
+  max-width: 90%;
+  font: 750 15px/1.1 var(--font);
+}
+
+.n133-emotes .n133e-edit,
+.n133-emotes .n133e-tile {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.n133-emotes .n133e-edit {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  font: 650 14px/1 var(--font);
+}
+
+.n133-emotes .n133e-edit[aria-pressed="true"] {
+  border-color: var(--gem-dark);
+  background: var(--gem-dark);
+  color: #fff;
+}
+
+.n133-emotes :is(.n133e-key, .n133e-slot, .n133e-edit, .n133e-tile):focus-visible {
+  outline: 3px solid var(--gem);
+  outline-offset: 2px;
+}
+
+/* Edit: every emote under the wheel (beside it on a low screen); a tap puts one on or takes it off. */
+.n133-emotes .n133e-layer.is-edit .n133e-wheel {
+  --r: clamp(84px, 24vmin, 118px);
+  --slot: clamp(58px, 17vmin, 78px);
+}
+
+.n133-emotes .n133e-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 46vh;
+  max-width: 100%;
+  padding: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  box-shadow: 0 10px 40px rgb(var(--shade) / 0.28);
+  touch-action: pan-y;
+}
+
+.n133-emotes .n133e-list[hidden] {
+  display: none;
+}
+
+.n133-emotes .n133e-list-line {
+  margin: 0;
+  color: var(--ink-soft);
+  font: 600 13px/1.25 var(--font);
+  text-align: center;
+}
+
+.n133-emotes .n133e-list-line.is-full {
+  color: var(--ink);
+  font-weight: 750;
+}
+
+.n133-emotes .n133e-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 74px);
+  gap: 6px;
+  justify-content: center;
+}
+
+.n133-emotes .n133e-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1px;
+  width: 74px;
+  height: 78px;
+  padding: 2px 2px 5px;
+  border-radius: 12px;
+  font: 650 12px/1.1 var(--font);
+}
+
+.n133-emotes .n133e-tile.is-on {
+  border-color: var(--gem-dark);
+  background: color-mix(in srgb, var(--gem) 22%, var(--paper));
+}
+
+.n133-emotes .n133e-tile-pic {
+  width: 54px;
+  height: 54px;
+}
+
+.n133-emotes .n133e-tile-name {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.n133-emotes .n133e-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  background: var(--gem-dark);
+  color: #fff;
+  font: 700 12px/22px var(--font);
+  text-align: center;
+}
+
+@media (hover: hover) {
+  .n133-emotes .n133e-tile:hover {
+    border-color: var(--gem-dark);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+  .n133-emotes .n133e-layer.is-edit {
+    flex-direction: row;
+  }
+
+  .n133-emotes .n133e-layer.is-edit .n133e-list {
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+
+  .n133-emotes .n133e-grid {
+    grid-template-columns: repeat(4, 70px);
+  }
+
+  .n133-emotes .n133e-tile {
+    width: 70px;
+    height: 70px;
+  }
+
+  .n133-emotes .n133e-tile-pic {
+    width: 46px;
+    height: 46px;
+  }
+}
+
+/* A narrow phone held upright: three tiles a row, so Edit stays inside the screen. */
+@media (max-width: 340px) {
+  .n133-emotes .n133e-grid {
+    grid-template-columns: repeat(3, 74px);
+  }
+}

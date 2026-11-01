@@ -47,7 +47,7 @@ export function overviewView(looks: readonly Look[], colourOf: (lookId: string) 
   const linkKey = (words: string, to: () => void) => h("button", { class: "btn btn-small btn-quiet link-key", type: "button", onclick: to }, words, h("span", { "aria-hidden": "true" }, "→"));
 
   function drawGame() {
-    const rows = (["character", "signin"] as const).map((id) => {
+    const rows = (["character", "signin", "emotes"] as const).map((id) => {
       const on = game ? stateOf(id, game) : null;
       return h("li", {}, h("span", {}, SWITCHES[id].title), on === null ? h("span", { class: "pill" }, "Unknown") : h("span", { class: `pill ${on ? "pill-on" : "pill-off"}` }, on ? "On" : "Off"));
     });

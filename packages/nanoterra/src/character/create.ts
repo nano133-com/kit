@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { assemble, type Assembled } from "./assemble.js";
 import { BASE_SPECS } from "./bases/index.js";
 import { HEIGHTS } from "./lists.js";
+import { poseLayerOf } from "./layer.js";
 import { assertLook, recordProblem, type Look } from "./look.js";
 import { buildWith, paintCharacter, type Made } from "./make.js";
 import { makePose, MAX_DT, type Motion } from "./pose.js";
@@ -202,7 +203,7 @@ export function createCharacter(options: CharacterOptions = {}): Character {
     r.a.skeleton.dispose();
   };
 
-  return {
+  const self: Character = {
     object,
     get record() {
       return frozen(record);
@@ -223,7 +224,9 @@ export function createCharacter(options: CharacterOptions = {}): Character {
       if (!(step > 0)) return;
       time += step;
       rig.pose.step(step, motion ?? {}, reducedMotion);
-      // The body's own moving parts (a tail, wings, long hair) follow what the pose did.
+      // A layer over the pose (an emote: layer.ts), then the body's own moving parts (a tail, wings, long hair) follow what the pose did.
+      const state = rig.pose.state;
+      poseLayerOf(self)?.(rig.a.bones as Record<BoneName, THREE.Bone>, { dt: step, speed: state.speed, airborne: state.air, reducedMotion });
       rig.a.mover?.(step, time, rig.pose.state.speed, reducedMotion);
     },
     wave() {
@@ -282,4 +285,5 @@ export function createCharacter(options: CharacterOptions = {}): Character {
       ramp.dispose();
     },
   };
+  return self;
 }

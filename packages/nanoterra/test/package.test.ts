@@ -91,6 +91,20 @@ test("the paths that must not load Three.js import no package at all (the record
   for (const entry of ["src/friends/index.ts", "src/friends/conformance.ts", "src/friends/adapters/d1.ts", "src/friends/adapters/firestore.ts", "src/friends/panel/index.ts"]) assert.deepEqual(graph(entry).packages, [], entry);
   for (const entry of ["src/friends/index.ts", "src/friends/conformance.ts", "src/friends/adapters/d1.ts", "src/friends/adapters/firestore.ts"]) assert.ok(!graph(entry).files.some((f) => f.includes("/panel/")), `${entry} reaches a panel`);
   assert.ok(!graph("src/friends/panel/index.ts").files.some((f) => f.startsWith("character/") || f.startsWith("looks/")));
+  // The emotes: the core and the wheel import no package and reach no drawing code; the player names Three.js only. The clip data is reached only by a
+  // dynamic import(), so a bundler puts it in a chunk of its own.
+  for (const entry of ["src/emotes/index.ts", "src/emotes/panel/index.ts"]) {
+    const g = graph(entry);
+    assert.deepEqual(g.packages, [], entry);
+    assert.ok(!g.files.some((f) => f.startsWith("character/") || f === "emotes/clips.ts" || f === "emotes/clip.ts" || f === "emotes/player.ts"), `${entry}: ${g.files.join(", ")}`);
+  }
+  assert.ok(!graph("src/emotes/index.ts").files.some((f) => f.includes("/panel/")), "the core reaches no panel");
+  assert.deepEqual(graph("src/emotes/player.ts").packages, ["three"]);
+  for (const file of sources) {
+    const text = readFileSync(file, "utf8");
+    assert.doesNotMatch(text, /(?:^|\n)\s*(?:import|export)\s+(?!type\b)[^;]*?from\s*["']\.\/clips\.js["']/, `${relative(root, file)} imports the clips statically`);
+  }
+  assert.match(read("src/emotes/clip.ts"), /import\("\.\/clips\.js"\)/);
   // The character's path draws: it names Three.js and nothing else.
   assert.deepEqual(graph("src/character/index.ts").packages, ["three"]);
 });
@@ -111,15 +125,17 @@ test("package.json: no runtime dependency, three is an optional peer, version 0.
   assert.match(read("CHANGELOG.md"), /^# Changelog\n\n(## Unreleased\n[\s\S]*?\n)?## 0\.7\.1 \(2026-10-31\)\n[\s\S]*?\n## 0\.7\.0 \(2026-10-30\)\n[\s\S]*?\n## 0\.6\.1 \(2026-10-30\)\n[\s\S]*?\n## 0\.6\.0 \(2026-10-30\)\n[\s\S]*?\n## 0\.5\.0 \(2026-10-30\)\n[\s\S]*?\n## 0\.4\.0 \(2026-10-30\)\n[\s\S]*?\n## 0\.3\.2 \(2026-10-29\)\n[\s\S]*?\n## 0\.3\.1 \(2026-10-29\)\n[\s\S]*?\n## 0\.3\.0 \(2026-10-28\)\n[\s\S]*?\n## 0\.2\.0 \(2026-10-27\)\n[\s\S]*?\n## 0\.1\.0\n/);
 });
 
-test("the exports map: the small part, the character, its record, the ticket, the looks, the model check, the admin and the friends, each with types", () => {
+test("the exports map: the small part, the character, its record, the ticket, the looks, the model check, the admin, the friends and the emotes, each with types", () => {
   const pkg = JSON.parse(read("package.json"));
-  assert.deepEqual(Object.keys(pkg.exports), [".", "./character", "./character/record", "./ticket", "./looks", "./model", "./input", "./admin", "./admin/conformance", "./admin/d1", "./admin/firestore", "./admin/panel", "./admin/style.css", "./friends", "./friends/conformance", "./friends/d1", "./friends/d1.sql", "./friends/firestore", "./friends/panel", "./friends/style.css"]);
+  assert.deepEqual(Object.keys(pkg.exports), [".", "./character", "./character/record", "./ticket", "./looks", "./model", "./input", "./admin", "./admin/conformance", "./admin/d1", "./admin/firestore", "./admin/panel", "./admin/style.css", "./friends", "./friends/conformance", "./friends/d1", "./friends/d1.sql", "./friends/firestore", "./friends/panel", "./friends/style.css", "./emotes", "./emotes/player", "./emotes/wheel", "./emotes/style.css", "./emotes/icons.webp"]);
   assert.equal(pkg.exports["./admin/style.css"], "./src/admin/panel/style.css");
   assert.ok(existsSync(join(root, "src/admin/panel/style.css")), "the stylesheet is shipped in src");
   assert.equal(pkg.exports["./friends/style.css"], "./src/friends/panel/style.css");
   assert.equal(pkg.exports["./friends/d1.sql"], "./src/friends/adapters/d1.sql");
-  for (const f of ["src/friends/panel/style.css", "src/friends/adapters/d1.sql"]) assert.ok(existsSync(join(root, f)), `${f} is shipped in src`);
-  const want: Record<string, string> = { ".": "index", "./character": "character/index", "./character/record": "character/pure", "./ticket": "ticket/index", "./looks": "looks/index", "./model": "model/index", "./input": "input/index", "./admin": "admin/index", "./admin/conformance": "admin/conformance", "./admin/d1": "admin/adapters/d1", "./admin/firestore": "admin/adapters/firestore", "./admin/panel": "admin/panel/index", "./friends": "friends/index", "./friends/conformance": "friends/conformance", "./friends/d1": "friends/adapters/d1", "./friends/firestore": "friends/adapters/firestore", "./friends/panel": "friends/panel/index" };
+  assert.equal(pkg.exports["./emotes/style.css"], "./src/emotes/panel/style.css");
+  assert.equal(pkg.exports["./emotes/icons.webp"], "./src/emotes/icons.webp");
+  for (const f of ["src/friends/panel/style.css", "src/friends/adapters/d1.sql", "src/emotes/panel/style.css", "src/emotes/icons.webp"]) assert.ok(existsSync(join(root, f)), `${f} is shipped in src`);
+  const want: Record<string, string> = { ".": "index", "./character": "character/index", "./character/record": "character/pure", "./ticket": "ticket/index", "./looks": "looks/index", "./model": "model/index", "./input": "input/index", "./admin": "admin/index", "./admin/conformance": "admin/conformance", "./admin/d1": "admin/adapters/d1", "./admin/firestore": "admin/adapters/firestore", "./admin/panel": "admin/panel/index", "./friends": "friends/index", "./friends/conformance": "friends/conformance", "./friends/d1": "friends/adapters/d1", "./friends/firestore": "friends/adapters/firestore", "./friends/panel": "friends/panel/index", "./emotes": "emotes/index", "./emotes/player": "emotes/player", "./emotes/wheel": "emotes/panel/index" };
   for (const [path, file] of Object.entries(want)) {
     assert.deepEqual(pkg.exports[path], { types: `./dist/${file}.d.ts`, import: `./dist/${file}.js` }, path);
     assert.ok(existsSync(join(root, `src/${file}.ts`)), `${path} has its source src/${file}.ts`);
@@ -152,6 +168,8 @@ test("the built paths load, and the ones that must not load Three.js do not (a l
     ["friends/conformance.js", "if (typeof m.friendsStoreConformance !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["friends/adapters/d1.js", "if (typeof m.createD1Friends !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["friends/adapters/firestore.js", "if (typeof m.createFirestoreFriends !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
+    ["emotes/index.js", "if (m.EMOTES.length !== 11 || typeof m.createWheel !== 'function' || m.EMOTE_OPTIONS.length !== 2) throw new Error('missing'); process.stdout.write('ok')"],
+    ["emotes/panel/index.js", "if (typeof m.mountEmotes !== 'function' || !m.EMOTE_ICONS_URL.endsWith('/src/emotes/icons.webp')) throw new Error('missing'); process.stdout.write('ok')"],
   ];
   for (const [entry, code] of probes) {
     const r = run(entry, code);
@@ -167,7 +185,7 @@ test("npm pack would ship the built files, the sources, the README, the changelo
   const r = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { cwd: root, encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
   const files: string[] = JSON.parse(r.stdout)[0].files.map((f: { path: string }) => f.path);
-  for (const f of ["package.json", "README.md", "LICENSE", "CHANGELOG.md", "dist/index.js", "dist/character/index.js", "dist/character/pure.js", "dist/ticket/index.js", "dist/looks/index.js", "dist/model/index.js", "dist/input/index.js", "dist/admin/index.js", "dist/admin/conformance.js", "dist/admin/adapters/d1.js", "dist/admin/adapters/firestore.js", "dist/admin/panel/index.js", "src/admin/panel/style.css", "dist/friends/index.js", "dist/friends/panel/index.js", "src/friends/panel/style.css", "src/friends/adapters/d1.sql", "ai/PROMPT.md", "ai/SPEC.md"]) assert.ok(files.includes(f), `${f} is shipped`);
+  for (const f of ["package.json", "README.md", "LICENSE", "CHANGELOG.md", "dist/emotes/index.js", "dist/emotes/player.js", "dist/emotes/clips.js", "dist/emotes/panel/index.js", "src/emotes/panel/style.css", "src/emotes/icons.webp", "dist/index.js", "dist/character/index.js", "dist/character/pure.js", "dist/ticket/index.js", "dist/looks/index.js", "dist/model/index.js", "dist/input/index.js", "dist/admin/index.js", "dist/admin/conformance.js", "dist/admin/adapters/d1.js", "dist/admin/adapters/firestore.js", "dist/admin/panel/index.js", "src/admin/panel/style.css", "dist/friends/index.js", "dist/friends/panel/index.js", "src/friends/panel/style.css", "src/friends/adapters/d1.sql", "ai/PROMPT.md", "ai/SPEC.md"]) assert.ok(files.includes(f), `${f} is shipped`);
   for (const f of files) {
     assert.ok(/^(dist|src|ai)\//.test(f) || ["package.json", "README.md", "CHANGELOG.md", "LICENSE"].includes(f), `${f} would be published`);
     assert.doesNotMatch(f, /^test\/|\.env|\.tsbuildinfo|\.test\.|secret|\.key$/i, `${f} must not be published`);

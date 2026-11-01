@@ -1,5 +1,5 @@
 // The switches of the "Game" card in /admin, and the words that say what each does. The handler checks a press with `parsePatch`; the panel
-// draws the card from `SWITCHES` and `FRIENDS_CHOICES`. A switch changes ONLY these three settings; never a look, a price or an order.
+// draws the card from `SWITCHES` and `FRIENDS_CHOICES`. A switch changes ONLY these four settings; never a look, a price or an order.
 
 /** Which character the player is: Nanoterra's island character (the one the player has there) or the game's own. */
 export type Character = "nanoterra" | "own";
@@ -10,46 +10,54 @@ export type Signin = "exchange" | "ticket" | "none";
  * A three-way choice, not an On/Off switch.
  */
 export type Friends = "nanoterra" | "own" | "off";
-/** The game's own words for the switches. `friends` may be left out: it is "nanoterra" then (on by default). */
-export type GameSettings = { character: Character; signin: Signin; friends?: Friends };
+/** Whether the game shows Nanoterra's emotes ("@nano133/nanoterra/emotes"): the wheel's Nanoterra emotes and the other players' on their characters. Off leaves the game's own emotes. */
+export type Emotes = "on" | "off";
+/** The game's own words for the switches. `friends` and `emotes` may be left out: "nanoterra" and "on" then (on by default). */
+export type GameSettings = { character: Character; signin: Signin; friends?: Friends; emotes?: Emotes };
 /** What a press can set: sign-in is on ("exchange": a game with a server) or off ("none"). */
-export type GamePatch = { character?: Character; signin?: "exchange" | "none"; friends?: Friends };
+export type GamePatch = { character?: Character; signin?: "exchange" | "none"; friends?: Friends; emotes?: Emotes };
 /** The settings as they are now, and which ones /admin has set (the others still have the game's default). */
-export type GameState = { character: Character; signin: Signin; friends: Friends; fromAdmin: { character: boolean; signin: boolean; friends: boolean } };
+export type GameState = { character: Character; signin: Signin; friends: Friends; emotes: Emotes; fromAdmin: { character: boolean; signin: boolean; friends: boolean; emotes: boolean } };
 
 export const isCharacter = (v: unknown): v is Character => v === "nanoterra" || v === "own";
 export const isSigninChoice = (v: unknown): v is "exchange" | "none" => v === "exchange" || v === "none";
 export const isSignin = (v: unknown): v is Signin => v === "exchange" || v === "ticket" || v === "none";
 export const isFriends = (v: unknown): v is Friends => v === "nanoterra" || v === "own" || v === "off";
+export const isEmotes = (v: unknown): v is Emotes => v === "on" || v === "off";
 /** The friends list a game shows while neither its own words nor /admin say: Nanoterra's. */
 export const DEFAULT_FRIENDS: Friends = "nanoterra";
+/** Nanoterra's emotes are on while neither the game's own words nor /admin say. */
+export const DEFAULT_EMOTES: Emotes = "on";
 /** The sign-in switch is on for any way but "none". */
 export const signinOn = (s: Signin): boolean => s !== "none";
 
 /** A request body for a press: only the two known words, at least one. Anything else is refused, with the reason in words. */
 export function parsePatch(body: unknown): { ok: true; patch: GamePatch } | { ok: false; error: string } {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, error: 'Send an object with "character", "signin" or "friends".' };
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, error: 'Send an object with "character", "signin", "friends" or "emotes".' };
   const patch: GamePatch = {};
   for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
     if (key === "character" && isCharacter(value)) patch.character = value;
     else if (key === "signin" && isSigninChoice(value)) patch.signin = value;
     else if (key === "friends" && isFriends(value)) patch.friends = value;
+    else if (key === "emotes" && isEmotes(value)) patch.emotes = value;
     else if (key === "friends") return { ok: false, error: '"friends" must be "nanoterra", "own" or "off".' };
+    else if (key === "emotes") return { ok: false, error: '"emotes" must be "on" or "off".' };
     else if (key === "character") return { ok: false, error: '"character" must be "nanoterra" or "own".' };
     else if (key === "signin") return { ok: false, error: '"signin" must be "exchange" or "none".' };
     else return { ok: false, error: `"${key}" is not a game switch.` };
   }
-  if (!Object.keys(patch).length) return { ok: false, error: 'Send "character", "signin" or "friends".' };
+  if (!Object.keys(patch).length) return { ok: false, error: 'Send "character", "signin", "friends" or "emotes".' };
   return { ok: true, patch };
 }
 
 /** The settings from what the store kept and the game's defaults. A stored value that is not one of the known words is ignored. */
-export function mergeSettings(stored: { character?: unknown; signin?: unknown; friends?: unknown }, defaults: GameSettings): GameState {
+export function mergeSettings(stored: { character?: unknown; signin?: unknown; friends?: unknown; emotes?: unknown }, defaults: GameSettings): GameState {
   return {
     character: isCharacter(stored.character) ? stored.character : defaults.character,
     signin: isSigninChoice(stored.signin) ? stored.signin : defaults.signin,
     friends: isFriends(stored.friends) ? stored.friends : isFriends(defaults.friends) ? defaults.friends : DEFAULT_FRIENDS,
-    fromAdmin: { character: isCharacter(stored.character), signin: isSigninChoice(stored.signin), friends: isFriends(stored.friends) },
+    emotes: isEmotes(stored.emotes) ? stored.emotes : isEmotes(defaults.emotes) ? defaults.emotes : DEFAULT_EMOTES,
+    fromAdmin: { character: isCharacter(stored.character), signin: isSigninChoice(stored.signin), friends: isFriends(stored.friends), emotes: isEmotes(stored.emotes) },
   };
 }
 
@@ -68,7 +76,7 @@ export const FRIENDS_CHOICES: Record<Friends, { name: string; note: string }> = 
 };
 
 /** One switch of the card: its title, and one plain sentence for each state. */
-export type SwitchId = "character" | "signin";
+export type SwitchId = "character" | "signin" | "emotes";
 export const SWITCHES: Record<SwitchId, { title: string; on: string; off: string }> = {
   character: {
     title: "Players can play as their Nanoterra character",
@@ -79,6 +87,11 @@ export const SWITCHES: Record<SwitchId, { title: string; on: string; off: string
     title: "Players can sign in with Nanoterra",
     on: "On: this game's listing file says players can sign in with Nanoterra, and the game accepts that sign-in.",
     off: "Off: the listing file says no sign-in, and the game refuses it: a link made before still signs nobody in.",
+  },
+  emotes: {
+    title: "Allow Nanoterra emotes",
+    on: "On: players can play Nanoterra's emotes (Wave, Dance, Sit and more) from the Emotes wheel, and see the other players' emotes.",
+    off: "Off: the game shows no Nanoterra emote. The game's own emotes, if it has any, stay on the wheel.",
   },
 };
 
@@ -96,5 +109,9 @@ export const REVIEW_NOTE =
 export const REVIEW_LINK = "https://nano133.com/build/nanoterra/launch";
 
 /** The state of a switch from the settings, and the patch that a press sends (the other state). */
-export const stateOf = (id: SwitchId, s: GameSettings): boolean => (id === "character" ? s.character === "nanoterra" : signinOn(s.signin));
-export const pressOf = (id: SwitchId, s: GameSettings): GamePatch => (id === "character" ? { character: s.character === "nanoterra" ? "own" : "nanoterra" } : { signin: signinOn(s.signin) ? "none" : "exchange" });
+export const stateOf = (id: SwitchId, s: GameSettings): boolean => (id === "character" ? s.character === "nanoterra" : id === "emotes" ? (s.emotes ?? DEFAULT_EMOTES) === "on" : signinOn(s.signin));
+export function pressOf(id: SwitchId, s: GameSettings): GamePatch {
+  if (id === "character") return { character: s.character === "nanoterra" ? "own" : "nanoterra" };
+  if (id === "emotes") return { emotes: stateOf("emotes", s) ? "off" : "on" };
+  return { signin: signinOn(s.signin) ? "none" : "exchange" };
+}

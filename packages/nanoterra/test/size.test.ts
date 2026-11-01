@@ -19,11 +19,16 @@ const PATHS: [string, string[], number, boolean][] = [
   ["@nano133/nanoterra/ticket", ["ticket/index.js"], 7_000, false],
   ["@nano133/nanoterra/looks", ["looks/index.js"], 3_300, false],
   ["@nano133/nanoterra/character", ["character/index.js"], 28_000, true],
+  ["@nano133/nanoterra/emotes", ["emotes/index.js"], 2_500, false],
+  ["@nano133/nanoterra/emotes/wheel", ["emotes/panel/index.js"], 6_500, false],
+  ["@nano133/nanoterra/emotes/player", ["emotes/player.js"], 3_500, true],
 ];
+/** The emote clips: their own chunk, loaded on the first emote (never in a path's bundle above: "./clips.js" stays outside). */
+const LAZY: [string, string, number][] = [["the emote clips (loaded on the first emote)", "emotes/clips.js", 21_000]];
 
-async function bundle(files: string[], whole = true) {
-  const contents = files.map((f) => `export * from ${JSON.stringify(dist + f)};`).join("\n");
-  const r = await esbuild!.build({ stdin: { contents, resolveDir: dist }, bundle: true, minify: true, format: "esm", external: ["three"], write: false, treeShaking: !whole, logLevel: "silent" });
+async function bundle(files: string[], whole = true, withDefault = false) {
+  const contents = files.map((f) => `export * from ${JSON.stringify(dist + f)};${withDefault ? ` export { default } from ${JSON.stringify(dist + f)};` : ""}`).join("\n");
+  const r = await esbuild!.build({ stdin: { contents, resolveDir: dist }, bundle: true, minify: true, format: "esm", external: ["three", "./clips.js"], write: false, treeShaking: !whole, logLevel: "silent" });
   return r.outputFiles[0].text;
 }
 
@@ -37,7 +42,13 @@ test("each path's size is under its ceiling, and the paths with no Three.js do n
     if (!three) assert.doesNotMatch(text, /["']three["']/, `${path} names three`);
     else assert.match(text, /["']three["']/, `${path} is the one that draws`);
   }
-  const all = gzipSync(await bundle(PATHS.flatMap(([, f]) => f)), { level: 9 }).length;
+  const all = gzipSync(await bundle(PATHS.slice(0, 5).flatMap(([, f]) => f)), { level: 9 }).length;
   rows.push(`${"all five paths".padEnd(40)} ${String(all).padStart(7)} B gzip (the shared record counted once)`);
+  for (const [name, file, ceiling] of LAZY) {
+    const text = await bundle([file], true, true);
+    const gz = gzipSync(text, { level: 9 }).length;
+    rows.push(`${name.padEnd(40)} ${String(text.length).padStart(7)} B minified ${String(gz).padStart(6)} B gzip`);
+    assert.ok(gz <= ceiling, `${name} is ${gz} B gzipped, over its ceiling of ${ceiling} B`);
+  }
   console.log(`\n${rows.join("\n")}`);
 });
