@@ -10,9 +10,9 @@ themselves. This package gives your game these things:
 - **The player's character** (`/character`): the same toon body that the player has on the island, drawn with Three.js. Six bases, faces, hair, clothes, sizes and colours.
 - **The looks ladder** (`/looks`): the rules of `looks.json`, the price steps, and what a change does to the players who own a look.
 - **Held input that does not stick** (`/input`, since 0.3.1): lets go of the keys and the stick when the player leaves the page, so the character never walks on by itself, and pauses a free round.
-- **A friends list** (`/friends`, unreleased): a Friends key that holds the player's Nanoterra friends (a nano133 window), or a full friends list of the game's own players on the game's own database, as the admin's Game card chooses.
-- **An options menu** (`/options`, unreleased): the game's settings as data, with defaults for each device, kept in the player's browser, and a ready Options key and panel (Basic and Advanced); common settings to opt into, and a section another module adds.
-- **Emotes** (`/emotes`, unreleased): Nano Island's eleven emotes on the player's character (the Wave, Cheer, Clap, Dance and seven more, made in Blender), and the emote wheel of eight that the player picks, which also plays a game's own animations.
+- **A friends list** (`/friends`, since 0.6.0): a Friends key that holds the player's Nanoterra friends (a nano133 window), or a full friends list of the game's own players on the game's own database, as the admin's Game card chooses.
+- **An options menu** (`/options`, since 0.8.0): the game's settings as data, with defaults for each device, kept in the player's browser, and a ready Options key and panel (Basic and Advanced); common settings to opt into, and a section another module adds.
+- **Emotes** (`/emotes`, since 0.8.0): Nano Island's eleven emotes on the player's character (the Wave, Cheer, Clap, Dance and seven more, made in Blender), and the emote wheel of eight that the player picks, which also plays a game's own animations.
 
 It replaces `@nano133/character` 0.1.0, `@nano133/ticket` 0.1.0 and `@nano133/looks` 0.1.0
 (see "Moving from the three old packages"). Sign-in, checkout and late returns stay in their own packages
@@ -71,15 +71,15 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/admin/d1`, `/admin/firestore` | the admin store for D1 (the starter's tables) or Firestore (a small interface, no Firebase dependency): `createD1Store`, `createFirestoreStore` (since 0.2.0) | no | 1.5 kB each |
 | `@nano133/nanoterra/admin/panel` | the admin page, drawn in the browser into one element, and its stylesheet `@nano133/nanoterra/admin/style.css` (since 0.2.0) | no | 18.9 kB with the tabbed layout (10.6 kB on 0.3.0, 8.5 kB on 0.2.0) + 5.9 kB of CSS (minified) |
 | `@nano133/nanoterra/admin/conformance` | test cases that a game runs against its own admin (a dev dependency in practice; since 0.2.0) | no | n/a |
-| `@nano133/nanoterra/friends` | the game's own friends list: the handler, the rules, a memory store (server code; unreleased) | no | 3.7 kB |
-| `@nano133/nanoterra/friends/d1`, `/friends/firestore` | the friends store for D1 (with the migration `/friends/d1.sql`) or Firestore (a small interface, no Firebase dependency): `createD1Friends`, `createFirestoreFriends` (unreleased) | no | 3.0 kB each |
-| `@nano133/nanoterra/friends/panel` | the Friends key and panel: the nano133 window, or the game's own list, and its stylesheet `@nano133/nanoterra/friends/style.css` (unreleased) | no | 5.0 kB + 4.8 kB of CSS (minified) |
-| `@nano133/nanoterra/friends/conformance` | the friends rules as test cases, for a store a game writes itself (unreleased) | no | n/a |
-| `@nano133/nanoterra/options` | the options store (no DOM), the common settings, `reflectOptions` and the panel's `mountOptions` (unreleased) | no | 2.9 kB (`createOptions` alone), 8.7 kB (all) |
-| `@nano133/nanoterra/options/panel` | the Options key and panel alone, and its stylesheet `@nano133/nanoterra/options/style.css` (unreleased) | no | 2.3 kB of CSS (9.4 kB minified) |
-| `@nano133/nanoterra/emotes` | the emotes' list, the wheel's eight places, the multiplayer message and the player's options: no DOM, no Three.js (unreleased) | no | 1.4 kB |
-| `@nano133/nanoterra/emotes/player` | the emotes on the kit's character: `createEmotes`, `playRemote`, `loadEmotes` (unreleased) | yes | 2.9 kB; the clips load on the first emote, a chunk of their own: 84 kB, 18.8 kB gzip |
-| `@nano133/nanoterra/emotes/wheel` | the Emotes key and the emote wheel: `mountEmotes`, and its stylesheet `@nano133/nanoterra/emotes/style.css` (unreleased) | no | 5.9 kB + 7.4 kB of CSS (minified); the pictures (`/emotes/icons.webp`, 34 kB) load when the wheel first opens |
+| `@nano133/nanoterra/friends` | the game's own friends list: the handler, the rules, a memory store (server code; since 0.6.0) | no | 3.7 kB |
+| `@nano133/nanoterra/friends/d1`, `/friends/firestore` | the friends store for D1 (with the migration `/friends/d1.sql`) or Firestore (a small interface, no Firebase dependency): `createD1Friends`, `createFirestoreFriends` (since 0.6.0) | no | 3.0 kB each |
+| `@nano133/nanoterra/friends/panel` | the Friends key and panel: the nano133 window, or the game's own list, and its stylesheet `@nano133/nanoterra/friends/style.css` (since 0.6.0) | no | 5.0 kB + 4.8 kB of CSS (minified) |
+| `@nano133/nanoterra/friends/conformance` | the friends rules as test cases, for a store a game writes itself (since 0.6.0) | no | n/a |
+| `@nano133/nanoterra/options` | the options store (no DOM), the common settings, `reflectOptions` and the panel's `mountOptions` (since 0.8.0) | no | 2.9 kB (`createOptions` alone), 8.7 kB (all) |
+| `@nano133/nanoterra/options/panel` | the Options key and panel alone, and its stylesheet `@nano133/nanoterra/options/style.css` (since 0.8.0) | no | 2.3 kB of CSS (9.4 kB minified) |
+| `@nano133/nanoterra/emotes` | the emotes' list, the wheel's eight places, the multiplayer message and the player's options: no DOM, no Three.js (since 0.8.0) | no | 1.4 kB |
+| `@nano133/nanoterra/emotes/player` | the emotes on the kit's character: `createEmotes`, `playRemote`, `loadEmotes` (since 0.8.0) | yes | 2.9 kB; the clips load on the first emote, a chunk of their own: 84 kB, 18.8 kB gzip |
+| `@nano133/nanoterra/emotes/wheel` | the Emotes key and the emote wheel: `mountEmotes`, and its stylesheet `@nano133/nanoterra/emotes/style.css` (since 0.8.0) | no | 5.9 kB + 7.4 kB of CSS (minified); the pictures (`/emotes/icons.webp`, 34 kB) load when the wheel first opens |
 
 Measured 2026-10-26 (the friends paths 2026-10-30, the options and the emotes paths 2026-11-01): `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
 All four paths together: 23.6 kB. A test of the package proves that the record, the ticket, the looks and the small part import no package at all.
@@ -672,7 +672,7 @@ width (a container query), not the window's: on a phone two cards a row and the 
 
 The wallet sign-in stays yours (`signIn`), because only your game can start a request in the ADMIN scope with its own cookie. The panel never signs anyone in.
 
-**Light and dark** (unreleased). The top bar has a theme key (44 px, a half circle, a sun or a moon; its name says the choice: "Theme: Dark", "Theme: Device (dark
+**Light and dark** (since 0.7.0). The top bar has a theme key (44 px, a half circle, a sun or a moon; its name says the choice: "Theme: Dark", "Theme: Device (dark
 now)"). A press opens a menu of three: **Device** (the default: it follows the device's setting, `prefers-color-scheme`, and a live change of it), **Light** and **Dark**.
 The signed-out screen has the same key. The choice is kept in this browser only, in `localStorage` under `n133-admin-theme`: no server call and no admin setting. A
 browser that refuses storage (some private windows) reads Device, and a choice there holds for the page.
@@ -703,7 +703,7 @@ html[data-n133-theme="dark"] body.admin-page {
 The pictures: a look's flat picture and the character previews (`createLookPreview` draws with a clear background) stand on the `stage` colour, which is a mid grey
 blue in dark, so a dark outfit and the outlines still show. The panel draws no QR code.
 
-## The friends list (`/friends`; unreleased)
+## The friends list (`/friends`; since 0.6.0)
 
 A Friends key for the game, and a list behind it. The admin's **Game** card chooses which list (`friends` in the settings; Nanoterra by default):
 
@@ -826,7 +826,7 @@ no live connection: only Nanoterra's do.
 **Questions.** Remove, Block and (in both modes) Join ask the player first, in the panel itself: the question and a key for each answer; Escape or closing the
 panel answers no. The kit never opens a browser dialog. To ask in your game's own dialog, pass `confirm(question)`, which returns a boolean or a promise of one.
 
-## The options menu (`/options`; unreleased)
+## The options menu (`/options`; since 0.8.0)
 
 A game's settings as data, kept in the player's browser, and a ready Options key and panel. A game declares its settings; the kit resolves their defaults for
 the device, keeps only what the player changed, and draws them in two tabs, **Basic** and **Advanced**. A game with its own menu uses the store alone.
@@ -923,7 +923,7 @@ returns the call that stops it:
 html[data-n133-opt-reduced-motion="true"] .my-hud * { animation: none !important; transition: none !important; }
 ```
 
-## Emotes (`/emotes`; unreleased)
+## Emotes (`/emotes`; since 0.8.0)
 
 Nano Island's emotes for a game: the same eleven, on the same character, with the same wheel. **The Wave** is the character's own `wave()`; **Cheer, Clap,
 Dance, Bow, Shrug, Laugh, Point, Sit, Facepalm and Spin** are clips made in Blender on the character's own skeleton (the island makes them from this package's
@@ -995,7 +995,7 @@ middle disc with the name of the place under the finger and **Edit**.
   panel sets too, else `prefers-color-scheme`). It returns `open()`, `close()`, `isOpen`, `slots` and `destroy()`.
 - Theme it with the same `--n133-*` properties as the admin panel (and their `--n133-dark-*` twins), and `--n133-emotes-z` for its z-index (default 1000).
 
-The clips and the icons are part of the package and under its MIT licence.
+The clips and the icons are nano133's own work, made in Blender for Nano Island, and are part of the package under its MIT licence.
 
 **The admin's switch.** The Game card has **"Allow Nanoterra emotes"** (`emotes` in the settings: `"on"`, the default, or `"off"`). Read it with
 `loadGameSettings` and pass it to the wheel as `nanoterraEmotes`. When it is off, also do not call `playRemote` and do not send the player's emotes: the game shows no
