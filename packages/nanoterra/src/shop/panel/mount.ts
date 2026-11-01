@@ -7,6 +7,8 @@
 //
 // `key: false` draws no key: the game opens the sheet from its own key with `open()`, as the options panel allows. The sheet is a <dialog>: it rises from
 // the bottom on a phone held upright and stands in the middle on a wide screen; on a phone held sideways the pay sheet puts the QR code beside the words.
+//
+// `words` changes any word of the two sheets (./words.ts: SHOP_WORDS are the defaults), for a game's own words or language.
 
 import { ApiError, createApi } from "../../admin/panel/api.js";
 import { h, releaseFocus } from "../../admin/panel/dom.js";
@@ -15,6 +17,7 @@ import { checkLooks, wearOf, type Look } from "../../looks/look.js";
 import type { PayView } from "../handler.js";
 import { looksView, slotsOf, type SlotWords } from "./looks.js";
 import { payPanel } from "./pay.js";
+import { shopWords, type ShopWords } from "./words.js";
 
 export type ShopMountOptions = {
   /** The game's looks (looks.json as it was read). The server decides every price; these are for the list. */
@@ -40,8 +43,10 @@ export type ShopMountOptions = {
   picture?: (look: Look) => HTMLElement | null;
   /** Words for the tabs of the wear slots. */
   slots?: Record<string, SlotWords>;
-  /** The sheet's title. Default "Looks". */
+  /** The sheet's title. Default: `words.title` ("Looks"). */
   title?: string;
+  /** The game's words for the two sheets, over the defaults (SHOP_WORDS): `{ buyTitle: (look) => look, sendExactly: "Pay exactly" }`. */
+  words?: Partial<ShopWords>;
   /** Draw the Looks key. Default true; false: the game calls `open()` from its own key. */
   key?: boolean;
   /** "light", "dark", or "device" (the default): the page's `data-n133-theme` when it has one, else the device's setting. */
@@ -75,12 +80,14 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
   let stopPay: (() => void) | null = null;
   let destroyed = false;
   const cleanup: (() => void)[] = [];
+  const words = shopWords(options.words);
+  const sheetTitle = options.title ?? words.title;
 
   const title = h("h2", { class: "n133s-title", tabindex: "-1" });
-  const closeKey = h("button", { class: "n133s-close", type: "button", "aria-label": "Close" }, icon("close", 20));
+  const closeKey = h("button", { class: "n133s-close", type: "button", "aria-label": words.close }, icon("close", 20));
   const body = h("div", { class: "n133s-body" });
-  const dialog = h("dialog", { class: "n133s-sheet", "aria-label": options.title ?? "Looks" }, h("header", { class: "n133s-head" }, title, closeKey), body);
-  const key = options.key === false ? null : h("button", { class: "n133s-key", type: "button", "aria-haspopup": "dialog" }, icon("shirt", 20), h("span", { class: "n133s-key-word" }, options.title ?? "Looks"));
+  const dialog = h("dialog", { class: "n133s-sheet", "aria-label": sheetTitle }, h("header", { class: "n133s-head" }, title, closeKey), body);
+  const key = options.key === false ? null : h("button", { class: "n133s-key", type: "button", "aria-haspopup": "dialog" }, icon("shirt", 20), h("span", { class: "n133s-key-word" }, sheetTitle));
   const wrap = h("div", { class: "n133-shop" }, key, dialog);
   root.append(wrap);
 
@@ -147,7 +154,7 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
   function showLooks() {
     if (destroyed) return;
     show(
-      options.title ?? "Looks",
+      sheetTitle,
       looksView({
         looks,
         owned: ownedNow(),
@@ -166,6 +173,7 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
         buy: (l) => void buy(l),
         picture: options.picture,
         slots: options.slots,
+        words,
         tab,
         onTab: (s) => {
           tab = s;
@@ -177,13 +185,13 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
   }
 
   const back = (message: string, extra?: HTMLElement | null) =>
-    h("div", { class: "n133s-message" }, h("p", { class: "n133s-status" }, message), extra ?? null, h("button", { class: "n133s-btn n133s-wide", type: "button", onclick: () => showLooks() }, "Back to looks"));
+    h("div", { class: "n133s-message" }, h("p", { class: "n133s-status" }, message), extra ?? null, h("button", { class: "n133s-btn n133s-wide", type: "button", onclick: () => showLooks() }, words.back));
 
   async function buy(look: Look) {
     if (destroyed) return;
     tab = slotsOf(looks).length > 1 ? wearOf(look) : undefined;
     if (!options.signedIn()) {
-      if (!options.signIn) return show(`Buy ${look.name}`, back("To buy a look, sign in with Nano first: your looks belong to your Nano address."));
+      if (!options.signIn) return show(words.buyTitle(look.name), back(words.signInFirst));
       let ok = false;
       try {
         ok = await options.signIn();
@@ -193,7 +201,7 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
       if (!ok || !options.signedIn()) return showLooks();
     }
     const box = h("div", { class: "n133s-turnstile", hidden: true });
-    show(`Buy ${look.name}`, h("div", {}, h("p", { class: "n133s-status" }, "Making your order…"), box));
+    show(words.buyTitle(look.name), h("div", {}, h("p", { class: "n133s-status" }, words.making), box));
     try {
       const turnstile = options.personCheck ? await options.personCheck(box) : null;
       const order = await api.post<PayView>("", { lookId: look.id, turnstile });
@@ -201,18 +209,19 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
       const pay = payPanel(order, {
         lookName: look.name,
         check: (id) => api.post<PayView>(`/${id}/check`),
-        errorText: (e) => (e instanceof ApiError ? e.message : null),
+        errorText: (e) => (e instanceof ApiError ? words.refusal(e.message, e.status) : null),
+        words,
         onPaid: () => {
           bought.add(look.id);
           options.onOwned?.(look.id, look);
         },
       });
-      show(`Buy ${look.name}`, pay.node);
+      show(words.buyTitle(look.name), pay.node);
       stopPay = pay.stop;
     } catch (e) {
-      const message = e instanceof ApiError ? e.message : e instanceof Error && e.message ? e.message : "The order did not start. Try again.";
-      const again = e instanceof ApiError && e.status === 401 && options.signIn ? h("button", { class: "n133s-btn n133s-primary n133s-wide", type: "button", onclick: () => void buy(look) }, "Sign in") : null;
-      show(`Buy ${look.name}`, back(message, again));
+      const message = e instanceof ApiError ? words.refusal(e.message, e.status) : e instanceof Error && e.message ? words.refusal(e.message, 0) : words.orderFailed;
+      const again = e instanceof ApiError && e.status === 401 && options.signIn ? h("button", { class: "n133s-btn n133s-primary n133s-wide", type: "button", onclick: () => void buy(look) }, words.signIn) : null;
+      show(words.buyTitle(look.name), back(message, again));
     }
   }
 

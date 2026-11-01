@@ -6,9 +6,10 @@
 import { h, releaseFocus } from "../../admin/panel/dom.js";
 import { icon } from "../../admin/panel/icons.js";
 import { signInView, type PlayerSigninViewOptions, type SignedIn } from "./view.js";
+import { playerSigninWords } from "./words.js";
 
 export type PlayerSigninMountOptions = PlayerSigninViewOptions & {
-  /** The sheet's title. Default "Sign in". */
+  /** The sheet's title. Default: `words.title` ("Sign in"). */
   title?: string;
   /** How long "Signed in as …" shows before the sheet closes, in ms. Default 900. */
   closeAfterMs?: number;
@@ -36,6 +37,7 @@ export function mountPlayerSignin(root: HTMLElement, options: PlayerSigninMountO
   let pending: { promise: Promise<SignedIn | null>; resolve: (p: SignedIn | null) => void } | null = null;
   let before: Element | null = null;
   let closing: ReturnType<typeof setTimeout> | undefined;
+  const words = playerSigninWords(options.words);
 
   const settle = (p: SignedIn | null) => {
     const was = pending;
@@ -52,8 +54,8 @@ export function mountPlayerSignin(root: HTMLElement, options: PlayerSigninMountO
     },
   });
 
-  const titleEl = h("h2", { class: "n133s-title", id: `n133s-title-${n}` }, options.title ?? "Sign in");
-  const closeKey = h("button", { class: "n133s-close", type: "button", "aria-label": "Close" }, icon("close", 20));
+  const titleEl = h("h2", { class: "n133s-title", id: `n133s-title-${n}` }, options.title ?? words.title);
+  const closeKey = h("button", { class: "n133s-close", type: "button", "aria-label": words.close }, icon("close", 20));
   const scrim = h("div", { class: "n133s-scrim" });
   const panel = h("section", { class: "n133s-panel", role: "dialog", "aria-modal": "true", "aria-labelledby": `n133s-title-${n}` }, h("header", { class: "n133s-head" }, titleEl, closeKey), h("div", { class: "n133s-body" }, view.node));
   const wrap = h("div", { class: "n133-signin n133s-sheet", "data-open": "false" }, scrim, panel);

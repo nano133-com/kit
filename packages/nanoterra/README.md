@@ -1165,6 +1165,19 @@ const player = await signin.open();              // the shop's "sign in first": 
 - The browser remembers, in `localStorage["n133.player-signin.v1:<rpId>"]`, the ids of its passkeys, which were made here and never opened, and the last
   way: no secret and no address.
 
+**Its words.** `words` on `mountPlayerSignin` and `signInView` changes any word of the sheet, for the game's own words or language: the keys
+of `PlayerSigninWords` (the defaults are `PLAYER_SIGNIN_WORDS`), any of them, over the defaults. A text with a value in it is a function of that value, and
+`faults` changes the words of any passkey fault (`faultWords(code, rpId, words)` gives them). The wallets' names stay. `refusal(text, status)` turns the
+server's refusals (in English) into the game's words.
+
+```ts
+mountPlayerSignin(document.body, {
+  name: "My Game",
+  scheme: SCHEME,
+  words: { lead: "No password.", waitingFor: (wallet) => `Waiting for ${wallet}…`, faults: { cancelled: { title: "Stopped", text: "No passkey was used." } } },
+});
+```
+
 ## The shop (`/shop`; since 0.9.0)
 
 A shop that sells **looks** for Nano (XNO), the way the [game starter](https://github.com/nano133-com/nano-game-starter) sells them. A game
@@ -1305,12 +1318,29 @@ const shop = mountShop(document.getElementById("shop")!, {
   Wearing, or Buy. `picture(look)` gives the game's own picture instead of the swatch.
 - Buy: the game's sign-in (`signIn`) when nobody is signed in, then the person check, then the pay sheet: the amount, the QR code of the exact
   `nano:` link (drawn by the package as SVG: no QR library, no outside service), "Open wallet", the address and the amount by hand, the time
-  left, and a check every 5 seconds for 2 minutes ("Check again" after). Paid: "Paid. Thank you!" and `onOwned`. Paid late or expired: the
-  starter's words.
+  left (live only), and a check every 5 seconds for 2 minutes ("Check again" after). Paid: "Paid. Thank you!" and `onOwned`. Paid late: no look,
+  and the creator sends it back. Ended: a payment sent in time still counts.
 - Phone first: every key 44 px or more (the buy and pay keys 48 px). On a phone held upright the sheet rises from the bottom; on a wide screen
   it stands in the middle; on a phone held sideways the QR code stands alone on the left and the wallet key stays in view.
 - Light and dark: `theme: "light" | "dark" | "device"` (the default: the page's `data-n133-theme`, else the device's setting). Every colour is a
   `--n133-*` variable with a `--n133-dark-*` twin (and `--n133-sun` for Buy, `--n133-warn` for the stamp). The QR code stays dark on white.
+- **A shop that is a modal `<dialog>` of the game's own** (its own sheet around `open()`) closes it in its `signIn` hook before it opens the sign-in
+  sheet, or the sign-in sheet stays hidden behind it. The game starter's `src/client/main.ts` does this.
+
+**Its words.** `words` on `mountShop` (and on `looksView` and `payPanel`) changes any word of the looks sheet and the pay sheet: the
+titles, the lines, every key, the states (waiting, paid, paid late, ended), the refusals (`refusal(text, status)`: the server's words are English) and
+the names for a screen reader. Give the keys of `ShopWords` you want, over the defaults (`SHOP_WORDS`); a text with a value in it is a function of
+that value:
+
+```ts
+mountShop(el, { ...options, words: { sendExactly: "Pay exactly", buyTitle: (look) => `Get ${look}` } });
+```
+
+The defaults are short: the pay sheet shows at most 30 words (TEST MODE and live) and no sentence has more than 10 (`test/panel-words.test.ts`).
+Two things are not the game's words: the stamp **"TEST MODE: DO NOT PAY"**, and **"Powered by CoinGecko"** while CoinGecko is one of the price feeds
+(its API terms; `priceLine` adds it when the game's `prices` leaves it out). Keep the meaning of the safety lines in any language: live, send the
+**exact** amount, and the order ends at the timer; in test mode nothing can be paid and the wallet key is off; a late payment gives no look and
+the creator sends it back.
 
 ### The page's Content Security Policy
 

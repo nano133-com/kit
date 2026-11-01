@@ -3,12 +3,13 @@
 //
 // TEST MODE: the server sends no address and no link, and this sheet shows a large "TEST MODE: DO NOT PAY" stamp where the QR code would be, with the
 // wallet key off. Never change that: a payment to an address that nobody holds the key for is lost for good. The sheet decides it from the ORDER (its
-// `test`, a missing `uri` or a missing `address`), never from a setting of the page.
+// `test`, a missing `uri` or a missing `address`), never from a setting of the page. The stamp's words are not among the game's words (./words.ts).
 
-import { copy, h } from "../../admin/panel/dom.js";
+import { h } from "../../admin/panel/dom.js";
 import { usdText } from "../../looks/look.js";
 import type { PayView } from "../handler.js";
 import { qrSvg } from "./qr.js";
+import { priceLine, shopWords, type ShopWords } from "./words.js";
 
 export const PAY_TIMING = { pollMs: 5000, checkForMs: 2 * 60_000 } as const;
 
@@ -23,6 +24,8 @@ export type PayOptions = {
   errorText?(e: unknown): string | null;
   /** The time now in ms (a test gives its own). */
   now?: () => number;
+  /** The game's words (./words.ts): the keys it leaves out keep the defaults. */
+  words?: Partial<ShopWords>;
 };
 
 export type PayPanel = { node: HTMLElement; stop(): void };
@@ -37,44 +40,62 @@ export function payPanel(start: PayView, options: PayOptions): PayPanel {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let clockTimer: ReturnType<typeof setInterval> | undefined;
   let checkingUntil = 0;
+  const w = shopWords(options.words);
+  const test = isTestOrder(order);
 
-  const status = h("p", { class: "n133s-status", role: "status", "aria-live": "polite" });
-  const again = h("button", { class: "n133s-btn n133s-wide", type: "button", hidden: true }, "Check again");
-  const left = h("span", { class: "n133s-time-left" });
-  const amount = h("div", { class: "n133s-amount" }, h("strong", {}, `${order.xno} XNO`), h("span", {}, ` = ${usdText(Number(order.usd))}`));
+  /** The order's state. In test mode nothing is checked, so it has nothing to say and takes no room. */
+  const status = h("p", { class: "n133s-status", role: "status", "aria-live": "polite", hidden: test });
+  const again = h("button", { class: "n133s-btn n133s-wide", type: "button", hidden: true }, w.checkAgain);
+  /** The time left, live only: in test mode nothing is paid, so nothing waits for the end. */
+  const ends = h("p", { class: "n133s-fine n133s-time-left", hidden: test });
+  const amount = h(
+    "div",
+    { class: "n133s-amount" },
+    test ? null : h("span", { class: "n133s-exact" }, w.sendExactly),
+    h("strong", {}, w.amount(order.xno)),
+    h("span", {}, w.usd(usdText(Number(order.usd)))),
+  );
+  const copyKey = (value: string) => {
+    const key = h("button", { class: "n133s-btn n133s-small", type: "button" }, w.copy);
+    key.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(value);
+        key.textContent = w.copied;
+      } catch {
+        key.textContent = w.copyFailed;
+      }
+      setTimeout(() => (key.textContent = w.copy), 1500);
+    });
+    return key;
+  };
 
   let payArea: HTMLElement;
   /** The main key (the wallet link; off in test mode): it stands in a foot that stays in view, so a phone on its side never hides it. */
   let wallet: HTMLElement;
-  const test = isTestOrder(order);
   if (test) {
     payArea = h(
       "div",
       { class: "n133s-test-pay" },
       h("div", { class: "n133s-qr n133s-qr-blocked", "aria-hidden": "true" }, h("div", { class: "n133s-qr-fake" })),
       h("div", { class: "n133s-stamp", role: "alert" }, h("span", {}, "TEST MODE:"), " ", h("span", {}, "DO NOT PAY")),
-      h("p", { class: "n133s-fine" }, "This game is in test mode, so nothing can be paid here. To sell for real, the creator sets their own receive address and turns test mode off."),
+      h("p", { class: "n133s-fine" }, w.testNote),
     );
-    wallet = h("button", { class: "n133s-btn n133s-primary n133s-wide", type: "button", disabled: true }, "Open wallet (off in test mode)");
+    wallet = h("button", { class: "n133s-btn n133s-primary n133s-wide", type: "button", disabled: true }, w.walletOff);
   } else {
-    const copyAmount = h("button", { class: "n133s-btn n133s-small", type: "button" }, "Copy");
-    copyAmount.addEventListener("click", () => copy(order.xno, copyAmount));
-    const copyAddress = h("button", { class: "n133s-btn n133s-small", type: "button" }, "Copy");
-    copyAddress.addEventListener("click", () => copy(order.address!, copyAddress));
     payArea = h(
       "div",
       { class: "n133s-live-pay" },
-      h("div", { class: "n133s-qr" }, qrSvg(order.uri!, `QR code to pay ${order.xno} XNO`)),
+      h("div", { class: "n133s-qr" }, qrSvg(order.uri!, w.qrLabel(order.xno))),
       h(
         "details",
         { class: "n133s-by-hand" },
-        h("summary", {}, "Enter it by hand"),
-        h("div", { class: "n133s-row" }, h("span", { class: "n133s-label" }, "Amount"), h("code", {}, `${order.xno} XNO`), copyAmount),
-        h("div", { class: "n133s-row" }, h("span", { class: "n133s-label" }, "To"), h("code", { class: "n133s-address" }, order.address!), copyAddress),
-        h("p", { class: "n133s-fine" }, "Send exactly this amount, with every digit. Another amount does not match this order."),
+        h("summary", {}, w.byHand),
+        h("div", { class: "n133s-row" }, h("span", { class: "n133s-label" }, w.amountLabel), h("code", {}, w.amount(order.xno)), copyKey(order.xno)),
+        h("div", { class: "n133s-row" }, h("span", { class: "n133s-label" }, w.toLabel), h("code", { class: "n133s-address" }, order.address!), copyKey(order.address!)),
+        h("p", { class: "n133s-fine" }, w.byHandNote),
       ),
     );
-    wallet = h("a", { class: "n133s-btn n133s-primary n133s-wide", href: order.uri! }, "Open wallet");
+    wallet = h("a", { class: "n133s-btn n133s-primary n133s-wide", href: order.uri! }, w.wallet);
   }
 
   const node = h(
@@ -83,17 +104,17 @@ export function payPanel(start: PayView, options: PayOptions): PayPanel {
     h(
       "div",
       { class: "n133s-pay-main" },
-      h("p", { class: "n133s-pay-what" }, `${options.lookName}: a look for your character. It changes how you look, not how you play.`),
+      h("p", { class: "n133s-pay-what" }, w.lookLine(options.lookName)),
       amount,
       payArea,
     ),
     h(
       "div",
       { class: "n133s-pay-side" },
-      h("p", { class: "n133s-fine" }, "This order ends in ", left, "."),
+      ends,
       status,
       again,
-      h("p", { class: "n133s-fine n133s-prices" }, `Price in XNO from ${order.prices.join(", ")}. Powered by CoinGecko.`),
+      h("p", { class: "n133s-fine n133s-prices" }, priceLine(w, order.prices)),
       h("div", { class: "n133s-foot" }, wallet),
     ),
   );
@@ -109,7 +130,7 @@ export function payPanel(start: PayView, options: PayOptions): PayPanel {
     const ms = Math.max(0, order.expiresAt - now());
     const m = Math.floor(ms / 60_000);
     const s = Math.floor((ms % 60_000) / 1000);
-    left.textContent = `${m}:${String(s).padStart(2, "0")}`;
+    ends.textContent = w.endsIn(`${m}:${String(s).padStart(2, "0")}`);
   };
   tick();
   clockTimer = setInterval(tick, 1000);
@@ -118,7 +139,7 @@ export function payPanel(start: PayView, options: PayOptions): PayPanel {
     order = o;
     if (o.status === "paid") {
       stop();
-      payArea.replaceChildren(h("div", { class: "n133s-paid" }, h("strong", {}, "Paid. Thank you!"), h("p", {}, `${options.lookName} is yours now.`)));
+      payArea.replaceChildren(h("div", { class: "n133s-paid" }, h("strong", {}, w.paid), h("p", {}, w.paidLine(options.lookName))));
       wallet.hidden = true;
       status.textContent = "";
       again.hidden = true;
@@ -127,13 +148,13 @@ export function payPanel(start: PayView, options: PayOptions): PayPanel {
     }
     if (o.status === "paid_late") {
       stop();
-      status.textContent = "This payment came after the order ended. The look was not given. The creator sees it and can send it back.";
+      status.textContent = w.paidLate;
       again.hidden = true;
       return true;
     }
     if (o.status === "expired") {
       stop();
-      status.textContent = "This order ended. If you already paid, wait here: a payment sent in time still counts.";
+      status.textContent = w.expired;
       again.hidden = false;
       return false;
     }
@@ -145,13 +166,13 @@ export function payPanel(start: PayView, options: PayOptions): PayPanel {
     try {
       const o = await options.check(order.id);
       if (show(o)) return;
-      if (o.status === "open") status.textContent = test ? "Test mode: the game does not wait for a payment." : "Waiting for your payment…";
+      if (o.status === "open") status.textContent = test ? "" : w.waiting;
     } catch (e) {
-      status.textContent = options.errorText?.(e) ?? "No connection. Trying again…";
+      status.textContent = options.errorText?.(e) ?? w.noConnection;
     }
     if (now() < checkingUntil) timer = setTimeout(poll, PAY_TIMING.pollMs);
     else if (!stopped) {
-      status.textContent = "Still waiting. Already paid? Press Check again.";
+      status.textContent = w.stillWaiting;
       again.hidden = false;
     }
   }
@@ -164,8 +185,8 @@ export function payPanel(start: PayView, options: PayOptions): PayPanel {
     void poll();
   }
   again.addEventListener("click", startChecking);
+  // Test mode makes no checks: nothing can be paid, so nothing is waited for.
   if (!test) startChecking();
-  else status.textContent = "Test mode: the game does not wait for a payment.";
 
   return { node, stop };
 }

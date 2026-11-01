@@ -216,6 +216,7 @@ npm install @nano133/nanoterra @nano133/signin
 6. **The sheet.** `mountPlayerSignin(document.body, { name, scheme: SCHEME, qr, personCheck, onSignedIn })` and the stylesheet; the account key and the
    shop's "sign in first" call `open()`. On `*.workers.dev` the sheet offers no passkey (it would be lost at the move to the game's own
    domain); give `mountAdmin` `playerPasskeys: true` so the admin says so. Do not write your own passkey or wallet code, and never store, log or send the seed.
+7. **The words.** For the game's own words or language, give the sheet `words` (keys of `PlayerSigninWords`, over `PLAYER_SIGNIN_WORDS`); never edit the kit's files.
 
 **Check:** on the game's real https address, with a phone (iOS 18 or a recent Android): Make a passkey, see "Keep a spare key", sign in, reload: still
 signed in; sign out, "Use my passkey": the same address. A desktop browser with no PRF shows the passkey last and its plain words. A wallet sign-in works only
@@ -241,6 +242,9 @@ import "@nano133/nanoterra/shop/style.css";
   code, no address and the wallet key off. Never show a pay screen to an address nobody holds the key for without that stamp.
 - Add the cron (`*/10 * * * *`) that calls `shop.scan()`, and give the admin `check: (at) => shop.scan(at)`.
 - Mount the panel with `onOwned(lookId)` (the game adds the look and wears it); `key: false` and `open()` when the game has its own Looks key.
+- The game's own words or language: `words` on `mountShop` (keys of `ShopWords`, over `SHOP_WORDS`). Keep each safety line's meaning; the stamp
+  "TEST MODE: DO NOT PAY" and "Powered by CoinGecko" are not the game's to change. A shop in a modal `<dialog>` of the game's own closes it in `signIn`
+  before the sign-in sheet opens, or the sheet stays hidden behind it.
 - Merge `SHOP_CSP` into the game's Content Security Policy with `mergeCsp`; never replace the game's policy.
 - "Delete my data" calls `store.forget(player, now)`; with `waitUntil`, ask the player to try again then.
 - Tests: the shop's money tests are the package's. The game's tests read the game's own looks file and test only the game's own routes and wiring.

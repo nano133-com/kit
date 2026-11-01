@@ -366,6 +366,11 @@
   font-weight: 700;
 }
 
+/* The time left: its digits keep their width while it counts down. */
+.n133-shop .n133s-time-left {
+  font-variant-numeric: tabular-nums;
+}
+
 .n133-shop .n133s-qr {
   display: grid;
   place-items: center;

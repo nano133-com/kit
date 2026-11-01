@@ -125,7 +125,7 @@ test("Buy without a sign-in hook says to sign in, and makes no order", async () 
   mounted[mounted.push(mountShop(el, { ...g.opts, signIn: undefined })) - 1].buy("red-coat");
   await settle();
   assert.equal(g.calls.length, 0);
-  assert.match(el.querySelector(".n133s-status")!.textContent!, /sign in with Nano first/);
+  assert.match(el.querySelector(".n133s-status")!.textContent!, /^Sign in first to buy a look\.$/);
 });
 
 test("TEST MODE: the stamp says DO NOT PAY; no QR code, no address, no nano: link; the wallet key is off; no checks are made", async () => {
@@ -139,9 +139,11 @@ test("TEST MODE: the stamp says DO NOT PAY; no QR code, no address, no nano: lin
   assert.equal(pay.querySelector("a[href]"), null);
   assert.ok(!pay.innerHTML.includes("nano_") && !pay.innerHTML.includes("nano:"));
   const wallet = pay.querySelector(".n133s-foot button") as HTMLButtonElement;
-  assert.equal(wallet.textContent, "Open wallet (off in test mode)");
+  assert.equal(wallet.textContent, "Wallet off: test mode");
   assert.equal(wallet.disabled, true);
   assert.equal(pay.querySelector(".n133s-amount strong")!.textContent, "0.25 XNO");
+  assert.equal(pay.querySelector(".n133s-exact"), null, "no \"Send exactly\" in test mode");
+  assert.ok((pay.querySelector(".n133s-time-left") as HTMLElement).hidden, "no timer in test mode: nothing waits for a payment");
   assert.deepEqual(g.calls, ["POST /api/orders"], "test mode does not wait for a payment");
 });
 
@@ -160,7 +162,10 @@ test("live: the QR code of the exact nano: link, the wallet key, the address by 
   assert.equal(qr.getAttribute("aria-label"), "QR code to pay 0.25 XNO");
   assert.ok((qr.querySelector("path")!.getAttribute("d") ?? "").length > 1000);
   assert.equal(pay.querySelector(".n133s-address")!.textContent, payee);
-  assert.match(pay.querySelector(".n133s-status")!.textContent!, /Waiting for your payment/);
+  assert.match(pay.querySelector(".n133s-status")!.textContent!, /Waiting for payment/);
+  assert.equal(pay.querySelector(".n133s-exact")!.textContent, "Send exactly");
+  assert.match(pay.querySelector(".n133s-time-left")!.textContent!, /^Ends in \d+:\d\d\.$/);
+  assert.equal(pay.querySelector(".n133s-prices")!.textContent, "Price: Test feed.", "no CoinGecko among the feeds: no CoinGecko words");
   // The payment arrives (recorded straight in the store; the scan has no node here), and the next check sees it.
   const id = g.calls.length && (await g.store.held())[0];
   assert.ok(id);

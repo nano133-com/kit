@@ -11,6 +11,8 @@
 //
 // The seed lives in local variables of one sign-in only: never in storage, a log, an error text or an address. The page remembers only the passkeys'
 // ids and the last way (./memo.ts).
+//
+// `words` changes any word of the sheet (./words.ts: PLAYER_SIGNIN_WORDS are the defaults), for a game's own words or language.
 
 import { firstUse, makePasskey, openPasskey, PasskeyError, passkeyFault, passkeySupport, type NewPasskey, type PasskeyScheme, type PasskeySetup } from "@nano133/signin/passkey";
 import { ApiError, createApi } from "../../admin/panel/api.js";
@@ -20,7 +22,7 @@ import { checkScheme } from "../scheme-check.js";
 import { previewHost } from "../host.js";
 import { WAYS, type Way } from "../types.js";
 import { readMemo, rememberLast, rememberMade, rememberOpened } from "./memo.js";
-import { faultWords } from "./words.js";
+import { faultWords, playerSigninWords, type PlayerSigninWordsOption } from "./words.js";
 
 export type SignedIn = { address: string; via: "wallet" | "passkey" };
 
@@ -50,6 +52,8 @@ export type PlayerSigninViewOptions = {
   fetch?: typeof fetch;
   /** A touch screen (one key that opens the app) or not (a QR code). Default: `(pointer: coarse)`. */
   touch?: boolean;
+  /** The game's words for the sheet, over the defaults (PLAYER_SIGNIN_WORDS): `{ lead: "No password.", faults: { cancelled: { ... } } }`. */
+  words?: PlayerSigninWordsOption;
 };
 
 export type PlayerSigninView = {
@@ -102,6 +106,7 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
   const passkeyOn = options.passkey ?? !previewHost(rpId);
   const scheme = passkeyOn ? checkScheme(options.scheme as PasskeyScheme) : null;
   const touch = () => options.touch ?? (typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches);
+  const w = playerSigninWords(options.words);
 
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -122,7 +127,7 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
     node.toggleAttribute("aria-busy", on);
   };
   const key = (text: string, onclick: () => void, kind: "primary" | "plain" | "quiet" = "plain") => h("button", { class: `n133s-btn n133s-${kind}`, type: "button", onclick }, text);
-  const backKey = () => h("button", { class: "n133s-back", type: "button", onclick: () => showWays() }, icon("back", 18), h("span", {}, "Back"));
+  const backKey = () => h("button", { class: "n133s-back", type: "button", onclick: () => showWays() }, icon("back", 18), h("span", {}, w.back));
   const title = (text: string) => h("h3", { class: "n133s-step", tabindex: "-1" }, text);
   const focusFirst = () => (area.querySelector<HTMLElement>("h3, button:not([disabled])") ?? area).focus?.({ preventScroll: true });
   const setup = (): PasskeySetup => ({ rpId, rpName: options.name, scheme: scheme!, userName: passkeyName(options.name), exclude: readMemo(rpId).ids });
@@ -140,7 +145,7 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
   function done(player: SignedIn) {
     stopWaiting();
     current = null;
-    area.replaceChildren(h("p", { class: "n133s-done" }, icon("check", 22), h("span", {}, `Signed in as ${shortAddress(player.address)}`)));
+    area.replaceChildren(h("p", { class: "n133s-done" }, icon("check", 22), h("span", {}, w.signedInAs(shortAddress(player.address)))));
     say("");
     options.onSignedIn?.(player);
   }
@@ -154,8 +159,8 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
       "button",
       { class: `n133s-pk${off ? " is-off" : ""}`, type: "button", onclick: () => showPasskey() },
       h("span", { class: "n133s-pk-mark" }, keyIcon()),
-      h("span", { class: "n133s-pk-words" }, h("strong", {}, "Use a passkey"), h("small", {}, off ? "Not on this browser" : "Face ID, Touch ID or your device PIN")),
-      last ? h("span", { class: "n133s-last" }, "Last used") : null,
+      h("span", { class: "n133s-pk-words" }, h("strong", {}, w.usePasskey), h("small", {}, off ? w.passkeyOff : w.passkeyHint)),
+      last ? h("span", { class: "n133s-last" }, w.lastUsed) : null,
     );
   }
 
@@ -164,13 +169,13 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
     return h(
       "div",
       { class: "n133s-tiles" },
-      ...ways.map((w) =>
+      ...ways.map((way) =>
         h(
           "button",
-          { class: "n133s-tile", type: "button", onclick: () => choose(w) },
-          h("span", { class: "n133s-mark", "aria-hidden": "true" }, WALLETS[w].mark),
-          h("span", { class: "n133s-name" }, WALLETS[w].name),
-          last === w ? h("span", { class: "n133s-last" }, "Last used") : null,
+          { class: "n133s-tile", type: "button", onclick: () => choose(way) },
+          h("span", { class: "n133s-mark", "aria-hidden": "true" }, WALLETS[way].mark),
+          h("span", { class: "n133s-name" }, WALLETS[way].name),
+          last === way ? h("span", { class: "n133s-last" }, w.lastUsed) : null,
         ),
       ),
     );
@@ -181,8 +186,8 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
     busy(false);
     const pk = passkeyOn ? passkeyTile() : null;
     const first = pk && support !== "no";
-    const walletsPart = ways.length ? [h("p", { class: "n133s-or" }, pk ? "Or a wallet app" : "Choose your wallet"), walletTiles()] : [];
-    fill(h("p", { class: "n133s-lead" }, "No password and no payment."), first ? pk : null, ...walletsPart, !first && pk ? h("p", { class: "n133s-or" }, "Or a passkey") : null, !first ? pk : null);
+    const walletsPart = ways.length ? [h("p", { class: "n133s-or" }, pk ? w.orWallet : w.chooseWallet), walletTiles()] : [];
+    fill(h("p", { class: "n133s-lead" }, w.lead), first ? pk : null, ...walletsPart, !first && pk ? h("p", { class: "n133s-or" }, w.orPasskey) : null, !first ? pk : null);
     say("");
   }
 
@@ -191,13 +196,13 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
   function showFault(e: unknown): void {
     busy(false);
     const f = passkeyFault(e);
-    const w = faultWords(f.code, rpId);
-    if (w.next === "stay") return showPasskey(w.text);
+    const fw = faultWords(f.code, rpId, w);
+    if (fw.next === "stay") return showPasskey(fw.text);
     fill(
       backKey(),
-      title(w.title),
-      h("p", { class: "n133s-text n133s-fault", "data-fault": f.code }, w.text),
-      ways.length ? h("p", { class: "n133s-or" }, "Sign in with a wallet app") : null,
+      title(fw.title),
+      h("p", { class: "n133s-text n133s-fault", "data-fault": f.code }, fw.text),
+      ways.length ? h("p", { class: "n133s-or" }, w.faultWallets) : null,
       ways.length ? walletTiles() : null,
     );
     say("");
@@ -212,12 +217,12 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
     if (support === "no") return showFault(new PasskeyError("no-prf"));
     if (!hostFits(location.hostname, rpId)) return showFault({ name: "SecurityError" });
     const known = readMemo(rpId).ids.length > 0;
-    const use = key("Use my passkey", () => void usePasskey(), known ? "primary" : "plain");
-    const make = key("Make a passkey", () => void makeNew(), known ? "plain" : "primary");
+    const use = key(w.useMine, () => void usePasskey(), known ? "primary" : "plain");
+    const make = key(w.makeOne, () => void makeNew(), known ? "plain" : "primary");
     area.replaceChildren(
       backKey(),
-      title("Passkey"),
-      h("p", { class: "n133s-text" }, "Face ID, Touch ID or your device PIN. The passkey stays on your device: the game never sees it."),
+      title(w.passkeyTitle),
+      h("p", { class: "n133s-text" }, w.passkeyText),
       h("div", { class: "n133s-keys" }, known ? use : make, known ? make : use),
     );
     say(note ?? "");
@@ -226,7 +231,7 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
 
   async function usePasskey() {
     busy(true);
-    say("Waiting for your passkey…");
+    say(w.waitingPasskey);
     prompt = new AbortController();
     try {
       const p = await openPasskey(setup(), prompt.signal);
@@ -239,7 +244,7 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
 
   async function makeNew() {
     busy(true);
-    say("Making your passkey…");
+    say(w.makingPasskey);
     prompt = new AbortController();
     let made: NewPasskey;
     try {
@@ -257,7 +262,7 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
   /** The first use of a passkey just made. Where it gives nothing (a browser that allows one prompt per press, a closed sheet), one key finishes it. */
   async function firstOpen(made: NewPasskey, pick: boolean) {
     busy(true);
-    say("Opening your passkey…");
+    say(w.openingPasskey);
     prompt = new AbortController();
     try {
       const p = await firstUse(setup(), made, prompt.signal, pick);
@@ -268,7 +273,7 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
       const f = passkeyFault(e);
       if (f.code !== "cancelled" && f.code !== "failed") return showFault(f);
       busy(false);
-      area.replaceChildren(title("Your passkey is made"), h("p", { class: "n133s-text" }, "Press the key to open it."), h("div", { class: "n133s-keys" }, key("Open my passkey", () => void firstOpen(made, true), "primary")));
+      area.replaceChildren(title(w.madeTitle), h("p", { class: "n133s-text" }, w.madeText), h("div", { class: "n133s-keys" }, key(w.openMine, () => void firstOpen(made, true), "primary")));
       say("");
       focusFirst();
     }
@@ -281,28 +286,28 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
       const code = h("p", { class: "n133s-code", translate: "no" });
       const codeBox = h("div", { class: "n133s-codebox" }, code);
       codeBox.hidden = true;
-      const go = key("Later", () => resolve(), "quiet");
-      const copyBtn = key("Copy the code", async () => {
+      const go = key(w.later, () => resolve(), "quiet");
+      const copyBtn = key(w.copyCode, async () => {
         try {
           await navigator.clipboard.writeText(seed);
-          copyBtn.textContent = "Copied";
+          copyBtn.textContent = w.copied;
         } catch {
-          copyBtn.textContent = "Copy failed: write it down";
+          copyBtn.textContent = w.copyFailed;
         }
       });
       codeBox.append(copyBtn);
-      const show = key("Show my code", () => {
+      const show = key(w.showCode, () => {
         code.textContent = seed.match(/.{1,16}/g)!.join("\n");
         codeBox.hidden = false;
         show.remove();
-        go.textContent = "Continue";
+        go.textContent = w.continue;
         go.className = "n133s-btn n133s-primary";
       }, "primary");
       area.replaceChildren(
-        title("Keep a spare key"),
-        h("p", { class: "n133s-text" }, "Your looks belong to this passkey. If you lose it, this code brings them back."),
+        title(w.spareTitle),
+        h("p", { class: "n133s-text" }, w.spareText),
         codeBox,
-        h("p", { class: "n133s-fine" }, "Keep it secret: whoever has it can sign in as you. To use it, import it as a seed in a Nano wallet such as Nautilus, then sign in with that wallet."),
+        h("p", { class: "n133s-fine" }, w.spareFine),
         h("div", { class: "n133s-keys" }, show, go),
       );
       say("");
@@ -315,7 +320,7 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
     if (fresh && options.spareKey !== false) await spareKey(seed);
     if (stopped) return;
     busy(true);
-    say("Signing in…");
+    say(w.signingIn);
     try {
       const { signinBody } = await import("@nano133/signin/purse");
       const turnstile = await personToken();
@@ -323,7 +328,7 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
       rememberOpened(rpId, credentialId);
       if (!stopped) done({ address: r.address, via: "passkey" });
     } catch (e) {
-      if (!stopped) showPasskey(e instanceof ApiError ? e.message : "Sign-in did not work. Try again.");
+      if (!stopped) showPasskey(e instanceof ApiError ? w.refusal(e.message, e.status) : w.signInFailed);
     }
   }
 
@@ -334,7 +339,7 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
     stopWaiting();
     current = null;
     busy(true);
-    say("Starting…");
+    say(w.starting);
     try {
       const turnstile = await personToken();
       const s = await api.post<Start>(`${base}/start`, { way, ...(turnstile ? { turnstile } : {}) });
@@ -346,14 +351,14 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
     } catch (e) {
       busy(false);
       showWays();
-      say(e instanceof Error ? e.message : "Sign-in did not start. Try again.");
+      say(e instanceof ApiError ? w.refusal(e.message, e.status) : e instanceof Error && e.message ? w.refusal(e.message, 0) : w.startFailed);
     }
   }
 
   function showWallet(s: Start) {
     const name = WALLETS[s.way].name;
     area.replaceChildren(backKey(), title(name), ...walletSteps(s, name));
-    say(`Waiting for ${name}…`);
+    say(w.waitingFor(name));
     focusFirst();
   }
 
@@ -361,44 +366,44 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
   function walletSteps(s: Start, name: string): Node[] {
     const open = (text: string, href: string, newTab = false) => h("a", { class: "n133s-btn n133s-primary", href, target: newTab ? "_blank" : undefined, rel: newTab ? "noopener" : undefined }, text);
     const qr = (text: string) => {
-      if (!options.qr) return h("p", { class: "n133s-fine" }, "Open this page on your phone to sign in with ", name, ".");
+      if (!options.qr) return h("p", { class: "n133s-fine" }, w.openOnPhone(name));
       const c = options.qr(text);
-      c.setAttribute("aria-label", `QR code to sign in with ${name}`);
+      c.setAttribute("aria-label", w.qrLabel(name));
       return h("div", { class: "n133s-qr" }, c);
     };
-    const only = h("p", { class: "n133s-fine" }, `Only approve a sign-in that you started yourself, on ${location.host}.`);
-    const comeBack = h("p", { class: "n133s-fine" }, `Approve the sign-in in ${s.way === "berry" ? "your wallet" : name}, then come back to this page.`);
+    const only = h("p", { class: "n133s-fine" }, w.onlyYours(location.host));
+    const comeBack = h("p", { class: "n133s-fine" }, w.comeBack(s.way === "berry" ? w.yourWallet : name));
     if (s.way === "nautilus") {
-      const code = h("p", { class: "n133s-text" }, "Check that Nautilus shows the code ", h("strong", { class: "n133s-signcode" }, s.code ?? ""), ".");
-      return touch() ? [code, open("Open Nautilus", s.link), comeBack] : [qr(s.link), h("p", { class: "n133s-text" }, "Scan this with Nautilus on your phone, then approve the sign-in."), code, only];
+      const code = h("p", { class: "n133s-text" }, w.checkCode, h("strong", { class: "n133s-signcode" }, s.code ?? ""));
+      return touch() ? [code, open(w.openApp(name), s.link), comeBack] : [qr(s.link), h("p", { class: "n133s-text" }, w.scanWith(name)), code, only];
     }
     if (s.way === "nanchat") {
-      const here = h("p", { class: "n133s-fine" }, "On this computer: ", h("a", { href: s.link, target: "_blank", rel: "noopener" }, "open NanChat"), ".");
-      return touch() ? [open("Open NanChat", s.link, true), comeBack, only] : [qr(s.link), h("p", { class: "n133s-text" }, "Scan this with your phone's camera to open NanChat, then approve the sign-in."), only, here];
+      const here = h("p", { class: "n133s-fine" }, w.onComputer, h("a", { href: s.link, target: "_blank", rel: "noopener" }, w.openLink(name)));
+      return touch() ? [open(w.openApp(name), s.link, true), comeBack, only] : [qr(s.link), h("p", { class: "n133s-text" }, w.scanCamera(name)), only, here];
     }
-    const other = h("a", { class: "n133s-btn n133s-plain", href: s.walletLink ?? s.link }, "Another wallet");
-    const here = h("p", { class: "n133s-fine" }, "On this computer: ", h("a", { href: s.walletLink ?? s.link }, "open a wallet"), ".");
-    return touch() ? [open("Open Berry Wallet", s.link), other, comeBack] : [qr(s.link), h("p", { class: "n133s-text" }, "Scan this with Berry Wallet on your phone, then approve the sign-in."), only, here];
+    const other = h("a", { class: "n133s-btn n133s-plain", href: s.walletLink ?? s.link }, w.anotherWallet);
+    const here = h("p", { class: "n133s-fine" }, w.onComputer, h("a", { href: s.walletLink ?? s.link }, w.openLink(w.aWallet)));
+    return touch() ? [open(w.openApp(name), s.link), other, comeBack] : [qr(s.link), h("p", { class: "n133s-text" }, w.scanWith(name)), only, here];
   }
 
   /** The request ended without a sign-in: say why, and offer a new one. */
   function again(s: Start, words: string) {
     current = null;
-    area.replaceChildren(backKey(), title(WALLETS[s.way].name), h("div", { class: "n133s-keys" }, key("Try again", () => void choose(s.way), "primary"), key("Choose another way", () => showWays())));
+    area.replaceChildren(backKey(), title(WALLETS[s.way].name), h("div", { class: "n133s-keys" }, key(w.tryAgain, () => void choose(s.way), "primary"), key(w.otherWay, () => showWays())));
     say(words);
   }
 
   async function poll(s: Start) {
     if (stopped || current !== s) return;
-    if (Date.now() > s.expiresAt + 5000) return again(s, "This sign-in expired.");
+    if (Date.now() > s.expiresAt + 5000) return again(s, w.expired);
     try {
       const r = await api.post<{ status: string; address?: string }>(`${base}/check`, { id: s.id, way: s.way });
       if (stopped || current !== s) return;
       if (r.status === "signedin" && r.address) return done({ address: r.address, via: "wallet" });
-      if (r.status === "elsewhere" || r.status === "used") return again(s, "This sign-in was used in another browser. Start again.");
-      if (r.status === "expired") return again(s, "This sign-in expired.");
+      if (r.status === "elsewhere" || r.status === "used") return again(s, w.usedElsewhere);
+      if (r.status === "expired") return again(s, w.expired);
     } catch (e) {
-      if (e instanceof ApiError && e.status === 429) say("Too many checks. Waiting a moment…");
+      if (e instanceof ApiError && e.status === 429) say(w.tooManyChecks);
     }
     timer = setTimeout(() => void poll(s), 2000);
   }

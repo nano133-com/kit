@@ -222,14 +222,14 @@ test("the built paths load, and the ones that must not load Three.js do not (a l
     ["player-signin/conformance.js", "if (typeof m.playerSigninStoreConformance !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["player-signin/adapters/d1.js", "if (typeof m.createD1PlayerSignin !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["player-signin/adapters/firestore.js", "if (typeof m.createFirestorePlayerSignin !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
-    ["player-signin/panel/index.js", "if (typeof m.mountPlayerSignin !== 'function' || typeof m.signInView !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
+    ["player-signin/panel/index.js", "if (typeof m.mountPlayerSignin !== 'function' || typeof m.signInView !== 'function' || m.PLAYER_SIGNIN_WORDS.title !== 'Sign in' || m.faultWords('failed', 'x', { faults: { failed: { title: 'T', text: 'X' } } }).text !== 'X') throw new Error('missing'); process.stdout.write('ok')"],
     ["shop/index.js", "if (typeof m.createShopHandler !== 'function' || typeof m.createMemoryShop !== 'function' || m.priceRaw(0.25, 1) !== '250000000000000000000000000000' || m.payeeOf(m.EXAMPLE_ADDRESS) !== null) throw new Error('missing'); process.stdout.write('ok')"],
     ["shop/conformance.js", "if (typeof m.shopStoreConformance !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["shop/adapters/d1.js", "if (typeof m.createD1Shop !== 'function' || typeof m.d1Limit !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["shop/adapters/firestore.js", "if (typeof m.createFirestoreShop !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["shop/worker.js", "if (typeof m.createShop !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     // The panel loads in Node with no DOM (it builds its elements only when mounted); the QR code's matrix needs none.
-    ["shop/panel/index.js", "if (typeof m.mountShop !== 'function' || m.qrModules('nano:x').length !== 21) throw new Error('missing'); process.stdout.write('ok')"],
+    ["shop/panel/index.js", "if (typeof m.mountShop !== 'function' || m.qrModules('nano:x').length !== 21 || m.SHOP_WORDS.title !== 'Looks' || m.shopWords({ title: 'L' }).title !== 'L') throw new Error('missing'); process.stdout.write('ok')"],
   ];
   for (const [entry, code] of probes) {
     const r = run(entry, code);

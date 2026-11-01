@@ -186,7 +186,7 @@ test("a wallet: the start goes to the handler; with a mouse the game's QR hook d
   await settle(30);
   const open = byText(touch.v.node, "Open Nautilus") as HTMLAnchorElement;
   assert.match(open.getAttribute("href")!, /^nanoauth:/);
-  assert.match(touch.v.node.textContent!, /Check that Nautilus shows the code [A-Z2-9]{4}-[A-Z2-9]{4}/);
+  assert.match(touch.v.node.textContent!, /Check that Nautilus shows this code: [A-Z2-9]{4}-[A-Z2-9]{4}/);
   touch.v.stop();
 });
 

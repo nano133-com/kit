@@ -6,8 +6,7 @@
 
 import { h } from "../../admin/panel/dom.js";
 import { OUTFIT, isOutfit, usdText, wearOf, type Look } from "../../looks/look.js";
-
-const HAT_WORDS: Record<string, string> = { cap: "with a cap", beanie: "with a beanie", crown: "with a crown", tophat: "with a top hat" };
+import { shopWords, type ShopWords } from "./words.js";
 
 /** A tab's words: its key's word, and its plain choice's name (an item slot's: "Plain shovel", "No charm"). */
 export type SlotWords = { tab: string; plain?: string };
@@ -32,9 +31,9 @@ export type LooksViewOptions = {
   tab?: string;
   /** A tab was chosen: the sheet draws again with it. */
   onTab?: (slot: string) => void;
+  /** The game's words (./words.ts): the keys it leaves out keep the defaults. */
+  words?: Partial<ShopWords>;
 };
-
-const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).replace(/-/g, " ");
 
 /** The wear slots of a list, in the order they first show (the outfits first). */
 export function slotsOf(looks: readonly Look[]): string[] {
@@ -62,25 +61,26 @@ function swatchOf(look: Look): HTMLElement {
 export function looksView(p: LooksViewOptions): HTMLElement {
   const slots = slotsOf(p.looks);
   const tab = p.tab && slots.includes(p.tab) ? p.tab : slots[0];
-  const words = (slot: string): SlotWords => p.slots?.[slot] ?? (slot === OUTFIT ? { tab: "Outfits" } : { tab: titleCase(slot), plain: `No ${slot.replace(/-/g, " ")}` });
+  const w = shopWords(p.words);
+  const words = (slot: string): SlotWords => p.slots?.[slot] ?? (slot === OUTFIT ? { tab: w.outfits } : { tab: w.slotTab(slot), plain: w.slotPlain(slot) });
   const list = h("ul", { class: "n133s-looks" });
   const row = (pic: HTMLElement, name: string, line: string, action: HTMLElement, worn: boolean) =>
     h("li", { class: `n133s-look${worn ? " n133s-look-worn" : ""}` }, pic, h("span", { class: "n133s-look-text" }, h("strong", {}, name), h("small", {}, line)), action);
 
   if (tab !== OUTFIT && p.takeOff) {
     const plain = p.plainWorn ? p.plainWorn(tab) : !p.looks.some((l) => wearOf(l) === tab && p.worn(l));
-    const action = h("button", { class: `n133s-btn${plain ? "" : " n133s-primary"}`, type: "button", disabled: plain, onclick: () => p.takeOff!(tab) }, plain ? "Wearing" : "Wear");
-    list.append(row(h("span", { class: "n133s-swatch n133s-swatch-plain", "aria-hidden": "true" }), words(tab).plain ?? `No ${tab}`, "free", action, plain));
+    const action = h("button", { class: `n133s-btn${plain ? "" : " n133s-primary"}`, type: "button", disabled: plain, onclick: () => p.takeOff!(tab) }, plain ? w.wearing : w.wear);
+    list.append(row(h("span", { class: "n133s-swatch n133s-swatch-plain", "aria-hidden": "true" }), words(tab).plain ?? w.slotPlain(tab), w.free, action, plain));
   }
   for (const look of p.looks) {
     if (wearOf(look) !== tab) continue;
     const mine = look.priceUsd === 0 || p.owned.has(look.id);
     const worn = p.worn(look);
     const action = mine
-      ? h("button", { class: `n133s-btn${worn ? "" : " n133s-primary"}`, type: "button", disabled: worn, onclick: () => p.wear(look) }, worn ? "Wearing" : "Wear")
-      : h("button", { class: "n133s-btn n133s-buy", type: "button", onclick: () => p.buy(look) }, `Buy ${usdText(look.priceUsd)}`);
-    const what = isOutfit(look) ? (look.change.hat ? HAT_WORDS[look.change.hat] : "colour only") : tab.replace(/-/g, " ");
-    const state = mine ? (look.priceUsd === 0 ? " · free" : " · yours") : "";
+      ? h("button", { class: `n133s-btn${worn ? "" : " n133s-primary"}`, type: "button", disabled: worn, onclick: () => p.wear(look) }, worn ? w.wearing : w.wear)
+      : h("button", { class: "n133s-btn n133s-buy", type: "button", onclick: () => p.buy(look) }, w.buy(usdText(look.priceUsd)));
+    const what = isOutfit(look) ? w.outfitLine(look.change.hat ?? null) : w.itemLine(tab);
+    const state = mine ? ` · ${look.priceUsd === 0 ? w.free : w.yours}` : "";
     list.append(row(p.picture?.(look) ?? swatchOf(look), look.name, `${what}${state}`, action, worn));
   }
 
@@ -88,7 +88,7 @@ export function looksView(p: LooksViewOptions): HTMLElement {
     slots.length > 1
       ? h(
           "div",
-          { class: "n133s-tabs", role: "tablist", "aria-label": "Kinds of looks" },
+          { class: "n133s-tabs", role: "tablist", "aria-label": w.kinds },
           ...slots.map((s) =>
             h("button", { class: "n133s-tab", type: "button", role: "tab", "aria-selected": s === tab ? "true" : "false", onclick: () => p.onTab?.(s) }, words(s).tab),
           ),
@@ -100,7 +100,7 @@ export function looksView(p: LooksViewOptions): HTMLElement {
     { class: "n133s-looks-view" },
     tabs,
     list,
-    h("p", { class: "n133s-fine" }, "A look changes how your character looks. It never changes a score. You pay in Nano (XNO), straight to the game's creator."),
-    p.signedIn ? null : h("p", { class: "n133s-fine" }, "To buy a look, sign in with Nano first: your looks belong to your Nano address."),
+    h("p", { class: "n133s-fine" }, w.looksNote),
+    p.signedIn ? null : h("p", { class: "n133s-fine" }, w.signInFirst),
   );
 }

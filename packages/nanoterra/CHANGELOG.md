@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- **The words of the shop's sheets and of the player's sign-in sheet are the game's to set** (the coordinator asked for it: Echo Island's move to
+  `/shop` waited on it; Wes prefers fewer words). `words` on `mountShop`, `looksView` and `payPanel` (`ShopWords`, defaults `SHOP_WORDS`,
+  `shopWords()` merges) and on `mountPlayerSignin` and `signInView` (`PlayerSigninWords`, defaults `PLAYER_SIGNIN_WORDS`, `PlayerSigninWordsOption`
+  for a game's partial words and faults, `playerSigninWords()` merges). Every visible word, every key and every name for a screen reader; a text
+  with a value is a function (`buyTitle(look)`, `endsIn(time)`, `prices(sources)`, `waitingFor(wallet)`). `refusal(text, status)` turns the
+  server's refusals into the game's words. `faultWords(code, rpId, words?)` takes the words. Not the game's to change: the stamp "TEST MODE: DO
+  NOT PAY", and "Powered by CoinGecko" while CoinGecko is a price feed (`priceLine` adds it back).
+- **Shorter default words.** The pay sheet: 30 words in TEST MODE (was about 85) and 29 live (was about 47), no sentence over 10 words. Live:
+  "Send exactly 0.25 XNO", "Ends in 14:59.", "Waiting for payment…", "Price: Kraken, KuCoin. Powered by CoinGecko."; by hand: "Another amount
+  does not match." TEST MODE: the stamp, "Nothing can be paid here.", the wallet key "Wallet off: test mode", no timer and no status (nothing
+  waits for a payment). Paid late: "Paid after the order ended, so no look. The creator sends it back." The looks sheet: "Looks never change
+  play. Pay in Nano, straight to the creator." and "Sign in first to buy a look."; "Back" (was "Back to looks"). The sign-in sheet: the lines
+  over 10 words split or cut, with the same meaning (the spare key's note, the password manager's and the "two answers" faults, the QR lines).
+- `test/panel-words.test.ts` counts the words a player sees (happy-dom) and proves a game's words reach the page.
+
 ## 0.9.0 (2026-11-01)
 
 - **The player's sign-in** (`@nano133/nanoterra/player-signin`, `/player-signin/conformance`, `/player-signin/d1` with `/player-signin/d1.sql`,

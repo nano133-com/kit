@@ -22,6 +22,8 @@ Follow step 13 of the package's `ai/SPEC.md` (https://nano133.com/build/nanoterr
    `owned` in the game's `/api/me` (`shop.owned(player)`) and `testMode` in its config.
 6. Mount `mountShop(el, { looks, owned, signedIn, signIn, worn, wear, onOwned })` with the
    stylesheet `@nano133/nanoterra/shop/style.css`; `key: false` and `open()` for the game's own key.
+   The game's own words go in `words` (`ShopWords`), never in the kit's files; a shop in its own
+   modal `<dialog>` closes it in `signIn` before the sign-in sheet opens.
 7. Merge `SHOP_CSP` into the game's policy with `mergeCsp`. Never replace the game's policy.
 8. Call `store.forget(player, now)` from "Delete my data".
 9. Test on a phone first (upright and sideways), then a tablet, then a computer, in TEST MODE:
