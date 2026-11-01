@@ -45,6 +45,18 @@ function setup(over: { key?: boolean; device?: "phone" | "desktop" } = {}) {
 }
 const press = (key: string, target: EventTarget = document, code = "") => target.dispatchEvent(new win.KeyboardEvent("keydown", { key, code, bubbles: true }) as unknown as Event);
 
+test('focusAfterClose "key": a closed panel gives the focus back to its key', () => {
+  const store = createOptions({ game: "k", storage: null, defs: common("invertLook") });
+  const el = root();
+  const panel = mountOptions(el, store, { focusAfterClose: "key" });
+  const key = el.querySelector(".n133o-key") as HTMLButtonElement;
+  key.click();
+  press("Escape");
+  assert.equal(panel.isOpen, false);
+  assert.equal(document.activeElement, key);
+  panel.destroy();
+});
+
 test("the key opens a dialog with two ARIA tabs; the arrow keys, Home and End move between them; Escape and the close key close it", () => {
   const { el, panel, q, store } = setup();
   const key = q<HTMLButtonElement>(".n133o-key");
@@ -79,7 +91,7 @@ test("the key opens a dialog with two ARIA tabs; the arrow keys, Home and End mo
   assert.equal(tabs[0].getAttribute("aria-selected"), "true");
   press("Escape");
   assert.equal(dialog.dataset.open, "false");
-  assert.equal(document.activeElement, key, "the focus goes back to the key");
+  assert.ok(!el.contains(document.activeElement), "the focus leaves the key and the panel: Space goes to the game, not to the key");
   panel.open();
   q<HTMLButtonElement>(".n133o-close").click();
   assert.equal(panel.isOpen, false);

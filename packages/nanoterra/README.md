@@ -907,8 +907,10 @@ sheet from the bottom on a phone held upright, from the right on a wide or sidew
 (the arrow keys, Home and End; one tab alone has no tab bar); each tab draws its rows without a group first, then each group under its heading. **A change applies
 at once** (there is no Save key), and a change from elsewhere shows in place: the rows are drawn once, a slider under a finger is never drawn again, and the panel
 never scrolls back to the top. **Reset to defaults** asks in the panel ("Put every option back to its default?", Reset and Cancel), never in a browser dialog;
-Escape answers the question first, then closes the panel. `key: false` draws no key, for a game that puts "Options" in its own pause menu and calls `open()`;
-the focus goes back where it was. `onOpen` and `onClose` let a game pause under the panel; `onRangeDone(key, value)` hears a slider let go (play a sound at the new
+Escape answers the question first, then closes the panel. `key: false` draws no key, for a game that puts "Options" in its own pause menu and calls `open()`.
+**When it closes, the focus leaves the key and the panel** (to the page), so Space and the game's other keys reach the game again: a focused key would take
+Space and open the panel again. The friends panel and the emote wheel do the same. `focusAfterClose: "key"` gives the focus back to the key (or, with no
+key, to what had it before), for a page with no keys of its own. `onOpen` and `onClose` let a game pause under the panel; `onRangeDone(key, value)` hears a slider let go (play a sound at the new
 level). The panel holds the focus while it is open. Every key, switch, choice and slider is 44 px or more, and a row's label is 16 px.
 
 **Light and dark.** The panel follows `data-n133-theme="light" | "dark"` on the page's `<html>` when the page sets it (the admin panel does), else the device's

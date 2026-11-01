@@ -16,6 +16,12 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Attrs = 
   return el;
 }
 
+/** Takes the keyboard focus out of `within` (to the page), so a game's own keys reach the game again. */
+export function releaseFocus(within: Element): void {
+  const now = document.activeElement;
+  if (now instanceof HTMLElement && within.contains(now)) now.blur();
+}
+
 /** "nano_1abc…wxyz" */
 export const shortAddress = (a: string): string => `${a.slice(0, 10)}…${a.slice(-6)}`;
 

@@ -12,7 +12,7 @@
 // The panel is phone first: a sheet from the bottom on a phone held upright, from the right on a wide or sideways screen; every key is 44 px or more.
 // `key: false` draws no key, for a game that opens the panel from its own pause menu (`open()`).
 
-import { h } from "../../admin/panel/dom.js";
+import { h, releaseFocus } from "../../admin/panel/dom.js";
 import { icon } from "../../admin/panel/icons.js";
 import { keyLabel, type ChoiceDef, type KeyDef, type OptionDef, type OptionsStore, type OptionValue, type RangeDef, type Tab, type ToggleDef } from "../core.js";
 
@@ -28,6 +28,11 @@ export type OptionsMountOptions = {
   onRangeDone?: (key: string, value: number) => void;
   /** Asks the player a yes or no question (default: a question in the panel, with a key for each answer; never a browser dialog). */
   confirm?: (question: string) => boolean | Promise<boolean>;
+  /**
+   * Where the keyboard focus goes when the panel closes. "game" (the default): out of the key and the panel, to the page, so Space and the game's
+   * other keys reach the game again (a focused key would take Space and open the panel again). "key": back to the key, for a page with no keys of its own.
+   */
+  focusAfterClose?: "game" | "key";
 };
 
 export type MountedOptions = {
@@ -318,8 +323,8 @@ export function mountOptions(root: HTMLElement, store: OptionsStore, options: Op
     panel.dataset.open = scrim.dataset.open = "false";
     key?.setAttribute("aria-expanded", "false");
     options.onClose?.();
-    const back = key ?? (returnTo?.isConnected ? returnTo : null);
-    back?.focus();
+    if (options.focusAfterClose === "key") (key ?? (returnTo?.isConnected ? returnTo : null))?.focus();
+    else releaseFocus(wrap);
   };
   key?.addEventListener("click", () => (isOpen ? close() : open()));
   closeKey.addEventListener("click", close);

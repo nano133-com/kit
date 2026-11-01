@@ -317,6 +317,7 @@ test("the panel: Nanoterra's emotes off leaves only the game's own; nothing left
   // The keyboard: Escape closes, B opens, 2 plays the second place.
   win.document.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Escape", code: "Escape" }));
   assert.equal(nano.isOpen, false);
+  assert.ok(!root.contains(win.document.activeElement as never), "a closed wheel leaves no focus on its key: Space goes to the game");
   win.document.dispatchEvent(new win.KeyboardEvent("keydown", { key: "b", code: "KeyB" }));
   assert.equal(nano.isOpen, true);
   win.document.dispatchEvent(new win.KeyboardEvent("keydown", { key: "2", code: "Digit2" }));

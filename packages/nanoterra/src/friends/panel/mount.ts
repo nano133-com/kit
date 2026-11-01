@@ -12,7 +12,7 @@
 // The panel is phone first: a sheet from the bottom on a phone held upright, from the side on a wide or sideways screen; every key is 44 px.
 
 import { ApiError, createApi, type Api } from "../../admin/panel/api.js";
-import { h } from "../../admin/panel/dom.js";
+import { h, releaseFocus } from "../../admin/panel/dom.js";
 import { icon } from "../../admin/panel/icons.js";
 import type { FriendRow, FriendView } from "../types.js";
 import { readWindowMessage, toWindow, whereText, windowUrl, type ToWindow } from "./window.js";
@@ -39,6 +39,11 @@ export type FriendsMountOptions = {
   fetch?: typeof fetch;
   /** Asks the player a yes or no question (default: a question in the panel, with a key for each answer; never a browser dialog). */
   confirm?: (question: string) => boolean | Promise<boolean>;
+  /**
+   * Where the keyboard focus goes when the panel closes. "game" (the default): out of the key and the panel, to the page, so Space and the game's
+   * other keys reach the game again (a focused key would take Space and open the panel again). "key": back to the key, for a page with no keys of its own.
+   */
+  focusAfterClose?: "game" | "key";
 };
 
 export type MountedFriends = {
@@ -108,7 +113,8 @@ export function mountFriends(root: HTMLElement, options: FriendsMountOptions): M
     panel.dataset.open = "false";
     key.setAttribute("aria-expanded", "false");
     onClose();
-    key.focus();
+    if (options.focusAfterClose === "key") key.focus();
+    else releaseFocus(wrap);
   };
   key.addEventListener("click", () => (isOpen ? close() : open()));
   closeKey.addEventListener("click", close);

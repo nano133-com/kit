@@ -10,7 +10,7 @@
 // The list is Nanoterra's (each id names one of EMOTES: its name and picture come from the kit), the game's own ({ id, label, icon }), or both. The
 // wheel only calls `onPlay(id)`: the game plays it (Nanoterra's on the kit's character: createEmotes(...).play, from "@nano133/nanoterra/emotes/player").
 
-import { h } from "../../admin/panel/dom.js";
+import { h, releaseFocus } from "../../admin/panel/dom.js";
 import { icon } from "../../admin/panel/icons.js";
 import { EMOTE_ICONS_URL } from "../icons.js";
 import { EMOTES, emoteOf, isEmote, type EmoteId } from "../list.js";
@@ -47,6 +47,11 @@ export type EmotesMountOptions = {
   theme?: "light" | "dark" | "device";
   /** Where the wheel is kept (default: the page's localStorage). null keeps it only for the life of the page. */
   storage?: Pick<Storage, "getItem" | "setItem"> | null;
+  /**
+   * Where the keyboard focus goes when the wheel closes. "game" (the default): out of the key and the wheel, to the page, so Space and the game's
+   * other keys reach the game again (a focused key would take Space and open the wheel again). "key": back to the key, for a page with no keys of its own.
+   */
+  focusAfterClose?: "game" | "key";
 };
 
 export type MountedEmotes = {
@@ -288,7 +293,9 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
     layer.hidden = true;
     layer.dataset.open = "false";
     key.setAttribute("aria-expanded", "false");
-    if (focusKey && !key.hidden) key.focus();
+    if (options.focusAfterClose === "key") {
+      if (focusKey && !key.hidden) key.focus();
+    } else releaseFocus(wrap);
   }
 
   editKey.addEventListener("click", () => {

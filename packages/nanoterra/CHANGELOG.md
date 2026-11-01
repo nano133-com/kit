@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.1 (2026-11-01)
+
+- **A closed panel gives the keys back to the game.** The options panel, the friends panel and the emote wheel put the focus back on their key when they
+  closed; Space (a game's jump) then pressed that key and opened the panel again (in the starter, after the player moved Jump off Space). Now the focus
+  leaves the key and the panel. `focusAfterClose: "key"` (on `mountOptions`, `mountFriends` and `mountEmotes`) keeps the old way, for a page with no keys of
+  its own.
+
 ## 0.8.0 (2026-11-01)
 
 - **An options menu for a game** (`@nano133/nanoterra/options`, `/options/panel` and `/options/style.css`). Wes: "build options menu and emotes in kit"
