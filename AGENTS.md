@@ -63,8 +63,8 @@ prize. Follow `packages/three/ai/SPEC.md` step by step.
 
 Use it when a game wants the player's Nanoterra identity: a sign-in ticket (a game on a
 **static site**), the player's character in a Three.js scene, or the looks ladder for a game
-that sells looks, a friends list, an options menu, emotes, or a shop for its looks. One package; the main paths: `/ticket`, `/character` (and `/character/record`
-with no Three.js), `/looks`, `/friends`, `/options`, `/emotes` and `/shop`. Follow `packages/nanoterra/ai/SPEC.md` step by step.
+that sells looks, a friends list, an options menu, emotes, the player's sign-in, or a shop for its looks. One package; the main paths: `/ticket`, `/character` (and `/character/record`
+with no Three.js), `/looks`, `/friends`, `/options`, `/emotes`, `/player-signin` and `/shop`. Follow `packages/nanoterra/ai/SPEC.md` step by step.
 
 - **The ticket** (`/ticket`): a game with a server uses the code exchange, not this. A ticket
   proves nothing to a server: never give a sale, a prize or a score on it. Ask "Sign in as
@@ -110,8 +110,16 @@ with no Three.js), `/looks`, `/friends`, `/options`, `/emotes` and `/shop`. Foll
   admin's; the shop draws no sign-in (the panel's `signIn()` hook). A store of the game's own passes `shopStoreConformance`. Merge
   `SHOP_CSP` into the game's policy; never replace it. "Delete my data" calls `store.forget(player, now)`.
 
+- **The player's sign-in** (`/player-signin`, `/player-signin/d1`, `/player-signin/firestore`, `/player-signin/panel`): a passkey (the passkey purse:
+  a Nano account made in the browser from the passkey's PRF) or a wallet app (Berry Wallet, NanChat, Nautilus), for a game with a server. It needs
+  `@nano133/signin` too. The game's passkey SCHEME is its own and FROZEN: write it once, test it with fixed vectors (`schemeVector`), never edit it, never take a
+  default. Choose the game's domain before the first player (a passkey belongs to one domain). `player(request)` is the shop's and the friends' player hook,
+  never the admin's login; call `forget(player)` from "Delete my data". A store the game writes itself passes `playerSigninStoreConformance` first. Never
+  print, log, store or send the seed.
+
 ## Working in this repository
 
 - `npm test` runs every package's tests (mock ledger; no network, no money).
-- Packages have no runtime dependencies; keep it that way.
+- Packages have no runtime dependencies; keep it that way. (`@nano133/nanoterra/player-signin` names `@nano133/signin` as an optional peer, as the character
+  names `three`; the root `build` builds `@nano133/signin` first for that.)
 - Code comments and docs: plain, direct English.

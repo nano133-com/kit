@@ -1,0 +1,473 @@
+/* The player's sign-in sheet (mountPlayerSignin in ./mount.ts) and its content (signInView in ./view.ts). Every rule is under .n133-signin, so nothing
+   leaks into the game's page.
+   Phone first: every key is 44 px or more and its words 16 px. On a phone held upright the sheet comes from the bottom; on a wide or sideways screen it
+   is a card in the middle. A scrim covers the game while it is open.
+   Light and dark: the sheet follows data-n133-theme="light" | "dark" on the page's <html> when the page sets it, else the device's prefers-color-scheme.
+   To theme it, set the --n133-* custom properties on the element that holds the sheet (or a parent): --n133-ink, --n133-ink-soft, --n133-paper,
+   --n133-ground, --n133-line, --n133-gem, --n133-gem-dark, --n133-on-gem, --n133-radius, --n133-font and --n133-signin-z (the sheet's z-index, default
+   1200: above the options and friends panels). Those set the LIGHT theme; the DARK theme reads the twins with "dark-" in the name. */
+
+.n133-signin {
+  --font: var(--n133-font, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+  --radius: var(--n133-radius, 18px);
+  --ink: var(--n133-ink, #16202e);
+  --ink-soft: var(--n133-ink-soft, #4a5568);
+  --paper: var(--n133-paper, #ffffff);
+  --ground: var(--n133-ground, #eef2f7);
+  --line: var(--n133-line, #d3dce7);
+  --gem: var(--n133-gem, #20c9a6);
+  --gem-dark: var(--n133-gem-dark, #0e8a72);
+  --on-gem: var(--n133-on-gem, #ffffff);
+  --warn: #b4232f;
+  --shade: 16 24 40;
+  color: var(--ink);
+  color-scheme: light;
+  font: 16px/1.45 var(--font);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Dark: the page says so (data-n133-theme), or the device does and the page does not say light. The two blocks are the same: CSS cannot share them. */
+:root[data-n133-theme="dark"] .n133-signin {
+  --ink: var(--n133-dark-ink, #e7edf5);
+  --ink-soft: var(--n133-dark-ink-soft, #a9b5c5);
+  --paper: var(--n133-dark-paper, #171f2b);
+  --ground: var(--n133-dark-ground, #0f151e);
+  --line: var(--n133-dark-line, #34415a);
+  --gem: var(--n133-dark-gem, #20c9a6);
+  --gem-dark: var(--n133-dark-gem-dark, #3fd8b6);
+  --on-gem: var(--n133-dark-on-gem, #062b23);
+  --warn: #ff8a93;
+  --shade: 0 0 0;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-n133-theme="light"]) .n133-signin {
+    --ink: var(--n133-dark-ink, #e7edf5);
+    --ink-soft: var(--n133-dark-ink-soft, #a9b5c5);
+    --paper: var(--n133-dark-paper, #171f2b);
+    --ground: var(--n133-dark-ground, #0f151e);
+    --line: var(--n133-dark-line, #34415a);
+    --gem: var(--n133-dark-gem, #20c9a6);
+    --gem-dark: var(--n133-dark-gem-dark, #3fd8b6);
+    --on-gem: var(--n133-dark-on-gem, #062b23);
+    --warn: #ff8a93;
+    --shade: 0 0 0;
+    color-scheme: dark;
+  }
+}
+
+.n133-signin *,
+.n133-signin *::before,
+.n133-signin *::after {
+  box-sizing: border-box;
+}
+
+.n133-signin [hidden] {
+  display: none !important;
+}
+
+/* ---- the sheet ---- */
+
+.n133-signin.n133s-sheet {
+  position: fixed;
+  z-index: var(--n133-signin-z, 1200);
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.n133-signin .n133s-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgb(var(--shade) / 0.45);
+}
+
+.n133-signin .n133s-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 92vh;
+  max-height: 92dvh;
+  border: 1px solid var(--line);
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--paper);
+  box-shadow: 0 -8px 30px rgb(var(--shade) / 0.22);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (min-width: 640px), (orientation: landscape) and (max-height: 520px) {
+  .n133-signin.n133s-sheet {
+    align-items: center;
+    padding: 12px;
+  }
+  .n133-signin .n133s-panel {
+    width: min(440px, 100%);
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    border-radius: var(--radius);
+    box-shadow: 0 16px 48px rgb(var(--shade) / 0.28);
+  }
+}
+
+.n133-signin .n133s-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 10px 4px 20px;
+}
+
+.n133-signin .n133s-title {
+  margin: 0;
+  font: 750 20px/1.2 var(--font);
+}
+
+.n133-signin .n133s-close {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.n133-signin .n133s-close:hover {
+  background: var(--ground);
+  color: var(--ink);
+}
+
+.n133-signin .n133s-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 20px 20px;
+}
+
+/* ---- the content ---- */
+
+.n133-signin .n133s-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.n133-signin .n133s-lead,
+.n133-signin .n133s-text {
+  margin: 0;
+}
+
+.n133-signin .n133s-lead,
+.n133-signin .n133s-fine,
+.n133-signin .n133s-or {
+  color: var(--ink-soft);
+}
+
+.n133-signin .n133s-fine {
+  margin: 0;
+  font-size: 14px;
+}
+
+.n133-signin .n133s-or {
+  margin: 6px 0 -4px;
+  font: 650 14px/1.3 var(--font);
+}
+
+.n133-signin .n133s-step {
+  margin: 0;
+  font: 750 18px/1.25 var(--font);
+  outline: none;
+}
+
+.n133-signin .n133s-fault {
+  padding: 12px 14px;
+  border-left: 4px solid var(--warn);
+  border-radius: 10px;
+  background: var(--ground);
+}
+
+/* The passkey's big key: first, the whole row. */
+.n133-signin .n133s-pk {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 72px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--gem-dark);
+  color: var(--on-gem);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+:root[data-n133-theme="dark"] .n133-signin .n133s-pk {
+  background: var(--gem);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-n133-theme="light"]) .n133-signin .n133s-pk {
+    background: var(--gem);
+  }
+}
+
+.n133-signin .n133s-pk.is-off {
+  border: 1px dashed var(--line);
+  background: var(--paper);
+  color: var(--ink-soft);
+}
+
+.n133-signin .n133s-pk-mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.18);
+}
+
+.n133-signin .n133s-pk.is-off .n133s-pk-mark {
+  background: var(--ground);
+}
+
+.n133-signin .n133s-pk-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.n133-signin .n133s-pk-words strong {
+  font: 750 18px/1.2 var(--font);
+}
+
+.n133-signin .n133s-pk-words small {
+  font-size: 14px;
+  opacity: 0.92;
+}
+
+.n133-signin .n133s-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.n133-signin .n133s-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 92px;
+  padding: 12px 6px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.n133-signin .n133s-tile:hover,
+.n133-signin .n133s-pk.is-off:hover {
+  border-color: var(--gem-dark);
+}
+
+.n133-signin .n133s-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 800 15px/1 var(--font);
+}
+
+.n133-signin .n133s-name {
+  font: 650 15px/1.2 var(--font);
+  text-align: center;
+}
+
+.n133-signin .n133s-last {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--ground);
+  color: var(--ink-soft);
+  font: 700 11px/18px var(--font);
+}
+
+.n133-signin .n133s-pk .n133s-last {
+  background: rgb(255 255 255 / 0.22);
+  color: inherit;
+}
+
+.n133-signin .n133s-keys {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.n133-signin .n133s-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 700 16px/1.2 var(--font);
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.n133-signin .n133s-primary {
+  border-color: var(--gem-dark);
+  background: var(--gem-dark);
+  color: var(--on-gem);
+}
+
+:root[data-n133-theme="dark"] .n133-signin .n133s-primary {
+  border-color: var(--gem);
+  background: var(--gem);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-n133-theme="light"]) .n133-signin .n133s-primary {
+    border-color: var(--gem);
+    background: var(--gem);
+  }
+}
+
+.n133-signin .n133s-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-soft);
+}
+
+.n133-signin .n133s-btn:disabled,
+.n133-signin .n133s-tile:disabled,
+.n133-signin .n133s-pk:disabled {
+  cursor: progress;
+  opacity: 0.55;
+}
+
+.n133-signin .n133s-back {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  margin: 0 0 -4px -10px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: 650 15px/1 var(--font);
+  cursor: pointer;
+}
+
+.n133-signin .n133s-back:hover {
+  background: var(--ground);
+  color: var(--ink);
+}
+
+.n133-signin a:not(.n133s-btn) {
+  color: var(--gem-dark);
+  font-weight: 650;
+  text-underline-offset: 2px;
+}
+
+.n133-signin .n133s-qr {
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.n133-signin .n133s-signcode {
+  font: 800 18px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.04em;
+}
+
+.n133-signin .n133s-codebox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--ground);
+}
+
+.n133-signin .n133s-code {
+  margin: 0;
+  font: 650 16px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.06em;
+  white-space: pre;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.n133-signin .n133s-done {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+  font: 700 17px/1.3 var(--font);
+  color: var(--gem-dark);
+}
+
+.n133-signin .n133s-status {
+  min-height: 1.4em;
+  margin: 12px 0 0;
+  color: var(--ink-soft);
+  font-size: 15px;
+}
+
+.n133-signin .n133s-status:empty {
+  margin: 0;
+}
+
+.n133-signin .n133s-check:empty {
+  display: none;
+}
+
+.n133-signin :focus-visible {
+  outline: 3px solid var(--gem);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .n133-signin.n133s-sheet[data-open="true"] .n133s-panel {
+    animation: n133s-rise 160ms ease-out;
+  }
+}
+
+@keyframes n133s-rise {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}

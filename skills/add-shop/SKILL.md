@@ -5,7 +5,7 @@ description: Add a shop that sells looks (cosmetics) for Nano (XNO) to a Nanoter
 
 # Add a shop
 
-Follow step 12 of the package's `ai/SPEC.md` (https://nano133.com/build/nanoterra, or
+Follow step 13 of the package's `ai/SPEC.md` (https://nano133.com/build/nanoterra, or
 `node_modules/@nano133/nanoterra/ai/SPEC.md`) and the README section "The shop".
 
 1. **Ask** for the creator's own Nano address (it receives every payment) and where the game runs:
@@ -28,4 +28,4 @@ Follow step 12 of the package's `ai/SPEC.md` (https://nano133.com/build/nanoterr
    the stamp "TEST MODE: DO NOT PAY", no QR code, no address, the wallet key off.
 
 Never show a pay screen that pays an address nobody holds the key for without the stamp. A look
-only changes how the character looks: nothing random, no score. Finish with the SPEC's step 12 check.
+only changes how the character looks: nothing random, no score. Finish with the SPEC's step 13 check.
