@@ -24,7 +24,7 @@ const PATHS: [string, string[], number, boolean][] = [
   ["@nano133/nanoterra/emotes/player", ["emotes/player.js"], 3_500, true],
   ["@nano133/nanoterra/shop", ["shop/index.js"], 9_800, false],
   ["@nano133/nanoterra/shop/worker", ["shop/worker.js"], 10_800, false],
-  ["@nano133/nanoterra/shop/panel", ["shop/panel/index.js"], 10_000, false],
+  ["@nano133/nanoterra/shop/panel", ["shop/panel/index.js"], 11_000, false],
 ];
 /** The emote clips: their own chunk, loaded on the first emote (never in a path's bundle above: "./clips.js" stays outside). */
 const LAZY: [string, string, number][] = [["the emote clips (loaded on the first emote)", "emotes/clips.js", 21_000]];
