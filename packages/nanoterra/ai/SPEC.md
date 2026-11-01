@@ -2,7 +2,8 @@
 
 Package: `@nano133/nanoterra` (0.1.0 or later). Follow these steps in order. Each step ends with a check. Ask the owner when a step says
 "ask". The package has five parts: the sign-in ticket (`/ticket`), the player's character (`/character`, Three.js), the
-looks ladder (`/looks`), held input that does not stick (`/input`), the friends list (`/friends`, with its panel), the options menu (`/options`) and the emotes (`/emotes`, with the wheel). Use only the parts the game needs. It has no network, wallet or Nano code. Read the package README first.
+looks ladder (`/looks`), held input that does not stick (`/input`), the friends list (`/friends`, with its panel), the options menu (`/options`), the emotes (`/emotes`, with the wheel) and the player's sign-in (`/player-signin`: a passkey or a wallet app, with
+`@nano133/signin`). Use only the parts the game needs. Only the player's sign-in has network, wallet or Nano code. Read the package README first.
 
 ## 0. What the owner decides (ask)
 
@@ -16,6 +17,10 @@ looks ladder (`/looks`), held input that does not stick (`/input`), the friends 
 6. The friends list (step 9): Nanoterra's (the default), the game's own, or none. It is the admin's `friends` setting; ask which one the game starts with.
 7. The options menu (step 10): which settings the game can really honour (a game with no music offers no Music slider), and whether the game opens it from its own
    pause menu or shows the kit's gear key.
+
+8. The player's sign-in (step 12), for a game with a server: which ways (a passkey and the three wallet apps by default), the game's DOMAIN for good (a
+   passkey belongs to one domain), the game's frozen passkey SCHEME (the owner approves its texts: they can never change), and whether the sheet offers the
+   spare key (yes by default; "no" for a game for small children).
 
 **Check:** the owner has named the server (yes or no), the source of the character and the quality.
 
@@ -188,7 +193,33 @@ import "@nano133/nanoterra/emotes/style.css";
 the middle; a hold on the key and a slide onto a place plays it; Edit refuses a ninth with "Your wheel is full. Take one off first."; the wheel holds after a
 reload. A walk ends Dance; Clap goes on over the walk. On a keyboard: B opens it, 2 plays the second place, Escape closes it.
 
-## 12. Do not
+## 12. The player's sign-in (a game with a server)
+
+```sh
+npm install @nano133/nanoterra @nano133/signin
+```
+
+1. **The scheme, frozen.** Write it once in one file of the game, with the game's domain in its texts:
+   `export const SCHEME = { input: "<domain> player v1", salt: "<domain>", info: "<domain> player seed v1", versionByte: 1 }`. Add a test with two fixed vectors:
+   `assert.deepEqual(await schemeVector(SCHEME, "<64 hex>"), { seed, address })` (run it once to read the values, write them in, never change them). Never edit
+   the scheme after the first player: a new scheme is a new `versionByte` with new texts. Never take a default from anywhere.
+2. **The store.** D1: add `@nano133/nanoterra/player-signin/d1.sql` to the migrations (on the game starter it keeps every table and session and adds
+   `signin_once`) and `createD1PlayerSignin(env.DB)`. Firestore: `createFirestorePlayerSignin(db)` and a TTL policy on `deleteAt` for the three collections.
+   Another database: a store that passes `playerSigninStoreConformance`.
+3. **The handler.** `createPlayerSignin({ store, siteAddress, limit, visitor, personCheck })`; call `handle(request)` first for every request under `/api/`
+   (null: not its route). Give `limit` a limiter that counts for the whole game (D1), and `visitor` a keyed hash of the IP address. A game whose admin signs in
+   on the same paths (the starter) passes `sharedPaths: true`. Set `domain` once the game has its own domain.
+4. **The player.** Everything that needs the player reads `signin.player(request)` (the shop's and the friends' `player` hook): never an address from the
+   body, and never the admin's login. The game's code exchange makes its session with `signin.signIn(request, address, "nanoterra")`.
+5. **"Delete my data"** calls `signin.forget(player)` with the other stores' `forget`. A cron calls `signin.clean()`.
+6. **The sheet.** `mountPlayerSignin(document.body, { name, scheme: SCHEME, qr, personCheck, onSignedIn })` and the stylesheet; the account key and the
+   shop's "sign in first" call `open()`. Do not write your own passkey or wallet code, and never store, log or send the seed.
+
+**Check:** on the game's real https address, with a phone (iOS 18 or a recent Android): Make a passkey, see "Keep a spare key", sign in, reload: still
+signed in; sign out, "Use my passkey": the same address. A desktop browser with no PRF shows the passkey last and its plain words. A wallet sign-in works only
+on a public https address (a wallet cannot reach localhost). The tests hold the scheme's vectors.
+
+## 13. Do not
 
 - Do not edit the geometry, the skeleton or the toon and ink materials.
 - Do not add the katana, the headband or other brands' art. A game's own worn model goes on a socket (`c.socket("head" | "hand" | "back")` or

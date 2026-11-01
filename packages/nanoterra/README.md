@@ -12,10 +12,11 @@ themselves. This package gives your game these things:
 - **Held input that does not stick** (`/input`, since 0.3.1): lets go of the keys and the stick when the player leaves the page, so the character never walks on by itself, and pauses a free round.
 - **A friends list** (`/friends`, since 0.6.0): a Friends key that holds the player's Nanoterra friends (a nano133 window), or a full friends list of the game's own players on the game's own database, as the admin's Game card chooses.
 - **An options menu** (`/options`, since 0.8.0): the game's settings as data, with defaults for each device, kept in the player's browser, and a ready Options key and panel (Basic and Advanced); common settings to opt into, and a section another module adds.
+- **The player's sign-in** (`/player-signin`, unreleased): a passkey (Face ID, Touch ID or the device PIN) or a wallet app (Berry Wallet, NanChat, Nautilus), the sessions and a ready sign-in sheet, for a game with a server. It needs `@nano133/signin` (an optional peer).
 - **Emotes** (`/emotes`, since 0.8.0): Nano Island's eleven emotes on the player's character (the Wave, Cheer, Clap, Dance and seven more, made in Blender), and the emote wheel of eight that the player picks, which also plays a game's own animations.
 
 It replaces `@nano133/character` 0.1.0, `@nano133/ticket` 0.1.0 and `@nano133/looks` 0.1.0
-(see "Moving from the three old packages"). Sign-in, checkout and late returns stay in their own packages
+(see "Moving from the three old packages"). The signature checks, checkout and late returns stay in their own packages
 ([`@nano133/signin`](../signin), [`@nano133/checkout`](../checkout), [`@nano133/late-returns`](../late-returns)).
 
 nano133.com's island and its 3D room draw the player with **this same code**: the geometry, the skeleton, the colours and the record
@@ -29,7 +30,8 @@ Pre-alpha means: the shape of the API may still change, and the character has no
 npm install @nano133/nanoterra three
 ```
 
-`three` is an **optional** peer dependency (`>=0.174.0`). A game that only reads a ticket does not need it.
+`three` is an **optional** peer dependency (`>=0.174.0`). A game that only reads a ticket does not need it. `@nano133/signin` is the other optional peer:
+only the player's sign-in (`/player-signin`) needs it (`npm install @nano133/nanoterra @nano133/signin`).
 
 ## Quick start
 
@@ -80,8 +82,12 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/emotes` | the emotes' list, the wheel's eight places, the multiplayer message and the player's options: no DOM, no Three.js (since 0.8.0) | no | 1.4 kB |
 | `@nano133/nanoterra/emotes/player` | the emotes on the kit's character: `createEmotes`, `playRemote`, `loadEmotes` (since 0.8.0) | yes | 2.9 kB; the clips load on the first emote, a chunk of their own: 84 kB, 18.8 kB gzip |
 | `@nano133/nanoterra/emotes/wheel` | the Emotes key and the emote wheel: `mountEmotes`, and its stylesheet `@nano133/nanoterra/emotes/style.css` (since 0.8.0) | no | 5.9 kB + 7.4 kB of CSS (minified); the pictures (`/emotes/icons.webp`, 34 kB) load when the wheel first opens |
+| `@nano133/nanoterra/player-signin` | the player's sign-in: the handler, the sessions, `player(request)`, `forget`, a memory store, `schemeVector` (server code; it needs `@nano133/signin`) | no | 5.1 kB without `@nano133/signin` |
+| `@nano133/nanoterra/player-signin/d1`, `/player-signin/firestore` | the store for D1 (with the migration `/player-signin/d1.sql`) or Firestore (a small interface, no Firebase dependency) | no | 1.2 kB, 1.3 kB |
+| `@nano133/nanoterra/player-signin/panel` | the sign-in sheet, and its stylesheet `@nano133/nanoterra/player-signin/style.css` | no | 8.7 kB with `@nano133/signin/passkey` + 8.1 kB of CSS (minified); the purse's signing code loads at a passkey sign-in, a chunk of its own: 39.8 kB gzip |
+| `@nano133/nanoterra/player-signin/conformance` | the store's rules as test cases, for a store a game writes itself | no | n/a |
 
-Measured 2026-10-26 (the friends paths 2026-10-30, the options and the emotes paths 2026-11-01): `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
+Measured 2026-10-26 (the friends paths 2026-10-30, the options and the emotes paths 2026-11-01, the player sign-in 2026-11-01): `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
 All four paths together: 23.6 kB. A test of the package proves that the record, the ticket, the looks and the small part import no package at all.
 
 ## The character
@@ -1013,6 +1019,140 @@ or `store.add(EMOTE_OPTIONS)`; `EMOTE_OPTION_DEFS` holds the two toggles with sh
 **The message on the wire** is yours to carry: one small object, `{ emote: id }`. nano133.com's island is one example, not a rule: its room server takes
 `{ t: "react", k: "dance" }` from a player, checks the id against its own list and sends the others `{ t: "react", id: <player>, k: "dance" }`; an old server that
 does not know an id drops it, and nothing breaks.
+
+## The player's sign-in (`/player-signin`; unreleased)
+
+The PLAYER's sign-in for a game with a server, in one path: **a passkey** (Face ID, Touch ID or the device PIN: no app to install) and the three
+**wallet apps** (Berry Wallet, NanChat, Nautilus). No password, no email and no payment, and **the server holds no key**: every way is a signature from a
+key the player holds, and the server checks it with [`@nano133/signin`](../signin), an optional peer of this package:
+
+```sh
+npm install @nano133/nanoterra @nano133/signin
+```
+
+A player is a **Nano address**, whichever way they sign in. The shop (`/shop`) and the friends list key a player by it, so a look a player buys stays with
+that address. The admin's sign-in is another thing (`/admin`): this path never makes an admin login.
+
+### The passkey: the passkey purse
+
+The passkey gives the page 32 secret bytes (its **PRF** extension), and those bytes become the seed of a Nano account in the browser: the player's
+address. The browser signs a short text that names the game's host with that account, and the server checks the signature (`POST {base}/passkey`). The
+server keeps no credential and checks no assertion: the proof is the signature, as for a wallet. The seed never leaves the page and is never stored.
+
+- **The scheme is the game's own, and it is FROZEN.** A player's account (and so their looks) lies at the address these exact texts give:
+
+  ```ts
+  // FROZEN: never edit. A new scheme is a new versionByte with new texts.
+  export const SCHEME = { input: "mygame.com player v1", salt: "mygame.com", info: "mygame.com player seed v1", versionByte: 1 };
+  ```
+
+  Write it once, in one file, and test it with **fixed vectors** that must never change (a PRF output, its seed, its address):
+
+  ```ts
+  import { schemeVector } from "@nano133/nanoterra/player-signin";
+  assert.deepEqual(await schemeVector(SCHEME, "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"), { seed: "…", address: "nano_…" });
+  ```
+
+  Run it once to read the seed and the address, write them into the test, and never change them. The kit gives no default scheme on purpose.
+- **A passkey belongs to one domain** (its relying party id: the page's host, or `rpId`). Moving the game to another domain gives every player another
+  account. Choose the domain before the first player.
+- **It needs PRF** in the browser and in the passkey's provider. Where the browser says it has none, the passkey shows last ("Not on this browser"); where a
+  passkey gives no PRF answer, the sheet says so in plain words and offers the wallet apps. As known in 2026-11, not tested here on each device (the sheet
+  asks the browser, `getClientCapabilities`, and never guesses):
+  Safari on iOS 18 and macOS 15 and later with iCloud Keychain, Chrome on Android with Google Password Manager, Chrome on a computer with Google Password
+  Manager or iCloud Keychain (macOS 15), 1Password and recent Bitwarden: yes. Windows Hello and older systems: often no. Firefox: from 135, where the system's
+  provider has it. A phone used through the computer's QR code (hybrid) gives its own PRF.
+- **The spare key.** The player's looks belong to the passkey's address. A synced passkey (iCloud Keychain, Google Password Manager) survives a lost phone;
+  a lost passkey with no sync loses the address and its looks (no XNO is in it: the payments go straight to the creator). So after a NEW passkey the sheet
+  shows **"Keep a spare key"**: the seed, at the press only, and how to use it (import it as a seed in a Nano wallet such as Nautilus, then sign in with that
+  wallet: the same address). It can be skipped, not missed. `spareKey: false` turns it off (a game for small children, say). Signing in with the wallet that
+  PAID does not bring the looks back: a look belongs to the address that was signed in when it was bought.
+
+### The server
+
+```ts
+import { createPlayerSignin } from "@nano133/nanoterra/player-signin";
+import { createD1PlayerSignin } from "@nano133/nanoterra/player-signin/d1";
+
+const signin = createPlayerSignin({
+  store: createD1PlayerSignin(env.DB),         // or createFirestorePlayerSignin(getFirestore()), or createMemoryPlayerSignin() for a test
+  siteAddress: env.RECEIVE_ADDRESS,             // Nautilus only NAMES it in its request; no key, no payment
+  limit: (key, n, ms, now) => d1Limit(key, n, ms, now),   // your limiter (default: this copy's memory)
+  visitor: (req) => visitorKey(req),            // a keyed hash of the IP address (default: the CF-Connecting-IP header)
+  personCheck: (token, req) => turnstileOk(token, req),   // optional (Turnstile)
+});
+const answer = await signin.handle(request);    // null when the request is not a sign-in route
+if (answer) return answer;
+const player = await signin.player(request);    // the signed-in player's address, or null: the shop's and the friends' `player` hook
+```
+
+| Route (`base` "/api/signin") | Who calls it | What it does |
+|---|---|---|
+| `POST {base}/start` `{ way, turnstile? }` | the page | starts a wallet request: `{ way, id, link, walletLink?, code?, expiresAt }` and the starter cookie (30 minutes) |
+| `GET`, `POST {base}/nano/:id` | Berry Wallet | reads the request; posts its signature (204 and no body when accepted, 401 and the words when refused) |
+| `POST {base}/nautilus?id=` | Nautilus | its signature (always 200: Nautilus shows only a 200's words) |
+| `POST {base}/nanchat` | NanChat's relay server | its signature (always 200; a refusal starts "NOT signed in"); limited in total and per nonce, never per visitor |
+| `POST {base}/check` `{ id, way }` | the page, every 2 s | `{ status }`: `waiting`, `expired`, `elsewhere` (another browser started it), `used`, or `signedin` with `address` and the session cookie |
+| `POST {base}/passkey` `{ address, at, signature, turnstile? }` | the page | the passkey purse's signature: `{ status: "signedin", address }` and the session cookie |
+| `POST /api/signout` | the page | ends this browser's session: `{ ok: true }` |
+
+These are the game starter's own routes and answers, so its page works unchanged. The rules:
+
+- The signed texts name the game's **host** (the request's, or `domain`: with `domain` set, a call to another host is refused, 403). A signature made for
+  another site counts nowhere here.
+- **Only the browser that started a wallet request is signed in by it** (its starter cookie), **once**: the delivery and its session are one step of the store.
+- A passkey signature counts **once** (by the hash of its text) and only within 5 minutes either way of its time: a replay is 409, a stale one 400.
+- The page's calls must come from the game's own page (Origin), 403 otherwise; the wallets' calls have no cookie and no Origin. Starts and passkey sign-ins:
+  20 in 10 minutes per visitor (`limit`); checks 90 a minute; the wallets' calls 30 a minute per IP address. A store's fault is a plain 500 (`onError` hears it).
+- **The session** is the starter's: the cookie `session` (`__Host-session` on https; HttpOnly, SameSite=Lax, 30 days). The store keeps only the SHA-256 of
+  its token and `via`: `"wallet"`, `"passkey"` or `"nanoterra"`.
+- `signin.session(request)` gives `{ address, createdAt, via }`; `signin.signIn(request, address, "nanoterra")` makes a session for the game's own code
+  exchange and returns the Set-Cookie value; `signin.signOut(request)` likewise; `signin.forget(player)` is for **"Delete my data"** (every session, signed
+  request and once-only row of the player); `signin.clean()` is for a cron.
+- **`sharedPaths: true`** for a game whose own admin signs in on the same paths (the starter's `scope: "admin"`): the admin's calls, and a wallet's call for a
+  request this store does not hold, answer null, and the game's admin code answers them.
+- `ways` (default all three), `passkey: false`, `base`, `signOutPath`, `cookies`, `sessionDays` change the rest.
+
+**The stores** read and write only their three tables or collections, and only the player's rows:
+
+- **D1:** add `@nano133/nanoterra/player-signin/d1.sql` to the migrations. Its `signin_requests` and `sessions` are the game starter's own tables (`CREATE
+  TABLE IF NOT EXISTS`): on the starter it adds only `signin_once` and three indexes, and **every player stays signed in**. Rows of the scope `'admin'` are
+  never read, delivered, ended or deleted. Other table names: `createD1PlayerSignin(db, { requests, sessions, once })`, and the same names in the SQL.
+- **Firestore:** `createFirestorePlayerSignin(db, { requests, sessions, once })` (default `signin_requests`, `sessions`, `signin_once`). Each document
+  carries `deleteAt`: set a TTL policy on it for each collection. Firestore's own single-field indexes are enough.
+- **Your own database:** a `PlayerSigninStore` that passes `playerSigninStoreConformance` from `@nano133/nanoterra/player-signin/conformance`.
+
+### The sheet
+
+```ts
+import { mountPlayerSignin } from "@nano133/nanoterra/player-signin/panel";
+import "@nano133/nanoterra/player-signin/style.css";
+import { SCHEME } from "./scheme";                // the frozen scheme above
+
+const signin = mountPlayerSignin(document.body, {
+  name: "My Game",                               // the device shows it next to the passkey: "My Game · 1 Nov 2026"
+  scheme: SCHEME,
+  qr: (text) => qrCanvas(text),                  // a QR code for a wallet's link on a computer (no hook: the link as text)
+  personCheck: (box) => turnstileToken(box),     // optional
+  onSignedIn: (player) => refresh(),             // { address, via: "wallet" | "passkey" }
+});
+const player = await signin.open();              // the shop's "sign in first": the player, or null when the sheet closed
+```
+
+- **Passkey first** ("Use a passkey", "Face ID, Touch ID or your device PIN"), then the three wallet apps as tiles. The passkey step has "Use my passkey" and
+  "Make a passkey"; the main key is "Use" in a browser that made or used one before, and the device refuses a second passkey here ("This device has your
+  passkey already. Use it."). A new passkey is used at once (its seed comes from a USE, never from the answer at create); a browser that allows one prompt
+  per press shows one key, "Open my passkey".
+- The faults, in plain words: no passkey used, no PRF, no passkeys in this browser, a password manager's answer in a form the kit does not read, another
+  game's passkey, another passkey than the one just made, two answers for one passkey, the wrong host. None names a seed or a key; none says to delete a passkey.
+- A wallet: on a touch screen one key that opens the app; with a mouse its QR code. The page asks every 2 s, at most 5 minutes.
+- `signInView(options)` is the same content for a game with a sheet of its own (`{ node, stop, reset }`).
+- Phone first: every key 44 px or more, the sheet from the bottom on a phone held upright, a card in the middle on a wide or sideways screen; Escape, the close
+  key and the scrim close it; no browser dialog. Light and dark like the options panel (`data-n133-theme` on `<html>`, else the device), every colour a
+  `--n133-*` variable with a `--n133-dark-*` twin; `--n133-signin-z` (default 1200) for its z-index.
+- The page loads the purse's signing code (`@nano133/signin/purse`, 40 kB gzip) only when a passkey signs in.
+- The browser remembers, in `localStorage["n133.player-signin.v1:<rpId>"]`, the ids of its passkeys, which were made here and never opened, and the last
+  way: no secret and no address.
 
 ## Moving from the three old packages
 

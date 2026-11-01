@@ -1,7 +1,7 @@
 {
   "name": "@nano133/nanoterra",
   "version": "0.8.1",
-  "description": "Nanoterra for a creator's game, in one package: the player's sign-in ticket, the player's character (a toon body on the island's skeleton), the looks ladder, the admin, the friends list and an options menu.",
+  "description": "Nanoterra for a creator's game, in one package: the player's sign-in ticket, the player's character (a toon body on the island's skeleton), the looks ladder, the admin, the friends list, an options menu, and the player's sign-in (a passkey or a wallet app).",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -33,7 +33,14 @@
     "./emotes/player": { "types": "./dist/emotes/player.d.ts", "import": "./dist/emotes/player.js" },
     "./emotes/wheel": { "types": "./dist/emotes/panel/index.d.ts", "import": "./dist/emotes/panel/index.js" },
     "./emotes/style.css": "./src/emotes/panel/style.css",
-    "./emotes/icons.webp": "./src/emotes/icons.webp"
+    "./emotes/icons.webp": "./src/emotes/icons.webp",
+    "./player-signin": { "types": "./dist/player-signin/index.d.ts", "import": "./dist/player-signin/index.js" },
+    "./player-signin/conformance": { "types": "./dist/player-signin/conformance.d.ts", "import": "./dist/player-signin/conformance.js" },
+    "./player-signin/d1": { "types": "./dist/player-signin/adapters/d1.d.ts", "import": "./dist/player-signin/adapters/d1.js" },
+    "./player-signin/d1.sql": "./src/player-signin/adapters/d1.sql",
+    "./player-signin/firestore": { "types": "./dist/player-signin/adapters/firestore.d.ts", "import": "./dist/player-signin/adapters/firestore.js" },
+    "./player-signin/panel": { "types": "./dist/player-signin/panel/index.d.ts", "import": "./dist/player-signin/panel/index.js" },
+    "./player-signin/style.css": "./src/player-signin/panel/style.css"
   },
   "sideEffects": false,
   "files": ["dist", "src", "README.md", "CHANGELOG.md", "LICENSE", "ai"],
@@ -43,8 +50,8 @@
     "test": "node --import tsx --test test/*.test.ts",
     "prepublishOnly": "npm run build"
   },
-  "peerDependencies": { "three": ">=0.174.0" },
-  "peerDependenciesMeta": { "three": { "optional": true } },
+  "peerDependencies": { "three": ">=0.174.0", "@nano133/signin": "^0.5.0" },
+  "peerDependenciesMeta": { "three": { "optional": true }, "@nano133/signin": { "optional": true } },
   "devDependencies": {
     "@types/node": "^26.6.3",
     "@types/three": "^0.186.0",
@@ -61,5 +68,5 @@
   },
   "homepage": "https://nano133.com/build/nanoterra",
   "license": "MIT",
-  "keywords": ["nano", "gltf", "glb", "model check", "xno", "nanoterra", "sign in", "ticket", "character", "avatar", "three", "three.js", "toon", "looks", "cosmetics", "friends", "friends list", "options", "settings", "options menu", "emotes", "emote wheel"]
+  "keywords": ["nano", "gltf", "glb", "model check", "xno", "nanoterra", "sign in", "ticket", "character", "avatar", "three", "three.js", "toon", "looks", "cosmetics", "friends", "friends list", "options", "settings", "options menu", "emotes", "emote wheel", "passkey", "webauthn", "berry wallet", "nautilus", "nanchat"]
 }

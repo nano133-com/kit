@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- **The player's sign-in** (`@nano133/nanoterra/player-signin`, `/player-signin/conformance`, `/player-signin/d1` with `/player-signin/d1.sql`,
+  `/player-signin/firestore`, `/player-signin/panel` and `/player-signin/style.css`). Wes: "start the player passkey sign-in too" (2026-11-01); the kit's change
+  list asked for "a passkey sign-in for players" (a prompt-pack run found that players without a wallet app cannot buy).
+  - **A passkey** (the passkey purse of `@nano133/signin`: a Nano account made in the browser from the passkey's PRF output, by the game's own FROZEN scheme)
+    and the three **wallet apps** (Berry Wallet, NanChat, Nautilus), in one path. The server checks signatures only and holds no key; a player is a Nano
+    address whichever way they sign in. `@nano133/signin` (`^0.5.0`) is a new **optional** peer, needed by this path only.
+  - **The server** (`createPlayerSignin({ store, ... })`): the game starter's routes and answers (`/api/signin/start`, `/nano/:id`, `/nautilus`, `/nanchat`,
+    `/check`, `/api/signout`) plus `POST /api/signin/passkey`; the starter's session cookie (`session`, `__Host-session` on https, 30 days, the token's SHA-256
+    kept); `player(request)` for the shop and the friends list, `session`, `signIn` (the game's own code exchange), `signOut`, `forget` ("Delete my data") and
+    `clean`. `sharedPaths` leaves the admin's calls to the game. `schemeVector` and `checkScheme` for the scheme's fixed vectors.
+  - **The stores:** memory, D1 (the starter's own `signin_requests` and `sessions`, plus `signin_once`: a starter's players stay signed in; admin rows are never
+    touched) and Firestore (a small interface, no Firebase dependency), with `playerSigninStoreConformance`.
+  - **The sheet** (`mountPlayerSignin`, `signInView`): passkey first, then the wallet apps; "Make a passkey" and "Use my passkey", "Keep a spare key" after a new
+    passkey, the faults in plain words (no PRF and the rest), QR or one key per wallet, phone first, light and dark. The purse's signing code loads only at a
+    passkey sign-in.
+
 ## 0.8.1 (2026-11-01)
 
 - **A closed panel gives the keys back to the game.** The options panel, the friends panel and the emote wheel put the focus back on their key when they
