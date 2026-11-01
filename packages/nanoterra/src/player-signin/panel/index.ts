@@ -4,6 +4,7 @@
 export { mountPlayerSignin } from "./mount.js";
 export type { MountedPlayerSignin, PlayerSigninMountOptions } from "./mount.js";
 export { hostFits, passkeyName, signInView } from "./view.js";
+export { PASSKEY_PREVIEW_NOTE, previewHost } from "../host.js";
 export type { PlayerSigninView, PlayerSigninViewOptions, SignedIn } from "./view.js";
 export { faultWords } from "./words.js";
 export type { FaultWords } from "./words.js";

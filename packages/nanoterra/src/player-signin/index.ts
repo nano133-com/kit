@@ -14,6 +14,7 @@ export type { PlayerSignin, PlayerSigninOptions } from "./handler.js";
 export { createMemoryPlayerSignin } from "./memory.js";
 export type { MemoryPlayerSignin } from "./memory.js";
 export { checkScheme, schemeVector } from "./scheme.js";
+export { PASSKEY_PREVIEW_NOTE, previewHost } from "./host.js";
 export type { PasskeyScheme } from "./scheme.js";
 export { PLAYER_SIGNIN_LIMITS, SESSION_DAYS, STARTER_MAX_AGE_S, VIAS, WAYS, viaOf } from "./types.js";
 export type { PlayerSession, PlayerSigninStore, RequestStoreLike, SessionRecord, SigninRequest, Via, Way } from "./types.js";

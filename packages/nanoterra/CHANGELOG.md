@@ -14,9 +14,11 @@
     `clean`. `sharedPaths` leaves the admin's calls to the game. `schemeVector` and `checkScheme` for the scheme's fixed vectors.
   - **The stores:** memory, D1 (the starter's own `signin_requests` and `sessions`, plus `signin_once`: a starter's players stay signed in; admin rows are never
     touched) and Firestore (a small interface, no Firebase dependency), with `playerSigninStoreConformance`.
-  - **The sheet** (`mountPlayerSignin`, `signInView`): passkey first, then the wallet apps; "Make a passkey" and "Use my passkey", "Keep a spare key" after a new
+  - **The sheet** (`mountPlayerSignin`, `signInView`): passkey first, then the wallet apps; no passkey on a preview address (`*.workers.dev`, `previewHost`;
+    `passkey: true` offers it there), where a passkey would be lost when the game moves to its own domain; "Make a passkey" and "Use my passkey", "Keep a spare key" after a new
     passkey, the faults in plain words (no PRF and the rest), QR or one key per wallet, phone first, light and dark. The purse's signing code loads only at a
     passkey sign-in.
+  - **The admin** (`mountAdmin`, `playerPasskeys: true`): on `*.workers.dev` its "Check these" banner says "Passkeys turn on when your game has its own domain."
 - **A shop for a game's looks** (`@nano133/nanoterra/shop`, `/shop/d1`, `/shop/d1.sql`, `/shop/firestore`, `/shop/worker`, `/shop/conformance`,
   `/shop/panel` and `/shop/style.css`). Wes: "start the shop kit path" (2026-11-01). A game installs the game starter's shop instead of copying its
   2,600 lines. The starter's money model, unchanged: the money goes straight from the player's wallet to the creator's address, the server holds

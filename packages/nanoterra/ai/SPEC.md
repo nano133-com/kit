@@ -214,7 +214,8 @@ npm install @nano133/nanoterra @nano133/signin
    body, and never the admin's login. The game's code exchange makes its session with `signin.signIn(request, address, "nanoterra")`.
 5. **"Delete my data"** calls `signin.forget(player)` with the other stores' `forget`. A cron calls `signin.clean()`.
 6. **The sheet.** `mountPlayerSignin(document.body, { name, scheme: SCHEME, qr, personCheck, onSignedIn })` and the stylesheet; the account key and the
-   shop's "sign in first" call `open()`. Do not write your own passkey or wallet code, and never store, log or send the seed.
+   shop's "sign in first" call `open()`. On `*.workers.dev` the sheet offers no passkey (it would be lost at the move to the game's own
+   domain); give `mountAdmin` `playerPasskeys: true` so the admin says so. Do not write your own passkey or wallet code, and never store, log or send the seed.
 
 **Check:** on the game's real https address, with a phone (iOS 18 or a recent Android): Make a passkey, see "Keep a spare key", sign in, reload: still
 signed in; sign out, "Use my passkey": the same address. A desktop browser with no PRF shows the passkey last and its plain words. A wallet sign-in works only

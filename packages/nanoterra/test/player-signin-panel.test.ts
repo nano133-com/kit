@@ -222,3 +222,15 @@ test("hostFits: the passkey's id on its own host and subdomains only, never an I
   assert.equal(panel.hostFits("127.0.0.1", "127.0.0.1"), false);
   assert.equal(panel.faultWords("wrong-host", "game.example").text, "Passkeys for this game work only on game.example.");
 });
+
+test("previewHost: no passkey by default on *.workers.dev, where a passkey would be lost at the move to the game's own domain", () => {
+  assert.equal(panel.previewHost("my-game.me.workers.dev"), true);
+  assert.equal(panel.previewHost("MY-GAME.workers.dev."), true);
+  assert.equal(panel.previewHost("game.example"), false);
+  assert.equal(panel.previewHost("notworkers.dev"), false);
+  for (const [passkey, shown] of [[undefined, false], [true, true]] as const) {
+    const view = panel.signInView({ name: "My Game", scheme: SAMPLE, rpId: "my-game.me.workers.dev", passkey, fetch: fakeFetch });
+    assert.equal(view.node.querySelector(".n133s-pk") !== null, shown, `passkey ${passkey}`);
+    view.stop();
+  }
+});

@@ -646,7 +646,8 @@ look, with their looks. **Settings**: the **Game** card (the character and sign-
 real tabs (the arrow keys, Home and End work); every tab is made once, so a draft, a search and a switch keep their state, and the panel never writes the page's address.
 A visitor who is signed out gets the game's sign-in; a wrong wallet, a Nanoterra sign-in and a missing owner address each get their own screen and see no data (a sign-out
 takes the drawn data off the page). Options: `api` (the handler's base path), `noAddressHelp`, `lookPicture(look)` (your own picture of a look for the Shelf), `repoHelp`,
-`loginsNote` and `fetch`.
+`loginsNote`, `playerPasskeys` (the game offers its players a passkey: on `*.workers.dev` the banner says that passkeys turn on with the game's own
+domain) and `fetch`.
 
 **The Shelf** shows the looks your game sells now in a grid of cards: a big picture on a soft tint of the look's colour, the price with its step on the ladder ("25¢ ·
 statement"), what it has sold and its share of the sales, its slots as chips; filters (All, For sale, Free, Not sold yet) and a sort (Best selling, price, name, the
@@ -1062,7 +1063,9 @@ server keeps no credential and checks no assertion: the proof is the signature, 
 
   Run it once to read the seed and the address, write them into the test, and never change them. The kit gives no default scheme on purpose.
 - **A passkey belongs to one domain** (its relying party id: the page's host, or `rpId`). Moving the game to another domain gives every player another
-  account. Choose the domain before the first player.
+  account. Choose the domain before the first player. So the sheet offers **no passkey on a preview address** (`*.workers.dev`, `previewHost`), where the game
+  starter runs first: the wallet apps only, until the game has its own domain (`passkey: true` offers it there anyway). The admin says so in its "Check these"
+  banner when `mountAdmin` gets `playerPasskeys: true`: "Passkeys turn on when your game has its own domain."
 - **It needs PRF** in the browser and in the passkey's provider. Where the browser says it has none, the passkey shows last ("Not on this browser"); where a
   passkey gives no PRF answer, the sheet says so in plain words and offers the wallet apps. As known in 2026-11, not tested here on each device (the sheet
   asks the browser, `getClientCapabilities`, and never guesses):
@@ -1073,7 +1076,8 @@ server keeps no credential and checks no assertion: the proof is the signature, 
   a lost passkey with no sync loses the address and its looks (no XNO is in it: the payments go straight to the creator). So after a NEW passkey the sheet
   shows **"Keep a spare key"**: the seed, at the press only, and how to use it (import it as a seed in a Nano wallet such as Nautilus, then sign in with that
   wallet: the same address). It can be skipped, not missed. `spareKey: false` turns it off (a game for small children, say). Signing in with the wallet that
-  PAID does not bring the looks back: a look belongs to the address that was signed in when it was bought.
+  PAID does not bring the looks back: a look belongs to the address that was signed in when it was bought. Linking a wallet to a passkey account (one
+  player, two ways in) is planned for a later version.
 
 ### The server
 

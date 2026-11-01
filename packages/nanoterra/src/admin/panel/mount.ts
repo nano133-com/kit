@@ -8,6 +8,7 @@
 import type { Look } from "../../looks/look.js";
 import type { AdminSummary } from "../store.js";
 import type { GameState } from "../switches.js";
+import { PASSKEY_PREVIEW_NOTE, previewHost } from "../../player-signin/host.js";
 import { ApiError, createApi, type Api } from "./api.js";
 import { copyKey, h, plural, shortAddress } from "./dom.js";
 import { gameCard } from "./gameCard.js";
@@ -39,6 +40,9 @@ export type MountOptions = {
   repoHelp?: string;
   /** What the Sign-ins card says about what the game keeps and for how long ("30 days"). Default: only the time, the rough country and a short browser name. */
   loginsNote?: string;
+  /** The game offers its players a passkey (`@nano133/nanoterra/player-signin`): on a preview address (`*.workers.dev`) the banner says that passkeys turn
+   *  on with the game's own domain. */
+  playerPasskeys?: boolean;
   /** The `fetch` to use (default: the page's). */
   fetch?: typeof fetch;
 };
@@ -218,8 +222,9 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
           h("span", { class: `chip ${s.testMode ? "chip-warn" : "chip-ok"}`, title: s.testMode ? "Payments are not real" : "Payments are real" }, h("span", { class: "chip-dot", "aria-hidden": "true" }), s.testMode ? "Test mode" : "Live"),
           s.turnstile === undefined ? "" : h("span", { class: `chip ${s.turnstile ? "chip-ok" : "chip-warn"}` }, h("span", { class: "chip-dot", "aria-hidden": "true" }), s.turnstile ? "Bot check on" : "Bot check off"),
         );
-        banner.hidden = !s.warnings.length;
-        banner.replaceChildren(h("div", { class: "banner-icon", "aria-hidden": "true" }, icon("alert", 20)), h("div", {}, h("h2", {}, "Check these"), h("ul", {}, ...s.warnings.map((w) => h("li", {}, w)))));
+        const notes = options.playerPasskeys && previewHost(location.hostname) ? [...s.warnings, PASSKEY_PREVIEW_NOTE] : s.warnings;
+        banner.hidden = !notes.length;
+        banner.replaceChildren(h("div", { class: "banner-icon", "aria-hidden": "true" }, icon("alert", 20)), h("div", {}, h("h2", {}, "Check these"), h("ul", {}, ...notes.map((w) => h("li", {}, w)))));
 
         const ownedLooks = s.players.reduce((n, p) => n + p.looks.length, 0);
         const late = s.totals.paidLate.count;

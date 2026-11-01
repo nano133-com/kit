@@ -17,6 +17,7 @@ import { ApiError, createApi } from "../../admin/panel/api.js";
 import { h, shortAddress } from "../../admin/panel/dom.js";
 import { icon } from "../../admin/panel/icons.js";
 import { checkScheme } from "../scheme-check.js";
+import { previewHost } from "../host.js";
 import { WAYS, type Way } from "../types.js";
 import { readMemo, rememberLast, rememberMade, rememberOpened } from "./memo.js";
 import { faultWords } from "./words.js";
@@ -28,7 +29,8 @@ export type PlayerSigninViewOptions = {
   name: string;
   /** The game's FROZEN passkey scheme (see "/player-signin": checkScheme, schemeVector). Needed while the passkey is offered. */
   scheme?: PasskeyScheme;
-  /** Offer the passkey. Default true. */
+  /** Offer the passkey. Default: on, except on a preview address (`*.workers.dev`, see `previewHost`): a passkey made there is lost when the game
+   *  moves to its own domain. `true` offers it there too. */
   passkey?: boolean;
   /** The passkeys' relying party id: the game's domain. Default: the page's host name. The passkey is offered on this host and its subdomains only. */
   rpId?: string;
@@ -96,9 +98,9 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
   const base = options.base ?? "/api/signin";
   const api = createApi("", options.fetch ?? ((...a) => fetch(...a)));
   const ways = (options.ways ?? WAYS).filter((w) => WAYS.includes(w));
-  const passkeyOn = options.passkey !== false;
-  const scheme = passkeyOn ? checkScheme(options.scheme as PasskeyScheme) : null;
   const rpId = options.rpId ?? location.hostname;
+  const passkeyOn = options.passkey ?? !previewHost(rpId);
+  const scheme = passkeyOn ? checkScheme(options.scheme as PasskeyScheme) : null;
   const touch = () => options.touch ?? (typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches);
 
   let stopped = false;
