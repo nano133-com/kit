@@ -91,6 +91,16 @@ test("the paths that must not load Three.js import no package at all (the record
   for (const entry of ["src/friends/index.ts", "src/friends/conformance.ts", "src/friends/adapters/d1.ts", "src/friends/adapters/firestore.ts", "src/friends/panel/index.ts"]) assert.deepEqual(graph(entry).packages, [], entry);
   for (const entry of ["src/friends/index.ts", "src/friends/conformance.ts", "src/friends/adapters/d1.ts", "src/friends/adapters/firestore.ts"]) assert.ok(!graph(entry).files.some((f) => f.includes("/panel/")), `${entry} reaches a panel`);
   assert.ok(!graph("src/friends/panel/index.ts").files.some((f) => f.startsWith("character/") || f.startsWith("looks/")));
+  // The options: no package at all, no drawing code; the store's own files (core, common) reach no panel and name no document or window.
+  for (const entry of ["src/options/index.ts", "src/options/panel/index.ts"]) {
+    assert.deepEqual(graph(entry).packages, [], entry);
+    assert.ok(!graph(entry).files.some((f) => f.startsWith("character/") || f.startsWith("looks/") || f.startsWith("friends/")), `${entry} reaches drawing or friends code`);
+  }
+  for (const entry of ["src/options/core.ts", "src/options/common.ts"]) {
+    assert.ok(!graph(entry).files.some((f) => f.includes("/panel/")), `${entry} reaches a panel`);
+    const code = read(entry).replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+    assert.doesNotMatch(code, /\b(?:window|document)\b/, `${entry} reads the DOM`);
+  }
   // The character's path draws: it names Three.js and nothing else.
   assert.deepEqual(graph("src/character/index.ts").packages, ["three"]);
 });
@@ -113,13 +123,14 @@ test("package.json: no runtime dependency, three is an optional peer, version 0.
 
 test("the exports map: the small part, the character, its record, the ticket, the looks, the model check, the admin and the friends, each with types", () => {
   const pkg = JSON.parse(read("package.json"));
-  assert.deepEqual(Object.keys(pkg.exports), [".", "./character", "./character/record", "./ticket", "./looks", "./model", "./input", "./admin", "./admin/conformance", "./admin/d1", "./admin/firestore", "./admin/panel", "./admin/style.css", "./friends", "./friends/conformance", "./friends/d1", "./friends/d1.sql", "./friends/firestore", "./friends/panel", "./friends/style.css"]);
+  assert.deepEqual(Object.keys(pkg.exports), [".", "./character", "./character/record", "./ticket", "./looks", "./model", "./input", "./admin", "./admin/conformance", "./admin/d1", "./admin/firestore", "./admin/panel", "./admin/style.css", "./friends", "./friends/conformance", "./friends/d1", "./friends/d1.sql", "./friends/firestore", "./friends/panel", "./friends/style.css", "./options", "./options/panel", "./options/style.css"]);
   assert.equal(pkg.exports["./admin/style.css"], "./src/admin/panel/style.css");
   assert.ok(existsSync(join(root, "src/admin/panel/style.css")), "the stylesheet is shipped in src");
   assert.equal(pkg.exports["./friends/style.css"], "./src/friends/panel/style.css");
   assert.equal(pkg.exports["./friends/d1.sql"], "./src/friends/adapters/d1.sql");
-  for (const f of ["src/friends/panel/style.css", "src/friends/adapters/d1.sql"]) assert.ok(existsSync(join(root, f)), `${f} is shipped in src`);
-  const want: Record<string, string> = { ".": "index", "./character": "character/index", "./character/record": "character/pure", "./ticket": "ticket/index", "./looks": "looks/index", "./model": "model/index", "./input": "input/index", "./admin": "admin/index", "./admin/conformance": "admin/conformance", "./admin/d1": "admin/adapters/d1", "./admin/firestore": "admin/adapters/firestore", "./admin/panel": "admin/panel/index", "./friends": "friends/index", "./friends/conformance": "friends/conformance", "./friends/d1": "friends/adapters/d1", "./friends/firestore": "friends/adapters/firestore", "./friends/panel": "friends/panel/index" };
+  assert.equal(pkg.exports["./options/style.css"], "./src/options/panel/style.css");
+  for (const f of ["src/friends/panel/style.css", "src/friends/adapters/d1.sql", "src/options/panel/style.css"]) assert.ok(existsSync(join(root, f)), `${f} is shipped in src`);
+  const want: Record<string, string> = { ".": "index", "./character": "character/index", "./character/record": "character/pure", "./ticket": "ticket/index", "./looks": "looks/index", "./model": "model/index", "./input": "input/index", "./admin": "admin/index", "./admin/conformance": "admin/conformance", "./admin/d1": "admin/adapters/d1", "./admin/firestore": "admin/adapters/firestore", "./admin/panel": "admin/panel/index", "./friends": "friends/index", "./friends/conformance": "friends/conformance", "./friends/d1": "friends/adapters/d1", "./friends/firestore": "friends/adapters/firestore", "./friends/panel": "friends/panel/index", "./options": "options/index", "./options/panel": "options/panel/index" };
   for (const [path, file] of Object.entries(want)) {
     assert.deepEqual(pkg.exports[path], { types: `./dist/${file}.d.ts`, import: `./dist/${file}.js` }, path);
     assert.ok(existsSync(join(root, `src/${file}.ts`)), `${path} has its source src/${file}.ts`);
@@ -152,6 +163,8 @@ test("the built paths load, and the ones that must not load Three.js do not (a l
     ["friends/conformance.js", "if (typeof m.friendsStoreConformance !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["friends/adapters/d1.js", "if (typeof m.createD1Friends !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["friends/adapters/firestore.js", "if (typeof m.createFirestoreFriends !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
+    // The options path loads in Node with no DOM (the panel builds its elements only when mounted), and its store works there.
+    ["options/index.js", "if (typeof m.createOptions !== 'function' || typeof m.mountOptions !== 'function' || typeof m.common !== 'function') throw new Error('missing'); const o = m.createOptions({ game: 'g', storage: null, defs: m.common('musicVolume') }); o.set('musicVolume', 42); if (o.get('musicVolume') !== 40) throw new Error('snap'); process.stdout.write('ok')"],
   ];
   for (const [entry, code] of probes) {
     const r = run(entry, code);
@@ -167,7 +180,7 @@ test("npm pack would ship the built files, the sources, the README, the changelo
   const r = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { cwd: root, encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
   const files: string[] = JSON.parse(r.stdout)[0].files.map((f: { path: string }) => f.path);
-  for (const f of ["package.json", "README.md", "LICENSE", "CHANGELOG.md", "dist/index.js", "dist/character/index.js", "dist/character/pure.js", "dist/ticket/index.js", "dist/looks/index.js", "dist/model/index.js", "dist/input/index.js", "dist/admin/index.js", "dist/admin/conformance.js", "dist/admin/adapters/d1.js", "dist/admin/adapters/firestore.js", "dist/admin/panel/index.js", "src/admin/panel/style.css", "dist/friends/index.js", "dist/friends/panel/index.js", "src/friends/panel/style.css", "src/friends/adapters/d1.sql", "ai/PROMPT.md", "ai/SPEC.md"]) assert.ok(files.includes(f), `${f} is shipped`);
+  for (const f of ["package.json", "README.md", "LICENSE", "CHANGELOG.md", "dist/index.js", "dist/character/index.js", "dist/character/pure.js", "dist/ticket/index.js", "dist/looks/index.js", "dist/model/index.js", "dist/input/index.js", "dist/admin/index.js", "dist/admin/conformance.js", "dist/admin/adapters/d1.js", "dist/admin/adapters/firestore.js", "dist/admin/panel/index.js", "src/admin/panel/style.css", "dist/friends/index.js", "dist/friends/panel/index.js", "src/friends/panel/style.css", "src/friends/adapters/d1.sql", "dist/options/index.js", "dist/options/panel/index.js", "src/options/panel/style.css", "ai/PROMPT.md", "ai/SPEC.md"]) assert.ok(files.includes(f), `${f} is shipped`);
   for (const f of files) {
     assert.ok(/^(dist|src|ai)\//.test(f) || ["package.json", "README.md", "CHANGELOG.md", "LICENSE"].includes(f), `${f} would be published`);
     assert.doesNotMatch(f, /^test\/|\.env|\.tsbuildinfo|\.test\.|secret|\.key$/i, `${f} must not be published`);

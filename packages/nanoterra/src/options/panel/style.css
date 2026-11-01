@@ -1,0 +1,528 @@
+/* The Options key and panel (mountOptions in ./mount.ts). Every rule is under .n133-options, so nothing leaks into the game's page.
+   Phone first: every key, switch, choice and slider is 44 px or more, and a row's label is 16 px. On a phone held upright the panel is a sheet from the
+   bottom; on a wide or sideways screen it is a sheet on the right. A scrim covers the game while it is open; a press on it closes the panel.
+   Light and dark: the panel follows data-n133-theme="light" | "dark" on the page's <html> when the page sets it (the admin panel does), else the device's
+   prefers-color-scheme.
+   To theme it, set the --n133-* custom properties on the element that holds the key (or a parent): --n133-ink, --n133-ink-soft, --n133-paper, --n133-ground
+   (the tab bar and a choice's well), --n133-line, --n133-gem, --n133-gem-dark, --n133-on-gem, --n133-radius, --n133-font and --n133-options-z (the panel's
+   z-index, default 1100: above the friends panel). Those set the LIGHT theme; the DARK theme reads the twins with "dark-" in the name: --n133-dark-ink,
+   --n133-dark-paper and so on. */
+
+.n133-options {
+  --font: var(--n133-font, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+  --radius: var(--n133-radius, 18px);
+  --ink: var(--n133-ink, #16202e);
+  --ink-soft: var(--n133-ink-soft, #4a5568);
+  --paper: var(--n133-paper, #ffffff);
+  --ground: var(--n133-ground, #eef2f7);
+  --line: var(--n133-line, #d3dce7);
+  --gem: var(--n133-gem, #20c9a6);
+  --gem-dark: var(--n133-gem-dark, #0e8a72);
+  --on-gem: var(--n133-on-gem, #ffffff);
+  /* The colour of the shadows and the scrim (r g b). */
+  --shade: 16 24 40;
+  --z: var(--n133-options-z, 1100);
+  display: inline-block;
+  color: var(--ink);
+  color-scheme: light;
+  font: 16px/1.4 var(--font);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Dark: the page says so (data-n133-theme), or the device does and the page does not say light. The two blocks are the same: CSS cannot share them. */
+:root[data-n133-theme="dark"] .n133-options {
+  --ink: var(--n133-dark-ink, #e7edf5);
+  --ink-soft: var(--n133-dark-ink-soft, #a9b5c5);
+  --paper: var(--n133-dark-paper, #171f2b);
+  --ground: var(--n133-dark-ground, #0f151e);
+  --line: var(--n133-dark-line, #34415a);
+  --gem: var(--n133-dark-gem, #20c9a6);
+  --gem-dark: var(--n133-dark-gem-dark, #3fd8b6);
+  --on-gem: var(--n133-dark-on-gem, #062b23);
+  --shade: 0 0 0;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-n133-theme="light"]) .n133-options {
+    --ink: var(--n133-dark-ink, #e7edf5);
+    --ink-soft: var(--n133-dark-ink-soft, #a9b5c5);
+    --paper: var(--n133-dark-paper, #171f2b);
+    --ground: var(--n133-dark-ground, #0f151e);
+    --line: var(--n133-dark-line, #34415a);
+    --gem: var(--n133-dark-gem, #20c9a6);
+    --gem-dark: var(--n133-dark-gem-dark, #3fd8b6);
+    --on-gem: var(--n133-dark-on-gem, #062b23);
+    --shade: 0 0 0;
+    color-scheme: dark;
+  }
+}
+
+.n133-options *,
+.n133-options *::before,
+.n133-options *::after {
+  box-sizing: border-box;
+}
+
+.n133-options [hidden] {
+  display: none !important;
+}
+
+.n133-options :is(h2, h3, p) {
+  margin: 0;
+}
+
+/* ---- the key ---- */
+
+.n133-options .n133o-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 650 15px/1 var(--font);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* ---- the scrim and the sheet ---- */
+
+.n133-options .n133o-scrim {
+  position: fixed;
+  z-index: var(--z);
+  inset: 0;
+  background: rgb(var(--shade) / 0.4);
+}
+
+.n133-options .n133o-panel {
+  position: fixed;
+  z-index: var(--z);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  height: min(85vh, 680px);
+  height: min(85dvh, 680px);
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 -8px 30px rgb(var(--shade) / 0.18);
+}
+
+/* Closed: not shown, off the screen and out of the tab order. */
+.n133-options .n133o-panel[data-open="false"] {
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(110%);
+}
+
+.n133-options .n133o-scrim[data-open="false"] {
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+}
+
+@media (min-width: 640px), (orientation: landscape) and (max-height: 520px) {
+  .n133-options .n133o-panel {
+    top: 0;
+    left: auto;
+    width: min(400px, 100vw);
+    height: auto;
+    border-bottom: 1px solid var(--line);
+    border-right: 0;
+    border-radius: var(--radius) 0 0 var(--radius);
+    box-shadow: -8px 0 30px rgb(var(--shade) / 0.18);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  .n133-options .n133o-panel[data-open="false"] {
+    transform: translateX(110%);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .n133-options .n133o-panel {
+    transition: transform 180ms ease-out, visibility 0s linear 180ms;
+  }
+
+  .n133-options .n133o-panel[data-open="true"] {
+    transition: transform 180ms ease-out, visibility 0s;
+  }
+
+  .n133-options .n133o-scrim {
+    transition: opacity 180ms ease-out, visibility 0s linear 180ms;
+  }
+
+  .n133-options .n133o-scrim[data-open="true"] {
+    transition: opacity 180ms ease-out, visibility 0s;
+  }
+}
+
+.n133-options .n133o-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px 4px 18px;
+}
+
+.n133-options .n133o-title {
+  font: 750 19px/1.2 var(--font);
+}
+
+.n133-options .n133o-close {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+/* ---- the tabs ---- */
+
+.n133-options .n133o-tabs {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  gap: 4px;
+  margin: 4px 16px 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--ground);
+}
+
+.n133-options .n133o-tab {
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: 650 16px/1 var(--font);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.n133-options .n133o-tab[aria-selected="true"] {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgb(var(--shade) / 0.18), inset 0 0 0 1px var(--line);
+}
+
+/* ---- the rows ---- */
+
+.n133-options .n133o-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 4px 16px 16px;
+}
+
+.n133-options .n133o-group {
+  margin-top: 16px;
+}
+
+.n133-options .n133o-pane > :first-child {
+  margin-top: 8px;
+}
+
+.n133-options .n133o-group-title {
+  margin: 0 0 8px;
+  color: var(--ink-soft);
+  font: 700 13px/1.2 var(--font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.n133-options .n133o-rows {
+  display: grid;
+  gap: 8px;
+}
+
+.n133-options .n133o-row {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+}
+
+.n133-options .n133o-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.n133-options .n133o-label {
+  font: 600 16px/1.3 var(--font);
+  overflow-wrap: anywhere;
+}
+
+.n133-options .n133o-help {
+  color: var(--ink-soft);
+  font: 14px/1.35 var(--font);
+  overflow-wrap: anywhere;
+}
+
+/* A toggle: the whole row is the switch. */
+.n133-options .n133o-toggle {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.n133-options .n133o-switch {
+  position: relative;
+  width: 52px;
+  height: 32px;
+  border-radius: 16px;
+  background: var(--line);
+}
+
+.n133-options .n133o-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+}
+
+.n133-options .n133o-toggle[aria-checked="true"] .n133o-switch {
+  background: var(--gem-dark);
+}
+
+.n133-options .n133o-toggle[aria-checked="true"] .n133o-knob {
+  transform: translateX(20px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .n133-options .n133o-knob {
+    transition: transform 120ms ease-out;
+  }
+}
+
+/* A choice: a row of keys in a well, or a drop-down. */
+.n133-options .n133o-seg {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--ground);
+}
+
+.n133-options .n133o-seg-key {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: 600 15px/1.1 var(--font);
+  cursor: pointer;
+  touch-action: manipulation;
+  overflow-wrap: anywhere;
+}
+
+.n133-options .n133o-seg-key[aria-checked="true"] {
+  background: var(--gem-dark);
+  color: var(--on-gem);
+}
+
+.n133-options .n133o-select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1 var(--font);
+}
+
+/* A range: the label and the value on one line, the help under them, the slider under that. The slider's box is 44 px tall: all of it takes a touch. */
+.n133-options .n133o-range-text {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 12px;
+}
+
+.n133-options .n133o-range-text .n133o-help {
+  grid-column: 1 / -1;
+}
+
+.n133-options .n133o-value {
+  color: var(--ink);
+  font: 700 16px/1.3 var(--font);
+  font-variant-numeric: tabular-nums;
+}
+
+.n133-options .n133o-range-input {
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  accent-color: var(--gem-dark);
+}
+
+.n133-options .n133o-range-input::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(to right, var(--gem-dark) var(--n133o-fill, 0%), var(--line) var(--n133o-fill, 0%));
+}
+
+.n133-options .n133o-range-input::-webkit-slider-thumb {
+  width: 28px;
+  height: 28px;
+  margin-top: -10px;
+  border: 2px solid var(--gem-dark);
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.3);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.n133-options .n133o-range-input::-moz-range-track {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--line);
+}
+
+.n133-options .n133o-range-input::-moz-range-progress {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--gem-dark);
+}
+
+.n133-options .n133o-range-input::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--gem-dark);
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.3);
+}
+
+/* A key binding: the key's name on a key cap; it waits for the next key in the gem colour. */
+.n133-options .n133o-key-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.n133-options .n133o-keycap {
+  min-width: 72px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-bottom-width: 3px;
+  border-radius: 10px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 700 16px/1 var(--font);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.n133-options .n133o-keycap[aria-pressed="true"] {
+  border-color: var(--gem-dark);
+  background: var(--gem-dark);
+  color: var(--on-gem);
+}
+
+.n133-options .n133o-empty {
+  margin: 16px 0;
+  color: var(--ink-soft);
+}
+
+/* ---- the foot: Reset to defaults, and the panel's own question ---- */
+
+.n133-options .n133o-foot {
+  flex: 0 0 auto;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+}
+
+.n133-options .n133o-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 650 15px/1 var(--font);
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.n133-options .n133o-btn:disabled {
+  color: var(--ink-soft);
+  cursor: default;
+  opacity: 0.6;
+}
+
+.n133-options .n133o-reset {
+  width: 100%;
+}
+
+.n133-options .n133o-primary {
+  border-color: var(--gem-dark);
+  background: var(--gem-dark);
+  color: var(--on-gem);
+}
+
+.n133-options .n133o-ask {
+  padding: 12px;
+  border: 1px solid var(--gem-dark);
+  border-radius: 14px;
+}
+
+.n133-options .n133o-ask-q {
+  margin: 0 0 10px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.n133-options .n133o-ask-keys {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.n133-options :is(.n133o-key, .n133o-close, .n133o-tab, .n133o-row, .n133o-seg-key, .n133o-keycap, .n133o-select, .n133o-range-input, .n133o-btn):focus-visible {
+  outline: 3px solid var(--gem);
+  outline-offset: 2px;
+}
