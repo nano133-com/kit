@@ -2,7 +2,7 @@
 
 Package: `@nano133/nanoterra` (0.1.0 or later). Follow these steps in order. Each step ends with a check. Ask the owner when a step says
 "ask". The package has five parts: the sign-in ticket (`/ticket`), the player's character (`/character`, Three.js), the
-looks ladder (`/looks`), held input that does not stick (`/input`), the friends list (`/friends`, with its panel), the options menu (`/options`) and the emotes (`/emotes`, with the wheel). Use only the parts the game needs. It has no network, wallet or Nano code. Read the package README first.
+looks ladder (`/looks`), held input that does not stick (`/input`), the friends list (`/friends`, with its panel), the options menu (`/options`), the emotes (`/emotes`, with the wheel) and the shop (`/shop`, with its panel). Use only the parts the game needs. Only the shop has Nano code, and it holds no key and sends nothing: it reads the ledger. Read the package README first.
 
 ## 0. What the owner decides (ask)
 
@@ -12,7 +12,8 @@ looks ladder (`/looks`), held input that does not stick (`/input`), the friends 
    in the game starter it is `"character": "nanoterra" | "own"` in `game.config.json` (nothing else reads it).
 3. The quality: `"high"` (toon body and ink outline, 2 draws) or `"low"` (no outline, 1 draw, for slow phones).
 4. How the game moves the character: speed in metres a second, gravity and jump. The package animates; it does not move the object.
-5. Does the game sell looks? If yes, the game is the seller (its own checkout); see step 7.
+5. Does the game sell looks? If yes, the game is the seller; see step 7 (the looks file) and step 12 (the shop). Ask for the creator's own Nano address (it
+   receives every payment), and whether the game runs on a Cloudflare Worker with D1 (the starter's way) or another server with Firestore or its own database.
 6. The friends list (step 9): Nanoterra's (the default), the game's own, or none. It is the admin's `friends` setting; ask which one the game starts with.
 7. The options menu (step 10): which settings the game can really honour (a game with no music offers no Music slider), and whether the game opens it from its own
    pause menu or shows the kit's gear key.
@@ -188,7 +189,35 @@ import "@nano133/nanoterra/emotes/style.css";
 the middle; a hold on the key and a slide onto a place plays it; Edit refuses a ninth with "Your wheel is full. Take one off first."; the wheel holds after a
 reload. A walk ends Dance; Clap goes on over the walk. On a keyboard: B opens it, 2 plays the second place, Escape closes it.
 
-## 12. Do not
+## 12. The shop (only if the game sells looks)
+
+```ts
+import { createShop } from "@nano133/nanoterra/shop/worker";           // a Worker with D1; else createShopHandler from "@nano133/nanoterra/shop"
+import { mountShop } from "@nano133/nanoterra/shop/panel";
+import "@nano133/nanoterra/shop/style.css";
+```
+
+- The money goes straight from the player's wallet to the creator's address. The server holds **no key**: never add a seed, a private key or a send. The
+  shop reads the ledger and matches a unique, clean amount exactly. Do not copy the starter's `orders`, `match`, `sweep`, `price` or `nodes` files: install them.
+- D1: add `@nano133/nanoterra/shop/d1.sql` to the migrations (a game made from the starter has the tables already: no migration). Firestore:
+  `createFirestoreShop(db)`. Another database: write a `ShopStore` and pass `shopStoreConformance` (each case its own test, `SHOP_CASE_TIMEOUT_MS`).
+- `player(req)` reads the game's own PLAYER sign-in (never the admin's). The shop draws no sign-in: give the panel `signIn()`, which opens the game's
+  sign-in and answers true when a player is signed in.
+- Settings (a Worker): `RECEIVE_ADDRESS` (the creator's address), `TEST_MODE` (`"on"` until the owner says sell), `NODE_API_KEY` (a secret, optional),
+  `TURNSTILE_SITE_KEY` and the secret `TURNSTILE_SECRET` (optional, both). Secrets go in the platform's secret store, never in code or a log.
+- **Test mode stays on until the owner's own address is set AND test mode is off.** In test mode the pay sheet says "TEST MODE: DO NOT PAY", with no QR
+  code, no address and the wallet key off. Never show a pay screen to an address nobody holds the key for without that stamp.
+- Add the cron (`*/10 * * * *`) that calls `shop.scan()`, and give the admin `check: (at) => shop.scan(at)`.
+- Mount the panel with `onOwned(lookId)` (the game adds the look and wears it); `key: false` and `open()` when the game has its own Looks key.
+- Merge `SHOP_CSP` into the game's Content Security Policy with `mergeCsp`; never replace the game's policy.
+- "Delete my data" calls `store.forget(player, now)`; with `waitUntil`, ask the player to try again then.
+- Tests: the shop's money tests are the package's. The game's tests read the game's own looks file and test only the game's own routes and wiring.
+
+**Check:** with `TEST_MODE` on, Buy shows the stamp and no QR code, and the answer of `POST /api/orders` holds no `address` and no `uri`. With the owner's
+address and `TEST_MODE` off, the pay sheet shows the QR code and the exact amount; a second player gets the next step (0.0001 XNO more); another player's
+order id answers 404; a payment of one raw too little is not matched. Test with a small real payment only when the owner says so, to the owner's own address.
+
+## 13. Do not
 
 - Do not edit the geometry, the skeleton or the toon and ink materials.
 - Do not add the katana, the headband or other brands' art. A game's own worn model goes on a socket (`c.socket("head" | "hand" | "back")` or
@@ -197,3 +226,4 @@ reload. A walk ends Dance; Clap goes on over the walk. On a keyboard: B opens it
   thing gives `hideTail: true` and `hideWings: true`, so a tail or wings do not poke through it.
   The game loads the model and frees it; the character never does.
 - Do not use a look or a record for a game's rules, a score or a payment: it is display only.
+- Do not give a look on anything but a paid order (`"paid"`), and never give one on a sign-in or a ticket alone.

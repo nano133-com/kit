@@ -1,0 +1,534 @@
+/* The Looks key and the shop's sheet (mountShop in ./mount.ts). Every rule is under .n133-shop, so nothing leaks into the game's page.
+   Phone first: every key is 44 px or more (the buy and pay keys 48 px). On a phone held upright the sheet rises from the bottom; on a wide screen it
+   stands in the middle; on a phone held sideways the pay sheet puts the QR code beside the words, and the wallet key stays in view.
+   Light and dark: mountShop sets data-theme="light" | "dark" on .n133-shop (the game's word, the page's data-n133-theme, or the device's setting).
+   To theme it, set the --n133-* custom properties on the element that holds the key (or a parent): --n133-ink, --n133-ink-soft, --n133-paper,
+   --n133-ground, --n133-line, --n133-gem, --n133-gem-dark, --n133-on-gem, --n133-sun (the Buy key), --n133-warn (the test stamp), --n133-radius,
+   --n133-font. Those set the LIGHT theme; the dark one reads the twins with "dark-" in the name (--n133-dark-ink and so on), as the admin panel does.
+   The QR code stays dark on white in both themes: a wallet's camera reads it best that way. */
+
+.n133-shop {
+  --font: var(--n133-font, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+  --radius: var(--n133-radius, 18px);
+  --ink: var(--n133-ink, #16202e);
+  --ink-soft: var(--n133-ink-soft, #4a5568);
+  --paper: var(--n133-paper, #ffffff);
+  --ground: var(--n133-ground, #eef2f7);
+  --line: var(--n133-line, #dbe4ee);
+  --gem: var(--n133-gem, #20c9a6);
+  --gem-dark: var(--n133-gem-dark, #0e8a72);
+  --on-gem: var(--n133-on-gem, #062b23);
+  --sun: var(--n133-sun, #ffd23f);
+  --on-sun: var(--n133-on-sun, #3a2a00);
+  --warn: var(--n133-warn, #d6223b);
+  --paid: var(--n133-paid, #e6fbf5);
+  --shade: 10 20 35;
+  display: inline-block;
+  color: var(--ink);
+  color-scheme: light;
+  font: 16px/1.45 var(--font);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.n133-shop[data-theme="dark"] {
+  --ink: var(--n133-dark-ink, #e7edf5);
+  --ink-soft: var(--n133-dark-ink-soft, #a9b5c5);
+  --paper: var(--n133-dark-paper, #171f2b);
+  --ground: var(--n133-dark-ground, #0f151e);
+  --line: var(--n133-dark-line, #34415a);
+  --gem: var(--n133-dark-gem, #20c9a6);
+  --gem-dark: var(--n133-dark-gem-dark, #3fd8b6);
+  --on-gem: var(--n133-dark-on-gem, #062b23);
+  --sun: var(--n133-dark-sun, #ffd23f);
+  --on-sun: var(--n133-dark-on-sun, #3a2a00);
+  --warn: var(--n133-dark-warn, #ff5d73);
+  --paid: var(--n133-dark-paid, #0f3a31);
+  --shade: 0 0 0;
+  color-scheme: dark;
+}
+
+.n133-shop *,
+.n133-shop *::before,
+.n133-shop *::after {
+  box-sizing: border-box;
+}
+
+.n133-shop [hidden] {
+  display: none !important;
+}
+
+/* ---- the key ---- */
+
+.n133-shop .n133s-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 650 15px/1 var(--font);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.n133-shop :is(.n133s-key, .n133s-btn, .n133s-close, .n133s-tab, summary):focus-visible {
+  outline: 3px solid var(--gem-dark);
+  outline-offset: 2px;
+}
+
+/* ---- the sheet ---- */
+
+.n133-shop .n133s-sheet {
+  width: min(480px, 100%);
+  max-width: 100%;
+  max-height: min(92vh, 760px);
+  max-height: min(92dvh, 760px);
+  margin: auto auto 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 10px 30px rgb(var(--shade) / 0.25);
+  overflow: hidden;
+}
+
+.n133-shop .n133s-sheet[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.n133-shop .n133s-sheet::backdrop {
+  background: rgb(10 20 35 / 0.45);
+}
+
+@media (min-width: 700px) {
+  .n133-shop .n133s-sheet {
+    margin: auto;
+    border-radius: var(--radius);
+  }
+}
+
+/* A phone on its side: the sheet uses the whole height, and stands in the middle. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .n133-shop .n133s-sheet {
+    width: min(760px, calc(100% - 16px));
+    max-height: calc(100vh - 12px);
+    max-height: calc(100dvh - 12px);
+    margin: auto;
+    border-radius: var(--radius);
+  }
+}
+
+.n133-shop .n133s-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px 4px 20px;
+}
+
+.n133-shop .n133s-title {
+  margin: 0;
+  outline: none;
+  font: 750 21px/1.2 var(--font);
+}
+
+.n133-shop .n133s-close {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.n133-shop .n133s-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px 20px max(16px, env(safe-area-inset-bottom));
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.n133-shop p {
+  margin: 8px 0;
+}
+
+.n133-shop .n133s-status {
+  min-height: 1.4em;
+  font-weight: 600;
+}
+
+.n133-shop .n133s-fine {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+/* ---- keys ---- */
+
+.n133-shop .n133s-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 700 16px/1 var(--font);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.n133-shop .n133s-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* A main key that is off (the wallet key in test mode) must never look like one that works, in either theme. */
+.n133-shop .n133s-primary:disabled {
+  border-color: var(--line);
+  border-style: dashed;
+  background: var(--ground);
+  color: var(--ink-soft);
+  opacity: 1;
+}
+
+.n133-shop .n133s-primary {
+  border-color: var(--gem-dark);
+  background: var(--gem);
+  color: var(--on-gem);
+}
+
+.n133-shop .n133s-buy {
+  border-color: #b98a00;
+  background: var(--sun);
+  color: var(--on-sun);
+}
+
+.n133-shop .n133s-wide {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.n133-shop .n133s-small {
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+/* ---- the looks ---- */
+
+.n133-shop .n133s-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 4px -20px 6px;
+  padding: 0 20px 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.n133-shop .n133s-tab {
+  flex: none;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 650 15px/1 var(--font);
+  cursor: pointer;
+}
+
+.n133-shop .n133s-tab[aria-selected="true"] {
+  border-color: var(--gem-dark);
+  background: var(--gem);
+  color: var(--on-gem);
+}
+
+.n133-shop .n133s-looks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.n133-shop .n133s-look {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.n133-shop .n133s-look-worn .n133s-look-text strong::after {
+  content: " ✓";
+  color: var(--gem-dark);
+}
+
+.n133-shop .n133s-look-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.n133-shop .n133s-look-text strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.n133-shop .n133s-look-text small {
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.n133-shop .n133s-swatch {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 2px solid rgb(0 0 0 / 0.12);
+  border-radius: 50%;
+}
+
+.n133-shop .n133s-swatch-item {
+  border-radius: 12px;
+  background: var(--ground);
+  color: var(--ink-soft);
+  font: 800 18px/1 var(--font);
+}
+
+.n133-shop .n133s-swatch-plain {
+  border: 2px dashed var(--line);
+  background: transparent;
+}
+
+.n133-shop .n133s-swatch-hat {
+  position: absolute;
+  left: 9px;
+  top: -6px;
+  width: 22px;
+  height: 12px;
+  border: 2px solid rgb(0 0 0 / 0.15);
+  border-radius: 12px 12px 3px 3px;
+}
+
+.n133-shop .n133s-hat-tophat {
+  top: -12px;
+  height: 18px;
+  border-radius: 3px;
+}
+
+.n133-shop .n133s-hat-crown {
+  border-radius: 2px;
+}
+
+/* ---- pay ---- */
+
+.n133-shop .n133s-pay-what {
+  margin-top: 0;
+  color: var(--ink-soft);
+}
+
+.n133-shop .n133s-amount {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin: 6px 0 12px;
+}
+
+.n133-shop .n133s-amount strong {
+  font-size: 30px;
+  font-variant-numeric: tabular-nums;
+}
+
+.n133-shop .n133s-amount span {
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
+.n133-shop .n133s-qr {
+  display: grid;
+  place-items: center;
+  width: min(248px, 70vw);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  padding: 8px;
+  border: 2px solid var(--line);
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.n133-shop .n133s-qr-code {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.n133-shop .n133s-test-pay {
+  position: relative;
+}
+
+.n133-shop .n133s-qr-blocked {
+  overflow: hidden;
+}
+
+.n133-shop .n133s-qr-fake {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  background: repeating-conic-gradient(#c8ced6 0 25%, #eef1f4 0 50%) 0 0 / 22px 22px;
+  filter: blur(3px);
+  opacity: 0.7;
+}
+
+/* TEST MODE: DO NOT PAY. Large, red, over the place of the QR code. Never hide it or make it small. */
+.n133-shop .n133s-stamp {
+  position: absolute;
+  left: 50%;
+  top: min(124px, 35vw);
+  width: max-content;
+  max-width: 96%;
+  padding: 10px 16px;
+  border: 4px solid var(--warn);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.94);
+  color: #d6223b;
+  font: 900 clamp(20px, 6.4vw, 28px)/1.1 var(--font);
+  letter-spacing: 0.02em;
+  text-align: center;
+  transform: translate(-50%, -50%) rotate(-8deg);
+  box-shadow: 0 6px 18px rgb(214 34 59 / 0.25);
+}
+
+.n133-shop .n133s-stamp span {
+  display: block;
+}
+
+.n133-shop .n133s-by-hand {
+  margin-top: 12px;
+}
+
+.n133-shop .n133s-by-hand summary {
+  min-height: 44px;
+  line-height: 44px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.n133-shop .n133s-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.n133-shop .n133s-label {
+  width: 60px;
+  flex: none;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.n133-shop .n133s-row code {
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+  font-size: 13px;
+}
+
+.n133-shop .n133s-paid {
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--paid);
+  text-align: center;
+}
+
+.n133-shop .n133s-paid strong {
+  font-size: 22px;
+  color: var(--gem-dark);
+}
+
+/* The wallet key stays in view at the foot of the sheet. */
+.n133-shop .n133s-foot {
+  position: sticky;
+  bottom: calc(-1 * max(16px, env(safe-area-inset-bottom)));
+  margin: 8px -20px 0;
+  padding: 0 20px max(12px, env(safe-area-inset-bottom));
+  background: linear-gradient(to bottom, transparent, var(--paper) 14px);
+}
+
+.n133-shop .n133s-foot .n133s-wide {
+  margin-top: 6px;
+}
+
+/* A phone on its side: the QR code (or the stamp) alone on the left, as big as the height allows; the words, the amount and the wallet key on the right. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .n133-shop .n133s-pay {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "qr what" "qr amount" "qr side";
+    grid-template-rows: auto auto 1fr;
+    gap: 0 20px;
+    align-items: start;
+  }
+
+  .n133-shop .n133s-pay-main {
+    display: contents;
+  }
+
+  .n133-shop .n133s-pay-what {
+    grid-area: what;
+  }
+
+  .n133-shop .n133s-amount {
+    grid-area: amount;
+    margin: 0 0 4px;
+  }
+
+  .n133-shop :is(.n133s-live-pay, .n133s-test-pay) {
+    grid-area: qr;
+    width: min(250px, calc(100vh - 96px));
+    width: min(250px, calc(100dvh - 96px));
+  }
+
+  .n133-shop .n133s-pay-side {
+    grid-area: side;
+  }
+
+  .n133-shop .n133s-qr {
+    width: 100%;
+  }
+
+  .n133-shop .n133s-stamp {
+    top: 50%;
+    font-size: 22px;
+  }
+
+  .n133-shop .n133s-amount strong {
+    font-size: 24px;
+  }
+
+  .n133-shop .n133s-pay-side .n133s-fine:first-child {
+    margin-top: 0;
+  }
+}

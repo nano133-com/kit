@@ -63,8 +63,8 @@ prize. Follow `packages/three/ai/SPEC.md` step by step.
 
 Use it when a game wants the player's Nanoterra identity: a sign-in ticket (a game on a
 **static site**), the player's character in a Three.js scene, or the looks ladder for a game
-that sells looks, a friends list, an options menu, or emotes. One package; the main paths: `/ticket`, `/character` (and `/character/record`
-with no Three.js), `/looks`, `/friends`, `/options` and `/emotes`. Follow `packages/nanoterra/ai/SPEC.md` step by step.
+that sells looks, a friends list, an options menu, emotes, or a shop for its looks. One package; the main paths: `/ticket`, `/character` (and `/character/record`
+with no Three.js), `/looks`, `/friends`, `/options`, `/emotes` and `/shop`. Follow `packages/nanoterra/ai/SPEC.md` step by step.
 
 - **The ticket** (`/ticket`): a game with a server uses the code exchange, not this. A ticket
   proves nothing to a server: never give a sale, a prize or a score on it. Ask "Sign in as
@@ -102,6 +102,13 @@ with no Three.js), `/looks`, `/friends`, `/options` and `/emotes`. Follow `packa
   `createEmotes(hero)` once; the frame loop stays `hero.update(dt, motion)`. Load the clips only through `loadEmotes` (the
   wheel's `onOpen`), never with a static import. Send only `{ emote: id }`; a relay checks the id against `EMOTES`. An emote
   is display only: never a score, a rule or a payment.
+- **The shop** (`/shop`, `/shop/d1`, `/shop/firestore`, `/shop/worker`, `/shop/panel`): the money goes straight from the player's
+  wallet to the creator's address. The server holds **no key**: never add a seed, a private key or a send; it reads the ledger and
+  matches a unique, clean amount exactly. Install it; never copy the starter's order, match, sweep, price or node files. Keep test
+  mode on until the owner's own address is set AND `TEST_MODE` is off; a pay screen in test mode says "TEST MODE: DO NOT PAY", with
+  no QR code, no address and the wallet key off. The server decides every price. `player(req)` is the PLAYER sign-in, never the
+  admin's; the shop draws no sign-in (the panel's `signIn()` hook). A store of the game's own passes `shopStoreConformance`. Merge
+  `SHOP_CSP` into the game's policy; never replace it. "Delete my data" calls `store.forget(player, now)`.
 
 ## Working in this repository
 

@@ -1,7 +1,7 @@
 {
   "name": "@nano133/nanoterra",
   "version": "0.8.1",
-  "description": "Nanoterra for a creator's game, in one package: the player's sign-in ticket, the player's character (a toon body on the island's skeleton), the looks ladder, the admin, the friends list and an options menu.",
+  "description": "Nanoterra for a creator's game, in one package: the player's sign-in ticket, the player's character (a toon body on the island's skeleton), the looks ladder, the admin, the friends list, an options menu, emotes and a shop that sells looks for Nano with no key on the server.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -33,7 +33,15 @@
     "./emotes/player": { "types": "./dist/emotes/player.d.ts", "import": "./dist/emotes/player.js" },
     "./emotes/wheel": { "types": "./dist/emotes/panel/index.d.ts", "import": "./dist/emotes/panel/index.js" },
     "./emotes/style.css": "./src/emotes/panel/style.css",
-    "./emotes/icons.webp": "./src/emotes/icons.webp"
+    "./emotes/icons.webp": "./src/emotes/icons.webp",
+    "./shop": { "types": "./dist/shop/index.d.ts", "import": "./dist/shop/index.js" },
+    "./shop/conformance": { "types": "./dist/shop/conformance.d.ts", "import": "./dist/shop/conformance.js" },
+    "./shop/d1": { "types": "./dist/shop/adapters/d1.d.ts", "import": "./dist/shop/adapters/d1.js" },
+    "./shop/d1.sql": "./src/shop/adapters/d1.sql",
+    "./shop/firestore": { "types": "./dist/shop/adapters/firestore.d.ts", "import": "./dist/shop/adapters/firestore.js" },
+    "./shop/worker": { "types": "./dist/shop/worker.d.ts", "import": "./dist/shop/worker.js" },
+    "./shop/panel": { "types": "./dist/shop/panel/index.d.ts", "import": "./dist/shop/panel/index.js" },
+    "./shop/style.css": "./src/shop/panel/style.css"
   },
   "sideEffects": false,
   "files": ["dist", "src", "README.md", "CHANGELOG.md", "LICENSE", "ai"],
@@ -61,5 +69,5 @@
   },
   "homepage": "https://nano133.com/build/nanoterra",
   "license": "MIT",
-  "keywords": ["nano", "gltf", "glb", "model check", "xno", "nanoterra", "sign in", "ticket", "character", "avatar", "three", "three.js", "toon", "looks", "cosmetics", "friends", "friends list", "options", "settings", "options menu", "emotes", "emote wheel"]
+  "keywords": ["nano", "gltf", "glb", "model check", "xno", "nanoterra", "sign in", "ticket", "character", "avatar", "three", "three.js", "toon", "looks", "cosmetics", "friends", "friends list", "options", "settings", "options menu", "emotes", "emote wheel", "shop", "pay", "qr code"]
 }

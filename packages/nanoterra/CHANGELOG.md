@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+- **A shop for a game's looks** (`@nano133/nanoterra/shop`, `/shop/d1`, `/shop/d1.sql`, `/shop/firestore`, `/shop/worker`, `/shop/conformance`,
+  `/shop/panel` and `/shop/style.css`). Wes: "start the shop kit path" (2026-11-01). A game installs the game starter's shop instead of copying its
+  2,600 lines. The starter's money model, unchanged: the money goes straight from the player's wallet to the creator's address, the server holds
+  no key and only reads the ledger, and each order asks for a unique, clean amount (at most 4 decimals of XNO) that a payment must match exactly.
+  - **The rules** (no DOM, no database): the starter's amounts (raw text and BigInt, prices rounded up), the reservation (one step more while
+    another held order has the amount, at most a tenth more; an amount held until an hour after the order ends), the match (a confirmed send of
+    exactly the amount to exactly the address, first seen after the order; late is "paid late", no look), the price (the median of three feeds,
+    kept 5 minutes, the last good one for 6 hours), the nodes with failover (`nodesFor`: Nanswap first with a key, then the game's own list or
+    the public nodes), and the payment scan (`scanPayments`: one scan for the whole game every 4 s, fails closed). The creator's address is
+    checked with its checksum (`validAddress`, the package's own 5-byte BLAKE2b): a typo keeps test mode on.
+  - **The routes** (`createShopHandler`): the starter's paths and JSON (`POST /api/orders`, `GET /api/orders/{id}`, `POST /api/orders/{id}/check`)
+    and its words for each refusal, the game's player through `player(request)`, the same-origin check on POST, a limit of new orders and the person
+    check as hooks. **Test mode** until the owner's own address is set AND test mode is off: no address and no link in the answer.
+  - **The stores**, each keeping the rules in one step: memory, D1 on the starter's own tables (`createD1Shop`; `d1.sql` with `IF NOT EXISTS`: a
+    game from the starter switches with no migration and keeps its orders and owned looks; `d1Limit` and `visitorKey` on the same rows), and
+    Firestore (`createFirestoreShop`: the admin's orders, owned and meta, plus a document for each held amount and each recorded payment, in
+    transactions). `forget(player)` for "Delete my data": waits while a payment may still come; deletes the owned looks and the unpaid orders;
+    keeps a paid order as the sales record under "deleted", and a late payment's payer (the creator sends it back by hand).
+  - **The conformance suite** (`shopStoreConformance`, 17 short cases with `SHOP_CASE_TIMEOUT_MS`): one owner per order, a paid order never paid
+    twice, one payment for one order, an expired order past its hold never paid, unique amounts among held orders (25 at once), busy, 39-digit
+    amounts, the scan's claim, the price, and `forget`.
+  - **The Worker** (`createShop(env, { catalogue, player })`): the starter's settings (`RECEIVE_ADDRESS`, `TEST_MODE`, `NODE_API_KEY`, `NANO_NODES`,
+    `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET`), Turnstile's check, the limit in D1, `scan()` for the cron, `config()` for the page and `status()`
+    (with the starter's warnings) for the admin.
+  - **The panel** (`mountShop`): the Looks key (or `key: false` and `open()`), the looks sheet with a tab for each wear slot, Buy through the
+    game's `signIn()` (the shop draws no sign-in), the pay sheet with the package's own QR code (SVG, byte mode, level M; the same modules as
+    the starter's qrcode-generator), the starter's "TEST MODE: DO NOT PAY" stamp with the wallet key off, a check every 5 s for 2 minutes, and
+    `onOwned(lookId)`. Phone first; on a phone held sideways the QR code stands alone on the left and the wallet key stays in view. Light and
+    dark with the `--n133-*` variables and their `--n133-dark-*` twins.
+  - **The CSP lists** (`SHOP_CSP`, `mergeCsp`): Turnstile's origin for `script-src` and `frame-src`, merged into the game's own policy.
+  - Ideas from Echo Island's shop (a tab for each wear slot with its plain choice first; the wallet key in a foot that stays in view) and from the
+    prompt pack's runs (the shop's tests read a fixture, not a game's looks; the conformance cases are short and each its own test).
+
 ## 0.8.1 (2026-11-01)
 
 - **A closed panel gives the keys back to the game.** The options panel, the friends panel and the emote wheel put the focus back on their key when they

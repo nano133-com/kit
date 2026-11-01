@@ -1,0 +1,8 @@
+[
+  { "id": "plain", "name": "Plain", "priceUsd": 0, "change": { "body": "#4aa8ff" } },
+  { "id": "red-coat", "name": "Red Coat", "priceUsd": 0.25, "change": { "body": "#e0453b" } },
+  { "id": "blue-cap", "name": "Blue Cap", "priceUsd": 0.25, "change": { "body": "#3a7bd5", "hat": "cap", "hatColor": "#1c3e6f" } },
+  { "id": "gold-crown", "name": "Gold Crown", "priceUsd": 1, "change": { "body": "#7b5cff", "hat": "crown", "hatColor": "#ffd23f" } },
+  { "id": "wood-spade", "name": "Wood Spade", "priceUsd": 0.1, "wear": "spade" },
+  { "id": "star-charm", "name": "Star Charm", "priceUsd": 0.02, "wear": "charm" }
+]

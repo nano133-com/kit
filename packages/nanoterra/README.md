@@ -13,6 +13,7 @@ themselves. This package gives your game these things:
 - **A friends list** (`/friends`, since 0.6.0): a Friends key that holds the player's Nanoterra friends (a nano133 window), or a full friends list of the game's own players on the game's own database, as the admin's Game card chooses.
 - **An options menu** (`/options`, since 0.8.0): the game's settings as data, with defaults for each device, kept in the player's browser, and a ready Options key and panel (Basic and Advanced); common settings to opt into, and a section another module adds.
 - **Emotes** (`/emotes`, since 0.8.0): Nano Island's eleven emotes on the player's character (the Wave, Cheer, Clap, Dance and seven more, made in Blender), and the emote wheel of eight that the player picks, which also plays a game's own animations.
+- **A shop** (`/shop`, unreleased): sells looks for Nano (XNO) straight to the creator's address, with no key on the server: the routes, the payment check, D1 and Firestore stores, and the Looks and pay sheets (QR code, test mode stamp).
 
 It replaces `@nano133/character` 0.1.0, `@nano133/ticket` 0.1.0 and `@nano133/looks` 0.1.0
 (see "Moving from the three old packages"). Sign-in, checkout and late returns stay in their own packages
@@ -80,8 +81,13 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/emotes` | the emotes' list, the wheel's eight places, the multiplayer message and the player's options: no DOM, no Three.js (since 0.8.0) | no | 1.4 kB |
 | `@nano133/nanoterra/emotes/player` | the emotes on the kit's character: `createEmotes`, `playRemote`, `loadEmotes` (since 0.8.0) | yes | 2.9 kB; the clips load on the first emote, a chunk of their own: 84 kB, 18.8 kB gzip |
 | `@nano133/nanoterra/emotes/wheel` | the Emotes key and the emote wheel: `mountEmotes`, and its stylesheet `@nano133/nanoterra/emotes/style.css` (since 0.8.0) | no | 5.9 kB + 7.4 kB of CSS (minified); the pictures (`/emotes/icons.webp`, 34 kB) load when the wheel first opens |
+| `@nano133/nanoterra/shop` | the shop's rules and routes, the payment scan, a memory store, the CSP lists (server code; unreleased) | no | 9.1 kB (all), 7.1 kB (`createShopHandler` alone) |
+| `@nano133/nanoterra/shop/d1`, `/shop/firestore` | the shop's store on D1 (the starter's tables, `/shop/d1.sql`) or Firestore: `createD1Shop`, `createFirestoreShop` (unreleased) | no | 2.4 kB, 2.2 kB |
+| `@nano133/nanoterra/shop/worker` | the shop for a Worker with D1, from the starter's settings: `createShop` (unreleased) | no | 10.0 kB (with the D1 store and Turnstile) |
+| `@nano133/nanoterra/shop/panel` | the Looks key, the looks sheet and the pay sheet with its own QR code: `mountShop`, and its stylesheet `@nano133/nanoterra/shop/style.css` (unreleased) | no | 9.3 kB + 2.5 kB of CSS (gzip; 8.5 kB minified) |
+| `@nano133/nanoterra/shop/conformance` | the shop's money rules as test cases, for a store a game writes itself (unreleased) | no | n/a |
 
-Measured 2026-10-26 (the friends paths 2026-10-30, the options and the emotes paths 2026-11-01): `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
+Measured 2026-10-26 (the friends paths 2026-10-30, the options, the emotes and the shop paths 2026-11-01): `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
 All four paths together: 23.6 kB. A test of the package proves that the record, the ticket, the looks and the small part import no package at all.
 
 ## The character
@@ -1014,6 +1020,191 @@ or `store.add(EMOTE_OPTIONS)`; `EMOTE_OPTION_DEFS` holds the two toggles with sh
 `{ t: "react", k: "dance" }` from a player, checks the id against its own list and sends the others `{ t: "react", id: <player>, k: "dance" }`; an old server that
 does not know an id drops it, and nothing breaks.
 
+## The shop (`/shop`; unreleased)
+
+A shop that sells **looks** for Nano (XNO), the way the [game starter](https://github.com/nano133-com/nano-game-starter) sells them. A game
+installs it instead of copying the starter's shop.
+
+**The money model.** The money goes **straight from the player's wallet to the creator's address**. The server holds **no key** and sends
+nothing: it only reads the Nano ledger to see that a payment came. Each order asks for a unique, clean amount (the price rounded up to
+0.0001 XNO, one step more while another order holds that amount), and a payment counts only when it is a confirmed send of exactly that
+amount to exactly that address, first seen after the order was made. (This is not `@nano133/checkout`'s address for each checkout: that
+one puts a key on the server.)
+
+| Path | What |
+|---|---|
+| `@nano133/nanoterra/shop` | the rules (amounts in raw text and BigInt, the reservation, the match, the price, the nodes, the address checksum), the routes (`createShopHandler`), the payment scan (`scanPayments`), a memory store, the CSP lists. No DOM, no database, no package. |
+| `@nano133/nanoterra/shop/d1`, `/shop/d1.sql` | the store on Cloudflare D1, on the starter's own tables (`createD1Shop`), and `d1Limit` and `visitorKey` |
+| `@nano133/nanoterra/shop/firestore` | the store on Firestore (a small interface, no Firebase dependency): `createFirestoreShop` |
+| `@nano133/nanoterra/shop/worker` | the shop for a Worker with D1, set up from the starter's settings: `createShop(env, { catalogue, player })` |
+| `@nano133/nanoterra/shop/panel`, `/shop/style.css` | the Looks key, the looks sheet and the pay sheet (QR code, test stamp), in plain DOM: `mountShop` |
+| `@nano133/nanoterra/shop/conformance` | the money rules as test cases, for a store a game writes itself |
+
+### On a Worker with D1 (the starter's way)
+
+```ts
+import { createShop } from "@nano133/nanoterra/shop/worker";
+import looks from "../../looks.json";
+
+// In the Worker's fetch, after the game's own sign-in has read the PLAYER session:
+const shop = createShop(env, { catalogue: looks, player: async () => session?.address ?? null });
+const answer = await shop.handle(request);  // POST /api/orders, GET /api/orders/{id}, POST /api/orders/{id}/check; null for any other path
+if (answer) return answer;
+
+// The cron (wrangler.jsonc "triggers": { "crons": ["*/10 * * * *"] }): finds a payment of a player who closed the page.
+async scheduled(_event, env, ctx) { ctx.waitUntil(createShop(env, opts).scan()); }
+```
+
+`createShop` reads the starter's settings: `RECEIVE_ADDRESS` (the creator's address), `TEST_MODE`, `NODE_API_KEY` (a secret, optional),
+`NANO_NODES` (optional), `TURNSTILE_SITE_KEY` and the secret `TURNSTILE_SECRET` (both, or no person check). `"none"`, `"skip"`, `"off"` and
+`"-"` mean "not set". It also gives `shop.owned(player)` (for the game's `/api/me`), `shop.config()` (`{ testMode, turnstileSiteKey }`, for
+the game's `/api/config`), `shop.status()` (the address, test mode, the nodes and the warnings, for the admin's Status card) and `shop.scan()`
+(the admin's "Check payments now": `createAdminHandler({ ..., check: (at) => shop.scan(at) })`).
+
+On any other server, use the handler and a store:
+
+```ts
+import { createShopHandler } from "@nano133/nanoterra/shop";
+import { createFirestoreShop } from "@nano133/nanoterra/shop/firestore";
+
+const shop = createShopHandler({
+  store: createFirestoreShop(getFirestore()),  // or createD1Shop(env.DB), or createMemoryShop() for a test
+  catalogue: looks,                            // looks.json as it was read: checked with checkLooks (a bad file throws here)
+  payee: process.env.RECEIVE_ADDRESS,          // the creator's address: payments go straight there
+  testMode: process.env.TEST_MODE === "on",
+  player: async (req) => signedInPlayerId(req),  // YOUR player's sign-in (never the admin's): an id, or null
+  nodes: nodesFor({ NODE_API_KEY: process.env.NODE_API_KEY }),  // optional: the public nodes by default
+  personCheck: async (token, req) => myTurnstileCheck(token, req), // optional
+});
+```
+
+### The routes and the answers
+
+The starter's paths and JSON, so the starter's page keeps working. `base` is `"/api/orders"`.
+
+- `POST {base}` `{ lookId, turnstile? }`: a new order. 201 and the **pay view**; 200 and the same open order again (one waiting order per look).
+  The browser sends a look's id and nothing else: **the server decides every price**.
+- `GET {base}/{id}`: the pay view of the player's own order. Another player's order looks like no order at all (404).
+- `POST {base}/{id}/check`: a payment scan first (at most one for the whole game every 4 s), then the pay view.
+- The pay view: `{ id, lookId, usd, amount, status, createdAt, expiresAt, xno, test, prices }`, and **only outside test mode** `address` and
+  `uri` (`nano:<address>?amount=<raw>`, every digit). `status` is `"open"`, `"paid"`, `"expired"` or `"paid_late"`.
+- Refusals are `{ error }` with the starter's words: 401 "Sign in first.", 403 (a POST from another page, or a failed person check), 400
+  (no such look, a free look, a body that is not readable), 409 "You already own this look.", 429 (10 new orders in 10 minutes for one
+  visitor; three waiting orders for one player), 503 (no believable price, or every amount of the price held), a plain 500 for a fault
+  (`onError` hears it; the player sees nothing of it).
+
+### The money rules (every store keeps them: `shopStoreConformance` proves it)
+
+- An order holds its amount from its start to **an hour after** it ends (15 minutes): **no two held orders ever hold the same amount**, even
+  when they are made at the same instant. A late payment is then still recognised, and never counts for a newer order.
+- Amounts are text and BigInt, never floats. Prices round **up** (the creator never gets less than the price). At most a tenth of the price
+  more (and at most 100 amounts); then the player is asked to try again in a minute.
+- A payment is ONE step: the order becomes `"paid"` and the look goes to **the order's player** (once), or `"paid_late"` (sent more than 2
+  minutes after the order ended: no look; the creator sends it back by hand from their wallet: the server has no key). The hash is recorded:
+  **one payment pays one order, once**, and a paid order is never paid twice. An order whose hold has ended can never be paid.
+- The scan **fails closed**: when no node answers, nothing is credited and the next scan tries again.
+- The price is the median of CoinGecko, Kraken and KuCoin (no keys), kept 5 minutes; the last good one for up to 6 hours when every feed
+  fails; then nothing is sold. The pay sheet says "Powered by CoinGecko" (CoinGecko's terms).
+
+### Test mode
+
+**On until the owner's own address is set AND test mode is off.** With no payee, the example address
+(`nano_1111…hifc8npp`), an address with a wrong checksum (`validAddress` checks it) or `testMode: true`, the pay view carries **no address
+and no link**, and the pay sheet shows **"TEST MODE: DO NOT PAY"** where the QR code would be, with the wallet key off. The sheet decides it
+from the order, never from a setting of the page. A payment to an address that nobody holds the key for is lost for good.
+
+### The stores
+
+- **D1** (`createD1Shop(env.DB)`): the starter's tables `orders`, `owned` and `meta` (the keys `rate`, `scan`; `salt` for `visitorKey`), column
+  for column. `@nano133/nanoterra/shop/d1.sql` creates them with `IF NOT EXISTS` (and `hits` for `d1Limit`): a new game adds it to its
+  migrations; **a game made from the starter needs no migration** (its `migrations/0001_init.sql` made them). The names can be changed
+  (`{ tables: { orders, owned, meta } }`), but the admin's D1 store reads the starter's names. The rules are in the statements:
+  `amount_lock` and `hash` are UNIQUE, a payment and its grant are one batch, the scan's claim is one upsert.
+- **Firestore** (`createFirestoreShop(db, { orders, owned, meta, amounts, hashes })`): `orders/{id}`, `owned/{player__lookId}` and `meta/rate`
+  are what the admin's Firestore store reads; `shop_amounts/{amount}` holds each held amount and `shop_hashes/{hash}` each recorded payment, so a
+  transaction can keep the two unique rules. The indexes Firestore makes by itself are enough.
+- **Your own database:** write a `ShopStore` and run the rules on it (each case is short; give each its own test, with `SHOP_CASE_TIMEOUT_MS`):
+
+```ts
+import { shopStoreConformance, SHOP_CASE_TIMEOUT_MS } from "@nano133/nanoterra/shop/conformance";
+for (const c of shopStoreConformance(async () => ({ store: newEmptyStore(), dump: () => allRowsAsText() }))) it(c.name, c.run, SHOP_CASE_TIMEOUT_MS);
+```
+
+**"Delete my data":** `store.forget(player, now)`. While an order of the player may still be paid (its amount is held) it deletes nothing and
+answers `waitUntil` (try again then). Else the owned looks and the orders that were never paid go; a paid order stays as the creator's sales
+record with the player (and its payer) replaced by `"deleted"`, and its payment's hash kept (so it never counts again); a **late** payment keeps
+its payer, because the creator must send it back.
+
+### The panel
+
+```ts
+import { mountShop } from "@nano133/nanoterra/shop/panel";
+import "@nano133/nanoterra/shop/style.css";
+
+const shop = mountShop(document.getElementById("shop")!, {
+  looks,                                        // looks.json: the list (the server still decides every price)
+  owned: () => me.owned,                        // the look ids the player owns (your /api/me: shop.owned(player))
+  signedIn: () => Boolean(me.address),
+  signIn: () => mySignIn(),                     // YOUR sign-in sheet: true when a player is signed in after it. The shop draws no sign-in.
+  worn: (look) => wornIn(look.wear ?? "outfit") === look.id,
+  wear: (look) => wearIt(look),
+  takeOff: (slot) => takeOffIt(slot),           // optional: each item tab starts with its plain choice
+  onOwned: (lookId, look) => { me.owned.push(lookId); wearIt(look); },  // a paid order gave this look
+  personCheck: (box) => turnstileToken(box),    // optional: Turnstile drawn in `box`
+  slots: { shovel: { tab: "Shovels", plain: "Plain shovel" } },        // optional words for the tabs
+});
+// key: false draws no Looks key: open it from your own key with shop.open(), or shop.buy("mint-cap") from your own Buy.
+```
+
+- The looks sheet: a tab for each wear slot (the outfits first) when the game sells items, each look with its price before any step; Wear,
+  Wearing, or Buy. `picture(look)` gives the game's own picture instead of the swatch.
+- Buy: the game's sign-in (`signIn`) when nobody is signed in, then the person check, then the pay sheet: the amount, the QR code of the exact
+  `nano:` link (drawn by the package as SVG: no QR library, no outside service), "Open wallet", the address and the amount by hand, the time
+  left, and a check every 5 seconds for 2 minutes ("Check again" after). Paid: "Paid. Thank you!" and `onOwned`. Paid late or expired: the
+  starter's words.
+- Phone first: every key 44 px or more (the buy and pay keys 48 px). On a phone held upright the sheet rises from the bottom; on a wide screen
+  it stands in the middle; on a phone held sideways the QR code stands alone on the left and the wallet key stays in view.
+- Light and dark: `theme: "light" | "dark" | "device"` (the default: the page's `data-n133-theme`, else the device's setting). Every colour is a
+  `--n133-*` variable with a `--n133-dark-*` twin (and `--n133-sun` for Buy, `--n133-warn` for the stamp). The QR code stays dark on white.
+
+### The page's Content Security Policy
+
+The shop needs no other origin, except Turnstile when the game turns it on. Merge its lists into the game's own policy; never replace the game's:
+
+```ts
+import { SHOP_CSP, mergeCsp } from "@nano133/nanoterra/shop";
+const CONTENT_SECURITY_POLICY = mergeCsp(MY_POLICY, SHOP_CSP);  // adds Turnstile to script-src and frame-src; keeps every source of yours
+```
+
+### Moving the game starter onto the package
+
+The tables, the routes and the answers are the starter's, so the switch keeps **every order, owned look, price, scan time and limit
+counter** as they are, and the page needs no change for the server part.
+
+1. `npm install @nano133/nanoterra@<this release>`. No migration: the starter's `0001_init.sql` already made `orders`, `owned`, `meta` and
+   `hits` (the shop's only tables; 0002 to 0007 hold sign-in, Nanoterra, admin and friends tables).
+2. `src/worker/index.ts`: after `const session = await sessionOf(db, req, now)`, make the shop and let it answer (it replaces `createOrder`, the
+   two order routes and `payView`): `const shop = createShop(env, { catalogue: looks, player: async () => session?.address ?? null, now: () => now });`
+   then `const answer = await shop.handle(req); if (answer) return answer;`. In `/api/me`, `owned` is `await shop.owned(session.address)`. In
+   `/api/config`, `testMode` and `turnstileSiteKey` can come from `shop.config()` (the same rules). In `scheduled`, `shop.scan(now)` replaces `sweep`.
+   Keep the router's own per-visitor memory limits, its `sameOrigin` check and `secure()` as they are.
+3. `src/worker/admin.ts`: `check: (at) => shop.scan(at)` and `nodes: nodesFor(env).map((n) => n.name)` (`nodesFor` from `@nano133/nanoterra/shop`).
+4. Delete `src/worker/{orders,match,sweep,price,nodes}.ts` and their tests (`orders`, `sweep`, `price`, `nodes`, `amount`): the package carries
+   them and their tests. `turnstile.ts` and `ratelimit.ts` stay while the sign-in uses them (or use `turnstileCheck`, `d1Limit` and `visitorKey`
+   from the package: the same rows). `src/shared/amount.ts` goes when nothing else imports it.
+5. The page: `mountShop` with `key: false` (the starter's own Looks keys call `shop.open()`), `signIn` opening the starter's sign-in sheet,
+   `onOwned` reading `/api/me` again and wearing an outfit, `personCheck` with the starter's Turnstile. Delete `src/client/ui/{looks,pay}.ts`
+   and the looks and pay rules of `style.css`; set the `--n133-*` variables from the starter's `:root`. `ui/qr.ts` (and `qrcode-generator`)
+   stays while the sign-in sheet draws its QR code (or use `qrSvg` from `@nano133/nanoterra/shop/panel`).
+6. Keep the starter's route tests (`admin.test.ts` "test mode" and "never shows one player's order to another"): they pass unchanged.
+
+### What the shop does not do
+
+- **Sign a player in.** It takes the game's signed-in player (`player(request)`) and asks the game for a sign-in (`signIn()`); the kit's
+  player sign-in (wallets and a passkey) is its own path.
+- **Send money back.** It holds no key: a late payment is listed (`"paid_late"`), and the creator sends it back by hand.
+- **Sell anything random**, or anything that changes a score, a speed or a rule: a look only changes how the character looks.
+
 ## Moving from the three old packages
 
 | Before | Now |
@@ -1035,7 +1226,7 @@ does not know an id drops it, and nothing breaks.
 - First-person arms, swimming, climbing and the room's other moves: only idle, walk, run, jump and wave, and the emotes (`/emotes`, which sit too).
 - Shared geometry for many characters at once, and a react-three-fiber wrapper.
 - `WebGPURenderer`: the ink is a GLSL `ShaderMaterial`, so use `WebGLRenderer`.
-- Any server or Nano code. This package draws a character and reads a ticket; it moves no money.
+- Move money. The shop (`/shop`) reads the Nano ledger to see a payment to the creator's address; no part of the package holds a key or sends.
 
 ## Build and test
 
