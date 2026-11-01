@@ -250,3 +250,22 @@ test("the theme: the game's word, else the page's data-n133-theme", () => {
   assert.equal(b.querySelector(".n133-shop")!.getAttribute("data-theme"), "light");
   document.documentElement.removeAttribute("data-n133-theme");
 });
+
+test("a session that ended (401 at Buy): onSessionEnd runs, and the Sign in key signs in again even when signedIn() still says yes", async () => {
+  const g = game({ signedIn: false });
+  let ended = 0;
+  const el = root();
+  const shop = mountShop(el, { ...g.opts, signedIn: () => true, onSessionEnd: () => void ended++ });
+  mounted.push(shop);
+  shop.buy("red-coat");
+  await settle();
+  assert.equal(ended, 1);
+  assert.deepEqual(g.events, [], "no sign-in yet: the game said yes");
+  const again = [...el.querySelectorAll(".n133s-message .n133s-btn")].find((b) => b.textContent === "Sign in") as HTMLButtonElement;
+  assert.ok(again, "the Sign in key");
+  again.click();
+  await settle();
+  assert.deepEqual(g.events, ["signIn"]);
+  assert.deepEqual(g.calls.slice(0, 2), ["POST /api/orders", "POST /api/orders"], "one refused order, then one after the new sign-in");
+  assert.ok(el.querySelector(".n133s-pay"), "the order after the new sign-in");
+});

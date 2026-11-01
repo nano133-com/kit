@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **A session that ended at Buy.** A 401 from the server at Buy (the session ended, though the game's `signedIn()` still said yes) showed a
+  "Sign in" key that asked `signedIn()` again, got yes, and posted the same refused order again. The key now calls `signIn()` without asking, and the
+  new `onSessionEnd()` hook on `mountShop` lets the game mark the player signed out (the Echo Island worker found it).
+
 ## 0.9.2 (2026-11-01)
 
 - **`onSignInCancel(lookId, look)` on `mountShop`** (the Echo Island worker found the gap while it moved Echo's shop to `/shop`). A game with its own

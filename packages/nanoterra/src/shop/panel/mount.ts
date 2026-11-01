@@ -37,6 +37,11 @@ export type ShopMountOptions = {
    * The kit's list does not open then (the kit's sheet closes if it was open). A Buy in the kit's own list goes back to that list, as before.
    */
   onSignInCancel?: (lookId: string, look: Look) => void;
+  /**
+   * The server refused an order with 401: the player's session ended, though `signedIn()` said yes. The game marks the player signed out. The sheet's
+   * "Sign in" key then calls `signIn()` without asking `signedIn()` first, so a stale "yes" cannot post the same refused order again.
+   */
+  onSessionEnd?: () => void;
   /** Whether the player wears this look now. */
   worn(look: Look): boolean;
   /** Wear a look the player owns. */
@@ -198,11 +203,14 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
   const back = (message: string, extra?: HTMLElement | null) =>
     h("div", { class: "n133s-message" }, h("p", { class: "n133s-status" }, message), extra ?? null, h("button", { class: "n133s-btn n133s-wide", type: "button", onclick: () => showLooks() }, words.back));
 
-  /** `game`: the game's own Buy started it (`buy(lookId)`), not the kit's list: a closed sign-in goes back to the game, not to the list. */
-  async function buy(look: Look, game: boolean) {
+  /**
+   * `game`: the game's own Buy started it (`buy(lookId)`), not the kit's list: a closed sign-in goes back to the game, not to the list.
+   * `ended`: the server said the session ended (401): sign in again whatever `signedIn()` says.
+   */
+  async function buy(look: Look, game: boolean, ended = false) {
     if (destroyed) return;
     tab = slotsOf(looks).length > 1 ? wearOf(look) : undefined;
-    if (!options.signedIn()) {
+    if (ended || !options.signedIn()) {
       if (!options.signIn) return show(words.buyTitle(look.name), back(words.signInFirst));
       let ok = false;
       try {
@@ -236,7 +244,9 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
       stopPay = pay.stop;
     } catch (e) {
       const message = e instanceof ApiError ? words.refusal(e.message, e.status) : e instanceof Error && e.message ? words.refusal(e.message, 0) : words.orderFailed;
-      const again = e instanceof ApiError && e.status === 401 && options.signIn ? h("button", { class: "n133s-btn n133s-primary n133s-wide", type: "button", onclick: () => void buy(look, game) }, words.signIn) : null;
+      const gone = e instanceof ApiError && e.status === 401;
+      if (gone) options.onSessionEnd?.();
+      const again = gone && options.signIn ? h("button", { class: "n133s-btn n133s-primary n133s-wide", type: "button", onclick: () => void buy(look, game, true) }, words.signIn) : null;
       show(words.buyTitle(look.name), back(message, again));
     }
   }

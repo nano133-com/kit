@@ -1333,6 +1333,9 @@ const shop = mountShop(document.getElementById("shop")!, {
   `close` event) before the kit's sheet opens, or the game's close handler takes the focus and the Escape key from the kit's sheet. Since 0.9.2 the
   kit does this itself: `buy(lookId)` starts on the next frame (Chromium fires a dialog's `close` event at the frame, after a `setTimeout(0)`; a
   hidden page has no frames and starts at once), so `dialog.close(); shop.buy(id)` is safe. `shop.isOpen` is false until that frame. `open()` still opens at once.
+- **`onSessionEnd()`** (since 0.9.3): the server refused an order with 401 (the player's session ended, though `signedIn()` said yes). The
+  game marks the player signed out. The sheet's "Sign in" key then calls `signIn()` without asking `signedIn()` first, so a stale "yes" cannot
+  post the refused order again.
 - **`onSignInCancel(lookId, look)`** (since 0.9.2): when the game's own Buy (`buy(lookId)`) asks for a sign-in and the player closes it without signing
   in, the kit opens nothing (it closes its sheet if it was open) and calls this hook: the game shows its own looks sheet again. A Buy in the kit's own
   list goes back to that list, as before, and does not call it.
