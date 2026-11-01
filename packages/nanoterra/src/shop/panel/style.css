@@ -1,5 +1,5 @@
 /* The Looks key and the shop's sheet (mountShop in ./mount.ts). Every rule is under .n133-shop, so nothing leaks into the game's page.
-   Phone first: every key is 44 px or more (the buy and pay keys 48 px). On a phone held upright the sheet rises from the bottom; on a wide screen it
+   Phone first: text is 16 px (the stamp and the amount bigger), and every key, tab, close key and fold is 48 px or more each way. On a phone held upright the sheet rises from the bottom; on a wide screen it
    stands in the middle; on a phone held sideways the pay sheet puts the QR code beside the words, and the wallet key stays in view.
    Light and dark: mountShop sets data-theme="light" | "dark" on .n133-shop (the game's word, the page's data-n133-theme, or the device's setting).
    To theme it, set the --n133-* custom properties on the element that holds the key (or a parent): --n133-ink, --n133-ink-soft, --n133-paper,
@@ -64,14 +64,14 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0 14px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0 16px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--paper);
   color: var(--ink);
-  font: 650 15px/1 var(--font);
+  font: 650 16px/1 var(--font);
   cursor: pointer;
   touch-action: manipulation;
 }
@@ -143,8 +143,8 @@
 .n133-shop .n133s-close {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   border: 0;
   border-radius: 12px;
   background: transparent;
@@ -172,7 +172,7 @@
 
 .n133-shop .n133s-fine {
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: 16px;
 }
 
 /* ---- keys ---- */
@@ -182,6 +182,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
+  min-width: 48px;
   min-height: 48px;
   padding: 0 18px;
   border: 2px solid var(--line);
@@ -227,9 +228,7 @@
 }
 
 .n133-shop .n133s-small {
-  min-height: 44px;
-  padding: 0 12px;
-  font-size: 14px;
+  padding: 0 14px;
 }
 
 /* ---- the looks ---- */
@@ -245,13 +244,14 @@
 
 .n133-shop .n133s-tab {
   flex: none;
-  min-height: 44px;
-  padding: 0 14px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0 16px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--ground);
   color: var(--ink);
-  font: 650 15px/1 var(--font);
+  font: 650 16px/1 var(--font);
   cursor: pointer;
 }
 
@@ -295,7 +295,7 @@
 
 .n133-shop .n133s-look-text small {
   color: var(--ink-soft);
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .n133-shop .n133s-swatch {
@@ -434,8 +434,8 @@
 }
 
 .n133-shop .n133s-by-hand summary {
-  min-height: 44px;
-  line-height: 44px;
+  min-height: 48px;
+  line-height: 48px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -448,17 +448,16 @@
 }
 
 .n133-shop .n133s-label {
-  width: 60px;
+  width: 64px;
   flex: none;
   color: var(--ink-soft);
-  font-size: 14px;
 }
 
 .n133-shop .n133s-row code {
   flex: 1;
   min-width: 0;
   word-break: break-all;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .n133-shop .n133s-paid {

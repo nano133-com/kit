@@ -242,6 +242,8 @@ import "@nano133/nanoterra/shop/style.css";
   code, no address and the wallet key off. Never show a pay screen to an address nobody holds the key for without that stamp.
 - Add the cron (`*/10 * * * *`) that calls `shop.scan()`, and give the admin `check: (at) => shop.scan(at)`.
 - Mount the panel with `onOwned(lookId)` (the game adds the look and wears it); `key: false` and `open()` when the game has its own Looks key.
+  A game with its own looks sheet calls `buy(lookId)` after it closes that sheet, and gives `onSignInCancel` to show the sheet again when the player
+  closes the sign-in without signing in.
 - The game's own words or language: `words` on `mountShop` (keys of `ShopWords`, over `SHOP_WORDS`). Keep each safety line's meaning; the stamp
   "TEST MODE: DO NOT PAY" and "Powered by CoinGecko" are not the game's to change. A shop in a modal `<dialog>` of the game's own closes it in `signIn`
   before the sign-in sheet opens, or the sheet stays hidden behind it.

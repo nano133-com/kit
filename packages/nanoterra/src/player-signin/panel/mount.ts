@@ -1,7 +1,7 @@
 // The sign-in sheet of a game: `mountPlayerSignin(element, options)`. It draws no key of its own: the game's account key, the shop's "sign in
 // first" and anything else call `open()`, which resolves with the player once they are signed in, or null when the sheet closes. Plain DOM; a
 // modal sheet with a scrim: from the bottom on a phone held upright, in the middle on a wide or sideways screen. Escape, the close key and a press
-// on the scrim close it. Every key is 44 px or more.
+// on the scrim close it. Phone first: text 16 px, every key 48 px or more each way.
 
 import { h, releaseFocus } from "../../admin/panel/dom.js";
 import { icon } from "../../admin/panel/icons.js";

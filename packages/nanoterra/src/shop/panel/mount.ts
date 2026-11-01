@@ -4,9 +4,12 @@
 //   owned()      the looks the player owns (the game's GET /api/me gives them)    signedIn()  whether a player is signed in
 //   signIn()     the game's own sign-in (the kit's sign-in path, or the game's): true when the player is signed in after it. The shop draws no sign-in.
 //   worn/wear    what the player wears; `onOwned(lookId)` when a paid order gave a look (wear it)
+//   onSignInCancel(lookId)  the game's own Buy (`buy(lookId)`) asked for a sign-in and the player closed it: the game shows its own sheet again
 //
-// `key: false` draws no key: the game opens the sheet from its own key with `open()`, as the options panel allows. The sheet is a <dialog>: it rises from
-// the bottom on a phone held upright and stands in the middle on a wide screen; on a phone held sideways the pay sheet puts the QR code beside the words.
+// `key: false` draws no key: the game opens the sheet from its own key with `open()`, as the options panel allows. `buy(lookId)` starts on the next frame:
+// a game's own <dialog> that closed just before has had its `close` event by then (Chromium fires it at the frame), so its handler cannot take the focus.
+// The sheet is a <dialog>: it rises from the bottom on a phone held upright and stands in the middle on a wide screen; on a phone held sideways the pay
+// sheet puts the QR code beside the words. Phone first: text 16 px, every key 48 px or more each way.
 //
 // `words` changes any word of the two sheets (./words.ts: SHOP_WORDS are the defaults), for a game's own words or language.
 
@@ -29,6 +32,11 @@ export type ShopMountOptions = {
   signedIn(): boolean;
   /** The game's sign-in: true when a player is signed in after it. With none, Buy asks the player to sign in and stops. */
   signIn?: () => Promise<boolean>;
+  /**
+   * The game's own Buy (`buy(lookId)`) asked for a sign-in, and the player closed it without signing in: the game shows its own looks sheet again.
+   * The kit's list does not open then (the kit's sheet closes if it was open). A Buy in the kit's own list goes back to that list, as before.
+   */
+  onSignInCancel?: (lookId: string, look: Look) => void;
   /** Whether the player wears this look now. */
   worn(look: Look): boolean;
   /** Wear a look the player owns. */
@@ -63,7 +71,10 @@ export type MountedShop = {
   /** Opens the sheet on the looks. */
   open(): void;
   close(): void;
-  /** Opens the sheet on Buy for one look (the game's own "Buy" elsewhere). */
+  /**
+   * Opens the sheet on Buy for one look (the game's own "Buy" elsewhere), on the next frame: close the game's own <dialog> first. A sign-in closed
+   * without a sign-in calls `onSignInCancel` and opens nothing.
+   */
   buy(lookId: string): void;
   /** Draws the looks again (after the player signed in, or wore something). */
   refresh(): void;
@@ -170,7 +181,7 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
               showLooks();
             }
           : undefined,
-        buy: (l) => void buy(l),
+        buy: (l) => void buy(l, false),
         picture: options.picture,
         slots: options.slots,
         words,
@@ -187,7 +198,8 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
   const back = (message: string, extra?: HTMLElement | null) =>
     h("div", { class: "n133s-message" }, h("p", { class: "n133s-status" }, message), extra ?? null, h("button", { class: "n133s-btn n133s-wide", type: "button", onclick: () => showLooks() }, words.back));
 
-  async function buy(look: Look) {
+  /** `game`: the game's own Buy started it (`buy(lookId)`), not the kit's list: a closed sign-in goes back to the game, not to the list. */
+  async function buy(look: Look, game: boolean) {
     if (destroyed) return;
     tab = slotsOf(looks).length > 1 ? wearOf(look) : undefined;
     if (!options.signedIn()) {
@@ -198,7 +210,11 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
       } catch {
         ok = false;
       }
-      if (!ok || !options.signedIn()) return showLooks();
+      if (!ok || !options.signedIn()) {
+        if (!game) return showLooks();
+        close();
+        return options.onSignInCancel?.(look.id, look);
+      }
     }
     const box = h("div", { class: "n133s-turnstile", hidden: true });
     show(words.buyTitle(look.name), h("div", {}, h("p", { class: "n133s-status" }, words.making), box));
@@ -220,7 +236,7 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
       stopPay = pay.stop;
     } catch (e) {
       const message = e instanceof ApiError ? words.refusal(e.message, e.status) : e instanceof Error && e.message ? words.refusal(e.message, 0) : words.orderFailed;
-      const again = e instanceof ApiError && e.status === 401 && options.signIn ? h("button", { class: "n133s-btn n133s-primary n133s-wide", type: "button", onclick: () => void buy(look) }, words.signIn) : null;
+      const again = e instanceof ApiError && e.status === 401 && options.signIn ? h("button", { class: "n133s-btn n133s-primary n133s-wide", type: "button", onclick: () => void buy(look, game) }, words.signIn) : null;
       show(words.buyTitle(look.name), back(message, again));
     }
   }
@@ -230,7 +246,11 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
     close,
     buy(lookId) {
       const look = looks.find((l) => l.id === lookId);
-      if (look) void buy(look);
+      // On the next frame (rAF; a hidden page has none): a <dialog> of the game's that closed just before has had its `close` event by then.
+      if (!look) return;
+      const go = () => void buy(look, true);
+      if (typeof requestAnimationFrame === "function" && !globalThis.document?.hidden) requestAnimationFrame(go);
+      else setTimeout(go, 0);
     },
     refresh() {
       if (isOpen() && body.querySelector(".n133s-looks-view")) showLooks();

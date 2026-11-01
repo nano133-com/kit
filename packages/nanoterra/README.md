@@ -1158,8 +1158,9 @@ const player = await signin.open();              // the shop's "sign in first": 
   game's passkey, another passkey than the one just made, two answers for one passkey, the wrong host. None names a seed or a key; none says to delete a passkey.
 - A wallet: on a touch screen one key that opens the app; with a mouse its QR code. The page asks every 2 s, at most 5 minutes.
 - `signInView(options)` is the same content for a game with a sheet of its own (`{ node, stop, reset }`).
-- Phone first: every key 44 px or more, the sheet from the bottom on a phone held upright, a card in the middle on a wide or sideways screen; Escape, the close
-  key and the scrim close it; no browser dialog. Light and dark like the options panel (`data-n133-theme` on `<html>`, else the device), every colour a
+- Phone first (since 0.9.2 by default): every text 16 px or more, and every key, wallet tile, link, the back key and the close key 48 px or more each way
+  ("Last used" sits in the flow, under a wallet's name or at the end of the passkey's row). The sheet comes from the bottom on a phone held upright, and is
+  a card in the middle on a wide or sideways screen; Escape, the close key and the scrim close it; no browser dialog. Light and dark like the options panel (`data-n133-theme` on `<html>`, else the device), every colour a
   `--n133-*` variable with a `--n133-dark-*` twin; `--n133-signin-z` (default 1200) for its z-index.
 - The page loads the purse's signing code (`@nano133/signin/purse`, 40 kB gzip) only when a passkey signs in.
 - The browser remembers, in `localStorage["n133.player-signin.v1:<rpId>"]`, the ids of its passkeys, which were made here and never opened, and the last
@@ -1320,12 +1321,26 @@ const shop = mountShop(document.getElementById("shop")!, {
   `nano:` link (drawn by the package as SVG: no QR library, no outside service), "Open wallet", the address and the amount by hand, the time
   left (live only), and a check every 5 seconds for 2 minutes ("Check again" after). Paid: "Paid. Thank you!" and `onOwned`. Paid late: no look,
   and the creator sends it back. Ended: a payment sent in time still counts.
-- Phone first: every key 44 px or more (the buy and pay keys 48 px). On a phone held upright the sheet rises from the bottom; on a wide screen
-  it stands in the middle; on a phone held sideways the QR code stands alone on the left and the wallet key stays in view.
+- Phone first (since 0.9.2 by default): every text 16 px or more (the price-source line, the time left, "Enter by hand"'s address and labels too), and
+  every key, tab, the Looks key, the close key, the fold "Enter by hand" and its copy keys 48 px or more each way. On a phone held upright the sheet
+  rises from the bottom; on a wide screen it stands in the middle; on a phone held sideways the QR code (or the stamp) stands alone on the left and
+  the wallet key stays in view. A game that wants smaller text sets it in its own stylesheet, after the kit's.
 - Light and dark: `theme: "light" | "dark" | "device"` (the default: the page's `data-n133-theme`, else the device's setting). Every colour is a
   `--n133-*` variable with a `--n133-dark-*` twin (and `--n133-sun` for Buy, `--n133-warn` for the stamp). The QR code stays dark on white.
 - **A shop that is a modal `<dialog>` of the game's own** (its own sheet around `open()`) closes it in its `signIn` hook before it opens the sign-in
   sheet, or the sign-in sheet stays hidden behind it. The game starter's `src/client/main.ts` does this.
+- **Buy from a game's own `<dialog>`** (its own looks sheet calls `shop.buy(lookId)`): close the game's dialog first, and let it finish closing (its
+  `close` event) before the kit's sheet opens, or the game's close handler takes the focus and the Escape key from the kit's sheet. Since 0.9.2 the
+  kit does this itself: `buy(lookId)` starts on the next frame (Chromium fires a dialog's `close` event at the frame, after a `setTimeout(0)`; a
+  hidden page has no frames and starts at once), so `dialog.close(); shop.buy(id)` is safe. `shop.isOpen` is false until that frame. `open()` still opens at once.
+- **`onSignInCancel(lookId, look)`** (since 0.9.2): when the game's own Buy (`buy(lookId)`) asks for a sign-in and the player closes it without signing
+  in, the kit opens nothing (it closes its sheet if it was open) and calls this hook: the game shows its own looks sheet again. A Buy in the kit's own
+  list goes back to that list, as before, and does not call it.
+
+  ```ts
+  const shop = mountShop(el, { ...options, key: false, onSignInCancel: () => myLooksDialog.showModal() });
+  myBuyKey.onclick = () => { myLooksDialog.close(); shop.buy(look.id); };
+  ```
 
 **Its words** (since 0.9.1). `words` on `mountShop` (and on `looksView` and `payPanel`) changes any word of the looks sheet and the pay sheet: the
 titles, the lines, every key, the states (waiting, paid, paid late, ended), the refusals (`refusal(text, status)`: the server's words are English) and

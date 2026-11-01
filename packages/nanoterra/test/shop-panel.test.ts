@@ -119,6 +119,52 @@ test("Buy with nobody signed in asks the game's sign-in first, then makes the or
   assert.ok(el.querySelector(".n133s-pay"));
 });
 
+test("the game's own Buy (buy(id)): a sign-in closed without a sign-in calls onSignInCancel and opens no list; a Buy in the kit's list goes back to the list", async () => {
+  // The game's own looks sheet calls buy(id). The player closes the sign-in: the game gets its sheet back, and the kit opens nothing.
+  const g = game({ signedIn: false });
+  const cancels: string[] = [];
+  let opens = 0;
+  const el = root();
+  const signIn = async () => (g.events.push("signIn"), false);
+  const shop = mountShop(el, { ...g.opts, key: false, signIn, onOpen: () => void opens++, onSignInCancel: (id, look) => void cancels.push(`${id}:${look.name}`) });
+  shop.buy("red-coat");
+  assert.equal(shop.isOpen, false, "buy() starts on the next frame: a game's <dialog> that closed just before has had its close event");
+  await settle();
+  assert.deepEqual(g.events, ["signIn"]);
+  assert.deepEqual(cancels, ["red-coat:Red Coat"]);
+  assert.equal(shop.isOpen, false, "the kit's sheet stays shut");
+  assert.equal(opens, 0);
+  assert.equal(el.querySelector(".n133s-looks-view"), null, "no kit list");
+  assert.equal(g.calls.length, 0, "no order");
+  shop.destroy();
+
+  // The same game, a Buy in the kit's own list: a closed sign-in goes back to the list, as before, and the hook does not run.
+  const g2 = game({ signedIn: false });
+  const el2 = root();
+  const shop2 = mountShop(el2, { ...g2.opts, signIn, onSignInCancel: (id) => void cancels.push(id) });
+  shop2.open();
+  (el2.querySelector(".n133s-buy") as HTMLButtonElement).click();
+  await settle();
+  assert.ok(shop2.isOpen);
+  assert.ok(el2.querySelector(".n133s-looks-view"), "the kit's list again");
+  assert.deepEqual(cancels, ["red-coat:Red Coat"], "no second cancel");
+  shop2.destroy();
+});
+
+test("the game's own Buy with a sign-in that works: the order and the pay sheet, and onSignInCancel does not run", async () => {
+  const g = game({ signedIn: false });
+  const cancels: string[] = [];
+  const el = root();
+  const shop = mountShop(el, { ...g.opts, key: false, onSignInCancel: (id) => void cancels.push(id) });
+  shop.buy("red-coat");
+  await settle();
+  assert.deepEqual(g.events, ["signIn"]);
+  assert.equal(g.calls[0], "POST /api/orders");
+  assert.ok(el.querySelector(".n133s-pay"));
+  assert.deepEqual(cancels, []);
+  shop.destroy();
+});
+
 test("Buy without a sign-in hook says to sign in, and makes no order", async () => {
   const g = game({ signedIn: false });
   const el = root();

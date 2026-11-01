@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- **`onSignInCancel(lookId, look)` on `mountShop`** (the Echo Island worker found the gap while it moved Echo's shop to `/shop`). A game with its own
+  looks sheet calls `shop.buy(lookId)`; when the player closes the sign-in without signing in, the kit now opens nothing (and closes its sheet if it
+  was open) and calls the hook, so the game shows its own sheet again. Before, the kit's own looks list opened. A Buy in the kit's own list still
+  goes back to that list and does not call the hook.
+- **`buy(lookId)` starts on the next frame.** A game's own `<dialog>` that closed just before has had its `close` event by then (Chromium fires it at
+  the frame), so the game's close handler can no longer take the focus and the Escape key from the kit's sheet. `dialog.close(); shop.buy(id)` is safe.
+  `shop.isOpen` is false until that frame; `open()` still opens at once. The README says to close the game's dialog first.
+- **Phone-first sizes by default** in the shop's sheets and the sign-in sheet: every text 16 px or more (was 11 to 15 px: the tabs, the Looks key,
+  each look's line, the notes, the price-source line, the time left, the address and labels by hand, the copy keys, the wallet tiles' names, "Or a
+  wallet app", the back key, the status, "Last used"), and every key, tab, close key, back key, fold summary, copy key, wallet tile and link 48 px or
+  more each way (was 44 px; the inline "open a wallet" link was 17 px tall). "Last used" sits in the flow now (under a wallet's name, at the end of
+  the passkey's row) so it never covers a word. A game that wants smaller text or keys sets them in its own stylesheet, after the kit's.
+
 ## 0.9.1 (2026-11-01)
 
 - **The words of the shop's sheets and of the player's sign-in sheet are the game's to set** (the coordinator asked for it: Echo Island's move to

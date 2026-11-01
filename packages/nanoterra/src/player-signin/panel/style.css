@@ -1,6 +1,6 @@
 /* The player's sign-in sheet (mountPlayerSignin in ./mount.ts) and its content (signInView in ./view.ts). Every rule is under .n133-signin, so nothing
    leaks into the game's page.
-   Phone first: every key is 44 px or more and its words 16 px. On a phone held upright the sheet comes from the bottom; on a wide or sideways screen it
+   Phone first: text is 16 px, and every key, tile, link, close key and back key is 48 px or more each way. On a phone held upright the sheet comes from the bottom; on a wide or sideways screen it
    is a card in the middle. A scrim covers the game while it is open.
    Light and dark: the sheet follows data-n133-theme="light" | "dark" on the page's <html> when the page sets it, else the device's prefers-color-scheme.
    To theme it, set the --n133-* custom properties on the element that holds the sheet (or a parent): --n133-ink, --n133-ink-soft, --n133-paper,
@@ -129,8 +129,8 @@
 .n133-signin .n133s-close {
   display: inline-grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   border: 0;
   border-radius: 50%;
   background: transparent;
@@ -170,12 +170,12 @@
 
 .n133-signin .n133s-fine {
   margin: 0;
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .n133-signin .n133s-or {
   margin: 6px 0 -4px;
-  font: 650 14px/1.3 var(--font);
+  font: 650 16px/1.3 var(--font);
 }
 
 .n133-signin .n133s-step {
@@ -251,7 +251,7 @@
 }
 
 .n133-signin .n133s-pk-words small {
-  font-size: 14px;
+  font-size: 16px;
   opacity: 0.92;
 }
 
@@ -292,26 +292,26 @@
   border-radius: 12px;
   background: var(--ground);
   color: var(--ink);
-  font: 800 15px/1 var(--font);
+  font: 800 16px/1 var(--font);
 }
 
 .n133-signin .n133s-name {
-  font: 650 15px/1.2 var(--font);
+  font: 650 16px/1.2 var(--font);
   text-align: center;
 }
 
 .n133-signin .n133s-last {
-  position: absolute;
-  top: 6px;
-  right: 8px;
-  padding: 1px 7px;
+  padding: 0 8px;
   border-radius: 999px;
   background: var(--ground);
   color: var(--ink-soft);
-  font: 700 11px/18px var(--font);
+  font: 700 16px/24px var(--font);
+  white-space: nowrap;
 }
 
+/* "Last used": in the flow, so it never covers a word at 16 px: under the name in a tile, at the right end of the passkey's row. */
 .n133-signin .n133s-pk .n133s-last {
+  margin-left: auto;
   background: rgb(255 255 255 / 0.22);
   color: inherit;
 }
@@ -376,14 +376,15 @@
   align-self: flex-start;
   align-items: center;
   gap: 6px;
-  min-height: 44px;
+  min-width: 48px;
+  min-height: 48px;
   margin: 0 0 -4px -10px;
-  padding: 0 10px;
+  padding: 0 12px 0 10px;
   border: 0;
   border-radius: 10px;
   background: transparent;
   color: var(--ink-soft);
-  font: 650 15px/1 var(--font);
+  font: 650 16px/1 var(--font);
   cursor: pointer;
 }
 
@@ -393,6 +394,10 @@
 }
 
 .n133-signin a:not(.n133s-btn) {
+  display: inline-flex;
+  align-items: center;
+  min-width: 48px;
+  min-height: 48px;
   color: var(--gem-dark);
   font-weight: 650;
   text-underline-offset: 2px;
@@ -443,7 +448,7 @@
   min-height: 1.4em;
   margin: 12px 0 0;
   color: var(--ink-soft);
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .n133-signin .n133s-status:empty {
