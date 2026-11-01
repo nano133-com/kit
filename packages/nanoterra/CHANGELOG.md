@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.2 (2026-11-01)
 
 - **`onSignInCancel(lookId, look)` on `mountShop`** (the Echo Island worker found the gap while it moved Echo's shop to `/shop`). A game with its own
   looks sheet calls `shop.buy(lookId)`; when the player closes the sign-in without signing in, the kit now opens nothing (and closes its sheet if it
