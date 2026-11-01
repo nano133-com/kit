@@ -1158,7 +1158,7 @@ const player = await signin.open();              // the shop's "sign in first": 
   game's passkey, another passkey than the one just made, two answers for one passkey, the wrong host. None names a seed or a key; none says to delete a passkey.
 - A wallet: on a touch screen one key that opens the app; with a mouse its QR code. The page asks every 2 s, at most 5 minutes.
 - `signInView(options)` is the same content for a game with a sheet of its own (`{ node, stop, reset }`).
-- Phone first (since 0.9.2 by default): every text 16 px or more, and every key, wallet tile, link, the back key and the close key 48 px or more each way
+- Phone first (since 0.9.3 by default): every text 16 px or more, and every key, wallet tile, link, the back key and the close key 48 px or more each way
   ("Last used" sits in the flow, under a wallet's name or at the end of the passkey's row). The sheet comes from the bottom on a phone held upright, and is
   a card in the middle on a wide or sideways screen; Escape, the close key and the scrim close it; no browser dialog. Light and dark like the options panel (`data-n133-theme` on `<html>`, else the device), every colour a
   `--n133-*` variable with a `--n133-dark-*` twin; `--n133-signin-z` (default 1200) for its z-index.
@@ -1166,7 +1166,7 @@ const player = await signin.open();              // the shop's "sign in first": 
 - The browser remembers, in `localStorage["n133.player-signin.v1:<rpId>"]`, the ids of its passkeys, which were made here and never opened, and the last
   way: no secret and no address.
 
-**Its words** (since 0.9.1). `words` on `mountPlayerSignin` and `signInView` changes any word of the sheet, for the game's own words or language: the keys
+**Its words** (since 0.9.3). `words` on `mountPlayerSignin` and `signInView` changes any word of the sheet, for the game's own words or language: the keys
 of `PlayerSigninWords` (the defaults are `PLAYER_SIGNIN_WORDS`), any of them, over the defaults. A text with a value in it is a function of that value, and
 `faults` changes the words of any passkey fault (`faultWords(code, rpId, words)` gives them). The wallets' names stay. `refusal(text, status)` turns the
 server's refusals (in English) into the game's words.
@@ -1321,7 +1321,7 @@ const shop = mountShop(document.getElementById("shop")!, {
   `nano:` link (drawn by the package as SVG: no QR library, no outside service), "Open wallet", the address and the amount by hand, the time
   left (live only), and a check every 5 seconds for 2 minutes ("Check again" after). Paid: "Paid. Thank you!" and `onOwned`. Paid late: no look,
   and the creator sends it back. Ended: a payment sent in time still counts.
-- Phone first (since 0.9.2 by default): every text 16 px or more (the price-source line, the time left, "Enter by hand"'s address and labels too), and
+- Phone first (since 0.9.3 by default): every text 16 px or more (the price-source line, the time left, "Enter by hand"'s address and labels too), and
   every key, tab, the Looks key, the close key, the fold "Enter by hand" and its copy keys 48 px or more each way. On a phone held upright the sheet
   rises from the bottom; on a wide screen it stands in the middle; on a phone held sideways the QR code (or the stamp) stands alone on the left and
   the wallet key stays in view. A game that wants smaller text sets it in its own stylesheet, after the kit's.
@@ -1336,7 +1336,7 @@ const shop = mountShop(document.getElementById("shop")!, {
 - **`onSessionEnd()`** (since 0.9.3): the server refused an order with 401 (the player's session ended, though `signedIn()` said yes). The
   game marks the player signed out. The sheet's "Sign in" key then calls `signIn()` without asking `signedIn()` first, so a stale "yes" cannot
   post the refused order again.
-- **`onSignInCancel(lookId, look)`** (since 0.9.2): when the game's own Buy (`buy(lookId)`) asks for a sign-in and the player closes it without signing
+- **`onSignInCancel(lookId, look)`** (since 0.9.3): when the game's own Buy (`buy(lookId)`) asks for a sign-in and the player closes it without signing
   in, the kit opens nothing (it closes its sheet if it was open) and calls this hook: the game shows its own looks sheet again. A Buy in the kit's own
   list goes back to that list, as before, and does not call it.
 
@@ -1345,7 +1345,7 @@ const shop = mountShop(document.getElementById("shop")!, {
   myBuyKey.onclick = () => { myLooksDialog.close(); shop.buy(look.id); };
   ```
 
-**Its words** (since 0.9.1). `words` on `mountShop` (and on `looksView` and `payPanel`) changes any word of the looks sheet and the pay sheet: the
+**Its words** (since 0.9.3). `words` on `mountShop` (and on `looksView` and `payPanel`) changes any word of the looks sheet and the pay sheet: the
 titles, the lines, every key, the states (waiting, paid, paid late, ended), the refusals (`refusal(text, status)`: the server's words are English) and
 the names for a screen reader. Give the keys of `ShopWords` you want, over the defaults (`SHOP_WORDS`); a text with a value in it is a function of
 that value:

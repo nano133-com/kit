@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.3 (2026-11-01)
 
 - **A session that ended at Buy.** A 401 from the server at Buy (the session ended, though the game's `signedIn()` still said yes) showed a
   "Sign in" key that asked `signedIn()` again, got yes, and posted the same refused order again. The key now calls `signIn()` without asking, and the
@@ -8,6 +8,7 @@
 
 ## 0.9.2 (2026-11-01)
 
+- Not published on npm: its changes reached npm in 0.9.3.
 - **`onSignInCancel(lookId, look)` on `mountShop`** (the Echo Island worker found the gap while it moved Echo's shop to `/shop`). A game with its own
   looks sheet calls `shop.buy(lookId)`; when the player closes the sign-in without signing in, the kit now opens nothing (and closes its sheet if it
   was open) and calls the hook, so the game shows its own sheet again. Before, the kit's own looks list opened. A Buy in the kit's own list still
@@ -23,6 +24,7 @@
 
 ## 0.9.1 (2026-11-01)
 
+- Not published on npm: its changes reached npm in 0.9.3.
 - **The words of the shop's sheets and of the player's sign-in sheet are the game's to set** (the coordinator asked for it: Echo Island's move to
   `/shop` waited on it; Wes prefers fewer words). `words` on `mountShop`, `looksView` and `payPanel` (`ShopWords`, defaults `SHOP_WORDS`,
   `shopWords()` merges) and on `mountPlayerSignin` and `signInView` (`PlayerSigninWords`, defaults `PLAYER_SIGNIN_WORDS`, `PlayerSigninWordsOption`
