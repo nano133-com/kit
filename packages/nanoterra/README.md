@@ -12,9 +12,9 @@ themselves. This package gives your game these things:
 - **Held input that does not stick** (`/input`, since 0.3.1): lets go of the keys and the stick when the player leaves the page, so the character never walks on by itself, and pauses a free round.
 - **A friends list** (`/friends`, since 0.6.0): a Friends key that holds the player's Nanoterra friends (a nano133 window), or a full friends list of the game's own players on the game's own database, as the admin's Game card chooses.
 - **An options menu** (`/options`, since 0.8.0): the game's settings as data, with defaults for each device, kept in the player's browser, and a ready Options key and panel (Basic and Advanced); common settings to opt into, and a section another module adds.
-- **The player's sign-in** (`/player-signin`, unreleased): a passkey (Face ID, Touch ID or the device PIN) or a wallet app (Berry Wallet, NanChat, Nautilus), the sessions and a ready sign-in sheet, for a game with a server. It needs `@nano133/signin` (an optional peer).
+- **The player's sign-in** (`/player-signin`, since 0.9.0): a passkey (Face ID, Touch ID or the device PIN) or a wallet app (Berry Wallet, NanChat, Nautilus), the sessions and a ready sign-in sheet, for a game with a server. It needs `@nano133/signin` (an optional peer).
 - **Emotes** (`/emotes`, since 0.8.0): Nano Island's eleven emotes on the player's character (the Wave, Cheer, Clap, Dance and seven more, made in Blender), and the emote wheel of eight that the player picks, which also plays a game's own animations.
-- **A shop** (`/shop`, unreleased): sells looks for Nano (XNO) straight to the creator's address, with no key on the server: the routes, the payment check, D1 and Firestore stores, and the Looks and pay sheets (QR code, test mode stamp).
+- **A shop** (`/shop`, since 0.9.0): sells looks for Nano (XNO) straight to the creator's address, with no key on the server: the routes, the payment check, D1 and Firestore stores, and the Looks and pay sheets (QR code, test mode stamp).
 
 It replaces `@nano133/character` 0.1.0, `@nano133/ticket` 0.1.0 and `@nano133/looks` 0.1.0
 (see "Moving from the three old packages"). The signature checks, checkout and late returns stay in their own packages
@@ -83,16 +83,16 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/emotes` | the emotes' list, the wheel's eight places, the multiplayer message and the player's options: no DOM, no Three.js (since 0.8.0) | no | 1.4 kB |
 | `@nano133/nanoterra/emotes/player` | the emotes on the kit's character: `createEmotes`, `playRemote`, `loadEmotes` (since 0.8.0) | yes | 2.9 kB; the clips load on the first emote, a chunk of their own: 84 kB, 18.8 kB gzip |
 | `@nano133/nanoterra/emotes/wheel` | the Emotes key and the emote wheel: `mountEmotes`, and its stylesheet `@nano133/nanoterra/emotes/style.css` (since 0.8.0) | no | 5.9 kB + 7.4 kB of CSS (minified); the pictures (`/emotes/icons.webp`, 34 kB) load when the wheel first opens |
-| `@nano133/nanoterra/player-signin` | the player's sign-in: the handler, the sessions, `player(request)`, `forget`, a memory store, `schemeVector` (server code; it needs `@nano133/signin`) | no | 5.1 kB without `@nano133/signin` |
-| `@nano133/nanoterra/player-signin/d1`, `/player-signin/firestore` | the store for D1 (with the migration `/player-signin/d1.sql`) or Firestore (a small interface, no Firebase dependency) | no | 1.2 kB, 1.3 kB |
-| `@nano133/nanoterra/player-signin/panel` | the sign-in sheet, and its stylesheet `@nano133/nanoterra/player-signin/style.css` | no | 8.7 kB with `@nano133/signin/passkey` + 8.1 kB of CSS (minified); the purse's signing code loads at a passkey sign-in, a chunk of its own: 39.8 kB gzip |
-| `@nano133/nanoterra/player-signin/conformance` | the store's rules as test cases, for a store a game writes itself | no | n/a |
+| `@nano133/nanoterra/player-signin` | the player's sign-in: the handler, the sessions, `player(request)`, `forget`, a memory store, `schemeVector` (server code; it needs `@nano133/signin`; since 0.9.0) | no | 5.1 kB without `@nano133/signin` |
+| `@nano133/nanoterra/player-signin/d1`, `/player-signin/firestore` | the store for D1 (with the migration `/player-signin/d1.sql`) or Firestore (a small interface, no Firebase dependency) (since 0.9.0) | no | 1.2 kB, 1.3 kB |
+| `@nano133/nanoterra/player-signin/panel` | the sign-in sheet, and its stylesheet `@nano133/nanoterra/player-signin/style.css` (since 0.9.0) | no | 8.7 kB with `@nano133/signin/passkey` + 8.1 kB of CSS (minified); the purse's signing code loads at a passkey sign-in, a chunk of its own: 39.8 kB gzip |
+| `@nano133/nanoterra/player-signin/conformance` | the store's rules as test cases, for a store a game writes itself (since 0.9.0) | no | n/a |
 
-| `@nano133/nanoterra/shop` | the shop's rules and routes, the payment scan, a memory store, the CSP lists (server code; unreleased) | no | 9.1 kB (all), 7.1 kB (`createShopHandler` alone) |
-| `@nano133/nanoterra/shop/d1`, `/shop/firestore` | the shop's store on D1 (the starter's tables, `/shop/d1.sql`) or Firestore: `createD1Shop`, `createFirestoreShop` (unreleased) | no | 2.4 kB, 2.2 kB |
-| `@nano133/nanoterra/shop/worker` | the shop for a Worker with D1, from the starter's settings: `createShop` (unreleased) | no | 10.0 kB (with the D1 store and Turnstile) |
-| `@nano133/nanoterra/shop/panel` | the Looks key, the looks sheet and the pay sheet with its own QR code: `mountShop`, and its stylesheet `@nano133/nanoterra/shop/style.css` (unreleased) | no | 9.3 kB + 2.5 kB of CSS (gzip; 8.5 kB minified) |
-| `@nano133/nanoterra/shop/conformance` | the shop's money rules as test cases, for a store a game writes itself (unreleased) | no | n/a |
+| `@nano133/nanoterra/shop` | the shop's rules and routes, the payment scan, a memory store, the CSP lists (server code; since 0.9.0) | no | 9.1 kB (all), 7.1 kB (`createShopHandler` alone) |
+| `@nano133/nanoterra/shop/d1`, `/shop/firestore` | the shop's store on D1 (the starter's tables, `/shop/d1.sql`) or Firestore: `createD1Shop`, `createFirestoreShop` (since 0.9.0) | no | 2.4 kB, 2.2 kB |
+| `@nano133/nanoterra/shop/worker` | the shop for a Worker with D1, from the starter's settings: `createShop` (since 0.9.0) | no | 10.0 kB (with the D1 store and Turnstile) |
+| `@nano133/nanoterra/shop/panel` | the Looks key, the looks sheet and the pay sheet with its own QR code: `mountShop`, and its stylesheet `@nano133/nanoterra/shop/style.css` (since 0.9.0) | no | 9.3 kB + 2.5 kB of CSS (gzip; 8.5 kB minified) |
+| `@nano133/nanoterra/shop/conformance` | the shop's money rules as test cases, for a store a game writes itself (since 0.9.0) | no | n/a |
 
 Measured 2026-10-26 (the friends paths 2026-10-30, the options, the emotes, the player sign-in and the shop paths 2026-11-01): `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
 All four paths together: 23.6 kB. A test of the package proves that the record, the ticket, the looks and the small part import no package at all.
@@ -1028,7 +1028,7 @@ or `store.add(EMOTE_OPTIONS)`; `EMOTE_OPTION_DEFS` holds the two toggles with sh
 `{ t: "react", k: "dance" }` from a player, checks the id against its own list and sends the others `{ t: "react", id: <player>, k: "dance" }`; an old server that
 does not know an id drops it, and nothing breaks.
 
-## The player's sign-in (`/player-signin`; unreleased)
+## The player's sign-in (`/player-signin`; since 0.9.0)
 
 The PLAYER's sign-in for a game with a server, in one path: **a passkey** (Face ID, Touch ID or the device PIN: no app to install) and the three
 **wallet apps** (Berry Wallet, NanChat, Nautilus). No password, no email and no payment, and **the server holds no key**: every way is a signature from a
@@ -1165,7 +1165,7 @@ const player = await signin.open();              // the shop's "sign in first": 
 - The browser remembers, in `localStorage["n133.player-signin.v1:<rpId>"]`, the ids of its passkeys, which were made here and never opened, and the last
   way: no secret and no address.
 
-## The shop (`/shop`; unreleased)
+## The shop (`/shop`; since 0.9.0)
 
 A shop that sells **looks** for Nano (XNO), the way the [game starter](https://github.com/nano133-com/nano-game-starter) sells them. A game
 installs it instead of copying the starter's shop.

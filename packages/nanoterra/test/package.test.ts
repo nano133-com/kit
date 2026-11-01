@@ -150,10 +150,10 @@ test("the paths that must not load Three.js import no package at all (the record
   assert.deepEqual(graph("src/character/index.ts").packages, ["three"]);
 });
 
-test("package.json: no runtime dependency, three and @nano133/signin are optional peers, version 0.8.1, MIT", () => {
+test("package.json: no runtime dependency, three and @nano133/signin are optional peers, version 0.9.0, MIT", () => {
   const pkg = JSON.parse(read("package.json"));
   assert.equal(pkg.name, "@nano133/nanoterra");
-  assert.equal(pkg.version, "0.8.1");
+  assert.equal(pkg.version, "0.9.0");
   assert.equal(pkg.dependencies, undefined, "packages have no runtime dependencies");
   assert.deepEqual(pkg.peerDependencies, { three: ">=0.174.0", "@nano133/signin": "^0.5.0" });
   assert.deepEqual(pkg.peerDependenciesMeta, { three: { optional: true }, "@nano133/signin": { optional: true } }, "a game that reads tickets alone needs no Three.js, and one with no player sign-in needs no @nano133/signin");
@@ -163,7 +163,7 @@ test("package.json: no runtime dependency, three and @nano133/signin are optiona
   assert.equal(pkg.type, "module");
   assert.deepEqual(pkg.files.slice().sort(), ["CHANGELOG.md", "LICENSE", "README.md", "ai", "dist", "src"], "files holds no test, no script and no secret");
   assert.match(read("README.md"), /^# @nano133\/nanoterra\n\nStage: Pre-alpha\. What this means: https:\/\/nano133\.com\/stages\n/);
-  assert.match(read("CHANGELOG.md"), /^# Changelog\n\n(## Unreleased\n[\s\S]*?\n)?## 0\.8\.1 \(2026-11-01\)\n[\s\S]*?\n## 0\.8\.0 \(2026-11-01\)\n[\s\S]*?\n## 0\.7\.1 \(2026-10-31\)\n[\s\S]*?\n## 0\.7\.0 \(2026-10-30\)\n[\s\S]*?\n## 0\.6\.1 \(2026-10-30\)\n[\s\S]*?\n## 0\.6\.0 \(2026-10-30\)\n[\s\S]*?\n## 0\.5\.0 \(2026-10-30\)\n[\s\S]*?\n## 0\.4\.0 \(2026-10-30\)\n[\s\S]*?\n## 0\.3\.2 \(2026-10-29\)\n[\s\S]*?\n## 0\.3\.1 \(2026-10-29\)\n[\s\S]*?\n## 0\.3\.0 \(2026-10-28\)\n[\s\S]*?\n## 0\.2\.0 \(2026-10-27\)\n[\s\S]*?\n## 0\.1\.0\n/);
+  assert.match(read("CHANGELOG.md"), /^# Changelog\n\n(## Unreleased\n[\s\S]*?\n)?## 0\.9\.0 \(2026-11-01\)\n[\s\S]*?\n## 0\.8\.1 \(2026-11-01\)\n[\s\S]*?\n## 0\.8\.0 \(2026-11-01\)\n[\s\S]*?\n## 0\.7\.1 \(2026-10-31\)\n[\s\S]*?\n## 0\.7\.0 \(2026-10-30\)\n[\s\S]*?\n## 0\.6\.1 \(2026-10-30\)\n[\s\S]*?\n## 0\.6\.0 \(2026-10-30\)\n[\s\S]*?\n## 0\.5\.0 \(2026-10-30\)\n[\s\S]*?\n## 0\.4\.0 \(2026-10-30\)\n[\s\S]*?\n## 0\.3\.2 \(2026-10-29\)\n[\s\S]*?\n## 0\.3\.1 \(2026-10-29\)\n[\s\S]*?\n## 0\.3\.0 \(2026-10-28\)\n[\s\S]*?\n## 0\.2\.0 \(2026-10-27\)\n[\s\S]*?\n## 0\.1\.0\n/);
 });
 
 test("the exports map: the small part, the character, its record, the ticket, the looks, the model check, the admin, the friends, the emotes, the player sign-in and the shop, each with types", () => {

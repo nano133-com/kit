@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.0 (2026-11-01)
 
 - **The player's sign-in** (`@nano133/nanoterra/player-signin`, `/player-signin/conformance`, `/player-signin/d1` with `/player-signin/d1.sql`,
   `/player-signin/firestore`, `/player-signin/panel` and `/player-signin/style.css`). Wes: "start the player passkey sign-in too" (2026-11-01); the kit's change
