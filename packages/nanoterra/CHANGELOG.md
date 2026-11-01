@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+- **An options menu for a game** (`@nano133/nanoterra/options`, `/options/panel` and `/options/style.css`). Wes: "build options menu and emotes in kit"
+  (2026-11-01).
+  - **The store** (`createOptions({ game, defs })`, no DOM): a game declares its settings as data, of four kinds: `"toggle"`, `"choice"`, `"range"` and `"key"`
+    (a key binding, a `KeyboardEvent.code`; two bindings never share a key: a taken key swaps). Each has a key, a short label, an optional help line, a tab
+    (`"basic"` or `"advanced"`), an optional group and a default, one value or one for each device class `{ phone?, tablet?, desktop?, reducedMotion?, default }`
+    (`detectDevice`: a coarse pointer with a short side under 600 px is a phone, another coarse pointer a tablet, else a desktop). The device's reduced-motion
+    setting is followed live until the player sets the option. Only the values that differ from the default are kept, in `localStorage` under
+    `n133-options:<game>`; a kept value that does not fit is dropped on read; a refused storage works in memory; `migrate` reads an old save. `get`, `set`,
+    `reset`, `values`, `defs`, `def`, `defaultOf`, `isDefault`, `subscribe`, `subscribeDefs`, `add` (a module's section, keys like `emotes.show`; a key used twice
+    throws) and `redetect`.
+  - **The common settings** a game opts into by key (`common(...)`, `COMMON_OPTIONS`): `masterVolume`, `musicVolume`, `effectsVolume`, `cameraSensitivity`,
+    `invertLook`, `stickSide` (a phone and a tablet only), `reducedMotion`, `quality` and `showFps`. `keyBinding(action, label, code)` and `optionSection(name, defs,
+    group?)` make defs.
+  - **The panel** (`mountOptions(el, store, { title?, key?, onOpen?, onClose?, onRangeDone?, confirm? })`): a gear key and a sheet (from the bottom on a phone held
+    upright, from the right on a wide or sideways screen) with Basic and Advanced tabs (ARIA tabs, the arrow keys), groups, a switch, a row of keys or a
+    drop-down, a slider with its value, a key cap that waits for a key. A change applies at once and shows in place (no Save key; the panel never scrolls back to
+    the top). "Reset to defaults" asks in the panel, never in a browser dialog. `key: false` for a game's own pause menu. Light and dark: it follows
+    `data-n133-theme` on `<html>`, else `prefers-color-scheme`; every colour is a `--n133-*` variable with a `--n133-dark-*` twin.
+  - `reflectOptions(store, ["reducedMotion"])` keeps `data-n133-opt-reduced-motion` on `<html>` for the page's CSS.
+  - Ideas from Echo Island's own draft (its key bindings with a swap, the live reduced motion, "Less motion" in the page's CSS, rows changed in place, a sound when
+    a slider is let go).
+- The admin panel's icons have a `gear`.
+
 ## 0.7.1 (2026-10-31)
 
 - **Friends: the panel asks in the panel, never in a browser dialog.** Remove, Block and Join (both modes) showed `window.confirm`; now the question and a key for

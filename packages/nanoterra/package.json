@@ -1,7 +1,7 @@
 {
   "name": "@nano133/nanoterra",
   "version": "0.7.1",
-  "description": "Nanoterra for a creator's game, in one package: the player's sign-in ticket, the player's character (a toon body on the island's skeleton), the looks ladder, the admin and the friends list.",
+  "description": "Nanoterra for a creator's game, in one package: the player's sign-in ticket, the player's character (a toon body on the island's skeleton), the looks ladder, the admin, the friends list and an options menu.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -26,6 +26,9 @@
     "./friends/firestore": { "types": "./dist/friends/adapters/firestore.d.ts", "import": "./dist/friends/adapters/firestore.js" },
     "./friends/panel": { "types": "./dist/friends/panel/index.d.ts", "import": "./dist/friends/panel/index.js" },
     "./friends/style.css": "./src/friends/panel/style.css",
+    "./options": { "types": "./dist/options/index.d.ts", "import": "./dist/options/index.js" },
+    "./options/panel": { "types": "./dist/options/panel/index.d.ts", "import": "./dist/options/panel/index.js" },
+    "./options/style.css": "./src/options/panel/style.css",
     "./emotes": { "types": "./dist/emotes/index.d.ts", "import": "./dist/emotes/index.js" },
     "./emotes/player": { "types": "./dist/emotes/player.d.ts", "import": "./dist/emotes/player.js" },
     "./emotes/wheel": { "types": "./dist/emotes/panel/index.d.ts", "import": "./dist/emotes/panel/index.js" },
@@ -58,5 +61,5 @@
   },
   "homepage": "https://nano133.com/build/nanoterra",
   "license": "MIT",
-  "keywords": ["nano", "gltf", "glb", "model check", "xno", "nanoterra", "sign in", "ticket", "character", "avatar", "three", "three.js", "toon", "looks", "cosmetics", "friends", "friends list", "emotes", "emote wheel"]
+  "keywords": ["nano", "gltf", "glb", "model check", "xno", "nanoterra", "sign in", "ticket", "character", "avatar", "three", "three.js", "toon", "looks", "cosmetics", "friends", "friends list", "options", "settings", "options menu", "emotes", "emote wheel"]
 }

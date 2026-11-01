@@ -4,13 +4,14 @@ Stage: Pre-alpha. What this means: https://nano133.com/stages
 
 Nanoterra for your game, in **one package**. [Nanoterra](https://nano133.com/build/nanoterra) is
 nano133.com's island. A player who is signed in there presses Play, and arrives at your game as
-themselves. This package gives your game four things:
+themselves. This package gives your game these things:
 
 - **The sign-in ticket** (`/ticket`): the player's name, Nano address and character, read in the browser. No server, no secret.
 - **The player's character** (`/character`): the same toon body that the player has on the island, drawn with Three.js. Six bases, faces, hair, clothes, sizes and colours.
 - **The looks ladder** (`/looks`): the rules of `looks.json`, the price steps, and what a change does to the players who own a look.
 - **Held input that does not stick** (`/input`, since 0.3.1): lets go of the keys and the stick when the player leaves the page, so the character never walks on by itself, and pauses a free round.
 - **A friends list** (`/friends`, unreleased): a Friends key that holds the player's Nanoterra friends (a nano133 window), or a full friends list of the game's own players on the game's own database, as the admin's Game card chooses.
+- **An options menu** (`/options`, unreleased): the game's settings as data, with defaults for each device, kept in the player's browser, and a ready Options key and panel (Basic and Advanced); common settings to opt into, and a section another module adds.
 
 It replaces `@nano133/character` 0.1.0, `@nano133/ticket` 0.1.0 and `@nano133/looks` 0.1.0
 (see "Moving from the three old packages"). Sign-in, checkout and late returns stay in their own packages
@@ -73,8 +74,10 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/friends/d1`, `/friends/firestore` | the friends store for D1 (with the migration `/friends/d1.sql`) or Firestore (a small interface, no Firebase dependency): `createD1Friends`, `createFirestoreFriends` (unreleased) | no | 3.0 kB each |
 | `@nano133/nanoterra/friends/panel` | the Friends key and panel: the nano133 window, or the game's own list, and its stylesheet `@nano133/nanoterra/friends/style.css` (unreleased) | no | 5.0 kB + 4.8 kB of CSS (minified) |
 | `@nano133/nanoterra/friends/conformance` | the friends rules as test cases, for a store a game writes itself (unreleased) | no | n/a |
+| `@nano133/nanoterra/options` | the options store (no DOM), the common settings, `reflectOptions` and the panel's `mountOptions` (unreleased) | no | 2.9 kB (`createOptions` alone), 8.7 kB (all) |
+| `@nano133/nanoterra/options/panel` | the Options key and panel alone, and its stylesheet `@nano133/nanoterra/options/style.css` (unreleased) | no | 2.3 kB of CSS (9.4 kB minified) |
 
-Measured 2026-10-26 (the friends paths 2026-10-30): `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
+Measured 2026-10-26 (the friends paths 2026-10-30, the options paths 2026-11-01): `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
 All four paths together: 23.6 kB. A test of the package proves that the record, the ticket, the looks and the small part import no package at all.
 
 ## The character
@@ -818,6 +821,103 @@ no live connection: only Nanoterra's do.
 
 **Questions.** Remove, Block and (in both modes) Join ask the player first, in the panel itself: the question and a key for each answer; Escape or closing the
 panel answers no. The kit never opens a browser dialog. To ask in your game's own dialog, pass `confirm(question)`, which returns a boolean or a promise of one.
+
+## The options menu (`/options`; unreleased)
+
+A game's settings as data, kept in the player's browser, and a ready Options key and panel. A game declares its settings; the kit resolves their defaults for
+the device, keeps only what the player changed, and draws them in two tabs, **Basic** and **Advanced**. A game with its own menu uses the store alone.
+
+```ts
+import { common, createOptions, keyBinding, mountOptions, reflectOptions } from "@nano133/nanoterra/options";
+import "@nano133/nanoterra/options/style.css";
+
+const options = createOptions({
+  game: "my-game",                                         // the storage key is n133-options:my-game
+  defs: [
+    ...common("masterVolume", "musicVolume", "effectsVolume", "cameraSensitivity", "invertLook", "stickSide", "reducedMotion", "quality"),
+    { kind: "toggle", key: "hints", label: "Show hints", help: "Arrows to the next gem", tab: "basic", group: "Game", default: true },
+    keyBinding("jump", "Jump", "Space"),                   // keys.jump: a KeyboardEvent.code
+  ],
+});
+music.volume = (options.get<number>("musicVolume") / 100) ** 2;
+options.subscribe((key, value) => apply(key, value));      // every change: the panel, the game, a reset, a default that moved
+reflectOptions(options, ["reducedMotion"]);                // <html data-n133-opt-reduced-motion="true|false"> for your CSS
+const panel = mountOptions(document.getElementById("options")!, options);   // the gear key and the panel
+// panel.open(), panel.close(), panel.isOpen, panel.destroy()
+```
+
+**The defs.** Each has a `key`, a `label` (short: the player reads it), an optional `help` line, a `tab` (`"basic"` or `"advanced"`), an optional `group` heading, a
+`default`, and optionally `devices` (show the row only on `"phone"`, `"tablet"` or `"desktop"`; the value is kept everywhere).
+
+| `kind` | Value | Drawn as | Its own fields |
+|---|---|---|---|
+| `"toggle"` | `true` or `false` | a switch: the whole row is the key | |
+| `"choice"` | one of `choices[].value` (text or a number) | a row of keys (at most 4 labels of 10 characters), else a drop-down | `choices: [{ value, label }]` (two or more), `display?: "buttons" \| "list"` |
+| `"range"` | a number on a step from `min` to `max` | a slider, its value and unit beside the label | `min`, `max`, `step`, `unit?` (put after the number as written: `"%"`, `" s"`) |
+| `"key"` | a `KeyboardEvent.code` (`"KeyE"`, `"Space"`): the key's place, the same on every layout | a key cap; pressed, it waits for the next key (Escape keeps the old one) | |
+
+A bad def (an empty label, a default that does not fit, a choice with one value) and a key that is there twice throw a `TypeError` or an `Error` when the store is
+made or `add` is called, with what is wrong; nothing of that list is added.
+
+**Defaults for each device.** A default is one value, or one for each device class: `{ phone?, tablet?, desktop?, reducedMotion?, default }`. The class: a coarse
+pointer (a finger) with a screen whose short side is under 600 px is a **phone**, any other coarse pointer a **tablet**, anything else a **desktop**
+(`detectDevice`; pass `device: () => "phone"` to choose it yourself). `reducedMotion` wins while the device asks for less motion
+(`prefers-reduced-motion: reduce`), and the kit follows that setting **live**: a player who never set the option follows the device when it changes.
+`store.redetect()` reads both again (a game that passes its own `reducedMotion` function calls it).
+
+**What the browser keeps.** One `localStorage` key, `n133-options:<game>`, holds **only the values that differ from this device's default**, so a better default you
+ship later reaches every player who never changed that setting. A kept value that no longer fits (the wrong type, out of range, a choice you removed) is dropped
+when it is read, and so is a key that no def has, unless it has a dot: a module's section (`emotes.show`) may be added later, so its kept values wait for it. A
+browser that refuses storage (some private windows) keeps the values for the page. `migrate(stored, storage)` (optional) changes what was kept before it is read:
+a renamed key, or a game's old save under another key (read it when `stored` is empty, then remove it).
+
+**The store** (`createOptions` returns it; no DOM): `get(key)` (throws for an unknown key), `set(key, value)` (a range's number goes to its nearest step inside min
+and max; a wrong type or an unknown choice throws a `TypeError`), `reset(key?)`, `values()`, `defs()`, `def(key)`, `defaultOf(key)`, `isDefault(key?)`,
+`subscribe(fn(key, value))` (returns the call that stops it), `subscribeDefs(fn)`, `add(defs)`, `redetect()`, `game` and `device`. **Two key bindings never share
+a key:** setting one to a key that another has gives the other this one's old key, and both changes are heard.
+
+**The common settings** (`common(...keys)` gives copies; `COMMON_OPTIONS` holds them, to spread and change: `{ ...COMMON_OPTIONS.quality, default: "low" }`). They are
+plain defs: your game does what they say.
+
+| Key | Label | Tab, group | Kind | Default |
+|---|---|---|---|---|
+| `masterVolume` | Volume | Basic, Sound | range 0 to 100, step 5, `%` | 100 |
+| `musicVolume` | Music | Basic, Sound | range 0 to 100, step 5, `%` | 100 |
+| `effectsVolume` | Sound effects | Basic, Sound | range 0 to 100, step 5, `%` | 100 |
+| `cameraSensitivity` | Camera speed | Basic, Camera | range 10 to 100, step 5 | 50 (the game's own speed) |
+| `stickSide` | Move stick | Basic, Controls (a phone and a tablet only) | choice `"left"`, `"right"` | `"left"` |
+| `invertLook` | Invert look | Advanced, Camera | toggle | off |
+| `reducedMotion` | Less motion | Advanced, Comfort | toggle | the device's setting |
+| `quality` | Quality | Advanced, Graphics | choice `"low"`, `"medium"`, `"high"` | `"medium"` on a phone, else `"high"` |
+| `showFps` | Show frame rate | Advanced, Graphics | toggle | off |
+
+A volume's square is a fair loudness curve (`(v / 100) ** 2`: Echo Island's). `keyBinding(action, label, code)` makes a `"key"` def `keys.<action>` in Advanced,
+under "Keys", on a desktop only.
+
+**A section from another module.** A kit module (the emotes) or a part of your game adds its own settings later, beside the others:
+`options.add(optionSection("emotes", defs, "Emotes"))` puts `emotes.` before each key and the group "Emotes" on each def that has none. Its keys are namespaced
+(`emotes.show`), a key that is already there throws at once, a value kept before the section came is read when it comes, and a mounted panel draws the new rows.
+
+**The panel.** `mountOptions(el, store, { title?, key?, onOpen?, onClose?, onRangeDone?, confirm? })` puts a 44 px key (a gear and "Options") in `el`, and a panel: a
+sheet from the bottom on a phone held upright, from the right on a wide or sideways screen, over a scrim (a press on it closes the panel). The two tabs are real tabs
+(the arrow keys, Home and End; one tab alone has no tab bar); each tab draws its rows without a group first, then each group under its heading. **A change applies
+at once** (there is no Save key), and a change from elsewhere shows in place: the rows are drawn once, a slider under a finger is never drawn again, and the panel
+never scrolls back to the top. **Reset to defaults** asks in the panel ("Put every option back to its default?", Reset and Cancel), never in a browser dialog;
+Escape answers the question first, then closes the panel. `key: false` draws no key, for a game that puts "Options" in its own pause menu and calls `open()`;
+the focus goes back where it was. `onOpen` and `onClose` let a game pause under the panel; `onRangeDone(key, value)` hears a slider let go (play a sound at the new
+level). The panel holds the focus while it is open. Every key, switch, choice and slider is 44 px or more, and a row's label is 16 px.
+
+**Light and dark.** The panel follows `data-n133-theme="light" | "dark"` on the page's `<html>` when the page sets it (the admin panel does), else the device's
+`prefers-color-scheme`. Every colour is a variable: `--n133-ink`, `--n133-ink-soft`, `--n133-paper`, `--n133-ground` (the tab bar and a choice's well),
+`--n133-line`, `--n133-gem`, `--n133-gem-dark`, `--n133-on-gem` set the light theme, and each has a `--n133-dark-*` twin; `--n133-radius`, `--n133-font` and
+`--n133-options-z` (default 1100, above the friends panel) too. The stylesheet is scoped under `.n133-options`.
+
+**Less motion in your CSS.** `reflectOptions(store, keys, target?)` keeps each key's value on `<html>` (or `target`) as `data-n133-opt-<key in kebab case>`, and
+returns the call that stops it:
+
+```css
+html[data-n133-opt-reduced-motion="true"] .my-hud * { animation: none !important; transition: none !important; }
+```
 
 ## Moving from the three old packages
 
