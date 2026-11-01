@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 (2026-11-01)
 
 - **An options menu for a game** (`@nano133/nanoterra/options`, `/options/panel` and `/options/style.css`). Wes: "build options menu and emotes in kit"
   (2026-11-01).
