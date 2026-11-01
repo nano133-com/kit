@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.1 (2026-11-01)
 
 - **The words of the shop's sheets and of the player's sign-in sheet are the game's to set** (the coordinator asked for it: Echo Island's move to
   `/shop` waited on it; Wes prefers fewer words). `words` on `mountShop`, `looksView` and `payPanel` (`ShopWords`, defaults `SHOP_WORDS`,

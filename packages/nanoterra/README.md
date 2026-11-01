@@ -1165,7 +1165,7 @@ const player = await signin.open();              // the shop's "sign in first": 
 - The browser remembers, in `localStorage["n133.player-signin.v1:<rpId>"]`, the ids of its passkeys, which were made here and never opened, and the last
   way: no secret and no address.
 
-**Its words.** `words` on `mountPlayerSignin` and `signInView` changes any word of the sheet, for the game's own words or language: the keys
+**Its words** (since 0.9.1). `words` on `mountPlayerSignin` and `signInView` changes any word of the sheet, for the game's own words or language: the keys
 of `PlayerSigninWords` (the defaults are `PLAYER_SIGNIN_WORDS`), any of them, over the defaults. A text with a value in it is a function of that value, and
 `faults` changes the words of any passkey fault (`faultWords(code, rpId, words)` gives them). The wallets' names stay. `refusal(text, status)` turns the
 server's refusals (in English) into the game's words.
@@ -1327,7 +1327,7 @@ const shop = mountShop(document.getElementById("shop")!, {
 - **A shop that is a modal `<dialog>` of the game's own** (its own sheet around `open()`) closes it in its `signIn` hook before it opens the sign-in
   sheet, or the sign-in sheet stays hidden behind it. The game starter's `src/client/main.ts` does this.
 
-**Its words.** `words` on `mountShop` (and on `looksView` and `payPanel`) changes any word of the looks sheet and the pay sheet: the
+**Its words** (since 0.9.1). `words` on `mountShop` (and on `looksView` and `payPanel`) changes any word of the looks sheet and the pay sheet: the
 titles, the lines, every key, the states (waiting, paid, paid late, ended), the refusals (`refusal(text, status)`: the server's words are English) and
 the names for a screen reader. Give the keys of `ShopWords` you want, over the defaults (`SHOP_WORDS`); a text with a value in it is a function of
 that value:
