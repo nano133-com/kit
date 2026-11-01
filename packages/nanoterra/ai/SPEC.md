@@ -2,7 +2,7 @@
 
 Package: `@nano133/nanoterra` (0.1.0 or later). Follow these steps in order. Each step ends with a check. Ask the owner when a step says
 "ask". The package has five parts: the sign-in ticket (`/ticket`), the player's character (`/character`, Three.js), the
-looks ladder (`/looks`), held input that does not stick (`/input`) and the friends list (`/friends`, with its panel). Use only the parts the game needs. It has no network, wallet or Nano code. Read the package README first.
+looks ladder (`/looks`), held input that does not stick (`/input`), the friends list (`/friends`, with its panel) and the options menu (`/options`). Use only the parts the game needs. It has no network, wallet or Nano code. Read the package README first.
 
 ## 0. What the owner decides (ask)
 
@@ -14,6 +14,8 @@ looks ladder (`/looks`), held input that does not stick (`/input`) and the frien
 4. How the game moves the character: speed in metres a second, gravity and jump. The package animates; it does not move the object.
 5. Does the game sell looks? If yes, the game is the seller (its own checkout); see step 7.
 6. The friends list (step 9): Nanoterra's (the default), the game's own, or none. It is the admin's `friends` setting; ask which one the game starts with.
+7. The options menu (step 10): which settings the game can really honour (a game with no music offers no Music slider), and whether the game opens it from its own
+   pause menu or shows the kit's gear key.
 
 **Check:** the owner has named the server (yes or no), the source of the character and the quality.
 
@@ -139,7 +141,30 @@ import "@nano133/nanoterra/friends/style.css";
 in two browsers: one adds the other by name, the other accepts, both show online with their place, an invite shows, a block hides the blocker from the other. With
 `"off"`, no key.
 
-## 10. Do not
+## 10. The options menu (any game with settings)
+
+```ts
+import { common, createOptions, keyBinding, mountOptions, reflectOptions } from "@nano133/nanoterra/options";
+import "@nano133/nanoterra/options/style.css";
+```
+
+- Make ONE store when the game starts: `createOptions({ game, defs })`, with `game` the game's id. Take the common settings the game honours by key
+  (`common("masterVolume", "musicVolume", ...)`) and add the game's own defs (`kind` `"toggle"`, `"choice"`, `"range"` or `"key"`; a short `label`; `tab`
+  `"basic"` for what most players want, `"advanced"` for the rest; a `group`; a `default`, one value or `{ phone?, tablet?, desktop?, reducedMotion?, default }`).
+- Read values with `get(key)` where the game uses them, and apply a change at once in `subscribe((key, value) => ...)`: a volume, the camera speed, the quality.
+  Never keep a second copy of a setting in the game's own storage.
+- `mountOptions(el, store)` for the gear key, or `mountOptions(el, store, { key: false })` and `open()` from the game's pause menu. Pause a free round in
+  `onOpen` and go on in `onClose`.
+- With `reducedMotion`: honour it in the game's code (no shakes, no camera swings, no flashes) and call `reflectOptions(store, ["reducedMotion"])` so the page's
+  CSS can calm its own animations (`html[data-n133-opt-reduced-motion="true"]`).
+- A kit module or a part of the game that comes later adds a section: `store.add(optionSection("name", defs, "Heading"))`. Its keys start with `name.`; never
+  use a key twice (the store throws).
+- Do not use a setting for a game's rules, a score or a payment: a setting only changes how the game looks, sounds and is controlled.
+
+**Check:** change a setting, reload: it holds; set it back: the browser keeps nothing for it (`localStorage["n133-options:<game>"]` has no such key). On a
+phone held upright the panel is a sheet from the bottom, on a desktop a sheet on the right; the tabs work by touch; Reset asks in the panel.
+
+## 11. Do not
 
 - Do not edit the geometry, the skeleton or the toon and ink materials.
 - Do not add the katana, the headband or other brands' art. A game's own worn model goes on a socket (`c.socket("head" | "hand" | "back")` or

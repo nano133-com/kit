@@ -63,8 +63,8 @@ prize. Follow `packages/three/ai/SPEC.md` step by step.
 
 Use it when a game wants the player's Nanoterra identity: a sign-in ticket (a game on a
 **static site**), the player's character in a Three.js scene, or the looks ladder for a game
-that sells looks, or a friends list. One package; the main paths: `/ticket`, `/character` (and `/character/record`
-with no Three.js), `/looks` and `/friends`. Follow `packages/nanoterra/ai/SPEC.md` step by step.
+that sells looks, a friends list, or an options menu. One package; the main paths: `/ticket`, `/character` (and `/character/record`
+with no Three.js), `/looks`, `/friends` and `/options`. Follow `packages/nanoterra/ai/SPEC.md` step by step.
 
 - **The ticket** (`/ticket`): a game with a server uses the code exchange, not this. A ticket
   proves nothing to a server: never give a sale, a prize or a score on it. Ask "Sign in as
@@ -92,6 +92,11 @@ with no Three.js), `/looks` and `/friends`. Follow `packages/nanoterra/ai/SPEC.m
   connection. `where` is plain text that friends see. For `"own"`, the handler's `player(req)` reads the game's
   PLAYER sign-in, never the admin's; call `forget(player)` from "Delete my data"; a store the game writes itself
   passes `friendsStoreConformance` first. Never send a player id to the browser.
+- **The options menu** (`/options`, `/options/panel`): one store a game, `createOptions({ game, defs })`; offer only the settings the game
+  really honours (`common(...)` and its own defs). Read with `get` and apply in `subscribe`; never keep a second copy in the game's own
+  storage. The panel asks in itself, never with a browser dialog. A module's section goes in with `add(optionSection(name, defs))`: its
+  keys start with `name.`, and a key used twice throws. Honour "Less motion" in the game's code, and `reflectOptions` it for the CSS.
+  A setting never changes a rule, a score or a payment.
 
 ## Working in this repository
 
