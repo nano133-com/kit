@@ -40,6 +40,7 @@
   - **Multiplayer:** `onEmote({ id, loop, at, again })` (a loop again every 10 s, `LOOP_AGAIN_MS`), `onStop({ id, at, why })`, and the message
     `emoteMessage(e)` = `{ emote: id }`, read back with `readEmoteMessage`. The kit has no network.
   - **Options:** `EMOTE_OPTIONS` for `/options`: "Show the Emotes key", "Show other players' emotes" and the wheel's key (`keys.emotes`, B).
+  - **Licence:** the clips and the icons picture are part of the package and under its MIT licence (Wes, 2026-11-01).
 - **The admin's Game card: "Allow Nanoterra emotes"** (`emotes`: `"on"` by default, or `"off"`), kept as `setting:emotes` by the memory, D1 and Firestore stores
   (a fourth setting; the store contract has a case for it). `GameState.emotes`, `DEFAULT_EMOTES`, `isEmotes`; the Overview shows it.
 

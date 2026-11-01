@@ -153,6 +153,8 @@
   font: 700 11px/1.05 var(--font);
   cursor: pointer;
   touch-action: none;
+  /* Over the middle disc, so a place's corner key is never under it. */
+  z-index: 1;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -196,7 +198,7 @@
   opacity: 0.55;
 }
 
-/* A place's key (1 to 8): only where there is a keyboard and a mouse. */
+/* A place's key (1 to 8): only where there is a keyboard and a mouse. Edit's × sits in the same corner. */
 .n133-emotes .n133e-num,
 .n133-emotes .n133e-off {
   position: absolute;
@@ -276,8 +278,8 @@
 
 .n133-emotes .n133e-edit[aria-pressed="true"] {
   border-color: var(--gem-dark);
-  background: var(--gem-dark);
-  color: #fff;
+  background: var(--gem);
+  color: var(--on-gem);
 }
 
 .n133-emotes :is(.n133e-key, .n133e-slot, .n133e-edit, .n133e-tile):focus-visible {
@@ -368,8 +370,8 @@
   min-width: 22px;
   height: 22px;
   border-radius: 11px;
-  background: var(--gem-dark);
-  color: #fff;
+  background: var(--gem);
+  color: var(--on-gem);
   font: 700 12px/22px var(--font);
   text-align: center;
 }

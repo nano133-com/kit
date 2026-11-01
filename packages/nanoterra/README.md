@@ -77,9 +77,9 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/friends/conformance` | the friends rules as test cases, for a store a game writes itself (unreleased) | no | n/a |
 | `@nano133/nanoterra/options` | the options store (no DOM), the common settings, `reflectOptions` and the panel's `mountOptions` (unreleased) | no | 2.9 kB (`createOptions` alone), 8.7 kB (all) |
 | `@nano133/nanoterra/options/panel` | the Options key and panel alone, and its stylesheet `@nano133/nanoterra/options/style.css` (unreleased) | no | 2.3 kB of CSS (9.4 kB minified) |
-| `@nano133/nanoterra/emotes` | the emotes' list, the wheel's eight places, the multiplayer message and the player's options: no DOM, no Three.js (unreleased) | no | 1.3 kB |
-| `@nano133/nanoterra/emotes/player` | the emotes on the kit's character: `createEmotes`, `playRemote`, `loadEmotes` (unreleased) | yes | 2.8 kB; the clips load on the first emote, a chunk of their own: 84 kB, 18.8 kB gzip |
-| `@nano133/nanoterra/emotes/wheel` | the Emotes key and the emote wheel: `mountEmotes`, and its stylesheet `@nano133/nanoterra/emotes/style.css` (unreleased) | no | 5.6 kB + 7.4 kB of CSS (minified); the pictures (`/emotes/icons.webp`, 34 kB) load when the wheel first opens |
+| `@nano133/nanoterra/emotes` | the emotes' list, the wheel's eight places, the multiplayer message and the player's options: no DOM, no Three.js (unreleased) | no | 1.4 kB |
+| `@nano133/nanoterra/emotes/player` | the emotes on the kit's character: `createEmotes`, `playRemote`, `loadEmotes` (unreleased) | yes | 2.9 kB; the clips load on the first emote, a chunk of their own: 84 kB, 18.8 kB gzip |
+| `@nano133/nanoterra/emotes/wheel` | the Emotes key and the emote wheel: `mountEmotes`, and its stylesheet `@nano133/nanoterra/emotes/style.css` (unreleased) | no | 5.9 kB + 7.4 kB of CSS (minified); the pictures (`/emotes/icons.webp`, 34 kB) load when the wheel first opens |
 
 Measured 2026-10-26 (the friends paths 2026-10-30, the options and the emotes paths 2026-11-01): `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
 All four paths together: 23.6 kB. A test of the package proves that the record, the ticket, the looks and the small part import no package at all.
@@ -994,6 +994,8 @@ middle disc with the name of the place under the finger and **Edit**.
   there is no key. `keys: false` turns B and 1 to 8 off. `theme`: `"light"`, `"dark"` or `"device"` (the default: the page's `data-n133-theme`, which the admin
   panel sets too, else `prefers-color-scheme`). It returns `open()`, `close()`, `isOpen`, `slots` and `destroy()`.
 - Theme it with the same `--n133-*` properties as the admin panel (and their `--n133-dark-*` twins), and `--n133-emotes-z` for its z-index (default 1000).
+
+The clips and the icons are part of the package and under its MIT licence.
 
 **The admin's switch.** The Game card has **"Allow Nanoterra emotes"** (`emotes` in the settings: `"on"`, the default, or `"off"`). Read it with
 `loadGameSettings` and pass it to the wheel as `nanoterraEmotes`. When it is off, also do not call `playRemote` and do not send the player's emotes: the game shows no
