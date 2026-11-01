@@ -6,7 +6,8 @@ import * as THREE from "three";
 import { Window } from "happy-dom";
 import { BONES, createCharacter, type Character, type Motion } from "../src/character/index.js";
 import CLIPS from "../src/emotes/clips.js";
-import { DEFAULT_WHEEL, EMOTES, EMOTE_OPTIONS, WHEEL_FULL, createWheel, defaultWheel, emoteMessage, isClip, readEmoteMessage, readEmoteOptions, readWheel, toggleSlot, wheelKey } from "../src/emotes/index.js";
+import { createOptions, keyBinding, optionSection } from "../src/options/index.js";
+import { DEFAULT_WHEEL, EMOTES, EMOTE_KEY_OPTION, EMOTE_OPTIONS, EMOTE_OPTION_DEFS, WHEEL_FULL, createWheel, defaultWheel, emoteMessage, isClip, readEmoteMessage, readEmoteOptions, readWheel, toggleSlot, wheelKey } from "../src/emotes/index.js";
 import { createEmotes, emoteClip, FADE_STOP, loadEmotes, playRemote, stopEmote } from "../src/emotes/player.js";
 import { placeAt } from "../src/emotes/panel/mount.js";
 
@@ -160,13 +161,23 @@ test("a remote player's emote: an unknown id, a number or a bad message is ignor
 });
 
 test("the options: with no store, or a store without the keys, everything is on; emotes.others off ignores the others' emotes", () => {
-  assert.deepEqual(readEmoteOptions(null), { show: true, others: true });
-  assert.deepEqual(readEmoteOptions({ get: () => { throw new Error("no such key"); } }), { show: true, others: true });
-  const off = { get: (k: string) => (k === "emotes.others" ? false : true) };
-  assert.deepEqual(readEmoteOptions(off), { show: true, others: false });
+  assert.deepEqual(readEmoteOptions(null), { show: true, others: true, key: "KeyB" });
+  assert.deepEqual(readEmoteOptions({ get: () => { throw new Error("no such key"); } }), { show: true, others: true, key: "KeyB" });
+  const off = { get: <T,>(k: string) => (k === "emotes.others" ? false : k === "keys.emotes" ? "KeyE" : true) as T };
+  assert.deepEqual(readEmoteOptions(off), { show: true, others: false, key: "KeyE" });
   const c = createCharacter();
   assert.equal(playRemote(c, { id: "dance" }, { options: off }), false);
-  assert.deepEqual(EMOTE_OPTIONS.map((d) => [d.key, d.kind, d.tab, d.default]), [["emotes.show", "toggle", "basic", true], ["emotes.others", "toggle", "advanced", true]]);
+  assert.deepEqual(EMOTE_OPTIONS.map((d) => [d.key, d.kind, d.tab, d.default]), [["emotes.show", "toggle", "basic", true], ["emotes.others", "toggle", "advanced", true], ["keys.emotes", "key", "advanced", "KeyB"]]);
+  // The real options store takes them, either way the README gives, and the wheel's key is the options' own keyBinding.
+  const store = createOptions({ game: "g", storage: null, defs: [...EMOTE_OPTIONS] });
+  assert.equal(store.get("emotes.show"), true);
+  store.set("emotes.others", false);
+  assert.equal(readEmoteOptions(store).others, false);
+  const later = createOptions({ game: "g", storage: null, defs: [] });
+  later.add(optionSection("emotes", EMOTE_OPTION_DEFS, "Emotes"));
+  later.add([EMOTE_KEY_OPTION]);
+  assert.deepEqual(later.defs().map((d) => d.key), ["emotes.show", "emotes.others", "keys.emotes"]);
+  assert.deepEqual(EMOTE_KEY_OPTION, keyBinding("emotes", "Emotes wheel", "KeyB"));
   c.dispose();
 });
 
@@ -312,5 +323,17 @@ test("the panel: Nanoterra's emotes off leaves only the game's own; nothing left
   assert.equal(nano.isOpen, false);
   assert.deepEqual(played, ["flip", "cheer"]);
   nano.destroy();
+  // The player's own key from the options ("keys.emotes"), and "Show the Emotes key" off hides the key, live.
+  const store = createOptions({ game: "g", storage: null, defs: [...EMOTE_OPTIONS] });
+  store.set("keys.emotes", "KeyE");
+  const keyed = mountEmotes(root, { game: "g", onPlay() {}, storage: null, options: store });
+  win.document.dispatchEvent(new win.KeyboardEvent("keydown", { key: "b", code: "KeyB" }));
+  assert.equal(keyed.isOpen, false);
+  win.document.dispatchEvent(new win.KeyboardEvent("keydown", { key: "e", code: "KeyE" }));
+  assert.equal(keyed.isOpen, true);
+  assert.equal((root.querySelector(".n133e-key") as HTMLElement).hidden, false);
+  store.set("emotes.show", false);
+  assert.equal((root.querySelector(".n133e-key") as HTMLElement).hidden, true);
+  keyed.destroy();
   assert.equal(root.childElementCount, 0);
 });

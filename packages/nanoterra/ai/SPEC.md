@@ -2,7 +2,7 @@
 
 Package: `@nano133/nanoterra` (0.1.0 or later). Follow these steps in order. Each step ends with a check. Ask the owner when a step says
 "ask". The package has five parts: the sign-in ticket (`/ticket`), the player's character (`/character`, Three.js), the
-looks ladder (`/looks`), held input that does not stick (`/input`), the friends list (`/friends`, with its panel) and the options menu (`/options`). Use only the parts the game needs. It has no network, wallet or Nano code. Read the package README first.
+looks ladder (`/looks`), held input that does not stick (`/input`), the friends list (`/friends`, with its panel), the options menu (`/options`) and the emotes (`/emotes`, with the wheel). Use only the parts the game needs. It has no network, wallet or Nano code. Read the package README first.
 
 ## 0. What the owner decides (ask)
 
@@ -164,7 +164,31 @@ import "@nano133/nanoterra/options/style.css";
 **Check:** change a setting, reload: it holds; set it back: the browser keeps nothing for it (`localStorage["n133-options:<game>"]` has no such key). On a
 phone held upright the panel is a sheet from the bottom, on a desktop a sheet on the right; the tabs work by touch; Reset asks in the panel.
 
-## 11. Do not
+## 11. Emotes (any game with the kit's character, or its own animations; the admin's `emotes` setting)
+
+```ts
+import { createEmotes, loadEmotes, playRemote } from "@nano133/nanoterra/emotes/player";
+import { emoteMessage, readEmoteMessage, EMOTE_OPTIONS } from "@nano133/nanoterra/emotes";
+import { mountEmotes } from "@nano133/nanoterra/emotes/wheel";
+import "@nano133/nanoterra/emotes/style.css";
+```
+
+- Read `emotes` with `loadGameSettings` (`"on"` by default, or `"off"`) and pass it to the wheel as `nanoterraEmotes`. When it is `"off"`, do not call
+  `playRemote` and do not send the player's emotes. Do not read it in a second place.
+- With the kit's character: `const emotes = createEmotes(hero)` once, and `mountEmotes(el, { game, onPlay: (id) => emotes.play(id), onOpen: () => void
+  loadEmotes() })`. Change nothing in the frame loop: `hero.update(dt, motion)` plays the emote. Never import the clips yourself: `loadEmotes` loads them.
+- With the game's own animations: `mountEmotes(el, { game, emotes: [{ id, label, icon? }, ...], onPlay })`; Nanoterra's ids may be in the same list.
+- Multiplayer: send `emoteMessage(e)` from `onEmote` (a loop fires again every 10 s: send it again); on the other side, `readEmoteMessage(m)` and
+  `playRemote(characterOf(sender), { id })`, which ignores an id that is not an emote. Nothing to send when the player moves: the move ends it everywhere.
+  A server that relays emotes checks the id against the list (`EMOTES`) and drops any other.
+- With an options menu (step 10): add `EMOTE_OPTIONS` to the store and pass the store as `options` to `mountEmotes` and `playRemote`.
+- A game with water calls `emotes.stop()` (or `stopEmote(character)`) when a character goes in: the kit's pose does not swim.
+
+**Check:** the network tab shows no `clips` chunk and no `icons` picture before the wheel first opens. On a phone held upright: a tap on Emotes opens the wheel in
+the middle; a hold on the key and a slide onto a place plays it; Edit refuses a ninth with "Your wheel is full. Take one off first."; the wheel holds after a
+reload. A walk ends Dance; Clap goes on over the walk. On a keyboard: B opens it, 2 plays the second place, Escape closes it.
+
+## 12. Do not
 
 - Do not edit the geometry, the skeleton or the toon and ink materials.
 - Do not add the katana, the headband or other brands' art. A game's own worn model goes on a socket (`c.socket("head" | "hand" | "back")` or

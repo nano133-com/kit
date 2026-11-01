@@ -25,6 +25,24 @@
     a slider is let go).
 - The admin panel's icons have a `gear`.
 
+- **Emotes for a game** (`@nano133/nanoterra/emotes`, `/emotes/player`, `/emotes/wheel`, `/emotes/style.css` and `/emotes/icons.webp`). Wes: "build options
+  menu and emotes in kit" (2026-11-01). Nano Island's eleven emotes, the same as nano133.com's (2026-10-30):
+  - **The clips** (`/emotes/player`): the Wave is the character's own `wave()`; Cheer, Clap, Dance, Bow, Shrug, Laugh, Point, Sit, Facepalm and Spin are the
+    island's Blender clips, made on this package's skeleton. `createEmotes(character, { onEmote, onStop })` gives `play(id)`, `stop()` and `playing`. A clip is a
+    layer over the character's pose: `update` solves the walk, the clip blends over it, then the tail, the wings and the hair follow, so the frame loop does not
+    change. The island's rules: fades of 0.12 s in, 0.22 s out at the end and 0.18 s on a stop; a whole-body clip stops on a move or a jump, an upper-body one
+    (Clap, Shrug, Point, Facepalm) plays over the walk; Dance and Sit loop until a move; reduced motion holds one frame. `playRemote(character, { id, at? })`
+    plays another player's emote and ignores an id that is not one; `stopEmote(character)`. The clips (84 kB, 18.8 kB gzip) load on the first emote
+    (`loadEmotes`, a dynamic `import()`, so a chunk of their own).
+  - **The wheel** (`/emotes/wheel`): `mountEmotes(el, { game, onPlay })`, the island's wheel in plain DOM: an Emotes key, the wheel in the middle over a dim
+    page, eight places, a tap or a hold-and-slide, Edit ("Your wheel is full. Take one off first."), B and 1 to 8, Escape; kept per game in this browser
+    (`n133-emotes:<game>`). Nanoterra's emotes, the game's own (`{ id, label, icon? }`), or both. Light and dark. The pictures load when it first opens.
+  - **Multiplayer:** `onEmote({ id, loop, at, again })` (a loop again every 10 s, `LOOP_AGAIN_MS`), `onStop({ id, at, why })`, and the message
+    `emoteMessage(e)` = `{ emote: id }`, read back with `readEmoteMessage`. The kit has no network.
+  - **Options:** `EMOTE_OPTIONS` for `/options`: "Show the Emotes key", "Show other players' emotes" and the wheel's key (`keys.emotes`, B).
+- **The admin's Game card: "Allow Nanoterra emotes"** (`emotes`: `"on"` by default, or `"off"`), kept as `setting:emotes` by the memory, D1 and Firestore stores
+  (a fourth setting; the store contract has a case for it). `GameState.emotes`, `DEFAULT_EMOTES`, `isEmotes`; the Overview shows it.
+
 ## 0.7.1 (2026-10-31)
 
 - **Friends: the panel asks in the panel, never in a browser dialog.** Remove, Block and Join (both modes) showed `window.confirm`; now the question and a key for

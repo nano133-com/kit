@@ -1,37 +1,43 @@
-// The player's two emote settings, for the options menu ("@nano133/nanoterra/options"): add them to the game's store and the menu shows them under
-// "Emotes". The wheel and the player read them from a store that is passed; with no store (or a store without them) everything is on.
+// The player's emote settings, for the options menu ("@nano133/nanoterra/options"): two toggles under "Emotes" and the wheel's key under "Keys". Add them
+// to the game's store and the menu shows them (an open panel draws them at once). The wheel and the player read them from a store that is passed; with no
+// store (or a store without them) both toggles are on and the key is B.
 //
 //   const options = createOptions({ game: "my-game", defs: [...myDefs, ...EMOTE_OPTIONS] });
+//   // or later: options.add(optionSection("emotes", EMOTE_OPTION_DEFS, "Emotes")), and options.add([EMOTE_KEY_OPTION])
 //   mountEmotes(el, { game: "my-game", onPlay, options });
 //   playRemote(other, { id }, { options });
 //
-// The def's shape is the options module's toggle (`ToggleDef`, kind "toggle"), written here so this path does not load the options code.
+// Only the options module's TYPES are imported (from its store's own file): this path loads none of its code.
 
-/** A toggle of the options menu, as "@nano133/nanoterra/options" defines it (`ToggleDef`). */
-export type EmoteOptionDef = { kind: "toggle"; key: string; label: string; help?: string; tab: "basic" | "advanced"; group?: string; default: boolean };
+import type { KeyDef, OptionsStore, ToggleDef } from "../options/core.js";
 
-export const EMOTE_OPTIONS: readonly EmoteOptionDef[] = [
-  { kind: "toggle", key: "emotes.show", label: "Show the Emotes key", help: "B still opens the wheel on a keyboard", tab: "basic", group: "Emotes", default: true },
-  { kind: "toggle", key: "emotes.others", label: "Show other players' emotes", tab: "advanced", group: "Emotes", default: true },
+/** The two toggles with their short keys, for `optionSection("emotes", EMOTE_OPTION_DEFS, "Emotes")` (the keys become "emotes.show" and "emotes.others"). */
+export const EMOTE_OPTION_DEFS: readonly ToggleDef[] = [
+  { kind: "toggle", key: "show", label: "Show the Emotes key", help: "B still opens the wheel on a keyboard", tab: "basic", default: true },
+  { kind: "toggle", key: "others", label: "Show other players' emotes", tab: "advanced", default: true },
 ];
 
-/** What the emotes read of an options store: `get` and, to follow a change, `subscribe`. The options module's `OptionsStore` fits. */
-export type EmoteOptionsStore = {
-  get(key: string): unknown;
-  subscribe?(fn: (key: string, value: unknown) => void): () => void;
-};
+/** The wheel's key on a keyboard ("keys.emotes", B; shown on a desktop only): what `keyBinding("emotes", "Emotes wheel", "KeyB")` makes. */
+export const EMOTE_KEY_OPTION: KeyDef = { kind: "key", key: "keys.emotes", label: "Emotes wheel", tab: "advanced", group: "Keys", default: "KeyB", devices: ["desktop"] };
 
-export type EmoteSettings = { show: boolean; others: boolean };
+/** Every emote setting with its whole key, ready for `createOptions({ defs })` or `store.add(...)`: "emotes.show", "emotes.others" and "keys.emotes". */
+export const EMOTE_OPTIONS: readonly (ToggleDef | KeyDef)[] = [...EMOTE_OPTION_DEFS.map((d) => ({ ...d, key: `emotes.${d.key}`, group: "Emotes" })), EMOTE_KEY_OPTION];
 
-/** The two settings from a store: a store that is missing, a key it does not have (it throws) or a value that is not false reads on. */
+/** What the emotes read of an options store: `get` and, to follow a change, `subscribe`. The options module's `OptionsStore` is one. */
+export type EmoteOptionsStore = Pick<OptionsStore, "get"> & Partial<Pick<OptionsStore, "subscribe">>;
+
+export type EmoteSettings = { show: boolean; others: boolean; key: string };
+
+/** The settings from a store: a store that is missing or a key it does not have (it throws) reads on, and B. */
 export function readEmoteOptions(store: EmoteOptionsStore | null | undefined): EmoteSettings {
-  const on = (key: string) => {
-    if (!store) return true;
+  const read = (key: string): unknown => {
+    if (!store) return undefined;
     try {
-      return store.get(key) !== false;
+      return store.get(key);
     } catch {
-      return true;
+      return undefined;
     }
   };
-  return { show: on("emotes.show"), others: on("emotes.others") };
+  const key = read(EMOTE_KEY_OPTION.key);
+  return { show: read("emotes.show") !== false, others: read("emotes.others") !== false, key: typeof key === "string" && key ? key : "KeyB" };
 }

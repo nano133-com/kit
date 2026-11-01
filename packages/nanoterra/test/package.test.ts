@@ -181,7 +181,7 @@ test("the built paths load, and the ones that must not load Three.js do not (a l
     ["friends/adapters/firestore.js", "if (typeof m.createFirestoreFriends !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     // The options path loads in Node with no DOM (the panel builds its elements only when mounted), and its store works there.
     ["options/index.js", "if (typeof m.createOptions !== 'function' || typeof m.mountOptions !== 'function' || typeof m.common !== 'function') throw new Error('missing'); const o = m.createOptions({ game: 'g', storage: null, defs: m.common('musicVolume') }); o.set('musicVolume', 42); if (o.get('musicVolume') !== 40) throw new Error('snap'); process.stdout.write('ok')"],
-    ["emotes/index.js", "if (m.EMOTES.length !== 11 || typeof m.createWheel !== 'function' || m.EMOTE_OPTIONS.length !== 2) throw new Error('missing'); process.stdout.write('ok')"],
+    ["emotes/index.js", "if (m.EMOTES.length !== 11 || typeof m.createWheel !== 'function' || m.EMOTE_OPTIONS.length !== 3) throw new Error('missing'); process.stdout.write('ok')"],
     ["emotes/panel/index.js", "if (typeof m.mountEmotes !== 'function' || !m.EMOTE_ICONS_URL.endsWith('/src/emotes/icons.webp')) throw new Error('missing'); process.stdout.write('ok')"],
   ];
   for (const [entry, code] of probes) {

@@ -12,5 +12,5 @@ export { DEFAULT_WHEEL, WHEEL_FULL, WHEEL_SLOTS, createWheel, defaultWheel, read
 export type { Slots, Wheel, WheelOptions } from "./wheel.js";
 export { LOOP_AGAIN_MS, emoteMessage, readEmoteMessage } from "./events.js";
 export type { EmoteEvent, EmoteMessage, EmoteStop } from "./events.js";
-export { EMOTE_OPTIONS, readEmoteOptions } from "./options.js";
-export type { EmoteOptionDef, EmoteOptionsStore, EmoteSettings } from "./options.js";
+export { EMOTE_KEY_OPTION, EMOTE_OPTIONS, EMOTE_OPTION_DEFS, readEmoteOptions } from "./options.js";
+export type { EmoteOptionsStore, EmoteSettings } from "./options.js";

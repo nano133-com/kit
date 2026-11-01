@@ -33,11 +33,11 @@ export type EmotesMountOptions = {
   nanoterraEmotes?: "on" | "off";
   /** The eight places before the player changes them (ids, or null for an empty place). Default: the island's wheel, or the list's first eight. */
   defaults?: readonly (string | null)[];
-  /** The options menu's store: `emotes.show` off hides the key (B still opens the wheel). Left out: the key shows. */
+  /** The options menu's store: `emotes.show` off hides the key (B still opens the wheel); `keys.emotes` is the wheel's key. Left out: the key shows, and B. */
   options?: EmoteOptionsStore | null;
   /** The address of Nanoterra's picture strip. Default: the package's icons.webp (see the README for bundlers). */
   icons?: string;
-  /** B opens and closes the wheel, and 1 to 8 play its places. Default true. */
+  /** B (or the player's own key: the options' "keys.emotes") opens and closes the wheel, and 1 to 8 play its places. Default true. */
   keys?: boolean;
   /** Asked before B opens or closes the wheel: false when the game uses the key now (a dialog of its own, B bound to an action). */
   keyAllowed?: (e: KeyboardEvent) => boolean;
@@ -136,7 +136,7 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
   };
   const labelOf = (id: string) => byId.get(id)?.label ?? id;
 
-  const key = h("button", { class: "n133e-key", type: "button", "aria-expanded": "false", "aria-haspopup": "dialog", "aria-controls": `n133e-wheel-${n}`, "aria-keyshortcuts": keys ? "B" : undefined }, icon("smile", 20), h("span", {}, "Emotes"));
+  const key = h("button", { class: "n133e-key", type: "button", "aria-expanded": "false", "aria-haspopup": "dialog", "aria-controls": `n133e-wheel-${n}` }, icon("smile", 20), h("span", {}, "Emotes"));
   const hubName = h("span", { class: "n133e-hub-name", "aria-live": "polite" });
   const editKey = h("button", { class: "n133e-edit", type: "button", "aria-pressed": "false" }, "Edit");
   const slotKeys = AT.map((p, i) => {
@@ -180,13 +180,17 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
   media?.addEventListener?.("change", drawTheme);
   cleanup.push(() => media?.removeEventListener?.("change", drawTheme));
 
-  // The options: `emotes.show` off hides the key.
+  // The options: `emotes.show` off hides the key; `keys.emotes` is the key that opens the wheel (B unless the player changed it).
+  let openCode = "KeyB";
   const drawShow = () => {
-    key.hidden = !readEmoteOptions(options.options).show;
+    const o = readEmoteOptions(options.options);
+    key.hidden = !o.show;
+    openCode = o.key;
+    if (keys) key.setAttribute("aria-keyshortcuts", openCode.replace(/^(Key|Digit)/, ""));
   };
   drawShow();
   const unOptions = options.options?.subscribe?.((k) => {
-    if (k === "emotes.show") drawShow();
+    if (k === "emotes.show" || k === "keys.emotes") drawShow();
   });
   if (unOptions) cleanup.push(unOptions);
 
@@ -350,7 +354,7 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
       return;
     }
     if (!keys || e.repeat || e.ctrlKey || e.metaKey || e.altKey || inField(e.target)) return;
-    if (e.code === "KeyB") {
+    if (e.code === openCode) {
       if (options.keyAllowed && !options.keyAllowed(e)) return;
       e.preventDefault();
       if (isOpen) close(true);

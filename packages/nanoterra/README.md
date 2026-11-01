@@ -12,6 +12,7 @@ themselves. This package gives your game these things:
 - **Held input that does not stick** (`/input`, since 0.3.1): lets go of the keys and the stick when the player leaves the page, so the character never walks on by itself, and pauses a free round.
 - **A friends list** (`/friends`, unreleased): a Friends key that holds the player's Nanoterra friends (a nano133 window), or a full friends list of the game's own players on the game's own database, as the admin's Game card chooses.
 - **An options menu** (`/options`, unreleased): the game's settings as data, with defaults for each device, kept in the player's browser, and a ready Options key and panel (Basic and Advanced); common settings to opt into, and a section another module adds.
+- **Emotes** (`/emotes`, unreleased): Nano Island's eleven emotes on the player's character (the Wave, Cheer, Clap, Dance and seven more, made in Blender), and the emote wheel of eight that the player picks, which also plays a game's own animations.
 
 It replaces `@nano133/character` 0.1.0, `@nano133/ticket` 0.1.0 and `@nano133/looks` 0.1.0
 (see "Moving from the three old packages"). Sign-in, checkout and late returns stay in their own packages
@@ -76,8 +77,11 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/friends/conformance` | the friends rules as test cases, for a store a game writes itself (unreleased) | no | n/a |
 | `@nano133/nanoterra/options` | the options store (no DOM), the common settings, `reflectOptions` and the panel's `mountOptions` (unreleased) | no | 2.9 kB (`createOptions` alone), 8.7 kB (all) |
 | `@nano133/nanoterra/options/panel` | the Options key and panel alone, and its stylesheet `@nano133/nanoterra/options/style.css` (unreleased) | no | 2.3 kB of CSS (9.4 kB minified) |
+| `@nano133/nanoterra/emotes` | the emotes' list, the wheel's eight places, the multiplayer message and the player's options: no DOM, no Three.js (unreleased) | no | 1.3 kB |
+| `@nano133/nanoterra/emotes/player` | the emotes on the kit's character: `createEmotes`, `playRemote`, `loadEmotes` (unreleased) | yes | 2.8 kB; the clips load on the first emote, a chunk of their own: 84 kB, 18.8 kB gzip |
+| `@nano133/nanoterra/emotes/wheel` | the Emotes key and the emote wheel: `mountEmotes`, and its stylesheet `@nano133/nanoterra/emotes/style.css` (unreleased) | no | 5.6 kB + 7.4 kB of CSS (minified); the pictures (`/emotes/icons.webp`, 34 kB) load when the wheel first opens |
 
-Measured 2026-10-26 (the friends paths 2026-10-30, the options paths 2026-11-01): `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
+Measured 2026-10-26 (the friends paths 2026-10-30, the options and the emotes paths 2026-11-01): `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
 All four paths together: 23.6 kB. A test of the package proves that the record, the ticket, the looks and the small part import no package at all.
 
 ## The character
@@ -488,7 +492,7 @@ import { createAdminHandler } from "@nano133/nanoterra/admin";
 
 const admin = createAdminHandler({
   store,                                   // your database: readSettings(), saveSettings(patch, now), summary(now)  (a memory store is in the package, for tests)
-  defaults: { character: "nanoterra", signin: "exchange", friends: "nanoterra" },   // what the switches are until /admin sets them (your game.config.json; friends may be left out)
+  defaults: { character: "nanoterra", signin: "exchange", friends: "nanoterra", emotes: "on" },   // what the switches are until /admin sets them (your game.config.json; friends and emotes may be left out)
   owner: ownerAddress,                     // "nano_..." lowercase, its checksum checked by you; null when none is set
   session: (req, now) => readAdminSession(req, now),          // YOUR admin login: its own cookie; return { address, createdAt, via: "wallet" } or null
   status: (now, summary) => ({ address: ownerAddress, testMode, warnings }),   // what only your game knows (the store's numbers come too, for a warning like "2 payments came late")
@@ -514,9 +518,9 @@ neither header (curl) and the browser's own address bar (`Sec-Fetch-Site: none`)
 **The handler** sends every request under the base path (`/api/admin` by default) through the guard first, before the route is looked up: a visitor who is not the owner
 gets 401 or 403 for any path, so nothing about the routes leaks. A POST must come from the game's own page (`Origin`, else `Sec-Fetch-Site: same-origin`). It sets no CORS
 header, always sends `Cache-Control: no-store`, reads at most 512 bytes of a press, and limits presses to 30 a minute. A fault in your store gives a plain 500 that shows
-nothing of the fault (`onError` hears it). The only writes are the three settings (and, when the game turns on the sign-in list, the deletion of the admin sessions), **never a look, a price or an order**: a change of looks stays a change of your repository.
+nothing of the fault (`onError` hears it). The only writes are the four settings (and, when the game turns on the sign-in list, the deletion of the admin sessions), **never a look, a price or an order**: a change of looks stays a change of your repository.
 
-**Your own routes read the switches** with `loadGameSettings(store, defaults)` (for the listing file's `signin` word and for the character): the stored word, else your default,
+**Your own routes read the switches** with `loadGameSettings(store, defaults)` (for the listing file's `signin` word, the character, the friends list and the emotes): the stored word, else your default,
 and your defaults when the store fails.
 
 **The conformance suite** proves your whole chain, not only the guard: the cookie you read, the session lookup, the owner you pass.
@@ -562,8 +566,8 @@ admin may make an admin login, and never from another sign-in. A security read f
 
 ### The store (an adapter for your database)
 
-`createAdminHandler` needs a store: three calls, `readSettings()`, `saveSettings(patch, now)` and `summary(now)`. Two adapters come with the package, and **both write only the three settings** (the D1 store also deletes the admin sessions, but only when the game turns on the sign-in list: see below)
-(`setting:character`, `setting:signin` and `setting:friends`); every other call they make is a read. Both must pass the same **store contract**, `adminStoreConformance(make)` in
+`createAdminHandler` needs a store: three calls, `readSettings()`, `saveSettings(patch, now)` and `summary(now)`. Two adapters come with the package, and **both write only the four settings** (the D1 store also deletes the admin sessions, but only when the game turns on the sign-in list: see below)
+(`setting:character`, `setting:signin`, `setting:friends` and `setting:emotes`); every other call they make is a read. Both must pass the same **store contract**, `adminStoreConformance(make)` in
 `@nano133/nanoterra/admin/conformance`: the settings are kept and accumulate, saving changes no order, no owned look and no other row, an open order past its expiry counts as expired,
 the money is totalled right, the newest 500 orders come first, and a bad rate row is ignored. A game with another database writes its own store and runs the same contract.
 
@@ -625,7 +629,7 @@ status warnings, one banner); four numbers (Earned, Open now, To send back, Play
 looks with their share of the money, the last five orders, the switches as On or Off (and the friends list's choice) and the shelf in numbers (a game with no order yet gets three first steps).
 **Cosmetics**: the **Shelf** (below). **Orders**: a filter by status with its count, a search (a look, an address or a block), "Check payments now" when the game gave a
 check, "Paid late" with the address to send the money back to, 20 orders at a time; a card each on a phone, a table on a wide panel. **Players**: each player who owns a
-look, with their looks. **Settings**: the **Game** card (the two switches and the friends list's three-way choice), the Sign-ins card and the facts (the address, the mode, the nodes, the last price). The tabs are
+look, with their looks. **Settings**: the **Game** card (the character and sign-in switches, the friends list's three-way choice and "Allow Nanoterra emotes"), the Sign-ins card and the facts (the address, the mode, the nodes, the last price). The tabs are
 real tabs (the arrow keys, Home and End work); every tab is made once, so a draft, a search and a switch keep their state, and the panel never writes the page's address.
 A visitor who is signed out gets the game's sign-in; a wrong wallet, a Nanoterra sign-in and a missing owner address each get their own screen and see no data (a sign-out
 takes the drawn data off the page). Options: `api` (the handler's base path), `noAddressHelp`, `lookPicture(look)` (your own picture of a look for the Shelf), `repoHelp`,
@@ -919,6 +923,93 @@ returns the call that stops it:
 html[data-n133-opt-reduced-motion="true"] .my-hud * { animation: none !important; transition: none !important; }
 ```
 
+## Emotes (`/emotes`; unreleased)
+
+Nano Island's emotes for a game: the same eleven, on the same character, with the same wheel. **The Wave** is the character's own `wave()`; **Cheer, Clap,
+Dance, Bow, Shrug, Laugh, Point, Sit, Facepalm and Spin** are clips made in Blender on the character's own skeleton (the island makes them from this package's
+`BONES`), so they fit every base. The wheel also plays **a game's own animations**: give it your list and an `onPlay`.
+
+```ts
+import { createEmotes, loadEmotes, playRemote } from "@nano133/nanoterra/emotes/player";
+import { emoteMessage, readEmoteMessage } from "@nano133/nanoterra/emotes";
+import { mountEmotes } from "@nano133/nanoterra/emotes/wheel";
+import "@nano133/nanoterra/emotes/style.css";
+
+const emotes = createEmotes(hero, { onEmote: (e) => net.send(emoteMessage(e)) });  // hero: createCharacter(...); onEmote only for a multiplayer game
+const wheel = mountEmotes(document.getElementById("emotes")!, {
+  game: "my-game",                       // the wheel's places are kept per game, in this browser
+  onPlay: (id) => emotes.play(id),       // the player picked one
+  onOpen: () => void loadEmotes(),       // the clips load when the wheel first opens, not with the game
+  nanoterraEmotes: settings.emotes,      // the admin's "Allow Nanoterra emotes": "on" (the default) or "off"
+});
+// Each frame: nothing new. hero.update(dt, motion) plays the emote over the walk.
+// Another player's emote, from your network:
+net.on("message", (m, from) => { const id = readEmoteMessage(m); if (id) playRemote(characterOf(from), { id }); });
+```
+
+**The clips.** A clip turns each bone from its parent, 30 frames a second, and the hips' place; the game runs no IK for it. It plays as a layer over the
+character's pose: `update` solves the walk, then the clip blends over it (a fade in of 0.12 s, a fade out of 0.22 s at its end), then the tail, the wings and the
+long hair follow. The rules are the island's:
+
+| Emotes | Kind | What stops it |
+|---|---|---|
+| Cheer, Dance, Bow, Laugh, Sit, Spin | the whole body | a move (the pose's speed over 0.4 m/s), a jump, the water, or `stop()`, with a fade of 0.18 s |
+| Clap, Shrug, Point, Facepalm | the spine, the arms and the head: they play over the walk | their end, the water, or `stop()` |
+| Dance, and Sit (its sitting down plays once, then its seated part) | loops | as above: a loop plays until the player moves |
+| The Wave | the character's own wave (1.8 s) | its end |
+
+With `reducedMotion` on the character, an emote shows its one picture (the clip's hold frame) for its time. Point never raises a straight arm: the hand stays
+below the shoulder with the elbow bent (Wes's rule on the island). A clip's time is the sum of the steps `update` took, so a paused game pauses its emotes.
+The kit's pose has no swim: a game with water calls `emotes.stop()` (or `stopEmote(character)`) when a character goes in.
+
+**Loaded only when needed.** The clips (84 kB, 18.8 kB gzip) are in a module that only `import()` reaches (`loadEmotes`), so a bundler puts them in a chunk of
+their own; `onOpen` loads them when the wheel first opens, and a clip that plays before they arrive (another player's) loads them and starts when they come. The
+pictures (`icons.webp`, one strip of eleven 128 px squares, 34 kB) are found with `new URL("…", import.meta.url)` and load when the wheel first shows them. Checked
+on Vite 8 (`vite build`: a `clips-<hash>.js` chunk and an `icons-<hash>.webp` file, neither fetched before the wheel opens; `vite` dev with the package
+pre-bundled: the same) and in plain ESM with an import map. A bundler that does not follow `new URL(…, import.meta.url)` can pass the picture's address itself
+(`icons`), e.g. Vite's `import icons from "@nano133/nanoterra/emotes/icons.webp?url"`.
+
+| Call (`/emotes/player`) | What it does |
+|---|---|
+| `createEmotes(character, { onEmote?, onStop? })` | The local player's emotes. `play(id)` plays a Nanoterra emote (false, and nothing happens, for another id); `stop()` stops the clip with its fade; `playing` is the clip on show or null; `destroy()` stops the events. |
+| `onEmote({ id, loop, at, again })` | The player played an emote; while a loop plays, it fires again every 10 s (`LOOP_AGAIN_MS`) with `again: true`, so a player who comes later sees it. Send `emoteMessage(e)`, which is `{ emote: id }`. |
+| `onStop({ id, at, why })` | The player's clip ended: `"end"`, `"move"` (a move, a jump or the water) or `"stop"`. Nothing to send for a move: the others see the character move, and that ends it on their screens too. Send a stop only for `"stop"`, and call `stopEmote` on their side. |
+| `playRemote(character, { id, at? }, { options? })` | Another player's emote on their character. An id that is not one of the eleven is ignored (false). The same play twice (the same `at`) is one, so you may pass the last one each frame; a loop that is on show goes on through a repeat. `at` is when it came (`performance.now()`; left out: now). |
+| `stopEmote(character)` | Stops any character's clip, with its fade. |
+| `loadEmotes()`, `emotesLoaded()` | Loads the clips (once; a failed load may be tried again), and says whether they are here. |
+
+**The wheel** (`/emotes/wheel`) is nano133's island wheel in plain DOM. `mountEmotes(element, options)` puts an **Emotes** key (44 px) in `element`; a press opens the
+wheel in the middle of the screen over a dim page: eight round places (58 px or more), slot 1 at the top and on clockwise, each the emote's picture and name, and a
+middle disc with the name of the place under the finger and **Edit**.
+
+- A tap on the key opens it and a tap on a place plays it; or a **hold on the key and a slide** onto a place and a let-go plays that one (a slide under 14 px is a tap; a
+  let-go in the middle leaves the wheel open). A press beside the wheel or Escape closes it.
+- On a keyboard **B** opens and closes it (not while a field has the keys, or when your `keyAllowed(e)` says no: B bound to an action, a dialog of your own) and **1 to
+  8** play its places while it is open; the places show their numbers only where there is a mouse.
+- **Edit** shows every emote of the list (it may hold more than eight; it scrolls): a tap puts one on the wheel in its first empty place or takes it off; a ninth says
+  "Your wheel is full. Take one off first."; a tap on a place takes its emote off. The places are kept in this browser per game (`n133-emotes:<game>`); a browser
+  that refuses storage keeps them for the page. Nanoterra's first wheel is the island's: Wave, Cheer, Clap, Dance, Laugh, Point, Sit, Spin.
+- `emotes`: the list, Nanoterra ids (`"dance"`) and your own (`{ id, label, icon? }`, `icon` a square picture's address) in the order Edit shows them; default
+  Nanoterra's eleven. `defaults`: your first wheel. `nanoterraEmotes: "off"` (the admin's switch) leaves Nanoterra's out and keeps yours; with nothing left
+  there is no key. `keys: false` turns B and 1 to 8 off. `theme`: `"light"`, `"dark"` or `"device"` (the default: the page's `data-n133-theme`, which the admin
+  panel sets too, else `prefers-color-scheme`). It returns `open()`, `close()`, `isOpen`, `slots` and `destroy()`.
+- Theme it with the same `--n133-*` properties as the admin panel (and their `--n133-dark-*` twins), and `--n133-emotes-z` for its z-index (default 1000).
+
+**The admin's switch.** The Game card has **"Allow Nanoterra emotes"** (`emotes` in the settings: `"on"`, the default, or `"off"`). Read it with
+`loadGameSettings` and pass it to the wheel as `nanoterraEmotes`. When it is off, also do not call `playRemote` and do not send the player's emotes: the game shows no
+Nanoterra emote. Your own emotes may still use the wheel.
+
+**The player's options.** For the options menu (`/options`), `/emotes` exports three settings: `emotes.show` "Show the Emotes key" (Basic, on),
+`emotes.others` "Show other players' emotes" (Advanced, on) and the wheel's key, `keys.emotes` "Emotes wheel" (Advanced, under Keys, B, a desktop only: what
+`keyBinding("emotes", "Emotes wheel", "KeyB")` makes). `EMOTE_OPTIONS` holds all three with their whole keys, for `createOptions({ defs: [...yours, ...EMOTE_OPTIONS] })`
+or `store.add(EMOTE_OPTIONS)`; `EMOTE_OPTION_DEFS` holds the two toggles with short keys, for `store.add(optionSection("emotes", EMOTE_OPTION_DEFS, "Emotes"))`, and
+`EMOTE_KEY_OPTION` the key. Pass the store as `options` to `mountEmotes` (the key hides, live; B, or the player's own key, still opens the wheel) and to `playRemote`
+(the others' emotes do not play). With no store, both toggles are on and the key is B. `/emotes` imports only the options module's types, none of its code.
+
+**The message on the wire** is yours to carry: one small object, `{ emote: id }`. nano133.com's island is one example, not a rule: its room server takes
+`{ t: "react", k: "dance" }` from a player, checks the id against its own list and sends the others `{ t: "react", id: <player>, k: "dance" }`; an old server that
+does not know an id drops it, and nothing breaks.
+
 ## Moving from the three old packages
 
 | Before | Now |
@@ -937,7 +1028,7 @@ html[data-n133-opt-reduced-motion="true"] .my-hud * { animation: none !important
 - The island's item art (see "Worn things and sockets"): a game brings its own things.
 - A pose for a held thing: the arms swing free, so a two-handed thing (a `grip_L` as well as a `grip_R`) is held in the right hand only.
 - The katana, the saya, the headband and the dojo look of the island's Ananos game. (The skeleton keeps their bones, with no vertices.)
-- First-person arms, swimming, climbing, sitting and the room's other moves: only idle, walk, run, jump and wave.
+- First-person arms, swimming, climbing and the room's other moves: only idle, walk, run, jump and wave, and the emotes (`/emotes`, which sit too).
 - Shared geometry for many characters at once, and a react-three-fiber wrapper.
 - `WebGPURenderer`: the ink is a GLSL `ShaderMaterial`, so use `WebGLRenderer`.
 - Any server or Nano code. This package draws a character and reads a ticket; it moves no money.

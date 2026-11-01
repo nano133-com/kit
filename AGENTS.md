@@ -63,8 +63,8 @@ prize. Follow `packages/three/ai/SPEC.md` step by step.
 
 Use it when a game wants the player's Nanoterra identity: a sign-in ticket (a game on a
 **static site**), the player's character in a Three.js scene, or the looks ladder for a game
-that sells looks, a friends list, or an options menu. One package; the main paths: `/ticket`, `/character` (and `/character/record`
-with no Three.js), `/looks`, `/friends` and `/options`. Follow `packages/nanoterra/ai/SPEC.md` step by step.
+that sells looks, a friends list, an options menu, or emotes. One package; the main paths: `/ticket`, `/character` (and `/character/record`
+with no Three.js), `/looks`, `/friends`, `/options` and `/emotes`. Follow `packages/nanoterra/ai/SPEC.md` step by step.
 
 - **The ticket** (`/ticket`): a game with a server uses the code exchange, not this. A ticket
   proves nothing to a server: never give a sale, a prize or a score on it. Ask "Sign in as
@@ -97,6 +97,11 @@ with no Three.js), `/looks`, `/friends` and `/options`. Follow `packages/nanoter
   storage. The panel asks in itself, never with a browser dialog. A module's section goes in with `add(optionSection(name, defs))`: its
   keys start with `name.`, and a key used twice throws. Honour "Less motion" in the game's code, and `reflectOptions` it for the CSS.
   A setting never changes a rule, a score or a payment.
+- **The emotes** (`/emotes`, `/emotes/player`, `/emotes/wheel`): the admin's `emotes` setting (`"on"` by default) says whether
+  Nanoterra's emotes show; pass it to `mountEmotes` as `nanoterraEmotes`, and with `"off"` neither send nor `playRemote` them.
+  `createEmotes(hero)` once; the frame loop stays `hero.update(dt, motion)`. Load the clips only through `loadEmotes` (the
+  wheel's `onOpen`), never with a static import. Send only `{ emote: id }`; a relay checks the id against `EMOTES`. An emote
+  is display only: never a score, a rule or a payment.
 
 ## Working in this repository
 
