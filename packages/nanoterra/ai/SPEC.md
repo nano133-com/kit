@@ -106,7 +106,7 @@ export const LOOKS = checkLooks(rawLooksJson); // throws with the first mistake 
 ```
 
 - Before a change goes live: `[...lookProblems(next), ...removalProblems(current, next, ownedLookIds)]`; show `diffLooks(current, next)`; write the file with `looksJson(next)`.
-- One free look (`priceUsd: 0`) at least. Never change or remove the id of a look that someone owns. Prices in US dollars with at most 2 decimals; the server reads the price from the file.
+- One free look (`priceUsd: 0`) at least. Never change or remove the id of a look that someone owns. Prices in US dollars with at most 4 decimals (no minimum: 0.005 is half a cent); the server reads the price from the file.
 - A look only changes how the character looks. No random look, no loot box, no look that changes a score.
 - `slots` (optional, at most 8: a name and a word or a `#rrggbb` colour) is where the game keeps its own parts of a look. Read `look.slots` from `checkLooks`. Never change the slots of a look that someone owns: add a new look.
 - `wear` (optional) is the wear slot a look fills: none for an outfit (the character's colours and hat, `change`), or the game's own slot (`"shovel"`, `"charm"`) for an item, which has no `change`. A player wears one look in each slot. Keep one free outfit. Never change the wear slot of a look that someone owns. Read outfits with `isOutfit(look)`.

@@ -1,7 +1,7 @@
 // The numbers of the summary from the rows of the orders, the same for every adapter: the counts by status, the totals and the shape of an order.
 // An adapter reads its rows; this file turns them into a `StoreSummary`.
 
-import { isRawText, xnoText } from "./amount.js";
+import { isRawText, usdDecimals, xnoText } from "./amount.js";
 import type { AdminOrder, Money, StoreSummary } from "./store.js";
 
 /** An order as an adapter reads it: the amount is the raw amount (digits), the times are ms. */
@@ -21,21 +21,21 @@ export type OrderRow = {
 
 export const ORDERS_SHOWN = 500;
 
-/** Cents from a dollar text like "0.25". Anything that is not plain dollars (a sign, an exponent, hex) counts as 0: a bad row must not change a total. */
-const toCents = (usd: string): number => {
+/** Steps of $0.0001 from a dollar text like "0.25" or "0.005". Anything that is not plain dollars (a sign, an exponent, hex) counts as 0: a bad row must not change a total. */
+const toSteps = (usd: string): number => {
   if (typeof usd !== "string" || !/^\d{1,9}(\.\d{1,8})?$/.test(usd)) return 0;
-  return Math.round(Number(usd) * 100);
+  return Math.round(Number(usd) * 10_000);
 };
 
-/** Money from rows that are all of one status: the count, the XNO text of the raw sum and the dollars (summed in cents, so 0.1 + 0.2 is 0.30). */
+/** Money from rows that are all of one status: the count, the XNO text of the raw sum and the dollars (summed in whole $0.0001 steps, so 0.1 + 0.2 is 0.30). */
 export function moneyOf(rows: readonly { amountRaw: string; usd: string }[]): Money {
   let raw = 0n;
-  let cents = 0;
+  let steps = 0;
   for (const r of rows) {
     if (isRawText(r.amountRaw)) raw += BigInt(r.amountRaw);
-    cents += toCents(r.usd);
+    steps += toSteps(r.usd);
   }
-  return { count: rows.length, xno: xnoText(raw.toString()), usd: (cents / 100).toFixed(2) };
+  return { count: rows.length, xno: xnoText(raw.toString()), usd: usdDecimals(steps / 10_000) };
 }
 
 /** Where an order counts: an open order past its expiry counts as expired. */

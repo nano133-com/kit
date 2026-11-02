@@ -15,7 +15,7 @@
 // shows "TEST MODE: DO NOT PAY". A payment to an address nobody holds the key for is lost for good.
 
 import { fail, json, memoryLimiter, readLimited, sameOrigin } from "../admin/http.js";
-import { checkLooks, type Look } from "../looks/look.js";
+import { checkLooks, usdDecimals, type Look } from "../looks/look.js";
 import { payeeOf } from "./address.js";
 import { nanoUri, priceRaw, xnoText } from "./amount.js";
 import { PUBLIC_NODES, type Fetch, type NanoNode, type RpcOptions } from "./nodes.js";
@@ -157,7 +157,7 @@ export function createShopHandler(options: ShopHandlerOptions): ShopHandler {
     const price = priceRaw(look.priceUsd, rate.usd);
     if (!price) return fail(503, "Prices are not available now. Try again later.");
     try {
-      const order = await reserveOrder(store, { player, lookId: look.id, usd: look.priceUsd.toFixed(2), rate: rate.usd, price, visitor, now: at });
+      const order = await reserveOrder(store, { player, lookId: look.id, usd: usdDecimals(look.priceUsd), rate: rate.usd, price, visitor, now: at });
       return json(payView(order, at), 201);
     } catch (e) {
       if (e instanceof ShopBusy) return fail(503, "Many players are paying this price right now. Try again in a minute.");

@@ -404,7 +404,7 @@ const text = looksJson(newLooks); // the new looks.json: one look on each line
 type Look = {
   id: string; // 1 to 40 lowercase letters, digits or dashes: "mint-cap"
   name: string; // 1 to 40 characters
-  priceUsd: number; // US dollars, at most 2 decimals; 0 is the free look
+  priceUsd: number; // US dollars, at most 4 decimals (0.005 is half a cent; since 0.10.0); 0 is the free look
   wear?: string; // the wear slot it fills: none (an outfit), or your game's own slot ("shovel"): see "Wear slots" below
   change?: { body: string; hat?: "cap" | "beanie" | "crown" | "tophat"; hatColor?: string }; // an outfit's colours ("#rrggbb"); an item of another slot has none
   slots?: Record<string, string>; // what YOUR game defines for itself: see "Slots" below. Optional.
@@ -478,8 +478,8 @@ The rules (the same as the starter's `AGENTS.md`):
 | `diffLooks(before, after)` | `{ added, removed, changed }` by id. A new order is not a change. |
 | `looksJson(looks)` | The text of `looks.json`, one look on each line, as the starter writes it. A change of one look is a change of one line. |
 | `slugId(name, taken)` | A free id for a name: `"Mint Cap"` gives `mint-cap`, then `mint-cap-2`. |
-| `PRICE_LADDER`, `rungOf(usd)`, `priceText(usd)` | The six steps nano133.com uses, from 1¢ to $1, and a price as a page writes it (`25¢`, `$1.10`). |
-| `usdText(usd)`, `wholeCents(usd)`, `HATS` | `"$0.25"`; whether a price has no fraction of a cent; the hats. |
+| `PRICE_LADDER`, `rungOf(usd)`, `priceText(usd)` | The six steps nano133.com uses, from 1¢ to $1, and a price as a page writes it (`0.5¢`, `25¢`, `$1.10`). |
+| `usdText(usd)`, `usdDecimals(usd)`, `priceStepOk(usd)`, `PRICE_STEP_USD`, `wholeCents(usd)`, `HATS` | `"$0.25"`, `"$0.005"` (2 to 4 decimals); the same without `$`, as an order keeps it; whether a price has at most 4 decimals (the looks rule since 0.10.0); `0.0001`, the smallest price above 0; whether a price has no fraction of a cent; the hats. |
 | `sameSlots(a, b)`, `cleanSlots(slots)`, `slotValueOk(v)`, `SLOTS_MAX` | Whether two looks have the same slots; a clean copy (none when empty); whether a value is a word or a colour; 8. |
 
 | Step | Price | For |
@@ -491,8 +491,10 @@ The rules (the same as the starter's `AGENTS.md`):
 | set | 50¢ | a few pieces that go together |
 | outfit | $1 | a whole look |
 
-The ladder is a suggestion. Any price with at most 2 decimals, up to $1000, is good. `wholeCents` accepts every price in whole cents (the starter's old check,
-`Math.round(x * 100) === x * 100`, refused $0.07, $0.29, $0.57 and $1.10 because of floating point).
+The ladder is a suggestion. Any price with at most 4 decimals, up to $1000, is good: there is no minimum, so a fraction of a cent works ($0.005, $0.0001;
+since 0.10.0, before it whole cents). The shop rounds the Nano amount up to a step of 0.0001 XNO and asks for at least one step, so a creator never gets
+less than the price. `priceStepOk` and `wholeCents` compare a price with its own decimal text (the starter's old check, `Math.round(x * 100) === x * 100`,
+refused $0.07, $0.29, $0.57 and $1.10 because of floating point).
 
 ## The admin (`/admin`; since 0.2.0)
 

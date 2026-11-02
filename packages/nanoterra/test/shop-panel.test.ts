@@ -35,12 +35,12 @@ const root = () => {
 };
 
 /** A game: the real handler, a player that signs in when asked, and what it wears. */
-function game(o: { payee?: string | null; signedIn?: boolean } = {}) {
+function game(o: { payee?: string | null; signedIn?: boolean; catalogue?: Look[] } = {}) {
   const store: ShopStore = createMemoryShop();
   let player: string | null = o.signedIn === false ? null : "p1";
   const handler = createShopHandler({
     store,
-    catalogue: LOOKS,
+    catalogue: o.catalogue ?? LOOKS,
     payee: o.payee === undefined ? testAddress() : o.payee,
     player: async () => player,
     rate: { feeds: [{ name: "Test feed", url: "https://feed.test/", read: (j) => j.usd }], fetch: async () => new Response(JSON.stringify({ usd: 1 })) },
@@ -56,7 +56,7 @@ function game(o: { payee?: string | null; signedIn?: boolean } = {}) {
   const owned: string[] = [];
   const events: string[] = [];
   const opts = {
-    looks: LOOKS,
+    looks: o.catalogue ?? LOOKS,
     fetch: fetchFn,
     owned: () => owned,
     signedIn: () => player !== null,
@@ -191,6 +191,21 @@ test("TEST MODE: the stamp says DO NOT PAY; no QR code, no address, no nano: lin
   assert.equal(pay.querySelector(".n133s-exact"), null, "no \"Send exactly\" in test mode");
   assert.ok((pay.querySelector(".n133s-time-left") as HTMLElement).hidden, "no timer in test mode: nothing waits for a payment");
   assert.deepEqual(g.calls, ["POST /api/orders"], "test mode does not wait for a payment");
+});
+
+test("a fraction of a cent: the key says Buy $0.005 and the pay sheet asks for 0.005 XNO = $0.005, not a rounded cent", async () => {
+  const half: Look = { id: "half", name: "Half", priceUsd: 0.005, change: { body: "#000000" } };
+  const g = game({ payee: null, catalogue: [{ id: "plain", name: "Plain", priceUsd: 0, change: { body: "#4aa8ff" } }, half] });
+  const el = root();
+  const shop = mounted[mounted.push(mountShop(el, g.opts)) - 1];
+  shop.open();
+  await settle();
+  assert.deepEqual(texts(el, ".n133s-look .n133s-btn"), ["Wearing", "Buy $0.005"]);
+  shop.buy("half");
+  await settle();
+  const pay = el.querySelector(".n133s-pay")!;
+  assert.equal(pay.querySelector(".n133s-amount strong")!.textContent, "0.005 XNO");
+  assert.equal(pay.querySelector(".n133s-amount span:last-child")!.textContent, "= $0.005");
 });
 
 test("live: the QR code of the exact nano: link, the wallet key, the address by hand; a paid order tells the game (onOwned) and the look is the player's", async () => {

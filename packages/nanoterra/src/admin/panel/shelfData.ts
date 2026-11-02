@@ -2,7 +2,7 @@
 // here comes from the game's own database (the admin summary) and from looks.json; nothing is sent anywhere.
 
 import type { LooksDiff } from "../../looks/change.js";
-import { ID_PATTERN, type Look } from "../../looks/look.js";
+import { ID_PATTERN, usdText, type Look } from "../../looks/look.js";
 
 export type ShelfOrder = { lookId: string; status: string; usd: string };
 export type ShelfPlayer = { looks: { id: string }[] };
@@ -20,8 +20,8 @@ export type LookStats = {
 
 const none = (): LookStats => ({ owners: 0, paid: 0, paidCents: 0, late: 0 });
 
-/** "0.25" is 25 cents. */
-export const centsOf = (usd: string): number => Math.round(Number(usd) * 100) || 0;
+/** "0.25" is 25 cents; "0.005" is half a cent (cents keep 2 decimals: a price has at most 4). */
+export const centsOf = (usd: string): number => Math.round(Number(usd) * 10_000) / 100 || 0;
 
 /** The stats for each look id that appears in the orders or in a player's looks. */
 export function shelfStats(orders: readonly ShelfOrder[], players: readonly ShelfPlayer[]): Map<string, LookStats> {
@@ -31,7 +31,7 @@ export function shelfStats(orders: readonly ShelfOrder[], players: readonly Shel
     if (o.status === "paid") {
       const s = of(o.lookId);
       s.paid++;
-      s.paidCents += centsOf(o.usd);
+      s.paidCents = Math.round((s.paidCents + centsOf(o.usd)) * 100) / 100;
     } else if (o.status === "paid_late") of(o.lookId).late++;
   }
   for (const p of players) for (const l of new Set(p.looks.map((x) => x.id))) of(l).owners++;
@@ -53,7 +53,7 @@ export function changeText(d: LooksDiff): string {
 /** What to say when a player's money is in a look: "3 sold, $0.75, 3 owners", or "Not sold yet". */
 export function soldText(s: LookStats | undefined): string {
   if (!s || (!s.paid && !s.owners)) return "Not sold yet";
-  return `${s.paid} sold, $${(s.paidCents / 100).toFixed(2)}, ${plural(s.owners, "owner")}`;
+  return `${s.paid} sold, ${usdText(s.paidCents / 100)}, ${plural(s.owners, "owner")}`;
 }
 
 /**
@@ -76,7 +76,7 @@ export function aiPrompt(text: string, diff: LooksDiff, owned: readonly string[]
     diff.changed.length ? `Changed: ${names(diff.changed.map((c) => c.after))}.` : "",
     "",
     `Looks that players own and that must stay in the file with the same id: ${ownedOk.length ? quote(ownedOk) : "none yet"}${odd ? ` (and ${odd} more with an id that is not a valid look id: do not remove any look)` : ""}.`,
-    `Rules: keep one free outfit (priceUsd 0, no "wear"), prices in US dollars with at most 2 decimals, never change or remove the id of a look that someone owns, never change the wear slot or the slots of a look that someone owns (a look with "wear" is an item of that slot, such as a shovel, and has no "change"; slots are words and #rrggbb colours that the game reads, at most 8 on a look), and a look never changes a score or a rule. (The file had ${before.length} looks before.)`,
+    `Rules: keep one free outfit (priceUsd 0, no "wear"), prices in US dollars with at most 4 decimals (0.005 is half a cent), never change or remove the id of a look that someone owns, never change the wear slot or the slots of a look that someone owns (a look with "wear" is an item of that slot, such as a shovel, and has no "change"; slots are words and #rrggbb colours that the game reads, at most 8 on a look), and a look never changes a score or a rule. (The file had ${before.length} looks before.)`,
     "",
     "looks.json:",
     "```json",

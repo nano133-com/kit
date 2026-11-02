@@ -48,6 +48,19 @@ describe("clean amounts", () => {
     assert.equal(xnoText(priceRaw(0.000001, 1)!), "0.0001"); // the smallest amount is one step
   });
 
+  test("a fraction of a cent: the exact clean amount, never a whole cent", () => {
+    assert.equal(xnoText(priceRaw(0.005, 1)!), "0.005");
+    assert.equal(xnoText(priceRaw(0.001, 1)!), "0.001");
+    assert.equal(xnoText(priceRaw(0.005, 0.9)!), "0.0056"); // 0.00555… goes up
+    assert.equal(xnoText(priceRaw(0.0001, 1)!), "0.0001");
+    assert.equal(xnoText(priceRaw(0.0001, 5)!), "0.0001"); // 0.00002 XNO is less than a step: one step
+    for (const [usd, rate] of [[0.005, 0.8731], [0.0001, 1.2345], [0.0125, 3.3333]] as const) {
+      const raw = priceRaw(usd, rate)!;
+      assert.ok(isClean(raw));
+      assert.ok(Number(xnoText(raw)) * rate >= usd - 1e-12);
+    }
+  });
+
   test("has at most four decimals, so a wallet that shortens amounts still pays it exactly", () => {
     for (const [usd, rate] of [[0.25, 0.8731], [0.5, 1.2345], [1, 0.0712], [9.99, 3.3333], [0.07, 77.7]] as const) {
       const raw = priceRaw(usd, rate)!;

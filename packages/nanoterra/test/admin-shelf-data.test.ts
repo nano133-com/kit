@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { diffLooks, looksJson, type Look } from "../src/looks/index.js";
+import { moneyOf } from "../src/admin/summary.js";
 import { aiPrompt, centsOf, changeText, ownedIds, shelfStats, soldText } from "../src/admin/panel/shelfData.js";
 
 // The Shelf's numbers and words, as the starter's own test pinned them (test/shelf.test.ts): moving the code into the package must not change one word.
@@ -35,6 +36,15 @@ test("the Shelf says what a look has done, in plain words", () => {
 test("cents come from a dollar text the way an order stores it; every owned look id is listed once", () => {
   assert.deepEqual(["0.25", "1.10", "0.07", "1", "0.29", "x"].map(centsOf), [25, 110, 7, 100, 29, 0]);
   assert.deepEqual([...ownedIds(players)].sort(), ["royal", "sunset"]);
+});
+
+test("a fraction of a cent counts as it was paid: half a cent is 0.5 cents, two of them a cent, and the totals keep it", () => {
+  assert.deepEqual(["0.005", "0.0001", "0.0125"].map(centsOf), [0.5, 0.01, 1.25]);
+  const half = { lookId: "half", status: "paid", usd: "0.005" };
+  const s = shelfStats([half, half, half], [{ looks: [{ id: "half" }] }]);
+  assert.equal(soldText(s.get("half")), "3 sold, $0.015, 1 owner");
+  assert.deepEqual(moneyOf([0.005, 0.005, 0.0001].map((usd) => ({ amountRaw: "0", usd: String(usd) }))).usd, "0.0101");
+  assert.deepEqual(moneyOf([{ amountRaw: "0", usd: "0.10" }, { amountRaw: "0", usd: "0.20" }]).usd, "0.30");
 });
 
 test("the message for an AI assistant holds the new file, the change and the owned ids, and no address, order or secret", () => {

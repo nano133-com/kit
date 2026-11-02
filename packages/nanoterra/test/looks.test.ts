@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { checkLooks, diffLooks, HATS, lookProblems, looksJson, PRICE_LADDER, priceText, removalProblems, rungOf, slugId, usdText, wholeCents, type Look } from "../src/looks/index.js";
+import { checkLooks, diffLooks, HATS, lookProblems, looksJson, PRICE_LADDER, priceText, PRICE_STEP_USD, priceStepOk, removalProblems, rungOf, slugId, usdDecimals, usdText, wholeCents, type Look } from "../src/looks/index.js";
 
 // looks.json of the game starter at 86b04e2 (nano133-com/nano-game-starter), byte for byte: looksJson must write it back as it is.
 const STARTER_FILE = `[
@@ -41,7 +41,8 @@ test("the messages are the starter's words", () => {
   assert.equal(say([{ ...FREE, priceUsd: -1 }]), 'looks.json, look 1: "priceUsd" must be a number from 0 to 1000');
   assert.equal(say([{ ...FREE, priceUsd: 1000.01 }]), 'looks.json, look 1: "priceUsd" must be a number from 0 to 1000');
   assert.equal(say([{ ...FREE, priceUsd: "1" }]), 'looks.json, look 1: "priceUsd" must be a number from 0 to 1000');
-  assert.equal(say([FREE, { ...FREE, id: "x", priceUsd: 0.001 }]), 'looks.json, look 2: "priceUsd" can have at most 2 decimals (cents)');
+  assert.equal(say([FREE, { ...FREE, id: "x", priceUsd: 0.00001 }]), 'looks.json, look 2: "priceUsd" can have at most 4 decimals (0.0001 is the smallest price above 0)');
+  assert.equal(say([FREE, { ...FREE, id: "x", priceUsd: 0.12345 }]), 'looks.json, look 2: "priceUsd" can have at most 4 decimals (0.0001 is the smallest price above 0)');
   assert.equal(say([{ ...FREE, change: { body: "red" } }]), 'looks.json, look 1: "change.body" must be a colour like "#4aa8ff"');
   assert.equal(say([{ ...FREE, change: {} }]), 'looks.json, look 1: "change.body" must be a colour like "#4aa8ff"');
   assert.equal(say([{ ...FREE, change: { body: "#336699", hat: "fez" } }]), `looks.json, look 1: "change.hat" must be one of ${HATS.join(", ")}`);
@@ -67,9 +68,19 @@ test("a price with whole cents is good, whatever the floating point says (the st
   for (const usd of [0.001, 0.005, 0.255, 1.999, 10.001]) assert.equal(wholeCents(usd), false, `$${usd}`);
 });
 
+test("no minimum price: a fraction of a cent is good, down to $0.0001", () => {
+  for (const usd of [0.0001, 0.001, 0.005, 0.0125, 0.255, 1.999, 999.9999]) assert.deepEqual(lookProblems([FREE, { ...FREE, id: "x", priceUsd: usd }]), [], `$${usd}`);
+  for (let s = 0; s <= 100_000; s++) if (!priceStepOk(s / 10_000)) assert.fail(`${s / 10_000} has at most 4 decimals`);
+  for (const bad of [0.00001, 0.00005, 1e-9, 0.12345, 0.1 + 0.2, Number.NaN, Infinity]) assert.equal(priceStepOk(bad), false, String(bad));
+  assert.equal(PRICE_STEP_USD, 0.0001);
+});
+
 test("usdText and priceText", () => {
   assert.equal(usdText(0.25), "$0.25");
   assert.equal(usdText(0), "$0.00");
+  assert.deepEqual([0.0001, 0.001, 0.005, 0.0125, 0.1, 1, 1.005, 0.07].map(usdText), ["$0.0001", "$0.001", "$0.005", "$0.0125", "$0.10", "$1.00", "$1.005", "$0.07"]);
+  assert.deepEqual([0.25, 1, 0.005, 0.0001].map(usdDecimals), ["0.25", "1.00", "0.005", "0.0001"]);
+  assert.deepEqual([0.0001, 0.005, 0.0125, 1.005].map(priceText), ["0.01¢", "0.5¢", "1.25¢", "$1.005"]);
   assert.deepEqual([0.01, 0.05, 0.25, 0.5, 1, 1.1, 2.5].map(priceText), ["1¢", "5¢", "25¢", "50¢", "$1", "$1.10", "$2.50"]);
 });
 

@@ -503,7 +503,7 @@ export function shelfView(first: ShelfData, looks: readonly Look[], picture: (l:
       sync();
     } });
 
-    const priceInput = h("input", { class: "input input-num", type: "number", step: 0.01, min: 0, max: 1000, inputmode: "decimal", value: Number.isFinite(l.priceUsd) ? l.priceUsd : "", "aria-label": `Price in US dollars of ${l.name}`, oninput: (e: Event) => {
+    const priceInput = h("input", { class: "input input-num", type: "number", step: 0.0001, min: 0, max: 1000, inputmode: "decimal", value: Number.isFinite(l.priceUsd) ? l.priceUsd : "", "aria-label": `Price in US dollars of ${l.name}`, oninput: (e: Event) => {
       const v = (e.target as HTMLInputElement).value;
       l.priceUsd = v === "" ? Number.NaN : Number(v);
       sync();

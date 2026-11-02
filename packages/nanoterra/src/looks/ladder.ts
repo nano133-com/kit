@@ -1,5 +1,7 @@
 // The price ladder: the six steps from a cent to a dollar that nano133.com uses for its own cosmetics and shows on /build/cosmetics.
-// It is a suggestion. A look can have any price with at most 2 decimals, up to $1000.
+// It is a suggestion. A look can have any price with at most 4 decimals ($0.0001 steps), up to $1000.
+
+import { usdText } from "./look.js";
 
 export type Rung = {
   name: "dye" | "charm" | "piece" | "statement" | "set" | "outfit";
@@ -26,10 +28,9 @@ export function rungOf(usd: number): Rung | undefined {
   return PRICE_LADDER.find((r) => Math.abs(rungUsd(r) - usd) < 1e-9);
 }
 
-/** A price as a page writes it: 1¢, 25¢, $1, $1.10. */
+/** A price as a page writes it: 0.5¢, 1¢, 25¢, $1, $1.10, $1.005. */
 export function priceText(usd: number): string {
-  const cents = Math.round(usd * 100);
-  if (cents < 100) return `${cents}¢`;
-  const dollars = cents / 100;
-  return Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`;
+  const steps = Math.round(usd * 10_000);
+  if (steps < 10_000) return `${steps / 100}¢`;
+  return steps % 10_000 === 0 ? `$${steps / 10_000}` : usdText(steps / 10_000);
 }

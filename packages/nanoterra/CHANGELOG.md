@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **No minimum price: a fraction of a cent works.** A look's `priceUsd` may have up to 4 decimals (`0.005` is half a cent, `0.0001` the smallest price
+  above 0); before, the looks check refused anything under a whole cent. New in `/looks`: `priceStepOk(usd)` (the new rule), `PRICE_STEP_USD`
+  (`0.0001`) and `usdDecimals(usd)`; `wholeCents` stays as it was. The shop already rounded the Nano amount up to a step of 0.0001 XNO (at least one
+  step), and the matcher compares exact amounts, so a half-cent order asks for 0.005 XNO at $1 and only that amount pays it.
+- `usdText` writes 2 to 4 decimals (`"$0.25"`, `"$1.00"`, `"$0.005"`), so the Buy key and the pay sheet no longer show a sub-cent price as a rounded
+  cent; `priceText` writes `0.5¢`. An order keeps its dollars as `usdDecimals` (`"0.25"` and `"1.00"` as before, `"0.005"`), not `toFixed(2)`.
+- The admin counts sales in steps of $0.0001, not cents (the Shelf, Earned, the best sellers), its price box takes 4 decimals, and the message for an
+  AI assistant says "at most 4 decimals".
+
 ## 0.9.3 (2026-11-01)
 
 - **A session that ended at Buy.** A 401 from the server at Buy (the session ended, though the game's `signedIn()` still said yes) showed a

@@ -17,7 +17,7 @@ export type Look = {
   id: string;
   /** What the player reads, 1 to 40 characters. */
   name: string;
-  /** The price in US dollars with at most 2 decimals, for example 0.25. 0 means free for everyone. */
+  /** The price in US dollars with at most 4 decimals, for example 0.25 or 0.005. 0 means free for everyone. */
   priceUsd: number;
   /**
    * The wear slot that the look fills: none (or "outfit") for an outfit, or a slot of the game's own ("shovel", "charm"): 1 to 24 lowercase letters, digits
@@ -73,6 +73,14 @@ export function wholeCents(usd: number): boolean {
   return typeof usd === "number" && Number.isFinite(usd) && Number(usd.toFixed(2)) === usd;
 }
 
+/** The smallest step of a price: $0.0001, a hundredth of a cent. A price above 0 is at least this, and the shop asks for at least one 0.0001 XNO step. */
+export const PRICE_STEP_USD = 0.0001;
+
+/** Whether a price has at most 4 decimals (whole steps of $0.0001), by the same rule as `wholeCents`: it is exactly the number its own four-decimal text names. */
+export function priceStepOk(usd: number): boolean {
+  return typeof usd === "number" && Number.isFinite(usd) && Number(usd.toFixed(4)) === usd;
+}
+
 /** Every mistake in a list of looks (looks.json as it was read), in the order of the list. An empty array means the list is good. */
 export function lookProblems(raw: unknown): Problem[] {
   const out: Problem[] = [];
@@ -88,7 +96,7 @@ export function lookProblems(raw: unknown): Problem[] {
     else seen.add(v.id);
     if (typeof v.name !== "string" || !v.name.trim() || v.name.length > NAME_MAX) add("name", '"name" must be 1 to 40 characters');
     if (typeof v.priceUsd !== "number" || !Number.isFinite(v.priceUsd) || v.priceUsd < 0 || v.priceUsd > PRICE_MAX_USD) add("priceUsd", '"priceUsd" must be a number from 0 to 1000');
-    else if (!wholeCents(v.priceUsd)) add("priceUsd", '"priceUsd" can have at most 2 decimals (cents)');
+    else if (!priceStepOk(v.priceUsd)) add("priceUsd", '"priceUsd" can have at most 4 decimals (0.0001 is the smallest price above 0)');
     const wearOk = v.wear === undefined || (typeof v.wear === "string" && SLOT_NAME_PATTERN.test(v.wear) && !RESERVED_SLOT_NAMES.includes(v.wear));
     if (!wearOk) add("wear", `"wear" must be "${OUTFIT}" or the name of a wear slot: 1 to 24 lowercase letters, digits or dashes, starting with a letter ("shovel")`);
     const outfit = v.wear === undefined || v.wear === OUTFIT;
@@ -160,7 +168,8 @@ export function checkLooks(rawInput: unknown): Look[] {
 }
 
 /** "$0.25" */
-export const usdText = (usd: number): string => `$${usd.toFixed(2)}`;
+/** "$0.25", "$1.00", "$0.005"; and the same without "$", as an order keeps it ("0.005"). The money code's own helpers. */
+export { usdDecimals, usdText } from "../admin/amount.js";
 
 /** The wear slot that a look fills: OUTFIT for an outfit (no `wear`), or the game's own slot. */
 export const wearOf = (l: Pick<Look, "wear">): string => l.wear ?? OUTFIT;

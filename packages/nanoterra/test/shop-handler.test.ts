@@ -206,6 +206,28 @@ describe("test mode", () => {
   }
 });
 
+/** A look for half a cent: $0.005 at $1 per XNO is 0.005 XNO, 50 steps. */
+const HALF_CENT = [{ id: "free", name: "Free", priceUsd: 0, change: { body: "#ffffff" } }, { id: "half", name: "Half", priceUsd: 0.005, change: { body: "#000000" } }];
+for (const [kind, make] of [["memory", () => createMemoryShop()], ...(noSqlite ? [] : [["D1", () => createD1Shop(d1Over(sqlite()))]])] as const)
+  test(`a fraction of a cent (${kind}): the order keeps "0.005" and asks for 0.005 XNO; only that exact amount pays it, not a whole cent`, async () => {
+    const { h, store } = shop({ catalogue: HALF_CENT }, make());
+    const a = await call(h, "/api/orders", { body: { lookId: "half" }, player: "p1" });
+    assert.equal(a!.status, 201);
+    assert.deepEqual([a!.body.usd, a!.body.xno, a!.body.amount], ["0.005", "0.005", "5" + "0".repeat(27)]);
+    assert.equal((await store.order(a!.body.id))!.usd, "0.005");
+    const b = await call(h, "/api/orders", { body: { lookId: "half" }, player: "p2" });
+    assert.equal(b!.body.xno, "0.0051", "the next held order asks for one step more");
+
+    node.sends.push({ hash: hash64(), from: testAddress(), to: creator, amount: "1" + "0".repeat(28), seenMs: clock + 1000, confirmed: true });
+    clock += SCAN_GAP_MS + 1;
+    assert.equal((await call(h, `/api/orders/${a!.body.id}/check`, { player: "p1", body: {} }))!.body.status, "open", "a whole cent is not the order's amount");
+    node.sends.push({ hash: hash64(), from: testAddress(), to: creator, amount: a!.body.amount, seenMs: clock + 1000, confirmed: true });
+    clock += SCAN_GAP_MS + 1;
+    assert.equal((await call(h, `/api/orders/${a!.body.id}/check`, { player: "p1", body: {} }))!.body.status, "paid");
+    assert.deepEqual(await h.owned("p1"), ["half"]);
+    assert.deepEqual(await h.owned("p2"), []);
+  });
+
 if (!noSqlite)
   test("the same routes on the D1 adapter: an order, the same order again, and another player's 404", async () => {
     const { h } = shop({}, createD1Shop(d1Over(sqlite())));

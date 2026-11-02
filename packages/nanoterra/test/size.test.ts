@@ -17,13 +17,13 @@ const PATHS: [string, string[], number, boolean][] = [
   ["@nano133/nanoterra", ["index.js"], 200, false],
   ["@nano133/nanoterra/character/record", ["character/pure.js"], 6_500, false],
   ["@nano133/nanoterra/ticket", ["ticket/index.js"], 7_000, false],
-  ["@nano133/nanoterra/looks", ["looks/index.js"], 3_300, false],
+  ["@nano133/nanoterra/looks", ["looks/index.js"], 3_500, false],
   ["@nano133/nanoterra/character", ["character/index.js"], 28_000, true],
   ["@nano133/nanoterra/emotes", ["emotes/index.js"], 2_500, false],
   ["@nano133/nanoterra/emotes/wheel", ["emotes/panel/index.js"], 6_500, false],
   ["@nano133/nanoterra/emotes/player", ["emotes/player.js"], 3_500, true],
   ["@nano133/nanoterra/shop", ["shop/index.js"], 9_800, false],
-  ["@nano133/nanoterra/shop/worker", ["shop/worker.js"], 10_800, false],
+  ["@nano133/nanoterra/shop/worker", ["shop/worker.js"], 11_200, false],
   ["@nano133/nanoterra/shop/panel", ["shop/panel/index.js"], 11_000, false],
 ];
 /** The emote clips: their own chunk, loaded on the first emote (never in a path's bundle above: "./clips.js" stays outside). */

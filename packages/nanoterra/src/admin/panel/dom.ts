@@ -1,5 +1,7 @@
 // A tiny helper to build page elements without innerHTML (safe for any text, and fine under a strict CSP). The panel runs in a browser.
 
+import { usdText } from "../amount.js";
+
 type Attrs = Record<string, string | number | boolean | undefined | ((e: Event) => void)>;
 type Child = Node | string | null | undefined | false;
 
@@ -67,5 +69,5 @@ export function ago(ms: number, now = Date.now()): string {
 /** "3 orders", "1 order" */
 export const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-/** "$1.25" from cents. */
-export const dollars = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
+/** "$1.25" from cents, "$0.005" from half a cent. */
+export const dollars = (cents: number): string => usdText(cents / 100);
