@@ -69,7 +69,7 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/looks` | the looks ladder | no | 1.9 kB (all), 0.9 kB (`checkLooks` alone) |
 | `@nano133/nanoterra/character` | the builder and `createCharacter` (it includes the record), with the three sockets | yes | 21.8 kB (all, with the sockets and `createLookPreview` of 0.3.0; 20.4 kB on 0.2.0), 17.8 kB (`createCharacter` alone, measured on 0.2.0) |
 | `@nano133/nanoterra/model` | the 3D model check: a `.glb` against the island's limits or a cosmetic's (since 0.3.0) | no | 8.8 kB |
-| `@nano133/nanoterra/input` | let go of held keys and sticks when the player leaves the page, and pause: `releaseWhenLost`, `pauseWhenLeft`, `swallowsKeyup` (since 0.3.1); the camera's distance on one curve: `createZoom`, `listenZoom` (unreleased) | no | 0.5 kB, 1.0 kB more with the zoom |
+| `@nano133/nanoterra/input` | let go of held keys and sticks when the player leaves the page, and pause: `releaseWhenLost`, `pauseWhenLeft`, `swallowsKeyup` (since 0.3.1); the camera's distance on one curve: `createZoom`, `listenZoom` (since 0.13.0) | no | 0.5 kB, 1.0 kB more with the zoom |
 | `@nano133/nanoterra/admin` | the admin of a game: the guard, the handler, the store type (server code; since 0.2.0) | no | 3.7 kB |
 | `@nano133/nanoterra/admin/d1`, `/admin/firestore` | the admin store for D1 (the starter's tables) or Firestore (a small interface, no Firebase dependency): `createD1Store`, `createFirestoreStore` (since 0.2.0) | no | 1.5 kB each |
 | `@nano133/nanoterra/admin/panel` | the admin page, drawn in the browser into one element, and its stylesheet `@nano133/nanoterra/admin/style.css` (since 0.2.0) | no | 18.9 kB with the tabbed layout (10.6 kB on 0.3.0, 8.5 kB on 0.2.0) + 5.9 kB of CSS (minified) |
@@ -291,7 +291,7 @@ pauseWhenLeft(() => { game.paused = true; resumeCard.hidden = false; });        
 - It returns the function that takes its listeners away. It names no package and reads only plain browser events. The same code runs in nano133.com's island and rooms,
   and in the [game starter](https://github.com/nano133-com/nano-game-starter).
 
-## The camera's distance (`@nano133/nanoterra/input`; unreleased)
+## The camera's distance (`@nano133/nanoterra/input`; since 0.13.0)
 
 One number, the camera's distance from the eyes, moved by the mouse wheel, a trackpad's two-finger scroll or pinch, a two-finger pinch on a touch screen
 and the + and − keys, along ONE curve: nano133.com's island feel. Each notch moves `0.35 + 0.14 × distance` metres, so a notch feels the same near and

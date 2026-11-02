@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.13.0 (2026-11-01)
+
+- **The camera's distance on one curve (`createZoom`, `listenZoom` in `@nano133/nanoterra/input`):** one number, the camera's distance from the eyes, moved by
+  the mouse wheel, a trackpad's scroll or pinch, a touch pinch and the + and − keys, with nano133.com's island feel. A notch moves `0.35 + 0.14 × distance`
+  metres (100 px of scroll, a line 16 px, a page 400 px, a trackpad pinch five times a scroll), and every bit of a scroll counts: Echo Island's dead zone and
+  speed limit dropped most of a quick spin, and its wheel needed about five times the spins. The last notch in goes to the eyes, the first notch out past the
+  switch. The touch pinch is the same curve as a ratio: twice the spread divides `distance + 2.5` by 2^1.3 (`pinchStart`, `pinch`, `pinchEnd`; the game wires
+  the fingers). `createZoom(range, { read, write })` keeps the distance in the game's own storage (`read` at first use, never on the server), eases it
+  (`step(dt, calm)`, at once with reduced motion), and has `set`, `by`, `eyes` and `subscribe`. `listenZoom(zoom, canvas, { skip })` stops the page's scroll
+  over the canvas and leaves the browser's zoom keys and a field alone. The pure parts (`wheelNotches`, `zoomedBy`, `pinchedTo`) are exported. About 1.0 kB gzip.
+
 ## 0.12.0 (2026-11-01)
 
 - **A passkey for the owner (`createAdminSignin({ passkeys: true })`): the owner's LINKED passkeys open /admin.** A passkey is only a key to /admin; the money stays
