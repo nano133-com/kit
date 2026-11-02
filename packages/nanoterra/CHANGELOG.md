@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.1 (2026-11-01)
 
 - **The admin conformance suite's heavy checks are one case for each route.** "Other spellings of EVERY admin path" and "a request from another
   page" were each one case over every route, every visitor and every method: hundreds of requests, which timed out at the starter's 30 s under load
