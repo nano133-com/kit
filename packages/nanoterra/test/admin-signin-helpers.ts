@@ -19,6 +19,8 @@ export type Account = { address: string; privateKey: string };
 
 export const PLAYER_SQL = readFileSync(new URL("../src/player-signin/adapters/d1.sql", import.meta.url), "utf8");
 export const ADMIN_SQL = readFileSync(new URL("../src/admin-signin/adapters/d1.sql", import.meta.url), "utf8");
+/** The owner's passkeys' two tables: the end of d1.sql, the migration a starter-shaped game adds (migrations/0009_admin_passkeys.sql). */
+export const PASSKEYS_SQL = ADMIN_SQL.slice(ADMIN_SQL.indexOf("-- The owner's passkeys (since 0.12.0)"));
 
 // The game starter's tables as its migrations 0001 to 0006 make them (with `orders` for the admin store's summary): what a starter that moves onto the
 // package has today.

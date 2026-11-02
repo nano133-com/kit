@@ -9,15 +9,18 @@
 //   signin_requests/{key}   { id, way, starter, status, expiresAt, nonce?, issuedAt?, label?, account?, delivered, scope: "admin", deleteAt }
 //   sessions/{idHash}       { address, createdAt, expiresAt, via, scope: "admin", deleteAt }
 //   admin_logins/{id}       { at, country, browser, deleteAt }
-// Times are ms numbers; `deleteAt` is a Date (a Timestamp in Firestore): set a TTL policy on `deleteAt` for each collection. `{key}` is the request's id;
-// `{idHash}` the SHA-256 of "admin:" and the session's token. Every change that reads first is a transaction. Indexes: Firestore's own single-field
-// indexes are enough (`id`, `scope`, `expiresAt`, `at`).
+//   admin_passkeys/{owner}  { owner, passkeys: [{ address, createdAt }] }      (since 0.12.0: the owner's linked passkeys, at most 10; no deleteAt)
+//   admin_once/{key}        { until, deleteAt }                                (since 0.12.0: the passkeys' used signatures)
+// Times are ms numbers; `deleteAt` is a Date (a Timestamp in Firestore): set a TTL policy on `deleteAt` for each collection that has it. `{key}` is the
+// request's id; `{idHash}` the SHA-256 of "admin:" and the session's token. Every change that reads first is a transaction (the owner's passkeys are ONE
+// document, so a link holds the limit in its transaction). Indexes: Firestore's own single-field indexes are enough (`id`, `scope`, `expiresAt`, `at`,
+// `address`, `until`).
 //
 // The admin store for Firestore (`createFirestoreStore`) has no sign-in list and no "Sign out everywhere": give it this sign-in's,
 // `store.recentLogins = signin.recentLogins` and `store.signOutEverywhere = signin.signOutEverywhere`.
 
 import type { AdminLogin } from "../../admin/store.js";
-import { ADMIN_LOGIN_KEEP_MS, ADMIN_WAYS, type AdminSessionRecord, type AdminSigninStore, type AdminWay, type RequestStoreLike, type SigninRequest } from "../types.js";
+import { ADMIN_LOGIN_KEEP_MS, ADMIN_PASSKEY_LIMIT, ADMIN_WAYS, type AdminPasskey, type AdminSessionRecord, type AdminSigninStore, type AdminWay, type RequestStoreLike, type SigninRequest } from "../types.js";
 
 export type AdminSigninDocSnap = { exists: boolean; data(): Record<string, unknown> | undefined };
 export interface AdminSigninDocRef {
@@ -76,10 +79,24 @@ function requestOf(d: Record<string, unknown> | undefined, key: string, way: Adm
   };
 }
 
-export function createFirestoreAdminSignin(db: FirestoreAdminSigninLike, collections: { requests?: string; sessions?: string; logins?: string } = {}): AdminSigninStore {
+/** The links a passkeys document holds: only well-formed ones. */
+function linksOf(d: Record<string, unknown> | undefined): AdminPasskey[] {
+  const list = Array.isArray(d?.passkeys) ? (d.passkeys as unknown[]) : [];
+  return list.flatMap((p) => {
+    const v = p as Record<string, unknown> | null;
+    const address = text(v?.address);
+    return address !== undefined ? [{ address, createdAt: num(v?.createdAt) ?? 0 }] : [];
+  });
+}
+
+export type FirestoreAdminSigninCollections = { requests?: string; sessions?: string; logins?: string; passkeys?: string; once?: string };
+
+export function createFirestoreAdminSignin(db: FirestoreAdminSigninLike, collections: FirestoreAdminSigninCollections = {}): Required<AdminSigninStore> {
   const requestsCol = () => db.collection(collections.requests ?? "signin_requests");
   const sessionsCol = () => db.collection(collections.sessions ?? "sessions");
   const loginsCol = () => db.collection(collections.logins ?? "admin_logins");
+  const passkeysCol = () => db.collection(collections.passkeys ?? "admin_passkeys");
+  const onceCol = () => db.collection(collections.once ?? "admin_once");
 
   const sessionData = (s: AdminSessionRecord) => ({ address: s.address, createdAt: s.createdAt, expiresAt: s.expiresAt, via: s.via, scope: "admin", deleteAt: new Date(s.expiresAt) });
 
@@ -201,7 +218,57 @@ export function createFirestoreAdminSignin(db: FirestoreAdminSigninLike, collect
       const old = (await requestsCol().where("expiresAt", "<", now - 2 * 3_600_000).limit(BATCH).get()).docs.filter((d) => d.data().scope === "admin");
       const ended = (await sessionsCol().where("expiresAt", "<", now).limit(BATCH).get()).docs.filter((d) => d.data().scope === "admin");
       const logins = (await loginsCol().where("at", "<", now - ADMIN_LOGIN_KEEP_MS).limit(BATCH).get()).docs;
-      await deleteAll([...old, ...ended, ...logins]);
+      const used = (await onceCol().where("until", "<", now + 1).limit(BATCH).get()).docs;
+      await deleteAll([...old, ...ended, ...logins, ...used]);
+    },
+    async createSession(session) {
+      const ref = sessionsCol().doc(session.idHash);
+      await db.runTransaction(async (tx) => {
+        if ((await tx.get(ref)).exists) throw new Error("a session with this id exists");
+        tx.set(ref, sessionData(session));
+      });
+    },
+    async linkPasskey(owner, address, at) {
+      const ref = passkeysCol().doc(owner);
+      return db.runTransaction(async (tx) => {
+        const d = (await tx.get(ref)).data();
+        const list = d && d.owner === owner ? linksOf(d) : [];
+        if (list.some((p) => p.address === address)) return "exists" as const;
+        if (list.length >= ADMIN_PASSKEY_LIMIT) return "full" as const;
+        tx.set(ref, { owner, passkeys: [...list, { address, createdAt: at }] });
+        return "linked" as const;
+      });
+    },
+    async unlinkPasskey(owner, address) {
+      const ref = passkeysCol().doc(owner);
+      const had = await db.runTransaction(async (tx) => {
+        const d = (await tx.get(ref)).data();
+        const list = d && d.owner === owner ? linksOf(d) : [];
+        if (!list.some((p) => p.address === address)) return false;
+        tx.set(ref, { owner, passkeys: list.filter((p) => p.address !== address) });
+        return true;
+      });
+      // The passkey's admin sessions end with its link (after it: a session read in between finds no link and is refused anyway).
+      await deleteAll((await sessionsCol().where("address", "==", address).get()).docs.filter((x) => x.data().scope === "admin" && x.data().via === "passkey"));
+      return had;
+    },
+    async passkeys(owner) {
+      const d = (await passkeysCol().doc(owner).get()).data();
+      return d && d.owner === owner ? linksOf(d) : [];
+    },
+    async linked(owner, address) {
+      const d = (await passkeysCol().doc(owner).get()).data();
+      return Boolean(d && d.owner === owner && linksOf(d).some((p) => p.address === address));
+    },
+    async useOnce(key, ttlMs) {
+      const ref = onceCol().doc(key);
+      return db.runTransaction(async (tx) => {
+        const now = Date.now();
+        const d = (await tx.get(ref)).data();
+        if (d && (num(d.until) ?? Infinity) > now) return false;
+        tx.set(ref, { until: now + ttlMs, deleteAt: new Date(now + ttlMs) });
+        return true;
+      });
     },
   };
 }

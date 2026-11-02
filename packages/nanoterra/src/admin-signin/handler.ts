@@ -10,6 +10,19 @@
 //   POST {base}/check          the browser asks every 2 seconds: { id, way } → { status: "waiting" | "expired" | "elsewhere" | "used" | "not_owner" | "signedin", address? }
 //   POST {base}/signout        ends this browser's admin login only: { ok: true }
 //
+// With `passkeys: true` (since 0.12.0), the owner's linked passkeys (a passkey is only a key to /admin; the money stays in the owner's wallet):
+//
+//   POST {base}/passkey/link   { address, at, signature }: ONLY with a live WALLET admin session of the owner, and the passkey's own signature of
+//                              "Link this passkey to the ADMIN of <host>: sign in as <address> at <ms>": both sides prove their key → { ok, passkeys }
+//   POST {base}/passkey/unlink { address }: only with a live wallet admin session of the owner; the passkey's admin sessions end too → { ok, removed, passkeys }
+//   POST {base}/passkeys       the list, for any session the guard accepts → { passkeys, limit, via, canChange, you }
+//   POST {base}/passkey        { address, at, signature, turnstile? }: the passkey's signature of "ADMIN of <host>: sign in as <address> at <ms>" (never
+//                              the host alone, which a player's passkey signs), refused unless the passkey is linked to the owner → a NEW admin session
+//                              { via: "passkey" } of one day and the admin cookie
+//
+// Each passkey signature counts once (the admin's own table) and within 5 minutes. A passkey session opens /admin only while its link to the CURRENT owner
+// exists: `session(request)` reads the link on every request, so a removed link or a new owner address ends it at the next request.
+//
 // `base` is "/api/admin-signin" (ADMIN_SIGNIN_BASE). Berry Wallet and Nautilus sign a text that names the ADMIN: Berry signs the page `${origin}/admin`
 // with NO query (Berry refused "/admin?from=US" with "Sign-in requires a public HTTPS website", device test 2026-10-27), Nautilus signs the label "ADMIN of
 // <host> sign-in ABCD-EFGH from <country>" and shows "Sign in to the ADMIN of <host>. Started <time> UTC from <country>. If you did not start this, do not
@@ -29,6 +42,7 @@ import {
   answerNanoSignin,
   answerNautilus,
   checkNanchat,
+  checkSignatureSignin,
   checkNanoSignin,
   checkNautilus,
   nanchatNonce,
@@ -37,6 +51,7 @@ import {
   nanoSigninRefusal,
   nautilusReply,
   readNanoSignin,
+  SigninError,
   startNanchat,
   startNanoSignin,
   startNautilus,
@@ -47,13 +62,15 @@ import {
   type NautilusOptions,
   type RequestCheck,
 } from "@nano133/signin";
-import { ADMIN_SESSION_MS } from "../admin/guard.js";
+import { ADMIN_SESSION_MS, adminAccess } from "../admin/guard.js";
 import { fail, json, memoryLimiter, readLimited, sameOrigin } from "../admin/http.js";
 import type { AdminLogin } from "../admin/store.js";
 import { countryOf, shortBrowser } from "./browser.js";
 import {
   ADMIN_DELIVER_MS,
+  ADMIN_ONCE_MS,
   ADMIN_PAGE,
+  ADMIN_PASSKEY_LIMIT,
   ADMIN_REQUEST_MS,
   ADMIN_SIGNIN_BASE,
   ADMIN_SIGNIN_LIMITS,
@@ -61,6 +78,8 @@ import {
   ADMIN_WAYS,
   NANCHAT_REFUSAL,
   TOKEN_PATTERN,
+  adminLinkDomain,
+  adminPasskeyDomain,
   type AdminSigninSession,
   type AdminSigninStore,
   type AdminWay,
@@ -89,6 +108,13 @@ export type AdminSigninOptions = {
    * game sign-in. Turn it on only when the owner accepts that; give the panel the same `nanchat: true`.
    */
   nanchat?: boolean;
+  /**
+   * The owner's linked passkeys (since 0.12.0). Default false: no passkey route, and no passkey session opens /admin. With true, a live WALLET admin
+   * session of the owner may link up to 10 passkeys (each proves its key by signing), and a linked passkey's signature makes an admin login while its link to
+   * the current owner exists. The store needs the passkey methods (the package's stores have them; D1 needs the two tables at the end of d1.sql). Give the
+   * panel the same `passkeys: true` and the game's frozen passkey `scheme`.
+   */
+  passkeys?: boolean;
   /** The cookies' names. Default { session: "admin", starter: "starter-admin" } (the starter's). On https they get the __Host- prefix. */
   cookies?: { session?: string; starter?: string };
   /** The shared limiter of the starts: false means "too many". Default: a fixed window in this process's memory. */
@@ -156,6 +182,14 @@ function cookieHeader(req: Request, name: string, value: string, maxAgeSec: numb
 /** A cookie's value: on https only the `__Host-` name (a sibling subdomain can set the plain one; it cannot set a `__Host-` one). */
 const readCookie = (req: Request, name: string) => cookieValue(req, isHttps(req) ? `__Host-${name}` : name);
 
+/** What the owner reads for a refused passkey signature. */
+function passkeyWords(e: SigninError): string {
+  if (e.status === 409) return "That passkey signature was used already. Try again.";
+  if (e.status === 401) return "The passkey's signature does not match. Try again.";
+  if (/too old/.test(e.message)) return "That signature is too old. Check the clock of this device, then try again.";
+  return "That passkey signature could not be read. Try again.";
+}
+
 /** The limiters live at module level: a Worker makes the sign-in for each request, and a limiter made inside it would forget every call. */
 const fallbackLimit = memoryLimiter();
 const memory = memoryLimiter();
@@ -175,6 +209,13 @@ export function createAdminSignin(options: AdminSigninOptions): AdminSignin {
   const limit = options.limit ?? fallbackLimit;
   const siteAddress = owner && validAddress(owner) ? owner : EXAMPLE_ADDRESS;
   const nanchatOn = options.nanchat === true;
+  const passkeysOn = options.passkeys === true;
+  const pk = store as Required<AdminSigninStore>;
+  if (passkeysOn) {
+    for (const m of ["createSession", "linkPasskey", "unlinkPasskey", "passkeys", "linked", "useOnce"] as const) {
+      if (typeof store[m] !== "function") throw new Error(`passkeys: true needs a store with ${m}() (the package's stores have it)`);
+    }
+  }
   const report = (e: unknown) => {
     try {
       options.onError?.(e);
@@ -352,8 +393,87 @@ export function createAdminSignin(options: AdminSigninOptions): AdminSignin {
     if (!token || !TOKEN_PATTERN.test(token)) return null;
     // The scope is in the store's row (the adapter reads only admin rows) as well as in the hash: the two scopes stay apart in two ways.
     const s = await store.session(await adminKey(token), at);
-    // Only the two words a login can carry are read; any other is "unknown", never a wallet login (a fail-open map would turn a stray value into a login that opens /admin).
-    return s ? { address: s.address, createdAt: s.createdAt, via: s.via === "wallet" || s.via === "nanoterra" ? s.via : "unknown" } : null;
+    if (!s) return null;
+    if (s.via === "passkey") {
+      // A passkey's login counts only while its link to the CURRENT owner exists: read now, on every request. A removed link, a new owner address, or the
+      // passkeys turned off: no session at all (the page asks for a sign-in). `linkedTo` is set here only, and only after this check.
+      if (!passkeysOn || typeof owner !== "string" || !validAddress(owner)) return null;
+      return (await pk.linked(owner, s.address)) ? { address: s.address, createdAt: s.createdAt, via: "passkey", linkedTo: owner } : null;
+    }
+    // Only the words a login can carry are read; any other is "unknown", never a wallet login (a fail-open map would turn a stray value into a login that opens /admin).
+    return { address: s.address, createdAt: s.createdAt, via: s.via === "wallet" || s.via === "nanoterra" ? s.via : "unknown" };
+  }
+
+  // ---- the owner's passkeys ----
+
+  /** The host every passkey text names: `domain`, or this request's host. */
+  const hostOf = (req: Request) => options.domain ?? new URL(req.url).host;
+
+  /** The session the guard accepts now, or the refusal to send. `wallet`: only a wallet session of the owner (a link and a removal). */
+  async function ownerSession(req: Request, at: number, wallet: boolean): Promise<{ ok: true; session: AdminSigninSession } | { ok: false; res: Response }> {
+    const session = await sessionOf(req, at);
+    const access = adminAccess({ owner, session, now: at });
+    if (!access.ok) return { ok: false, res: fail(access.status, access.error, access.reason ? { reason: access.reason } : {}) };
+    if (wallet && session!.via !== "wallet") return { ok: false, res: fail(403, "Only a wallet sign-in can add or remove a passkey. Sign in with your wallet.", { reason: "wallet_only" }) };
+    return { ok: true, session: session! };
+  }
+
+  /** A passkey's signature of `domain`'s text, checked once: its address, or the refusal to send. */
+  async function passkeySignature(b: Record<string, unknown>, domain: string, label: string, at: number): Promise<{ ok: true; address: string } | { ok: false; res: Response }> {
+    try {
+      const address = await checkSignatureSignin(
+        { domain, useOnce: (k, ttl) => pk.useOnce(k, Math.max(ttl, ADMIN_ONCE_MS)), now: () => at, onceLabel: label },
+        { address: b.address as string, at: Number(b.at), signature: b.signature as string },
+      );
+      return { ok: true, address };
+    } catch (e) {
+      if (e instanceof SigninError) return { ok: false, res: fail(e.status, passkeyWords(e)) };
+      throw e;
+    }
+  }
+
+  async function passkeyList(session: AdminSigninSession): Promise<Record<string, unknown>> {
+    return { passkeys: await pk.passkeys(owner!), limit: ADMIN_PASSKEY_LIMIT, via: session.via, canChange: session.via === "wallet", you: session.address };
+  }
+
+  async function link(req: Request, b: Record<string, unknown>, at: number): Promise<Response> {
+    const o = await ownerSession(req, at, true);
+    if (!o.ok) return o.res;
+    if (!(await limit(`signin|${await visitorOf(req)}`, ADMIN_SIGNIN_LIMITS.signin.limit, ADMIN_SIGNIN_LIMITS.signin.windowMs, at))) return fail(429, "Too many tries. Wait a few minutes.");
+    const sig = await passkeySignature(b, adminLinkDomain(hostOf(req)), "nanoterra admin passkey link v1", at);
+    if (!sig.ok) return sig.res;
+    const r = await pk.linkPasskey(owner!, sig.address, at);
+    if (r === "full") return fail(409, `You have ${ADMIN_PASSKEY_LIMIT} passkeys. Remove one first.`, { reason: "full" });
+    if (r === "exists") return fail(409, "This passkey is linked already.", { reason: "exists" });
+    return json({ ok: true, address: sig.address, ...(await passkeyList(o.session)) });
+  }
+
+  async function unlink(req: Request, b: Record<string, unknown>, at: number): Promise<Response> {
+    const o = await ownerSession(req, at, true);
+    if (!o.ok) return o.res;
+    if (typeof b.address !== "string" || !validAddress(b.address)) return fail(400, "That is not a passkey's address.");
+    const removed = await pk.unlinkPasskey(owner!, b.address);
+    return json({ ok: true, removed, ...(await passkeyList(o.session)) });
+  }
+
+  async function list(req: Request, at: number): Promise<Response> {
+    const o = await ownerSession(req, at, false);
+    if (!o.ok) return o.res;
+    return json(await passkeyList(o.session));
+  }
+
+  async function passkeySignin(req: Request, b: Record<string, unknown>, at: number): Promise<Response> {
+    if (!(await limit(`signin|${await visitorOf(req)}`, ADMIN_SIGNIN_LIMITS.signin.limit, ADMIN_SIGNIN_LIMITS.signin.windowMs, at))) return fail(429, "Too many sign-ins. Wait a few minutes.");
+    if (!(await person(b.turnstile, req))) return fail(403, "The person check failed. Try again.");
+    if (typeof owner !== "string" || !validAddress(owner)) return fail(403, "Set the game's own Nano address first. Only that address can open this page.", { reason: "no_address" });
+    const sig = await passkeySignature(b, adminPasskeyDomain(hostOf(req)), "nanoterra admin passkey signin v1", at);
+    if (!sig.ok) return sig.res;
+    // The signature is checked first, so a stranger learns nothing of which passkeys are linked.
+    if (!(await pk.linked(owner, sig.address))) return fail(403, "This passkey is not linked to the game's address. Sign in with your wallet, then add this passkey in Settings.", { reason: "not_linked" });
+    const token = randomHex(32);
+    await pk.createSession({ idHash: await adminKey(token), address: sig.address, createdAt: at, expiresAt: at + ADMIN_SESSION_MS, via: "passkey" });
+    await store.recordLogin({ at, country: countryOf(req), browser: shortBrowser(req.headers.get("User-Agent")) });
+    return json({ status: "signedin", address: sig.address, linkedTo: owner }, 200, { "Set-Cookie": cookieHeader(req, sessionName, token, ADMIN_SESSION_MS / 1000) });
   }
 
   async function signOut(req: Request): Promise<string> {
@@ -366,7 +486,9 @@ export function createAdminSignin(options: AdminSigninOptions): AdminSignin {
     const url = new URL(req.url);
     const path = url.pathname;
     const berryId = path.startsWith(`${base}/nano/`) ? /^[0-9a-f]{32}$/.exec(path.slice(base.length + 6))?.[0] : undefined;
-    const mine = berryId !== undefined || [`${base}/start`, `${base}/check`, `${base}/signout`, `${base}/nautilus`].includes(path) || (nanchatOn && path === `${base}/nanchat`);
+    const passkeyPaths = [`${base}/passkey`, `${base}/passkey/link`, `${base}/passkey/unlink`, `${base}/passkeys`];
+    const mine =
+      berryId !== undefined || [`${base}/start`, `${base}/check`, `${base}/signout`, `${base}/nautilus`].includes(path) || (nanchatOn && path === `${base}/nanchat`) || (passkeysOn && passkeyPaths.includes(path));
     if (!mine) return null;
     try {
       if (options.domain && url.host !== options.domain) return fail(403, `This sign-in belongs to ${options.domain}.`);
@@ -393,12 +515,17 @@ export function createAdminSignin(options: AdminSigninOptions): AdminSignin {
       // The browser's own calls: a POST from the game's own page.
       if (req.method !== "POST") return fail(405, "Not allowed.", {}, { Allow: "POST" });
       if (path === `${base}/check` && !memory(`${base}|poll|${ip}`, ADMIN_SIGNIN_LIMITS.poll.limit, ADMIN_SIGNIN_LIMITS.poll.windowMs, at)) return fail(429, "Too many requests. Wait a minute.");
+      if (passkeyPaths.includes(path) && path !== `${base}/passkey` && !memory(`${base}|passkeys|${ip}`, ADMIN_SIGNIN_LIMITS.passkeys.limit, ADMIN_SIGNIN_LIMITS.passkeys.windowMs, at)) return fail(429, "Too many requests. Wait a minute.");
       if (!sameOrigin(req)) return fail(403, "This call must come from the game's own page.");
       // A sign-out reads no body.
       if (path === `${base}/signout`) return json({ ok: true }, 200, { "Set-Cookie": await signOut(req) });
       const b = await body(req);
       if (!b) return fail(400, "That request is not readable.");
       if (path === `${base}/check`) return await check(req, b, at);
+      if (path === `${base}/passkey`) return await passkeySignin(req, b, at);
+      if (path === `${base}/passkey/link`) return await link(req, b, at);
+      if (path === `${base}/passkey/unlink`) return await unlink(req, b, at);
+      if (path === `${base}/passkeys`) return await list(req, at);
       return await start(req, b, at);
     } catch (e) {
       report(e);

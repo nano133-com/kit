@@ -1,9 +1,11 @@
 -- The admin sign-in tables of "@nano133/nanoterra/admin-signin/d1". Add this file to the game's migrations (for example
--- migrations/0009_admin_signin.sql) and run `wrangler d1 migrations apply`. The adapter reads and writes only these three tables, and only the
+-- migrations/0009_admin_signin.sql) and run `wrangler d1 migrations apply`. The adapter reads and writes only these five tables, and only the
 -- ADMIN rows of the first two (scope = 'admin').
 --
--- The game starter has all three already (migrations 0001, 0002, 0003, 0005 and 0006): it needs NO migration, and `IF NOT EXISTS` leaves its tables and
--- rows as they are if it runs this file anyway. A game that has the player sign-in's d1.sql has the first two: this file adds `admin_logins`.
+-- The game starter has the first three already (migrations 0001, 0002, 0003, 0005 and 0006), and `IF NOT EXISTS` leaves its tables and rows as they are if
+-- it runs this file anyway. The last two (since 0.12.0) are the owner's passkeys: a game that turns them on (`createAdminSignin({ passkeys: true })`) and
+-- has the first three adds only those two (the starter: migrations/0009_admin_passkeys.sql, the two CREATE TABLE statements at the end of this file). A
+-- game that has the player sign-in's d1.sql has the first two: this file adds the other three.
 -- Times are milliseconds since 1970 (Date.now()).
 
 -- Wallet sign-in requests (the player's and the admin's: `scope` says whose). An admin request lives 2 minutes; the clean-up deletes it 2 hours after it ends.
@@ -43,3 +45,18 @@ CREATE TABLE IF NOT EXISTS admin_logins (
   browser TEXT NOT NULL                -- a short name from fixed lists: "Chrome on macOS"
 );
 CREATE INDEX IF NOT EXISTS admin_logins_by_time ON admin_logins (at);
+
+-- The owner's passkeys (since 0.12.0): each passkey linked to the game's own address, at most 10 for an owner. Only a live WALLET admin session of the owner
+-- writes a link; a link opens /admin only while it is here and its owner is the game's address NOW.
+CREATE TABLE IF NOT EXISTS admin_passkeys (
+  owner TEXT NOT NULL,                 -- the game's own address when the link was made
+  address TEXT NOT NULL,               -- the passkey purse's address
+  created_at INTEGER NOT NULL,         -- ms since 1970
+  PRIMARY KEY (owner, address)
+);
+
+-- The passkeys' used signatures (the admin's own, apart from the player's signin_once): the hash of each signed text, so one signature counts once.
+CREATE TABLE IF NOT EXISTS admin_once (
+  key TEXT PRIMARY KEY,
+  until INTEGER NOT NULL               -- ms since 1970; the clean-up deletes the row after it
+);

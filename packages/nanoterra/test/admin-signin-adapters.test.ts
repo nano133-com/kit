@@ -9,7 +9,7 @@ import { createFirestoreAdminSignin, type AdminSigninDocRef, type AdminSigninQue
 import { adminSigninStoreConformance, type AdminSigninConformanceCase } from "../src/admin-signin/conformance.js";
 import { createD1PlayerSignin } from "../src/player-signin/adapters/d1.js";
 import { createPlayerSignin, sha256Hex } from "../src/player-signin/index.js";
-import { ADMIN_SQL, OWNER, PLAYER_SQL, STARTER } from "./admin-signin-helpers.js";
+import { ADMIN_SQL, OWNER, PASSKEYS_SQL, PLAYER_SQL, STARTER } from "./admin-signin-helpers.js";
 import { d1Over, noSqlite, sqlite } from "./shop-helpers.js";
 
 const run = (name: string, cases: AdminSigninConformanceCase[]) => {
@@ -22,34 +22,67 @@ const run = (name: string, cases: AdminSigninConformanceCase[]) => {
 run("admin sign-in memory", adminSigninStoreConformance(async () => {
   const store = createMemoryAdminSignin();
   return { store, dump: async () => JSON.stringify([[...store.requestRows.entries()], [...store.sessionRows.entries()], store.loginRows]) };
-}));
+}, { passkeys: true }));
+
+test("conformance: a store with no passkey methods passes the passkey cases only while they are not asked for", async () => {
+  const bare = async () => {
+    const { createSession: _a, linkPasskey: _b, unlinkPasskey: _c, passkeys: _d, linked: _e, useOnce: _f, ...rest } = createMemoryAdminSignin();
+    return { store: rest, dump: async () => "" };
+  };
+  const pick = (cases: AdminSigninConformanceCase[]) => cases.filter((c) => c.name.startsWith("passkeys: "));
+  assert.equal(pick(adminSigninStoreConformance(bare, { passkeys: false })).length, 0);
+  const auto = pick(adminSigninStoreConformance(bare));
+  assert.ok(auto.length >= 4);
+  for (const c of auto) await c.run();
+  for (const c of pick(adminSigninStoreConformance(bare, { passkeys: true }))) await assert.rejects(c.run(), /no passkey methods/);
+});
 
 // ---- D1, on SQLite ----
 
 const TABLES = ["signin_requests", "sessions", "admin_logins"];
+const PASSKEY_TABLES = ["admin_passkeys", "admin_once"];
 function d1Harness(schema: string) {
   const db = sqlite(schema);
   const store = createD1AdminSignin(d1Over(db));
-  const dump = async () => TABLES.map((t) => JSON.stringify(db.prepare(`SELECT * FROM ${t} ORDER BY 1`).all())).join("|");
+  const has = (t: string) => db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(t) !== undefined;
+  const dump = async () => [...TABLES, ...PASSKEY_TABLES.filter(has)].map((t) => JSON.stringify(db.prepare(`SELECT * FROM ${t} ORDER BY 1`).all())).join("|");
   return { db, store, dump };
 }
 
 if (noSqlite) test("admin sign-in D1 adapter on SQLite", { skip: noSqlite }, () => {});
 else {
-  run("admin sign-in D1 (its d1.sql alone)", adminSigninStoreConformance(async () => d1Harness(ADMIN_SQL)));
-  run("admin sign-in D1 on the starter's own tables (no migration)", adminSigninStoreConformance(async () => d1Harness(STARTER)));
-  run("admin sign-in D1 beside the player sign-in's d1.sql", adminSigninStoreConformance(async () => d1Harness(`${PLAYER_SQL}\n${ADMIN_SQL}`)));
+  run("admin sign-in D1 (its d1.sql alone)", adminSigninStoreConformance(async () => d1Harness(ADMIN_SQL), { passkeys: true }));
+  run("admin sign-in D1 on the starter's own tables (no migration; no passkeys)", adminSigninStoreConformance(async () => d1Harness(STARTER), { passkeys: false }));
+  run("admin sign-in D1 on the starter's own tables + the passkeys' migration (0009)", adminSigninStoreConformance(async () => d1Harness(`${STARTER}\n${PASSKEYS_SQL}`), { passkeys: true }));
+  run("admin sign-in D1 beside the player sign-in's d1.sql", adminSigninStoreConformance(async () => d1Harness(`${PLAYER_SQL}\n${ADMIN_SQL}`), { passkeys: true }));
 
-  test("D1: d1.sql on the starter's tables changes nothing (every table is there: IF NOT EXISTS), and on the player's d1.sql it adds only admin_logins", () => {
+  test("D1: d1.sql on the starter's tables adds only the passkeys' two tables (the rest is there: IF NOT EXISTS), the same as the 0009 migration; on the player's d1.sql it adds admin_logins and those two", () => {
+    const schema = (d: ReturnType<typeof sqlite>) => JSON.stringify(d.prepare("SELECT type, name, sql FROM sqlite_master ORDER BY name").all());
+    const names = (d: ReturnType<typeof sqlite>) => (d.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as { name: string }[]).map((r) => r.name);
     const db = sqlite(STARTER);
-    const before = JSON.stringify(db.prepare("SELECT type, name, sql FROM sqlite_master ORDER BY name").all());
+    const had = names(db);
     db.exec(ADMIN_SQL);
-    assert.equal(JSON.stringify(db.prepare("SELECT type, name, sql FROM sqlite_master ORDER BY name").all()), before);
+    assert.deepEqual(names(db).filter((n) => !had.includes(n)), ["admin_once", "admin_passkeys"]);
+    const migrated = sqlite(STARTER);
+    migrated.exec(PASSKEYS_SQL);
+    assert.equal(schema(migrated), schema(db), "the migration makes what d1.sql makes on the starter");
+    migrated.exec(PASSKEYS_SQL);
+    assert.equal(schema(migrated), schema(db), "running it twice changes nothing");
+    assert.doesNotMatch(PASSKEYS_SQL.replace(/--.*$/gm, ""), /\b(?:ALTER|DROP|DELETE|UPDATE|INSERT)\b/i, "the migration only adds tables");
     const p = sqlite(PLAYER_SQL);
-    const names = (d: typeof p) => (d.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as { name: string }[]).map((r) => r.name);
-    const had = names(p);
+    const before = names(p);
     p.exec(ADMIN_SQL);
-    assert.deepEqual(names(p).filter((n) => !had.includes(n) && n !== "sqlite_sequence"), ["admin_logins"]);
+    assert.deepEqual(names(p).filter((n) => !before.includes(n) && n !== "sqlite_sequence"), ["admin_logins", "admin_once", "admin_passkeys"]);
+  });
+
+  test("D1 on the starter's tables with no passkey migration: the wallet sign-in and clean() still work (clean skips the missing once-table)", async () => {
+    const db = sqlite(STARTER);
+    const store = createD1AdminSignin(d1Over(db));
+    await store.recordLogin({ at: 1, country: null, browser: "Old" });
+    await store.clean(Date.now());
+    assert.equal((await store.recentLogins(5)).length, 0);
+    // The passkey methods need the tables: a game turns the passkeys on only with the migration.
+    await assert.rejects(store.linked(OWNER.address, OWNER.address), /no such table/);
   });
 
   test("D1 on the starter's tables: its admin logins and requests read as the starter wrote them, and the player's rows are never read, delivered, ended or deleted", async () => {
@@ -160,7 +193,7 @@ function fakeFirestore() {
 run("admin sign-in Firestore (fake)", adminSigninStoreConformance(async () => {
   const { db, data } = fakeFirestore();
   return { store: createFirestoreAdminSignin(db), dump: async () => JSON.stringify([...data.entries()].map(([k, m]) => [k, [...m.entries()]])) };
-}));
+}, { passkeys: true }));
 
 test("Firestore: every document carries deleteAt (a TTL policy deletes it), only the three collections are written, and a player's documents are never read or deleted", async () => {
   const { db, data } = fakeFirestore();

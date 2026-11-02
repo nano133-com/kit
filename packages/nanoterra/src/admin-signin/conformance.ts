@@ -6,11 +6,12 @@
 //
 // Each case gets a NEW, empty store from `make`. The rules: a request is finished once and delivered once, and a delivery writes its session in the same
 // step; the two wallet apps stay apart; a session lasts until its time; "Sign out everywhere" ends every session and every request not delivered; the
-// sign-in list keeps three things for 30 days. (The whole chain, with the player's sign-in beside it, is `adminSigninConformance` in
+// sign-in list keeps three things for 30 days; and (since 0.12.0) the owner's passkeys: a link is written once, at most 10 for an owner even when many come
+// at once, a removal ends the passkey's sessions, and a used signature counts once. (The whole chain, with the player's sign-in beside it, is `adminSigninConformance` in
 // "@nano133/nanoterra/admin/conformance".)
 
 import type { AdminSessionRecord, AdminSigninStore, SigninRequest } from "./types.js";
-import { ADMIN_LOGIN_KEEP_MS } from "./types.js";
+import { ADMIN_LOGIN_KEEP_MS, ADMIN_PASSKEY_LIMIT } from "./types.js";
 
 export type AdminSigninHarness = {
   store: AdminSigninStore;
@@ -38,9 +39,31 @@ function request(at: number, extra: Partial<SigninRequest> = {}): { key: string;
 }
 const session = (at: number, n: number, via = "wallet"): AdminSessionRecord => ({ idHash: hex(1_000_000 + n + serial++), address: OWNER, createdAt: at, expiresAt: at + 86_400_000, via });
 
-export function adminSigninStoreConformance(make: () => Promise<AdminSigninHarness>): AdminSigninConformanceCase[] {
+export type AdminSigninConformanceOptions = {
+  /**
+   * The owner's passkeys (the store's optional passkey methods). true: the cases run and the store must have them. false: no passkey case. Not set: the
+   * cases are listed, and a store with no `linkPasskey` passes them with nothing to check (a store written for 0.11.0).
+   */
+  passkeys?: boolean;
+};
+
+type PasskeyStore = Required<AdminSigninStore>;
+
+export function adminSigninStoreConformance(make: () => Promise<AdminSigninHarness>, options: AdminSigninConformanceOptions = {}): AdminSigninConformanceCase[] {
   const cases: AdminSigninConformanceCase[] = [];
   const add = (name: string, run: (h: AdminSigninHarness, now: number) => Promise<void>) => cases.push({ name, run: async () => run(await make(), Date.now()) });
+  /** A passkey case: it runs only on a store with the passkey methods (required with `passkeys: true`). */
+  const addPasskey = (name: string, run: (store: PasskeyStore, now: number, h: AdminSigninHarness) => Promise<void>) => {
+    if (options.passkeys === false) return;
+    add(`passkeys: ${name}`, async (h, now) => {
+      const has = ["createSession", "linkPasskey", "unlinkPasskey", "passkeys", "linked", "useOnce"].every((m) => typeof (h.store as unknown as Record<string, unknown>)[m] === "function");
+      if (!has) {
+        check(options.passkeys !== true, "the store has no passkey methods (createSession, linkPasskey, unlinkPasskey, passkeys, linked, useOnce)");
+        return;
+      }
+      await run(h.store as PasskeyStore, now, h);
+    });
+  };
 
   add("a request reads back as it was made, by its key and by its browser id, and only for its own wallet app", async ({ store }, now) => {
     const { key, r } = request(now, { label: "ADMIN of game.test sign-in ABCD-EFGH from US" });
@@ -206,6 +229,79 @@ export function adminSigninStoreConformance(make: () => Promise<AdminSigninHarne
     check((await store.requests("berry").get(old.key)) === null, "the old request went");
     check((await store.requests("berry").get(fresh.key)) !== null, "the fresh request stays");
     check((await store.recentLogins(10)).length === 0, "the sign-in row past 30 days went");
+  });
+
+  addPasskey("a link is written once and read back exactly, oldest first, for its owner only", async (store, now) => {
+    const a = who("pka");
+    const b = who("pkb");
+    check((await store.passkeys(OWNER)).length === 0, "a new store lists no passkey");
+    check(!(await store.linked(OWNER, a)), "nothing is linked yet");
+    check((await store.linkPasskey(OWNER, a, now - 1000)) === "linked", "the first link");
+    check((await store.linkPasskey(OWNER, b, now)) === "linked", "a second passkey");
+    check((await store.linkPasskey(OWNER, a, now + 5)) === "exists", "the same passkey again is 'exists'");
+    const list = await store.passkeys(OWNER);
+    check(list.length === 2 && list[0].address === a && list[0].createdAt === now - 1000 && list[1].address === b, `the list: ${JSON.stringify(list)}`);
+    check(list.every((p) => Object.keys(p).sort().join() === "address,createdAt"), `a passkey carries only address and createdAt: ${JSON.stringify(list[0])}`);
+    check(await store.linked(OWNER, a), "linked");
+    check(!(await store.linked(who("oth"), a)), "another owner has no link to it");
+    check(!(await store.linked(OWNER.toUpperCase(), a)) && !(await store.linked(OWNER, a.toUpperCase())) && !(await store.linked(` ${OWNER}`, a)), "only the exact texts are linked");
+    check((await store.passkeys(who("oth"))).length === 0, "another owner lists none");
+  });
+
+  addPasskey(`at most ${ADMIN_PASSKEY_LIMIT} for an owner, even when many links come at once; another owner has its own ${ADMIN_PASSKEY_LIMIT}`, async (store, now) => {
+    const many = Array.from({ length: ADMIN_PASSKEY_LIMIT + 4 }, (_, i) => who(`m${i}`));
+    const got = await Promise.all(many.map((a, i) => store.linkPasskey(OWNER, a, now + i)));
+    check(got.filter((r) => r === "linked").length === ADMIN_PASSKEY_LIMIT && got.filter((r) => r === "full").length === 4, `results: ${JSON.stringify(got)}`);
+    check((await store.passkeys(OWNER)).length === ADMIN_PASSKEY_LIMIT, "the list holds the limit");
+    check((await store.linkPasskey(OWNER, who("late"), now)) === "full", "full");
+    const linked = (await store.passkeys(OWNER))[0].address;
+    check((await store.linkPasskey(OWNER, linked, now)) === "exists", "a passkey that is there is 'exists', not 'full'");
+    check((await store.linkPasskey(who("oth"), who("late"), now)) === "linked", "another owner is not full");
+    check(await store.unlinkPasskey(OWNER, linked), "a removal");
+    check((await store.linkPasskey(OWNER, who("late"), now)) === "linked", "a removal makes room for one");
+  });
+
+  addPasskey("a removal ends the link and every admin session of that passkey, and nothing else", async (store, now) => {
+    const a = who("rma");
+    const b = who("rmb");
+    await store.linkPasskey(OWNER, a, now);
+    await store.linkPasskey(OWNER, b, now);
+    const sa = { ...session(now, 60, "passkey"), address: a };
+    const sb = { ...session(now, 61, "passkey"), address: b };
+    const owner = session(now, 62, "wallet");
+    for (const s of [sa, sb, owner]) await store.createSession(s);
+    const read = await store.session(sa.idHash, now);
+    check(read?.address === a && read.via === "passkey" && read.createdAt === now && read.expiresAt === sa.expiresAt, `a passkey session reads back: ${JSON.stringify(read)}`);
+    check(await store.unlinkPasskey(OWNER, a), "the removal says it removed one");
+    check(!(await store.unlinkPasskey(OWNER, a)), "a second removal says false");
+    check(!(await store.linked(OWNER, a)) && (await store.linked(OWNER, b)), "only that link went");
+    check((await store.session(sa.idHash, now)) === null, "the passkey's session ended with its link");
+    check((await store.session(sb.idHash, now)) !== null && (await store.session(owner.idHash, now)) !== null, "the other passkey's session and the wallet's session stay");
+    let threw = false;
+    try {
+      await store.createSession(sb);
+    } catch {
+      threw = true;
+    }
+    check(threw, "a second session with the same hash is refused");
+    check((await store.signOutEverywhere()) === 2, "Sign out everywhere ends the passkey sessions too");
+    check((await store.session(sb.idHash, now)) === null, "and the passkey's session is gone");
+    check(await store.linked(OWNER, b), "Sign out everywhere keeps the links (a removal ends one)");
+  });
+
+  addPasskey("a used signature counts once, even twice at the same moment; after its time, or after clean, it may be used again", async (store) => {
+    const k = hex(31337);
+    check(await store.useOnce(k, 60_000), "the first use");
+    check(!(await store.useOnce(k, 60_000)), "the second use is refused");
+    const k2 = hex(31338);
+    const both = await Promise.all([store.useOnce(k2, 60_000), store.useOnce(k2, 60_000)]);
+    check(both.filter(Boolean).length === 1, `two at once: ${JSON.stringify(both)}`);
+    const k3 = hex(31339);
+    check(await store.useOnce(k3, 1), "a short one");
+    await new Promise((r) => setTimeout(r, 15));
+    check(await store.useOnce(k3, 60_000), "past its time it may be used again");
+    await store.clean(Date.now() + 120_000);
+    check(await store.useOnce(k, 60_000), "clean dropped the used row past its time");
   });
 
   return cases;

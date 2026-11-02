@@ -74,9 +74,9 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/admin/d1`, `/admin/firestore` | the admin store for D1 (the starter's tables) or Firestore (a small interface, no Firebase dependency): `createD1Store`, `createFirestoreStore` (since 0.2.0) | no | 1.5 kB each |
 | `@nano133/nanoterra/admin/panel` | the admin page, drawn in the browser into one element, and its stylesheet `@nano133/nanoterra/admin/style.css` (since 0.2.0) | no | 18.9 kB with the tabbed layout (10.6 kB on 0.3.0, 8.5 kB on 0.2.0) + 5.9 kB of CSS (minified) |
 | `@nano133/nanoterra/admin/conformance` | test cases that a game runs against its own admin (a dev dependency in practice; since 0.2.0) | no | n/a |
-| `@nano133/nanoterra/admin-signin` | the admin's wallet sign-in on one fixed route, `/api/admin-signin`: the routes, `session(request)` for the admin handler, "Sign out everywhere", the sign-in list, a memory store (server code; it needs `@nano133/signin`; since 0.11.0) | no | 5.5 kB without `@nano133/signin` |
-| `@nano133/nanoterra/admin-signin/d1`, `/admin-signin/firestore` | its store on D1 (the starter's own tables; a new game adds `/admin-signin/d1.sql`) or Firestore (a small interface, no Firebase dependency) (since 0.11.0) | no | 1.4 kB, 1.7 kB |
-| `@nano133/nanoterra/admin-signin/panel` | the admin's sign-in in the browser, for `mountAdmin`'s `signIn` and `signOut`: `adminSignIn()`, `adminSignOut()`, with its own QR code; its stylesheet `@nano133/nanoterra/admin-signin/style.css` is the player sheet's (since 0.11.0) | no | 6.8 kB |
+| `@nano133/nanoterra/admin-signin` | the admin's wallet sign-in on one fixed route, `/api/admin-signin`: the routes, `session(request)` for the admin handler, "Sign out everywhere", the sign-in list, a memory store, and (since 0.12.0, `passkeys: true`) the owner's linked passkeys (server code; it needs `@nano133/signin`; since 0.11.0) | no | 6.9 kB without `@nano133/signin` |
+| `@nano133/nanoterra/admin-signin/d1`, `/admin-signin/firestore` | its store on D1 (the starter's own tables; a new game adds `/admin-signin/d1.sql`) or Firestore (a small interface, no Firebase dependency) (since 0.11.0) | no | 1.9 kB, 2.2 kB |
+| `@nano133/nanoterra/admin-signin/panel` | the admin's sign-in in the browser, for `mountAdmin`'s `signIn` and `signOut`: `adminSignIn()`, `adminSignOut()`, with its own QR code, and (since 0.12.0) the Passkey tile and the `ownerPasskeys()` card (the passkey code loads only at a passkey's use); its stylesheet `@nano133/nanoterra/admin-signin/style.css` is the player sheet's (since 0.11.0) | no | 9.3 kB |
 | `@nano133/nanoterra/admin-signin/conformance` | the store's rules as test cases, for a store a game writes itself (since 0.11.0) | no | n/a |
 | `@nano133/nanoterra/friends` | the game's own friends list: the handler, the rules, a memory store (server code; since 0.6.0) | no | 3.7 kB |
 | `@nano133/nanoterra/friends/d1`, `/friends/firestore` | the friends store for D1 (with the migration `/friends/d1.sql`) or Firestore (a small interface, no Firebase dependency): `createD1Friends`, `createFirestoreFriends` (since 0.6.0) | no | 3.0 kB each |
@@ -629,10 +629,9 @@ store.signOutEverywhere = signin.signOutEverywhere`, see "The admin's sign-in"),
 
 - **A second signature for a write.** The only server write the admin makes is the sign-in switch (and the Shelf never writes), so asking the owner to sign again for each press adds friction for
   little gain. A later version could ask for it if the admin ever writes more.
-- **An optional passkey for the admin, bound to the domain.** A passkey (WebAuthn) belongs to the domain it was made for, so a sign-in request that a stranger relays to the owner from another
-  page or link **cannot be answered with it**: the browser will not use the passkey on another domain. That is the strongest fix for the relay of an admin wallet sign-in. The wallet text names
-  the admin now, but a wallet cannot tell where a request started; a passkey can. Later, not now: the owner's wallet signature would stay as the way to make the first admin login or to
-  recover, and the passkey would be a second, optional way that cannot be relayed.
+- **An optional passkey for the admin, bound to the domain.** Built in 0.12.0: see "A passkey for the owner" under "The admin's sign-in". A passkey (WebAuthn) belongs to the domain it was
+  made for, so a sign-in request that a stranger relays to the owner from another page cannot be answered with it. The owner's wallet stays the way to make the first admin login, to link a
+  passkey and to recover.
 
 ### The panel
 
@@ -658,7 +657,8 @@ real tabs (the arrow keys, Home and End work); every tab is made once, so a draf
 A visitor who is signed out gets the game's sign-in; a wrong wallet, a Nanoterra sign-in and a missing owner address each get their own screen and see no data (a sign-out
 takes the drawn data off the page). Options: `api` (the handler's base path), `noAddressHelp`, `lookPicture(look)` (your own picture of a look for the Shelf), `repoHelp`,
 `loginsNote`, `playerPasskeys` (the game offers its players a passkey: on `*.workers.dev` the banner says that passkeys turn on with the game's own
-domain) and `fetch`.
+domain), `cards` (since 0.12.0: cards of the game's own for Settings, after Sign-ins, `{ el, refresh? }`; `refresh()` runs at each sign-in; the owner's passkeys
+card is one) and `fetch`.
 
 **The Shelf** shows the looks your game sells now in a grid of cards: a big picture on a soft tint of the look's colour, the price with its step on the ladder ("25¢ ·
 statement"), what it has sold and its share of the sales, its slots as chips; filters (All, For sale, Free, Not sold yet) and a sort (Best selling, price, name, the
@@ -783,13 +783,14 @@ minutes**, is delivered for **one more minute**, and works **once**; only the br
 **NanChat is OFF by default.** Its text must start "Login to <host>" and **cannot name the ADMIN**, so the owner who is asked to sign cannot tell an admin sign-in from a game
 sign-in. A start with `way: "nanchat"` is refused: "NanChat cannot open the admin yet. Use Berry Wallet or Nautilus." A game may turn it on with `nanchat: true` (and the
 panel's `nanchat: true`): it then signs "Login to <host>" as a player's NanChat sign-in does, with the same admin checks, and the panel says that its text cannot say ADMIN.
-**Berry Wallet is first** in every list of wallets. **No passkey opens /admin** yet.
+**Berry Wallet is first** in every list of wallets. A passkey opens /admin only when the owner linked it (`passkeys: true`, see "A passkey for the owner" below).
 
 **The two logins stay apart, on the server.** The admin login is its own cookie, `admin` (`__Host-admin` on https; HttpOnly, SameSite=Lax, **one day**), beside the player's
 `session`, so the game and /admin can have different people signed in at once. The database keeps the SHA-256 of `"admin:"` and the token (`adminKey`), and the player's
 session its plain hash: a player's token put in the admin cookie opens nothing, a player's starter copied to `starter-admin` finishes nothing, and an admin request never
 makes a player's login (the store reads only its own scope's rows). **Only the game's own address (`owner`) makes an admin login**; the guard (`adminAccess`) decides again
-on every call of /admin. `session(request)` gives `{ address, createdAt, via }` (a stored word other than `"wallet"` or `"nanoterra"` is `"unknown"`: refused).
+on every call of /admin. `session(request)` gives `{ address, createdAt, via }` (a stored word other than `"wallet"`, `"nanoterra"` or `"passkey"` is `"unknown"`: refused;
+a `"passkey"` session also carries `linkedTo`, only while its link exists: see below).
 
 **What it keeps.** Each admin login writes one row of the sign-in list: the time, the country of Cloudflare's country header (two letters, or none) and a short browser
 name from fixed lists ("Chrome on macOS"): no address, no IP and no browser text. A row is kept 30 days. `signOutEverywhere()` deletes every admin login and ends every admin
@@ -816,6 +817,79 @@ check every 2 seconds, and `done()` once the owner has signed in. Options: `base
 **Moving the game starter onto it:** use `createD1AdminSignin(env.DB)` (no migration), answer `adminSignin.handle(request)` before the player's sign-in, give the admin handler
 `session: adminSignin.session`, and in `admin.ts` `signIn: adminSignIn(...)`, `signOut: adminSignOut()`. The player's sign-in then needs no `sharedPaths`, and
 `src/worker/signin.ts` and `src/client/ui/signin.ts` go. Old requests started on `/api/signin` with `scope: "admin"` are 2 minutes long: none outlive the deploy.
+
+### A passkey for the owner (since 0.12.0)
+
+The owner may **link passkeys** to the game's address (at most 10, `ADMIN_PASSKEY_LIMIT`) and then open /admin with Face ID, Touch ID or the device PIN, without
+the wallet. **A passkey is only a key to /admin: the money stays in the owner's wallet.** It is off unless the game turns it on.
+
+**The security rule, in plain words.** A link counts only when each side proves its key, as nano133.com's account links do:
+
+1. **Only the owner's wallet writes a link.** `POST {base}/passkey/link` needs a live admin session made by the **wallet** of the game's own address. A passkey's
+   session cannot add a passkey, and neither can a player's login, a Nanoterra sign-in or another wallet.
+2. **The passkey proves its key** in the same call: its purse signs `Link this passkey to the ADMIN of <host>: sign in as <address> at <ms>`.
+3. **A linked passkey opens /admin** with its own signature of `ADMIN of <host>: sign in as <address> at <ms>`. It never names the host alone: a player's passkey
+   signature (`<host>: sign in as ...`) never opens /admin, a link signature is not a sign-in, and a sign-in signature links nothing. Each signature counts
+   **once** (the admin's own table) and within **5 minutes**.
+4. **The link is read on every request**, with the **current** owner address. Remove the link, or change the game's address, and the passkey's access ends at
+   the next request; a removal also deletes that passkey's admin sessions. The guard's one new rule (Wes, 2026-11-01): a session with `via: "passkey"` opens
+   /admin only with `linkedTo` equal to the owner address, and `session(request)` sets `linkedTo` only after it read the link. Every other check (the owner
+   address, one day, the clock) is the same as for the wallet.
+
+```ts
+// The Worker: the same createAdminSignin, with passkeys on
+const adminSignin = createAdminSignin({ store: createD1AdminSignin(env.DB), owner: receiveAddress(env), passkeys: true, limit, visitor, personCheck });
+
+// The admin page: the Passkey tile in the sign-in, and the "Owner passkeys" card in Settings
+import { mountAdmin } from "@nano133/nanoterra/admin/panel";
+import { adminSignIn, adminSignOut, ownerPasskeys } from "@nano133/nanoterra/admin-signin/panel";
+import { SCHEME } from "./scheme";   // the game's FROZEN passkey scheme: the same one the player sheet takes
+mountAdmin(el, {
+  looks,
+  signIn: adminSignIn({ personCheck, passkeys: true, scheme: SCHEME, name: "My Game" }),
+  signOut: adminSignOut(),
+  cards: [ownerPasskeys({ scheme: SCHEME, name: "My Game" })],
+});
+```
+
+| Route (with `passkeys: true`) | Who may call it | What it does |
+|---|---|---|
+| `POST {base}/passkey/link` `{ address, at, signature }` | a live **wallet** admin session of the owner | links the passkey that signed the link text: `{ ok, address, passkeys, limit, via, canChange, you }`; 409 `full` or `exists` |
+| `POST {base}/passkey/unlink` `{ address }` | a live **wallet** admin session of the owner | removes the link and ends that passkey's admin sessions: `{ ok, removed, passkeys, ... }` |
+| `POST {base}/passkeys` | any session the guard accepts | `{ passkeys: [{ address, createdAt }], limit, via, canChange, you }` (`canChange` only for the wallet) |
+| `POST {base}/passkey` `{ address, at, signature, turnstile? }` | the admin page | the passkey's ADMIN signature (the person check and the start limit, like `start`); 403 `not_linked` unless linked; else a new admin session `{ via: "passkey" }` of one day, the sign-in list row and the admin cookie: `{ status: "signedin", address, linkedTo }` |
+
+All four are POSTs from the game's own page (`Origin` checked) and are not routes at all while `passkeys` is off. The list, a link and a removal count 30 a minute
+per IP address; a link and a passkey sign-in also count with the starts (`limit`, 20 in 10 minutes per visitor). A refusal of a link from a passkey's session has
+`reason: "wallet_only"`. "Sign out everywhere" ends the passkeys' sessions too, and keeps the links (Remove ends one).
+
+**The panel.** `adminSignIn({ passkeys: true, scheme, name })` adds a **Passkey** tile after the wallets ("Use my passkey"). `ownerPasskeys({ scheme, name })` is
+a card for `mountAdmin`'s new `cards` option (cards of the game's own in Settings, after Sign-ins; each one's `refresh()` runs at every sign-in): the list, **Add a
+passkey** ("Make a new passkey" or "Use a passkey I have") and **Remove** (two presses), both shown only with a wallet session; a passkey's session sees "Sign in
+with your wallet to add or remove a passkey." The passkey code and the purse load only when a passkey is used. Text 16 px, keys 48 px. The passkey comes from the
+game's frozen scheme (the player sheet's), so a passkey the owner also uses to play may be linked too: its PLAYER signature still opens nothing here.
+
+**The store** needs the passkey methods (`createSession`, `linkPasskey`, `unlinkPasskey`, `passkeys`, `linked`, `useOnce`; the package's three stores have them, and
+`createAdminSignin({ passkeys: true })` refuses a store without them); `adminSigninStoreConformance(make, { passkeys: true })` proves them. **D1** keeps them in two
+new tables at the end of `d1.sql`. **A starter-shaped game adds this migration** (the starter: `migrations/0009_admin_passkeys.sql`); a game that already ran
+`d1.sql` before 0.12.0 adds the same two statements:
+
+```sql
+CREATE TABLE IF NOT EXISTS admin_passkeys (
+  owner TEXT NOT NULL,
+  address TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (owner, address)
+);
+CREATE TABLE IF NOT EXISTS admin_once (
+  key TEXT PRIMARY KEY,
+  until INTEGER NOT NULL
+);
+```
+
+Without it, the wallet sign-in and `clean()` work as before (the clean-up skips the missing table); only `passkeys: true` needs it. **Firestore** keeps one document
+per owner in `admin_passkeys/{owner}` (`{ owner, passkeys: [{ address, createdAt }] }`, no `deleteAt`) and the used signatures in `admin_once/{key}` (`{ until,
+deleteAt }`: add it to the TTL policy). Other names: `createD1AdminSignin(db, { passkeys, once })`, `createFirestoreAdminSignin(db, { passkeys, once })`.
 
 ## The friends list (`/friends`; since 0.6.0)
 
@@ -1522,7 +1596,6 @@ counter** as they are, and the page needs no change for the server part.
 - First-person arms, swimming, climbing and the room's other moves: only idle, walk, run, jump and wave, and the emotes (`/emotes`, which sit too).
 - Shared geometry for many characters at once, and a react-three-fiber wrapper.
 - `WebGPURenderer`: the ink is a GLSL `ShaderMaterial`, so use `WebGLRenderer`.
-- A passkey for the admin: the owner's linked passkey comes in a later version. Today only a wallet signature opens /admin.
 - A creator option to accept Berry Wallet only.
 - Move money. The shop (`/shop`) reads the Nano ledger to see a payment to the creator's address; no part of the package holds a key or sends.
 

@@ -120,7 +120,9 @@ with no Three.js), `/looks`, `/friends`, `/options`, `/emotes`, `/player-signin`
 - **The admin's sign-in** (`/admin-signin`, `/admin-signin/d1`, `/admin-signin/firestore`, `/admin-signin/panel`): the wallet sign-in of /admin, on ONE fixed
   route in every game, `/api/admin-signin`. Never write an admin sign-in of your own or move it to another path. Berry Wallet and Nautilus sign a text that names
   the ADMIN; NanChat stays off (`nanchat: false`) unless the owner asks: its text cannot name the admin. Only the owner's address makes an admin login; give
-  `adminSignin.session` to `createAdminHandler`. Do not change its checks or its signed texts.
+  `adminSignin.session` to `createAdminHandler`. Do not change its checks or its signed texts. The owner's linked passkeys (`passkeys: true`, since 0.12.0) only if
+  the owner asks: only a wallet admin session links one, and a passkey opens /admin only while its link to the current owner exists. Never set `linkedTo` on a
+  session yourself, and never loosen `adminAccess` beyond its one passkey rule.
 
 ## Working in this repository
 

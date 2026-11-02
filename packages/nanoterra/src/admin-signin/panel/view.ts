@@ -5,12 +5,18 @@
 //
 // Plain DOM, no framework, no package. The tiles show letters, not logos: no wallet's licence clearly allows its logo. Phone first: text 16 px, every
 // key and tile 48 px or more each way. It uses the player sheet's stylesheet ("@nano133/nanoterra/admin-signin/style.css" is the same file).
+//
+// With `passkeys: true` (and the game's frozen `scheme` and `name`), a "Passkey" tile comes after the wallets: a passkey that the owner linked in Settings
+// ("Owner passkeys", ./passkeys.ts) opens /admin. A passkey that is not linked is refused by the server.
 
+import type { PasskeyScheme } from "@nano133/signin/passkey";
 import { ApiError, createApi } from "../../admin/panel/api.js";
 import { h, shortAddress } from "../../admin/panel/dom.js";
 import { icon } from "../../admin/panel/icons.js";
+import { checkScheme } from "../../player-signin/scheme-check.js";
 import { qrSvg } from "../../shop/panel/qr.js";
 import { ADMIN_SIGNIN_BASE, type AdminWay } from "../types.js";
+import { passkeyAdminSignIn, passkeyFaultText } from "./passkeys.js";
 
 export type AdminSigninViewOptions = {
   /** Where the sign-in's routes are. Default "/api/admin-signin" (ADMIN_SIGNIN_BASE). */
@@ -20,6 +26,17 @@ export type AdminSigninViewOptions = {
    * admin sign-in from a game sign-in in it: it is off unless the game turns it on on the server and here.
    */
   nanchat?: boolean;
+  /**
+   * Offer the owner's linked passkeys (the server's `passkeys: true`): a "Passkey" tile after the wallets. Default false. Needs `scheme` and `name`. Only a
+   * passkey that the owner linked in Settings while signed in with the wallet opens /admin.
+   */
+  passkeys?: boolean;
+  /** The game's FROZEN passkey scheme: the same one the player sheet takes. Needed with `passkeys`. */
+  scheme?: PasskeyScheme;
+  /** The game's name (the device shows it with the passkey). Needed with `passkeys`. */
+  name?: string;
+  /** The passkeys' relying party id: the game's domain. Default: the page's host name. */
+  rpId?: string;
   /** The person check (Turnstile): fills `box` and gives its token, before a start. No hook: no check. */
   personCheck?: (box: HTMLElement) => Promise<string | null | undefined>;
   /** Draws a QR code of `text` (a wallet's link), for a screen with a mouse. Default: the package's own QR code; a link too long for it is shown as a link. */
@@ -59,6 +76,12 @@ export function adminSigninView(options: AdminSigninViewOptions = {}): AdminSign
   const base = options.base ?? ADMIN_SIGNIN_BASE;
   const api = createApi(base, options.fetch ?? ((...a) => fetch(...a)));
   const wallets = WALLETS.filter((w) => w.way !== "nanchat" || options.nanchat === true);
+  const passkeysOn = options.passkeys === true;
+  if (passkeysOn) {
+    checkScheme(options.scheme as PasskeyScheme);
+    if (typeof options.name !== "string" || !options.name.trim()) throw new Error("passkeys: true needs the game's name");
+  }
+  let prompt: AbortController | null = null;
   const touch = () => options.touch ?? (typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches);
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -77,6 +100,8 @@ export function adminSigninView(options: AdminSigninViewOptions = {}): AdminSign
   function stopWaiting() {
     if (timer) clearTimeout(timer);
     timer = undefined;
+    prompt?.abort();
+    prompt = null;
   }
 
   function showTiles() {
@@ -84,7 +109,44 @@ export function adminSigninView(options: AdminSigninViewOptions = {}): AdminSign
     const tiles = wallets.map((w) =>
       h("button", { class: "n133s-tile", type: "button", "data-way": w.way, onclick: () => void choose(w.way) }, h("span", { class: "n133s-mark", "aria-hidden": "true" }, w.mark), h("span", { class: "n133s-name" }, w.name)),
     );
-    area.replaceChildren(h("p", { class: "n133s-or" }, "Choose your wallet"), h("div", { class: "n133s-tiles", "data-count": String(tiles.length) }, ...tiles));
+    // The owner's linked passkey comes after the wallets: a wallet makes the first admin login, and only it links a passkey.
+    if (passkeysOn) tiles.push(h("button", { class: "n133s-tile", type: "button", "data-way": "passkey", onclick: () => showPasskey() }, h("span", { class: "n133s-mark", "aria-hidden": "true" }, icon("key", 24)), h("span", { class: "n133s-name" }, "Passkey")));
+    area.replaceChildren(h("p", { class: "n133s-or" }, passkeysOn ? "Choose your wallet or your passkey" : "Choose your wallet"), h("div", { class: "n133s-tiles", "data-count": String(tiles.length) }, ...tiles));
+  }
+
+  // ---- the owner's linked passkey ----
+
+  function showPasskey(words = "") {
+    stopWaiting();
+    current = null;
+    const back = h("button", { class: "n133s-back", type: "button", onclick: () => showTiles() }, icon("back", 18), h("span", {}, "Back"));
+    area.replaceChildren(
+      back,
+      h("h3", { class: "n133s-step", tabindex: "-1" }, "Passkey"),
+      h("p", { class: "n133s-text" }, "Use a passkey that you linked to the game's address in Settings. Your device asks for Face ID, Touch ID or its PIN."),
+      h("div", { class: "n133s-keys" }, key("Use my passkey", () => void usePasskey(), "primary")),
+      h("p", { class: "n133s-fine" }, "No passkey yet? Sign in with your wallet, then add one in Settings, Owner passkeys."),
+    );
+    say(words);
+    focusFirst();
+  }
+
+  async function usePasskey() {
+    stopWaiting();
+    for (const b of Array.from(area.querySelectorAll("button"))) b.disabled = true;
+    say("Waiting for your passkey…");
+    prompt = new AbortController();
+    try {
+      const turnstile = options.personCheck ? await options.personCheck(check) : undefined;
+      const r = await passkeyAdminSignIn({ scheme: options.scheme!, name: options.name!, rpId: options.rpId, base, fetch: options.fetch, turnstile, signal: prompt.signal });
+      if (stopped) return;
+      area.replaceChildren(h("p", { class: "n133s-done" }, icon("check", 22), h("span", {}, `Signed in with your passkey ${shortAddress(r.address)}`)));
+      say("");
+      options.onSignedIn?.(r.address);
+    } catch (e) {
+      if (stopped) return;
+      showPasskey(e instanceof ApiError ? e.message : passkeyFaultText(e));
+    }
   }
 
   async function choose(way: AdminWay) {

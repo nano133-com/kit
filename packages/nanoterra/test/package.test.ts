@@ -57,7 +57,9 @@ test("every source file imports only Three.js, @nano133/signin (the player sign-
       if (spec === "three") continue;
       if (SIGNIN.test(spec)) {
         const rel = relative(join(root, "src"), file);
-        assert.ok(rel.startsWith("player-signin/") || (rel.startsWith("admin-signin/") && !rel.startsWith("admin-signin/panel/") && spec === "@nano133/signin"), `${relative(root, file)} names ${spec}: only the player sign-in and the admin sign-in's server part may`);
+        // The admin sign-in's panel may name the passkey code and the purse (the owner's passkeys, since 0.12.0): a type, or a dynamic import() only (checked below).
+        const adminPanel = rel.startsWith("admin-signin/panel/") && spec !== "@nano133/signin";
+        assert.ok(rel.startsWith("player-signin/") || adminPanel || (rel.startsWith("admin-signin/") && !rel.startsWith("admin-signin/panel/") && spec === "@nano133/signin"), `${relative(root, file)} names ${spec}: only the player sign-in, the admin sign-in's server part and its panel's passkeys may`);
         continue;
       }
       assert.match(spec, /^\.{1,2}\/.*\.js$/, `${relative(root, file)} imports ${spec}`);
@@ -138,7 +140,12 @@ test("the paths that must not load Three.js import no package at all (the record
   // The admin's sign-in: its stores, adapters and conformance name no package (they run with no @nano133/signin installed); the server part names only
   // @nano133/signin and reaches no panel; the panel names no package (no passkey code, no purse) and reaches no server file that names one; no part of it
   // reaches drawing, looks, friends, options or emotes code.
-  for (const entry of ["src/admin-signin/types.ts", "src/admin-signin/memory.ts", "src/admin-signin/conformance.ts", "src/admin-signin/adapters/d1.ts", "src/admin-signin/adapters/firestore.ts", "src/admin-signin/panel/index.ts"]) assert.deepEqual(graph(entry).packages, [], entry);
+  for (const entry of ["src/admin-signin/types.ts", "src/admin-signin/memory.ts", "src/admin-signin/conformance.ts", "src/admin-signin/adapters/d1.ts", "src/admin-signin/adapters/firestore.ts"]) assert.deepEqual(graph(entry).packages, [], entry);
+  // The panel names only the passkey code and the purse (the owner's passkeys), and loads them only when a passkey is used: a type import, or import().
+  assert.deepEqual(graph("src/admin-signin/panel/index.ts").packages.sort(), ["@nano133/signin/passkey", "@nano133/signin/purse"]);
+  for (const file of sources.filter((f) => f.includes("/src/admin-signin/panel/"))) assert.doesNotMatch(readFileSync(file, "utf8"), /(?:^|\n)\s*import\s+(?!type\b)[^;]*?from\s*["']@nano133\/signin[^"']*["']/, `${relative(root, file)} imports passkey or purse code statically`);
+  assert.match(read("src/admin-signin/panel/passkeys.ts"), /await import\("@nano133\/signin\/purse"\)/);
+  assert.match(read("src/admin-signin/panel/passkeys.ts"), /await import\("@nano133\/signin\/passkey"\)/);
   assert.deepEqual(graph("src/admin-signin/index.ts").packages, ["@nano133/signin"]);
   for (const entry of ["src/admin-signin/index.ts", "src/admin-signin/conformance.ts", "src/admin-signin/adapters/d1.ts", "src/admin-signin/adapters/firestore.ts"]) assert.ok(!graph(entry).files.some((f) => f.includes("/panel/")), `${entry} reaches a panel`);
   for (const entry of ["src/admin-signin/index.ts", "src/admin-signin/panel/index.ts"]) {

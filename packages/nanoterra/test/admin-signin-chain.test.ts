@@ -58,9 +58,19 @@ for (const kind of KINDS) {
   }
 }
 
-/** The admin chain for `adminConformance`: every kind of visitor the suite names, made from the package's own sessions. */
-function adminHost(kind: Kind): ConformanceHost {
-  const g = makeGame(kind);
+/** A passkey's address that the owner linked. */
+const LINKED = `nano_3${"pk".repeat(29)}p`;
+
+/**
+ * The admin chain for `adminConformance`: every kind of visitor the suite names, made from the package's own sessions. `passkeys`: the game has the owner's
+ * passkeys on, and the owner's logins of the suite are a LINKED passkey's (the owner, an expired login, a signed-out one, one older than a day): the
+ * whole chain treats them as it treats wallet logins. (A passkey nobody linked gives no session at all, so 401: ./admin-signin-passkey.test.ts.)
+ */
+function adminHost(kind: Kind, passkeys = false): ConformanceHost {
+  const g = makeGame(kind, { admin: { passkeys } });
+  const ownerVia = passkeys ? "passkey" : "wallet";
+  const ownerAddress = passkeys ? LINKED : OWNER.address;
+  if (passkeys) void g.adminStore.linkPasskey!(OWNER.address, LINKED, g.clock.now);
   const noOwner = createAdminHandler({ store: g.store, defaults: { character: "nanoterra", signin: "exchange" }, owner: null, session: (req, at) => g.admin.session(req, at), now: () => g.clock.now, limit: () => true });
   /** An admin session written as the sign-in writes one (the hash of "admin:" and the token), with the times and the word the suite needs. */
   async function adminSession(address: string, createdAt: number, expiresAt: number, via: string): Promise<string> {
@@ -93,17 +103,17 @@ function adminHost(kind: Kind): ConformanceHost {
       case "other_wallet":
         return `admin=${await adminSession(STRANGER.address, now, now + ADMIN_SESSION_MS, "wallet")}`;
       case "expired_login":
-        return `admin=${await adminSession(OWNER.address, now - 3_600_000, now - 1000, "wallet")}`;
+        return `admin=${await adminSession(ownerAddress, now - 3_600_000, now - 1000, ownerVia)}`;
       case "old_valid_row":
-        return `admin=${await adminSession(OWNER.address, now - ADMIN_SESSION_MS - 60_000, now + ADMIN_SESSION_MS, "wallet")}`;
+        return `admin=${await adminSession(ownerAddress, now - ADMIN_SESSION_MS - 60_000, now + ADMIN_SESSION_MS, ownerVia)}`;
       case "signed_out_login": {
-        const cookie = `admin=${await adminSession(OWNER.address, now, now + ADMIN_SESSION_MS, "wallet")}`;
+        const cookie = `admin=${await adminSession(ownerAddress, now, now + ADMIN_SESSION_MS, ownerVia)}`;
         await signOut(cookie);
         return cookie;
       }
       case "no_address":
       case "owner":
-        return `admin=${await adminSession(OWNER.address, now, now + ADMIN_SESSION_MS, "wallet")}`;
+        return `admin=${await adminSession(ownerAddress, now, now + ADMIN_SESSION_MS, ownerVia)}`;
     }
   }
   const last = new Map<Who, string>();
@@ -140,4 +150,7 @@ function adminHost(kind: Kind): ConformanceHost {
 for (const kind of KINDS) {
   const cases = adminConformance(adminHost(kind));
   for (const c of cases) test(`[${kind}] admin conformance with createAdminSignin's session: ${c.name}`, { timeout: c.timeoutMs }, c.run);
+  // The same contract with the owner's passkeys on, and the owner's logins made by a linked passkey: it holds unchanged.
+  const withPasskeys = adminConformance(adminHost(kind, true));
+  for (const c of withPasskeys) test(`[${kind}, passkeys] admin conformance with a linked passkey's sessions: ${c.name}`, { timeout: c.timeoutMs }, c.run);
 }

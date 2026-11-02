@@ -26,10 +26,11 @@ const PATHS: [string, string[], number, boolean][] = [
   ["@nano133/nanoterra/shop/worker", ["shop/worker.js"], 11_200, false],
   ["@nano133/nanoterra/shop/panel", ["shop/panel/index.js"], 11_000, false],
   // The admin's sign-in: the server part without @nano133/signin (an optional peer, outside the bundle), the stores, and the panel with its QR code.
-  ["@nano133/nanoterra/admin-signin", ["admin-signin/index.js"], 5_800, false],
-  ["@nano133/nanoterra/admin-signin/d1", ["admin-signin/adapters/d1.js"], 1_500, false],
-  ["@nano133/nanoterra/admin-signin/firestore", ["admin-signin/adapters/firestore.js"], 1_850, false],
-  ["@nano133/nanoterra/admin-signin/panel", ["admin-signin/panel/index.js"], 7_200, false],
+  // Since 0.12.0 each holds the owner's passkeys too (the routes, the link's store methods, the Passkey tile and the Owner passkeys card; the passkey code itself stays outside).
+  ["@nano133/nanoterra/admin-signin", ["admin-signin/index.js"], 7_300, false],
+  ["@nano133/nanoterra/admin-signin/d1", ["admin-signin/adapters/d1.js"], 1_950, false],
+  ["@nano133/nanoterra/admin-signin/firestore", ["admin-signin/adapters/firestore.js"], 2_300, false],
+  ["@nano133/nanoterra/admin-signin/panel", ["admin-signin/panel/index.js"], 9_700, false],
 ];
 /** The emote clips: their own chunk, loaded on the first emote (never in a path's bundle above: "./clips.js" stays outside). */
 const LAZY: [string, string, number][] = [["the emote clips (loaded on the first emote)", "emotes/clips.js", 21_000]];

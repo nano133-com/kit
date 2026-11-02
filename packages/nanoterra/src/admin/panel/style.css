@@ -1968,6 +1968,50 @@
   flex-basis: 100%;
 }
 
+/* ---- The owner's passkeys (a card from "@nano133/nanoterra/admin-signin/panel"): phone first, 16 px text, 48 px keys ---- */
+
+.n133-admin .owner-passkeys .btn {
+  min-height: 48px;
+  font-size: 16px;
+}
+
+.n133-admin .passkey-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 16px;
+}
+
+.n133-admin .passkey-what {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.n133-admin .passkey-add,
+.n133-admin .passkey-confirm {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.n133-admin .passkey-confirm {
+  flex-basis: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--alarm-bg);
+}
+
+.n133-admin .passkey-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 /* ---- Wider panels ---- */
 
 @container n133 (min-width: 560px) {

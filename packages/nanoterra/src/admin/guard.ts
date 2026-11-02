@@ -4,13 +4,22 @@
 // DO NOT LOOSEN THIS. It is the game starter's `adminGuard` (src/worker/admin.ts), with the same five checks in the same order, and it may only
 // refuse MORE than the starter does, never less (a test runs both over a grid of inputs and proves it). Deny by default: anything this function
 // does not understand is a refusal, and a fault inside it is a refusal too.
+// The ONE rule Wes approved on 2026-11-01 (the owner's linked passkey): a "passkey" session opens /admin only with `linkedTo` === the owner (checks 3 and 4).
 
 /** An admin login a game has found for this request: the address that signed, when the login was made (ms), and how it was made. */
 export type AdminSession = {
   address: string;
   createdAt: number;
-  /** "wallet" is a signature made with the address's key. Anything else (a sign-in from Nanoterra names an address but proves no key) never opens /admin. */
+  /**
+   * "wallet" is a signature made with the address's key. "passkey" is a signature by a passkey that the owner linked: it counts only with `linkedTo`.
+   * Anything else (a sign-in from Nanoterra names an address but proves no key) never opens /admin.
+   */
   via: string;
+  /**
+   * For a "passkey" session only: the owner address its link points to, set by the sign-in only after it read the link on THIS request. The guard compares
+   * it with the owner instead of `address` (the passkey's own). A session of any other `via` is judged by its `address`; this field is not read.
+   */
+  linkedTo?: string;
 };
 
 export type AdminAccessInput = {
@@ -75,10 +84,15 @@ function decide(input: AdminAccessInput): AdminAccess {
   if (!session || typeof session !== "object") return refuse(401, "Sign in with your Nano address.");
   const { address, createdAt, via } = session;
   if (typeof address !== "string" || typeof via !== "string" || typeof createdAt !== "number") return refuse(401, "Sign in with your Nano address.");
-  // 3. It was made with a wallet signature. A sign-in from Nanoterra names an address but proves no key.
-  if (via !== "wallet") return refuse(403, "Sign in with your Nano wallet to open this page.", { reason: "nanoterra" });
-  // 4. It is the owner's address (the same text, no other form).
-  if (address !== owner) return refuse(403, "Only the game's own address can open this page.", { reason: "other_address", signedInAs: address });
+  // 3. It was made with a wallet signature, or (the one rule of 2026-11-01) by a passkey whose link the sign-in read on this request. A sign-in from
+  //    Nanoterra names an address but proves no key.
+  let linkedTo: unknown;
+  if (via === "passkey") {
+    linkedTo = session.linkedTo;
+    if (typeof linkedTo !== "string") return refuse(403, "Sign in with your Nano wallet to open this page.", { reason: "nanoterra" });
+  } else if (via !== "wallet") return refuse(403, "Sign in with your Nano wallet to open this page.", { reason: "nanoterra" });
+  // 4. It is the owner's address (the same text, no other form): a wallet's own address, or the address a passkey's link points to.
+  if ((via === "passkey" ? linkedTo : address) !== owner) return refuse(403, "Only the game's own address can open this page.", { reason: "other_address", signedInAs: address });
   // 5. It is not older than the limit (one day at most), and not from the future.
   const age = now - createdAt;
   if (!(age >= -CLOCK_SKEW_MS && age <= max)) return refuse(401, "Sign in again: an admin sign-in counts for one day.");

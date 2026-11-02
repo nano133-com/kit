@@ -10,6 +10,7 @@ import type { AdminSummary } from "../store.js";
 import type { GameState } from "../switches.js";
 import { PASSKEY_PREVIEW_NOTE, previewHost } from "../../player-signin/host.js";
 import { ApiError, createApi, type Api } from "./api.js";
+import type { AdminCard } from "./card.js";
 import { copyKey, h, plural, shortAddress } from "./dom.js";
 import { gameCard } from "./gameCard.js";
 import { icon, type IconName } from "./icons.js";
@@ -43,9 +44,16 @@ export type MountOptions = {
   /** The game offers its players a passkey (`@nano133/nanoterra/player-signin`): on a preview address (`*.workers.dev`) the banner says that passkeys turn
    *  on with the game's own domain. */
   playerPasskeys?: boolean;
+  /**
+   * Cards of the game's own for the Settings tab, after the Sign-ins card: for example the owner's passkeys (`ownerPasskeys()` of
+   * "@nano133/nanoterra/admin-signin/panel"). Each card is made once and kept for the life of the page; its `refresh()` runs each time the owner signs in.
+   */
+  cards?: readonly AdminCard[];
   /** The `fetch` to use (default: the page's). */
   fetch?: typeof fetch;
 };
+
+export type { AdminCard };
 
 export type MountedAdmin = {
   /** Reads everything again and redraws. */
@@ -193,6 +201,8 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
     const kpis = h("div", { class: "kpis", role: "group", "aria-label": "Your game in numbers" });
     const settings = h("div", { class: "settings-grid" });
     tabs.panels.settings.append(settings);
+    // The game's own cards read their data again at each sign-in (a new dashboard is built after every sign-in).
+    for (const c of options.cards ?? []) void Promise.resolve(c.refresh?.()).catch(() => undefined);
     data.replaceChildren(top, banner, kpis, tabs.bar, ...Object.values(tabs.panels));
 
     const kpi = (cls: string, mark: IconName, label: string, value: string, sub: string, open: () => void, alert = false) =>
@@ -245,7 +255,7 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
         orders.update(s);
         players.update(s);
         // The Game card is the same element at every redraw: moving it keeps its state.
-        settings.replaceChildren(...[game, signinsCard(s, api, () => void load(), options.loginsNote), about(s)].filter((p): p is HTMLElement => p !== null));
+        settings.replaceChildren(...[game, signinsCard(s, api, () => void load(), options.loginsNote), ...(options.cards ?? []).map((c) => c.el), about(s)].filter((p): p is HTMLElement => p !== null));
       },
     };
   }

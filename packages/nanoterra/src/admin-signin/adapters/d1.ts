@@ -1,6 +1,7 @@
 // The admin sign-in's store for a game on Cloudflare D1, on the game starter's OWN tables and columns: `signin_requests` and `sessions` (their admin
 // rows, scope = 'admin') and `admin_logins`. A starter moves onto it with no migration, and every creator who is signed in to /admin stays signed in.
-// A new game adds ./d1.sql to its migrations ("@nano133/nanoterra/admin-signin/d1.sql": the same tables, `IF NOT EXISTS`).
+// A new game adds ./d1.sql to its migrations ("@nano133/nanoterra/admin-signin/d1.sql": the same tables, `IF NOT EXISTS`). The owner's passkeys (since
+// 0.12.0) use two more tables, `admin_passkeys` and `admin_once` (the end of d1.sql): only a game that turns the passkeys on needs them.
 //
 //   import { createD1AdminSignin } from "@nano133/nanoterra/admin-signin/d1";
 //   const store = createD1AdminSignin(env.DB);
@@ -11,12 +12,12 @@
 // "Sign out everywhere" is the same two statements as the admin store's (`createD1Store(db, { logins: true })`): either one may run it.
 
 import type { D1Like } from "../../admin/adapters/d1.js";
-import { ADMIN_LOGIN_KEEP_MS, ADMIN_WAYS, type AdminSessionRecord, type AdminSigninStore, type AdminWay, type RequestStoreLike, type SigninRequest } from "../types.js";
+import { ADMIN_LOGIN_KEEP_MS, ADMIN_PASSKEY_LIMIT, ADMIN_WAYS, type AdminLinkResult, type AdminSessionRecord, type AdminSigninStore, type AdminWay, type RequestStoreLike, type SigninRequest } from "../types.js";
 
 export type { D1Like, D1StatementLike } from "../../admin/adapters/d1.js";
 
 /** The tables' names. Default: the game starter's. A game with other names changes d1.sql to match. */
-export type D1AdminSigninTables = { requests?: string; sessions?: string; logins?: string };
+export type D1AdminSigninTables = { requests?: string; sessions?: string; logins?: string; passkeys?: string; once?: string };
 
 type Row = { id: string; rid: string | null; starter: string; status: string; expires_at: number; nonce: string | null; issued_at: number | null; label: string | null; account: string | null };
 
@@ -34,8 +35,17 @@ const toRequest = (r: Row): SigninRequest => ({
 const NAME = /^[A-Za-z_][A-Za-z0-9_]{0,62}$/;
 const changes = (res: unknown): number => Number((res as { meta?: { changes?: number } } | undefined)?.meta?.changes ?? 0);
 
-export function createD1AdminSignin(db: D1Like, tables: D1AdminSigninTables = {}): AdminSigninStore {
-  const T = { requests: tables.requests ?? "signin_requests", sessions: tables.sessions ?? "sessions", logins: tables.logins ?? "admin_logins" };
+/** True for D1's (and SQLite's) "no such table": a game that has not added the passkeys' tables. */
+const noTable = (e: unknown) => /no such table/i.test(String((e as { message?: unknown } | null)?.message ?? e));
+
+export function createD1AdminSignin(db: D1Like, tables: D1AdminSigninTables = {}): Required<AdminSigninStore> {
+  const T = {
+    requests: tables.requests ?? "signin_requests",
+    sessions: tables.sessions ?? "sessions",
+    logins: tables.logins ?? "admin_logins",
+    passkeys: tables.passkeys ?? "admin_passkeys",
+    once: tables.once ?? "admin_once",
+  };
   for (const n of Object.values(T)) if (!NAME.test(n)) throw new Error(`not a table name: ${n}`);
   const COLS = "id, rid, starter, status, expires_at, nonce, issued_at, label, account";
 
@@ -112,6 +122,49 @@ export function createD1AdminSignin(db: D1Like, tables: D1AdminSigninTables = {}
         db.prepare(`DELETE FROM ${T.sessions} WHERE expires_at < ? AND scope = 'admin'`).bind(now),
         db.prepare(`DELETE FROM ${T.logins} WHERE at < ?`).bind(now - ADMIN_LOGIN_KEEP_MS),
       ]);
+      // The used passkey signatures, on their own: a game without the passkeys' tables (they came in 0.12.0) still cleans the rest.
+      try {
+        await db.prepare(`DELETE FROM ${T.once} WHERE until <= ?`).bind(now).run();
+      } catch (e) {
+        if (!noTable(e)) throw e;
+      }
+    },
+    async createSession(s) {
+      await db.prepare(`INSERT INTO ${T.sessions} (id_hash, address, created_at, expires_at, via, scope) VALUES (?, ?, ?, ?, ?, 'admin')`).bind(s.idHash, s.address, s.createdAt, s.expiresAt, s.via).run();
+    },
+    async linkPasskey(owner, address, at): Promise<AdminLinkResult> {
+      // ONE statement holds the limit: the row is written only while the owner has fewer than the limit, and never twice.
+      const res = await db
+        .prepare(`INSERT INTO ${T.passkeys} (owner, address, created_at) SELECT ?, ?, ? WHERE (SELECT COUNT(*) FROM ${T.passkeys} WHERE owner = ?) < ? ON CONFLICT (owner, address) DO NOTHING`)
+        .bind(owner, address, at, owner, ADMIN_PASSKEY_LIMIT)
+        .run();
+      if (changes(res) === 1) return "linked";
+      const had = await db.prepare(`SELECT 1 AS one FROM ${T.passkeys} WHERE owner = ? AND address = ?`).bind(owner, address).first<{ one: number }>();
+      return had ? "exists" : "full";
+    },
+    async unlinkPasskey(owner, address) {
+      // The link, and the passkey's admin sessions with it.
+      const done = await db.batch([
+        db.prepare(`DELETE FROM ${T.passkeys} WHERE owner = ? AND address = ?`).bind(owner, address),
+        db.prepare(`DELETE FROM ${T.sessions} WHERE scope = 'admin' AND via = 'passkey' AND address = ?`).bind(address),
+      ]);
+      return changes(done[0]) > 0;
+    },
+    async passkeys(owner) {
+      const rows = (await db.prepare(`SELECT address, created_at FROM ${T.passkeys} WHERE owner = ? ORDER BY created_at, address`).bind(owner).all<{ address: string; created_at: number }>()).results;
+      return rows.map((r) => ({ address: String(r.address), createdAt: Number(r.created_at) }));
+    },
+    async linked(owner, address) {
+      return (await db.prepare(`SELECT 1 AS one FROM ${T.passkeys} WHERE owner = ? AND address = ?`).bind(owner, address).first<{ one: number }>()) !== null;
+    },
+    async useOnce(key, ttlMs) {
+      const now = Date.now();
+      // A row past its time may be taken again (its signature's window is long over); a live one may not.
+      const res = await db
+        .prepare(`INSERT INTO ${T.once} (key, until) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET until = excluded.until WHERE ${T.once}.until <= ?`)
+        .bind(key, now + ttlMs, now)
+        .run();
+      return changes(res) === 1;
     },
   };
 }

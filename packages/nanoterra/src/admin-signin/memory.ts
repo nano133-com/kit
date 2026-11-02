@@ -2,14 +2,18 @@
 // own store that passes adminSigninStoreConformance).
 
 import type { AdminLogin } from "../admin/store.js";
-import { ADMIN_LOGIN_KEEP_MS, ADMIN_WAYS, type AdminSessionRecord, type AdminSigninStore, type AdminWay, type RequestStoreLike, type SigninRequest } from "./types.js";
+import { ADMIN_LOGIN_KEEP_MS, ADMIN_PASSKEY_LIMIT, ADMIN_WAYS, type AdminPasskey, type AdminSessionRecord, type AdminSigninStore, type AdminWay, type RequestStoreLike, type SigninRequest } from "./types.js";
 
 type RequestRow = SigninRequest & { way: AdminWay; delivered: boolean };
 
-export type MemoryAdminSignin = AdminSigninStore & {
+export type MemoryAdminSignin = Required<AdminSigninStore> & {
   readonly requestRows: Map<string, RequestRow>;
   readonly sessionRows: Map<string, AdminSessionRecord>;
   readonly loginRows: AdminLogin[];
+  /** The owner's passkeys: owner → the links, oldest first. */
+  readonly passkeyRows: Map<string, AdminPasskey[]>;
+  /** The used passkey signatures: key → until (ms). */
+  readonly onceRows: Map<string, number>;
 };
 
 const copy = <T>(v: T): T => structuredClone(v);
@@ -18,6 +22,8 @@ export function createMemoryAdminSignin(): MemoryAdminSignin {
   const requestRows = new Map<string, RequestRow>();
   const sessionRows = new Map<string, AdminSessionRecord>();
   const loginRows: AdminLogin[] = [];
+  const passkeyRows = new Map<string, AdminPasskey[]>();
+  const onceRows = new Map<string, number>();
   const strip = ({ way: _way, delivered: _delivered, ...r }: RequestRow): SigninRequest => copy(r);
 
   const stores = new Map<AdminWay, RequestStoreLike>();
@@ -49,6 +55,8 @@ export function createMemoryAdminSignin(): MemoryAdminSignin {
     requestRows,
     sessionRows,
     loginRows,
+    passkeyRows,
+    onceRows,
     requests: (way) => {
       const s = stores.get(way);
       if (!s) throw new Error(`no such way: ${String(way)}`);
@@ -95,6 +103,39 @@ export function createMemoryAdminSignin(): MemoryAdminSignin {
       for (const [k, r] of requestRows) if (r.expiresAt < now - 2 * 3_600_000) requestRows.delete(k);
       for (const [k, s] of sessionRows) if (s.expiresAt < now) sessionRows.delete(k);
       for (let i = loginRows.length - 1; i >= 0; i--) if (loginRows[i].at < now - ADMIN_LOGIN_KEEP_MS) loginRows.splice(i, 1);
+      for (const [k, until] of onceRows) if (until <= now) onceRows.delete(k);
+    },
+    async createSession(session) {
+      if (sessionRows.has(session.idHash)) throw new Error("a session with this id exists");
+      sessionRows.set(session.idHash, copy(session));
+    },
+    async linkPasskey(owner, address, at) {
+      const list = passkeyRows.get(owner) ?? [];
+      if (list.some((p) => p.address === address)) return "exists";
+      if (list.length >= ADMIN_PASSKEY_LIMIT) return "full";
+      passkeyRows.set(owner, [...list, { address, createdAt: at }]);
+      return "linked";
+    },
+    async unlinkPasskey(owner, address) {
+      const list = passkeyRows.get(owner) ?? [];
+      const had = list.some((p) => p.address === address);
+      if (had) passkeyRows.set(owner, list.filter((p) => p.address !== address));
+      // The passkey's admin sessions end with its link.
+      for (const [k, s] of sessionRows) if (s.via === "passkey" && s.address === address) sessionRows.delete(k);
+      return had;
+    },
+    async passkeys(owner) {
+      return copy(passkeyRows.get(owner) ?? []);
+    },
+    async linked(owner, address) {
+      return (passkeyRows.get(owner) ?? []).some((p) => p.address === address);
+    },
+    async useOnce(key, ttlMs) {
+      const now = Date.now();
+      const until = onceRows.get(key);
+      if (until !== undefined && until > now) return false;
+      onceRows.set(key, now + ttlMs);
+      return true;
     },
   };
 }

@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+- **A passkey for the owner (`createAdminSignin({ passkeys: true })`): the owner's LINKED passkeys open /admin.** A passkey is only a key to /admin; the money stays
+  in the owner's wallet. A link counts only when both sides prove their key: `POST /api/admin-signin/passkey/link` needs a live **wallet** admin session of the
+  owner AND the passkey's own signature of "Link this passkey to the ADMIN of <host>: sign in as <address> at <ms>". A linked passkey then signs "ADMIN of <host>:
+  sign in as ..." at `POST /api/admin-signin/passkey` (the person check and the start limit, like `start`) and gets a new admin session (`via: "passkey"`, one day,
+  the admin cookie, a row of the sign-in list). Never the host alone: a player's passkey signature never opens /admin. Each signature counts once (the admin's own
+  table) within 5 minutes. At most 10 passkeys per owner (`ADMIN_PASSKEY_LIMIT`); a passkey's session can list them (`POST /passkeys`) but not add or remove one;
+  `POST /passkey/unlink` (wallet only) removes a link and ends that passkey's sessions. Off by default: no route, and no passkey session opens /admin.
+- **`session(request)` reads the link on every request** with the CURRENT owner: a "passkey" session comes back as `{ address, createdAt, via: "passkey", linkedTo:
+  owner }` only while its link exists, else as no session (401). A removed link, a new owner address, or the passkeys turned off end its access at the next request.
+- **The guard's ONE new rule (Wes, 2026-11-01):** `AdminSession` has an optional `linkedTo`; check 3 accepts `via: "passkey"` only when `linkedTo` is a text, and
+  check 4 then compares `linkedTo` with the owner (exact text) instead of the address. Every other `via` is refused as before; a wallet session is judged by its
+  address (its `linkedTo` is not read). "DO NOT LOOSEN" stays. The grid test proves the kit is at least as strict as the starter for every input except a
+  "passkey" session with `linkedTo === owner`.
+- Stores: optional passkey methods on `AdminSigninStore` (`createSession`, `linkPasskey` → "linked" | "exists" | "full", `unlinkPasskey`, `passkeys`, `linked`,
+  `useOnce`; `clean` drops used signatures); memory, D1 and Firestore have them, and `adminSigninStoreConformance(make, { passkeys })` has four new cases. **D1
+  migration** for a game with the tables already (the starter: `migrations/0009_admin_passkeys.sql`): `admin_passkeys (owner, address, created_at, PRIMARY KEY
+  (owner, address))` and `admin_once (key PRIMARY KEY, until)`, now at the end of `/admin-signin/d1.sql`. Without it the wallet sign-in and `clean()` work as before.
+  Firestore: `admin_passkeys/{owner}` (one document per owner) and `admin_once/{key}` (TTL on `deleteAt`).
+- The panel: `adminSignIn({ passkeys: true, scheme, name })` adds a **Passkey** tile after the wallets; `ownerPasskeys({ scheme, name })` is the **Owner passkeys**
+  card (the list, Add a passkey and Remove, both only with a wallet session) for the new `mountAdmin` option `cards` (cards of the game's own in Settings,
+  `{ el, refresh? }`, `AdminCard`). The passkey code and the purse load only when a passkey is used. The admin icons have a `key`.
+- Sizes (gzip, size test): `/admin-signin` 6.9 kB (ceiling 7.3 kB), `/admin-signin/d1` 1.9 kB (1.95 kB), `/admin-signin/firestore` 2.2 kB (2.3 kB),
+  `/admin-signin/panel` 9.3 kB (9.7 kB).
+
 ## 0.11.0 (2026-11-01)
 
 - **New path `@nano133/nanoterra/admin-signin`: the admin's wallet sign-in, on one fixed route in every game, `/api/admin-signin`.** The game starter's admin

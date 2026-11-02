@@ -262,8 +262,9 @@
   gap: 10px;
 }
 
-/* Two wallets (the admin's sign-in: Berry Wallet and Nautilus) fill the row in two halves. */
-.n133-signin .n133s-tiles[data-count="2"] {
+/* Two wallets (the admin's sign-in: Berry Wallet and Nautilus) fill the row in two halves; four tiles (the admin's with NanChat and a passkey) make two rows of two. */
+.n133-signin .n133s-tiles[data-count="2"],
+.n133-signin .n133s-tiles[data-count="4"] {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 

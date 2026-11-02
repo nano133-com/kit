@@ -7,7 +7,7 @@
 // The server part is "@nano133/nanoterra/admin" (the guard and the handler): it must not load this one.
 
 export { mountAdmin } from "./mount.js";
-export type { MountedAdmin, MountOptions } from "./mount.js";
+export type { AdminCard, MountedAdmin, MountOptions } from "./mount.js";
 export { ApiError, createApi } from "./api.js";
 export type { Api } from "./api.js";
 export { gameCard } from "./gameCard.js";

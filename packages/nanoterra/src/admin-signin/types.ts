@@ -1,9 +1,13 @@
 // The ADMIN's sign-in of a game: the fixed route, the times, the limits and the store contract. (The player's sign-in is another thing:
 // "@nano133/nanoterra/player-signin".) No package and no DOM: the stores, the adapters and the browser panel read this file.
 //
-// The admin signs in with a wallet app only: Berry Wallet or Nautilus (and NanChat only when the game turns it on: its text cannot name the ADMIN). No
-// passkey. What Berry Wallet and Nautilus sign names the ADMIN, so a link that a stranger sends to the owner does not look like any sign-in. Only the game's own address makes an admin login, and only from a request that was started
-// on the admin's route; the guard (`adminAccess`) decides again on every call of /admin.
+// The admin signs in with a wallet app: Berry Wallet or Nautilus (and NanChat only when the game turns it on: its text cannot name the ADMIN). What Berry
+// Wallet and Nautilus sign names the ADMIN, so a link that a stranger sends to the owner does not look like any sign-in. Only the game's own address makes a
+// wallet admin login, and only from a request that was started on the admin's route; the guard (`adminAccess`) decides again on every call of /admin.
+//
+// Since 0.12.0, with `passkeys: true`, the owner may also LINK passkeys (at most 10): a passkey is only a key to /admin, the money stays in the owner's
+// wallet. A link is written only from a live WALLET admin session of the owner and with the passkey's own signature (both sides prove their key), and a
+// passkey's admin login counts only while its link to the CURRENT owner exists (read again on every request).
 
 import type { AdminLogin } from "../admin/store.js";
 import type { RequestStoreLike } from "../player-signin/types.js";
@@ -47,27 +51,56 @@ export const ADMIN_SIGNIN_LIMITS = {
   nanchatRoute: { limit: 120, windowMs: 60_000 },
   nanchatAll: { limit: 600, windowMs: 10 * 60_000 },
   nanchatNonce: { limit: 5, windowMs: 10 * 60_000 },
+  /** The owner's passkeys: the list, a link and a removal, per IP address (memory). A passkey's sign-in counts with the starts (`signin`, hook). */
+  passkeys: { limit: 30, windowMs: 60_000 },
   /** The biggest body the routes read. */
   bodyMax: 8192,
 } as const;
+
+/** The most passkeys one owner may link. */
+export const ADMIN_PASSKEY_LIMIT = 10;
+/** How long a passkey's signature is kept as used (its 5-minute window, both ways, and some more). */
+export const ADMIN_ONCE_MS = 10 * 60_000;
+
+/**
+ * What a passkey signs to OPEN /admin: `signinMessage(adminPasskeyDomain(host), address, at)`, "ADMIN of <host>: sign in as nano_... at <ms>". Never the
+ * host alone: a player's passkey signature names only the host, and it must never open /admin.
+ */
+export const adminPasskeyDomain = (host: string) => `ADMIN of ${host}`;
+/** What a passkey signs to be LINKED to the owner: "Link this passkey to the ADMIN of <host>: sign in as nano_... at <ms>". It opens nothing. */
+export const adminLinkDomain = (host: string) => `Link this passkey to the ADMIN of ${host}`;
+
+/** One passkey linked to the owner: the passkey purse's address and when it was linked (ms). */
+export type AdminPasskey = { address: string; createdAt: number };
+/** What a link gives: "linked", "exists" (it was linked already: nothing changed) or "full" (the owner has ADMIN_PASSKEY_LIMIT already). */
+export type AdminLinkResult = "linked" | "exists" | "full";
 
 /** A token, a starter value: 32 random bytes as 64 hex characters. */
 export const TOKEN_PATTERN = /^[0-9a-f]{64}$/;
 
 /**
  * An admin session as a store keeps it. `idHash` is the SHA-256 (hex) of "admin:" and the cookie's token (`adminKey`): never the token, and never the
- * plain hash a player's session has, so the SERVER keeps the two scopes apart and not only the cookies' names. `via` is "wallet" for every session this
- * sign-in makes; a store returns the word it holds.
+ * plain hash a player's session has, so the SERVER keeps the two scopes apart and not only the cookies' names. `via` is "wallet" for a wallet's session
+ * and "passkey" for a linked passkey's (its `address` is the PASSKEY's, never the owner's); a store returns the word it holds.
  */
 export type AdminSessionRecord = { idHash: string; address: string; createdAt: number; expiresAt: number; via: string };
 
-/** The admin session as the game reads it (`createAdminHandler`'s `session` hook). `via` is "unknown" for a stored word other than "wallet" and "nanoterra": the guard refuses it. */
-export type AdminSigninSession = { address: string; createdAt: number; via: "wallet" | "nanoterra" | "unknown" };
+/**
+ * The admin session as the game reads it (`createAdminHandler`'s `session` hook). `via` is "unknown" for a stored word other than "wallet", "nanoterra" and
+ * "passkey": the guard refuses it. A "passkey" session carries `linkedTo`, the owner's address, only while its link to the CURRENT owner exists (read on this
+ * request); without the link the sign-in gives no session at all.
+ */
+export type AdminSigninSession =
+  | { address: string; createdAt: number; via: "wallet" | "nanoterra" | "unknown" }
+  | { address: string; createdAt: number; via: "passkey"; linkedTo: string };
 
 /**
- * The game's database for the admin's sign-in. An adapter reads and writes ONLY its three tables or collections (requests, sessions, the sign-in list),
- * and only the ADMIN's rows of the first two (a game whose players sign in through the same tables keeps its rows apart: the `scope` column).
- * Run `adminSigninStoreConformance` on a store you write yourself.
+ * The game's database for the admin's sign-in. An adapter reads and writes ONLY its tables or collections (requests, sessions, the sign-in list, and for
+ * the owner's passkeys the links and the used signatures), and only the ADMIN's rows of the first two (a game whose players sign in through the same tables
+ * keeps its rows apart: the `scope` column). Run `adminSigninStoreConformance` on a store you write yourself.
+ *
+ * The passkey methods (`createSession` to `useOnce`) are optional: a store without them works for wallets, and `createAdminSignin({ passkeys: true })`
+ * refuses it.
  */
 export interface AdminSigninStore {
   /** The admin requests of one wallet app. */
@@ -90,6 +123,24 @@ export interface AdminSigninStore {
   recordLogin(login: AdminLogin): Promise<void>;
   /** The last sign-ins, newest first, at most `limit`, with only `at`, `country` and `browser`. */
   recentLogins(limit: number): Promise<AdminLogin[]>;
-  /** Deletes what nobody needs any more: admin requests 2 hours after they ended, admin sessions that ended, sign-in rows older than 30 days. */
+  /** Deletes what nobody needs any more: admin requests 2 hours after they ended, admin sessions that ended, sign-in rows older than 30 days, used passkey signatures past their time. */
   clean(now: number): Promise<void>;
+
+  // ---- the owner's passkeys (since 0.12.0) ----
+
+  /** Writes an admin session (a linked passkey's sign-in). Throws when a session with this hash exists. */
+  createSession?(session: AdminSessionRecord): Promise<void>;
+  /**
+   * Links the passkey `address` to `owner`, in ONE step that holds the limit: "linked"; "exists" when it is linked already (nothing changes); "full" when
+   * `owner` has ADMIN_PASSKEY_LIMIT links (nothing is written). Two calls at once never make more than the limit.
+   */
+  linkPasskey?(owner: string, address: string, at: number): Promise<AdminLinkResult>;
+  /** Removes the link and ends every admin session of that passkey ("passkey" sessions of `address`). True when a link was there. */
+  unlinkPasskey?(owner: string, address: string): Promise<boolean>;
+  /** The passkeys linked to `owner`, oldest first. */
+  passkeys?(owner: string): Promise<AdminPasskey[]>;
+  /** True only when `address` is linked to `owner` NOW (the exact texts). */
+  linked?(owner: string, address: string): Promise<boolean>;
+  /** Records `key` (a used passkey signature) and answers true; false when it is there and its time is not over. The admin's own table, not the player's. */
+  useOnce?(key: string, ttlMs: number): Promise<boolean>;
 }

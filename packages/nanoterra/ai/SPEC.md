@@ -275,13 +275,20 @@ do not change what the wallet signs.
 4. **The page.** `mountAdmin(el, { looks, signIn: adminSignIn({ personCheck }), signOut: adminSignOut() })` from `@nano133/nanoterra/admin-signin/panel`, with
    `@nano133/nanoterra/admin-signin/style.css`.
 5. **NanChat stays off** unless the owner asks for it: its text cannot name the ADMIN, so the owner cannot tell an admin sign-in from a game sign-in. To turn it on, pass
-   `nanchat: true` to `createAdminSignin` AND to `adminSignIn`. No passkey opens /admin yet.
-6. **Tests.** Run `adminSigninConformance` (`@nano133/nanoterra/admin/conformance`) on the game's own chain (its player sign-in and the admin's), and `adminConformance` with
-   the admin handler and `adminSignin.session`.
+   `nanchat: true` to `createAdminSignin` AND to `adminSignIn`.
+6. **The owner's passkeys (only if the owner asks; since 0.12.0).** A passkey is only a key to /admin: the money stays in the owner's wallet. Pass `passkeys: true` to
+   `createAdminSignin`; give `adminSignIn` the same `passkeys: true` with the game's frozen `scheme` (the player sheet's) and `name`, and give `mountAdmin`
+   `cards: [ownerPasskeys({ scheme, name })]`. D1: add the two tables at the end of `@nano133/nanoterra/admin-signin/d1.sql` as a new migration (the starter:
+   `migrations/0009_admin_passkeys.sql`, `admin_passkeys` and `admin_once`); Firestore: add `admin_once` to the TTL policy. Only a WALLET admin session of the owner links
+   or removes a passkey (at most 10), each passkey proves its key when it is linked, and a passkey's login counts only while its link to the current owner address
+   exists. Never write your own passkey check for /admin, never let a passkey session link another passkey, and never give `linkedTo` to a session yourself.
+7. **Tests.** Run `adminSigninConformance` (`@nano133/nanoterra/admin/conformance`) on the game's own chain (its player sign-in and the admin's), and `adminConformance` with
+   the admin handler and `adminSignin.session`. A store of your own runs `adminSigninStoreConformance(make, { passkeys: true })` when the passkeys are on.
 
 **Check:** on the game's public https address, Berry Wallet shows "URI: https://<host>/admin" and Nautilus "ADMIN of <host>"; the owner's wallet opens /admin; another
 wallet gets "That wallet is not this game's address"; the player's login (the owner's own address too) does not open /admin; a NanChat start says "NanChat cannot open the
-admin yet."
+admin yet." With passkeys on: the owner's wallet adds a passkey in Settings, Owner passkeys; that passkey then opens /admin from the Passkey tile and cannot add
+or remove a passkey; after Remove it opens nothing.
 
 ## 15. Do not
 
