@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.0 (2026-11-01)
 
 - **No minimum price: a fraction of a cent works.** A look's `priceUsd` may have up to 4 decimals (`0.005` is half a cent, `0.0001` the smallest price
   above 0); before, the looks check refused anything under a whole cent. New in `/looks`: `priceStepOk(usd)` (the new rule), `PRICE_STEP_USD`
