@@ -16,6 +16,11 @@
 // calls your `pause` when the player really left (a free round stops its clock and shows a Resume key). No package: plain browser events.
 //
 // A ROUND THAT COSTS MONEY must not pause: its deadline must not move. Keep `releaseWhenLost` (the character always stops) and leave `pauseWhenLeft` out.
+//
+// The camera's distance (the wheel, a pinch, the + and − keys, one curve) is `createZoom` and `listenZoom`, in ./zoom.ts.
+
+export { createZoom, listenZoom, pinchedTo, wheelNotches, zoomedBy, PINCH, ZOOM_CURVE, ZOOM_EASE, ZOOM_STEP } from "./zoom.js";
+export type { Zoom, ZoomRange } from "./zoom.js";
 
 type Listens = Pick<EventTarget, "addEventListener" | "removeEventListener">;
 

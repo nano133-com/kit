@@ -228,7 +228,7 @@ test("the built paths load, and the ones that must not load Three.js do not (a l
     ["ticket/index.js", "if (typeof m.readTicket !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["looks/index.js", "if (typeof m.checkLooks !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["model/index.js", "if (typeof m.checkModel !== 'function' || !m.HAND_ITEM || !m.ISLAND_MODEL) throw new Error('missing'); process.stdout.write('ok')"],
-    ["input/index.js", "if (typeof m.releaseWhenLost !== 'function' || typeof m.pauseWhenLeft !== 'function' || typeof m.swallowsKeyup !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
+    ["input/index.js", "if (typeof m.releaseWhenLost !== 'function' || typeof m.pauseWhenLeft !== 'function' || typeof m.swallowsKeyup !== 'function' || typeof m.createZoom !== 'function' || typeof m.listenZoom !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["admin/index.js", "if (typeof m.adminAccess !== 'function' || typeof m.createAdminHandler !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["admin/conformance.js", "if (typeof m.adminConformance !== 'function' || typeof m.adminStoreConformance !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["admin/adapters/d1.js", "if (typeof m.createD1Store !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
