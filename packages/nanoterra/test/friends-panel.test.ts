@@ -366,7 +366,7 @@ test("own: the show-online choice is saved", async () => {
 // ---- the admin Game card's friends choice ----
 
 test("the Game card has a three-way friends choice: a radio group, saved at once, with its sentence", async () => {
-  let state: GameState = { character: "nanoterra", signin: "exchange", friends: "nanoterra", emotes: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false } };
+  let state: GameState = { character: "nanoterra", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false, freePlay: false } };
   const posts: unknown[] = [];
   const api = {
     get: async <T>() => state as T,
@@ -384,7 +384,7 @@ test("the Game card has a three-way friends choice: a radio group, saved at once
   assert.deepEqual(keys.map((k) => k.getAttribute("aria-checked")), ["true", "false", "false"]);
   assert.deepEqual(keys.map((k) => k.tabIndex), [0, -1, -1]);
   assert.match(card.textContent!, /Friends list/);
-  assert.match(card.textContent!, /Four choices about your game/);
+  assert.match(card.textContent!, /Five choices about your game/);
   keys[1].click();
   await settle();
   assert.deepEqual(posts, [{ friends: "own" }]);

@@ -2,7 +2,7 @@
 //
 //   GET  {base}/summary   the numbers: status, orders, the looks that players own
 //   GET  {base}/game      the game switches
-//   POST {base}/game      a press: { character }, { signin }, { friends } or { emotes } (only the known words)
+//   POST {base}/game      a press: { character }, { signin }, { friends }, { emotes } or { freePlay } (only the known words)
 //   POST {base}/check     the payment check, when the game gives one
 //
 // EVERY request under the base goes through `adminAccess` first, before the route is even looked up: a visitor who is not the owner gets 401 or 403
@@ -190,7 +190,7 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
   return { routes, basePath: options.basePath ?? "/api/admin", handle };
 }
 
-/** The settings as the game's own routes need them (the listing file, the character, the friends list, the emotes): the stored words, or the game's defaults. A fault in the store gives the defaults. */
+/** The settings as the game's own routes need them (the listing file, the character, the friends list, the emotes, free play): the stored words, or the game's defaults. A fault in the store gives the defaults. */
 export async function loadGameSettings(store: Pick<AdminStore, "readSettings">, defaults: GameSettings): Promise<GameState> {
   try {
     return mergeSettings(await store.readSettings(), defaults);

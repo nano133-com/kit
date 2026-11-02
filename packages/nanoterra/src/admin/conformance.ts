@@ -104,7 +104,7 @@ async function read(res: Response): Promise<{ status: number; text: string; json
 const REFUSAL_KEYS = new Set(["error", "reason", "signedInAs"]);
 
 /** Words of the game's data that a refusal or an answer to a visitor must never hold. */
-const DATA_WORDS = /"orders"|"players"|"totals"|"counts"|"character"|"signin"|"friends"|"emotes"|"warnings"/;
+const DATA_WORDS = /"orders"|"players"|"totals"|"counts"|"character"|"signin"|"friends"|"emotes"|"freePlay"|"warnings"/;
 
 export function adminConformance(host: ConformanceHost): ConformanceCase[] {
   const cases: ConformanceCase[] = [];
@@ -337,7 +337,7 @@ export function adminConformance(host: ConformanceHost): ConformanceCase[] {
 export type StoreHarness = {
   store: AdminStore;
   seed(data: { orders?: OrderRow[]; owned?: { player: string; lookId: string; at: number }[]; rate?: { value: string; at: number } }): Promise<void>;
-  /** Every row that the store could change by mistake, as one text: the orders, the owned looks and the meta rows that are NOT the four settings. Same rows, same text. */
+  /** Every row that the store could change by mistake, as one text: the orders, the owned looks and the meta rows that are NOT the five settings. Same rows, same text. */
   snapshot(): Promise<string>;
   /** Only for a store with `recentLogins` and `signOutEverywhere`: put admin sign-ins in the game's database (the store only reads them). */
   seedLogins?(rows: { at: number; country: string | null; browser: string }[]): Promise<void>;
@@ -363,7 +363,7 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
 
   add("a new store has no settings of its own", async ({ store }) => {
     const s = await store.readSettings();
-    check(s.character === undefined && s.signin === undefined && s.friends === undefined && s.emotes === undefined, `expected no settings, got ${JSON.stringify(s)}`);
+    check(s.character === undefined && s.signin === undefined && s.friends === undefined && s.emotes === undefined && s.freePlay === undefined, `expected no settings, got ${JSON.stringify(s)}`);
   });
 
   add("the friends list is kept as its own setting: each of its three words, and a patch of it leaves the other two", async ({ store }) => {
@@ -384,6 +384,15 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
     }
   });
 
+  add("the free play switch is kept as its own setting: off and on, and a patch of it leaves the other four", async ({ store }) => {
+    await store.saveSettings({ signin: "none", character: "own", friends: "off", emotes: "off" }, NOW);
+    for (const [i, freePlay] of (["off", "on"] as const).entries()) {
+      await store.saveSettings({ freePlay }, NOW + 1 + i);
+      const s = await store.readSettings();
+      check(s.freePlay === freePlay && s.signin === "none" && s.character === "own" && s.friends === "off" && s.emotes === "off", `after freePlay ${freePlay}: ${JSON.stringify(s)}`);
+    }
+  });
+
   add("a patch saves only what it names; the next patch keeps the rest", async ({ store }) => {
     await store.saveSettings({ signin: "none" }, NOW);
     let s = await store.readSettings();
@@ -399,13 +408,13 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
   add("an empty patch writes nothing and does not fail", async ({ store }) => {
     await store.saveSettings({}, NOW);
     const s = await store.readSettings();
-    check(s.character === undefined && s.signin === undefined && s.friends === undefined && s.emotes === undefined, "an empty patch must save nothing");
+    check(s.character === undefined && s.signin === undefined && s.friends === undefined && s.emotes === undefined && s.freePlay === undefined, "an empty patch must save nothing");
   });
 
   add("saving changes nothing but the settings: no order, no owned look, no other meta row", async (h) => {
     await h.seed({ orders: [order("1", {}), order("2", { status: "open" })], owned: [{ player: A, lookId: "mint-cap", at: NOW }], rate: { value: JSON.stringify({ usd: 1.2, sources: ["x"] }), at: NOW } });
     const before = await h.snapshot();
-    await h.store.saveSettings({ character: "own", signin: "none", friends: "off", emotes: "off" }, NOW + 5);
+    await h.store.saveSettings({ character: "own", signin: "none", friends: "off", emotes: "off", freePlay: "off" }, NOW + 5);
     check((await h.snapshot()) === before, "the rows of the game changed after saving the settings");
   });
 

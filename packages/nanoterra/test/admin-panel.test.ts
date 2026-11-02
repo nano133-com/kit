@@ -86,11 +86,11 @@ test("the owner sees every card: the two switches, the numbers, the Shelf, the o
   const { root, mounted } = setup();
   await mounted.ready;
   const all = text(root);
-  for (const part of ["Overview", "Cosmetics", "Settings", "Game", SWITCHES.character.title, SWITCHES.signin.title, SWITCHES.emotes.title, "Earned", "To send back", "Open now", "Shelf", "Mint Cap", "Orders", "All (2)", "Paid late (1)", "Players who own a look", "Signed in as", "Sign out"]) assert.ok(all.includes(part), part);
+  for (const part of ["Overview", "Cosmetics", "Settings", "Game", SWITCHES.character.title, SWITCHES.signin.title, SWITCHES.emotes.title, SWITCHES.freePlay.title, "Earned", "To send back", "Open now", "Shelf", "Mint Cap", "Orders", "All (2)", "Paid late (1)", "Players who own a look", "Signed in as", "Sign out"]) assert.ok(all.includes(part), part);
   assert.ok(all.includes("They start from game.config.json"));
   assert.ok(root.classList.contains("n133-admin"));
   const switches = [...root.querySelectorAll(".switch")];
-  assert.deepEqual(switches.map((s) => s.getAttribute("aria-checked")), ["true", "true", "true"]);
+  assert.deepEqual(switches.map((s) => s.getAttribute("aria-checked")), ["true", "true", "true", "true"]);
   assert.ok(text(root).includes("Send this amount back by hand"), "a late payment says what to do");
   // The theme: drawn on the panel and on the page's <html> while mounted; the top bar has its key.
   assert.match(root.getAttribute("data-theme") ?? "", /^(light|dark)$/);
@@ -130,7 +130,16 @@ test("a press on a switch saves it, says Saved, and the character note changes w
   assert.equal(emotes.getAttribute("aria-checked"), "false");
   assert.equal(store.rows.get("setting:emotes"), "off");
   assert.ok(text(root).includes(SWITCHES.emotes.off));
-  assert.deepEqual(calls.filter((c) => c.method === "POST").map((c) => c.path), ["/api/admin/game", "/api/admin/game", "/api/admin/game"]);
+  // "Free play": on by default, off on a press, with its sentence (a paid game: the creator's).
+  const freePlay = root.querySelectorAll(".switch")[3] as HTMLButtonElement;
+  assert.equal(freePlay.getAttribute("aria-checked"), "true");
+  assert.ok(text(root).includes(SWITCHES.freePlay.on));
+  freePlay.click();
+  await tick();
+  assert.equal(freePlay.getAttribute("aria-checked"), "false");
+  assert.equal(store.rows.get("setting:freePlay"), "off");
+  assert.ok(text(root).includes(SWITCHES.freePlay.off));
+  assert.deepEqual(calls.filter((c) => c.method === "POST").map((c) => c.path), ["/api/admin/game", "/api/admin/game", "/api/admin/game", "/api/admin/game"]);
 });
 
 test("a press that the server refuses shows the server's words and changes nothing on the page", async () => {

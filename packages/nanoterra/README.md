@@ -536,7 +536,7 @@ import { createAdminHandler } from "@nano133/nanoterra/admin";
 
 const admin = createAdminHandler({
   store,                                   // your database: readSettings(), saveSettings(patch, now), summary(now)  (a memory store is in the package, for tests)
-  defaults: { character: "nanoterra", signin: "exchange", friends: "nanoterra", emotes: "on" },   // what the switches are until /admin sets them (your game.config.json; friends and emotes may be left out)
+  defaults: { character: "nanoterra", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on" },   // what the switches are until /admin sets them (your game.config.json; friends, emotes and freePlay may be left out)
   owner: ownerAddress,                     // "nano_..." lowercase, its checksum checked by you; null when none is set
   session: (req, now) => readAdminSession(req, now),          // YOUR admin login: its own cookie; return { address, createdAt, via: "wallet" } or null
   status: (now, summary) => ({ address: ownerAddress, testMode, warnings }),   // what only your game knows (the store's numbers come too, for a warning like "2 payments came late")
@@ -562,10 +562,20 @@ neither header (curl) and the browser's own address bar (`Sec-Fetch-Site: none`)
 **The handler** sends every request under the base path (`/api/admin` by default) through the guard first, before the route is looked up: a visitor who is not the owner
 gets 401 or 403 for any path, so nothing about the routes leaks. A POST must come from the game's own page (`Origin`, else `Sec-Fetch-Site: same-origin`). It sets no CORS
 header, always sends `Cache-Control: no-store`, reads at most 512 bytes of a press, and limits presses to 30 a minute. A fault in your store gives a plain 500 that shows
-nothing of the fault (`onError` hears it). The only writes are the four settings (and, when the game turns on the sign-in list, the deletion of the admin sessions), **never a look, a price or an order**: a change of looks stays a change of your repository.
+nothing of the fault (`onError` hears it). The only writes are the five settings (and, when the game turns on the sign-in list, the deletion of the admin sessions), **never a look, a price or an order**: a change of looks stays a change of your repository.
 
-**Your own routes read the switches** with `loadGameSettings(store, defaults)` (for the listing file's `signin` word, the character, the friends list and the emotes): the stored word, else your default,
+**Your own routes read the switches** with `loadGameSettings(store, defaults)` (for the listing file's `signin` and `freePlay` words, the character, the friends list and the emotes): the stored word, else your default,
 and your defaults when the store fails.
+
+**Free play** (unreleased). The Game card's switch "Free play" is On by default. Off says that the game has no free play: a player must pay in the game to play. The switch only
+says so, and your game asks for the payment. Your listing file carries it as `"freePlay": freePlayOn(settings)` (`true` or `false`; a file without it is a free game), and
+Nanoterra's listing then says "Paid" in place of "Free to play". Like the sign-in word, a change of a listed game's file waits for Nanoterra's review. Your paid game, its prices
+and its risk are yours, and every payment goes to a wallet that you hold the key for.
+
+```ts
+const settings = await loadGameSettings(store, defaults);
+const listing = { nanoGame: 1, /* name, line, play, art, creator, ... */ signin: settings.signin, freePlay: freePlayOn(settings) };
+```
 
 **The conformance suite** proves your whole chain, not only the guard: the cookie you read, the session lookup, the owner you pass.
 
@@ -614,8 +624,8 @@ the package's own sign-in, `/admin-signin`, passes it): only a wallet signature 
 
 ### The store (an adapter for your database)
 
-`createAdminHandler` needs a store: three calls, `readSettings()`, `saveSettings(patch, now)` and `summary(now)`. Two adapters come with the package, and **both write only the four settings** (the D1 store also deletes the admin sessions, but only when the game turns on the sign-in list: see below)
-(`setting:character`, `setting:signin`, `setting:friends` and `setting:emotes`); every other call they make is a read. Both must pass the same **store contract**, `adminStoreConformance(make)` in
+`createAdminHandler` needs a store: three calls, `readSettings()`, `saveSettings(patch, now)` and `summary(now)`. Two adapters come with the package, and **both write only the five settings** (the D1 store also deletes the admin sessions, but only when the game turns on the sign-in list: see below)
+(`setting:character`, `setting:signin`, `setting:friends`, `setting:emotes` and `setting:freePlay`); every other call they make is a read. Both must pass the same **store contract**, `adminStoreConformance(make)` in
 `@nano133/nanoterra/admin/conformance`: the settings are kept and accumulate, saving changes no order, no owned look and no other row, an open order past its expiry counts as expired,
 the money is totalled right, the newest 500 orders come first, and a bad rate row is ignored. A game with another database writes its own store and runs the same contract.
 
@@ -677,7 +687,7 @@ status warnings, one banner); four numbers (Earned, Open now, To send back, Play
 looks with their share of the money, the last five orders, the switches as On or Off (and the friends list's choice) and the shelf in numbers (a game with no order yet gets three first steps).
 **Cosmetics**: the **Shelf** (below). **Orders**: a filter by status with its count, a search (a look, an address or a block), "Check payments now" when the game gave a
 check, "Paid late" with the address to send the money back to, 20 orders at a time; a card each on a phone, a table on a wide panel. **Players**: each player who owns a
-look, with their looks. **Settings**: the **Game** card (the character and sign-in switches, the friends list's three-way choice and "Allow Nanoterra emotes"), the Sign-ins card and the facts (the address, the mode, the nodes, the last price). The tabs are
+look, with their looks. **Settings**: the **Game** card (the character and sign-in switches, the friends list's three-way choice, "Allow Nanoterra emotes" and "Free play"), the Sign-ins card and the facts (the address, the mode, the nodes, the last price). The tabs are
 real tabs (the arrow keys, Home and End work); every tab is made once, so a draft, a search and a switch keep their state, and the panel never writes the page's address.
 A visitor who is signed out gets the game's sign-in; a wrong wallet, a Nanoterra sign-in and a missing owner address each get their own screen and see no data (a sign-out
 takes the drawn data off the page). Options: `api` (the handler's base path), `noAddressHelp`, `lookPicture(look)` (your own picture of a look for the Shelf), `repoHelp`,
@@ -714,7 +724,7 @@ flat picture stays. `createLookPreview({ size?, body?, record?, background?, key
 
 **The Shelf never writes.** It edits a draft in the owner's browser and gives text to copy (`looks.json`, or a message for an AI assistant): there is no call in the panel that
 changes a look, a price or an order, and a test proves that editing the Shelf sends no request. A change of looks is a change of your repository. The **Game** card writes only the
-three settings. The stylesheet is scoped under `.n133-admin`, so it cannot leak into your page; to theme it set `--n133-ink`, `--n133-ink-soft`, `--n133-paper`, `--n133-line`,
+five settings. The stylesheet is scoped under `.n133-admin`, so it cannot leak into your page; to theme it set `--n133-ink`, `--n133-ink-soft`, `--n133-paper`, `--n133-line`,
 `--n133-gem`, `--n133-gem-dark`, `--n133-sea`, `--n133-radius`, `--n133-font`, `--n133-ground` (the wells inside a card), `--n133-warn`, `--n133-bad` or `--n133-shadow` on the
 element that holds it. The keys, inputs, switches, swatches and price steps are 44 px or more; the tabs, filter keys and copy keys 40 px. The layout follows the panel's own
 width (a container query), not the window's: on a phone two cards a row and the five tabs as icons over their words; three cards a row and the orders as a table from

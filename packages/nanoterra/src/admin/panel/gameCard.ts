@@ -1,9 +1,9 @@
 // The "Game" card of /admin: two switches, "Players can play as their Nanoterra character" and "Players can sign in with Nanoterra", one three-way
-// choice, "Friends list: Nanoterra / The game's own / Off", and the switch "Allow Nanoterra emotes". A press saves at once (POST {api}/game, behind the
-// same admin guard as every admin call) and the game reads the setting at run time, so the creator pushes and deploys nothing. The words are in
-// ../switches.ts. The card changes ONLY these four settings: never a look, a price or an order.
+// choice, "Friends list: Nanoterra / The game's own / Off", and the switches "Allow Nanoterra emotes" and "Free play". A press saves at once (POST
+// {api}/game, behind the same admin guard as every admin call) and the game reads the setting at run time, so the creator pushes and deploys nothing.
+// The words are in ../switches.ts. The card changes ONLY these five settings: never a look, a price or an order.
 
-import { CHARACTER_NEEDS_SIGNIN, CHARACTER_SIGNIN_OFF, FRIENDS_CHOICES, FRIENDS_TITLE, REVIEW_LINK, REVIEW_NOTE, SWITCHES, pressOf, signinOn, stateOf, type Friends, type GameState, type SwitchId } from "../switches.js";
+import { CHARACTER_NEEDS_SIGNIN, CHARACTER_SIGNIN_OFF, FREE_PLAY_NOTE, FRIENDS_CHOICES, FRIENDS_TITLE, REVIEW_LINK, REVIEW_NOTE, SWITCHES, pressOf, signinOn, stateOf, type Friends, type GameState, type SwitchId } from "../switches.js";
 import { ApiError, type Api } from "./api.js";
 import { h } from "./dom.js";
 
@@ -17,7 +17,7 @@ export function gameCard(api: Api, initial: GameState, defaultsFile = "the game'
   /** Under the character switch: it works only through sign-in, so it says so, and says what a player gets while sign-in is Off. */
   const needs = h("p", { class: "fine switch-needs" });
   const card = h("section", { class: "admin-card game-card", "aria-labelledby": "game-title" }, h("div", { class: "card-head" }, h("h2", { id: "game-title" }, "Game")));
-  card.append(h("p", { class: "fine card-intro" }, `Four choices about your game. A press saves at once: you push nothing and deploy nothing. They start from ${defaultsFile}, and a press here wins.`));
+  card.append(h("p", { class: "fine card-intro" }, `Five choices about your game. A press saves at once: you push nothing and deploy nothing. They start from ${defaultsFile}, and a press here wins.`));
   /** The friends choice: a radio group of three keys (arrow keys move between them, as a radio group does). */
   const friendsKeys = new Map<Friends, HTMLButtonElement>();
   const friendsNote = h("p", { class: "switch-note", id: "switch-friends-note" });
@@ -112,6 +112,9 @@ export function gameCard(api: Api, initial: GameState, defaultsFile = "the game'
   }
   card.append(h("div", { class: "switch-row friends-row" }, h("div", { class: "switch-head" }, h("span", { class: "switch-title", id: "switch-friends-label" }, FRIENDS_TITLE), group), friendsNote, friendsStatus));
   switchRow("emotes");
+  // Free play is a word of the listing file too: Nanoterra's review decides what its listing says ("Free to play" or "Paid").
+  switchRow("freePlay");
+  card.append(h("p", { class: "fine switch-review" }, FREE_PLAY_NOTE, " ", h("a", { href: REVIEW_LINK, target: "_blank", rel: "noopener noreferrer" }, "Open the launch page")));
   draw();
   return card;
 }

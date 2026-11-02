@@ -1,8 +1,8 @@
 // The admin store for a game on Firestore (the Admin SDK). The package has no Firebase dependency: the adapter uses the small interface below, which the
-// Admin SDK's `Firestore` fits. It writes ONLY the four settings; everything else it does is a read.
+// Admin SDK's `Firestore` fits. It writes ONLY the five settings; everything else it does is a read.
 //
 // The data model (the names a game must have; only the three collection names can be changed):
-//   meta/{key}          { value: string, at: number }          keys "setting:character", "setting:signin", "setting:friends", "setting:emotes", "rate" (value is JSON { usd, sources })
+//   meta/{key}          { value: string, at: number }          keys "setting:character", "setting:signin", "setting:friends", "setting:emotes", "setting:freePlay", "rate" (value is JSON { usd, sources })
 //   orders/{id}         { player, lookId, usd, amount, status, createdAt, expiresAt, paidAt, payer, hash }   `amount` is the raw amount as text
 //   owned/{player__lookId}  { player, lookId, orderId, grantedAt }
 //
@@ -33,7 +33,7 @@ export interface FirestoreLike {
 }
 
 export const FIRESTORE_SCAN_LIMIT = 5000;
-export const FIRESTORE_KEYS = { character: "setting:character", signin: "setting:signin", friends: "setting:friends", emotes: "setting:emotes" } as const;
+export const FIRESTORE_KEYS = { character: "setting:character", signin: "setting:signin", friends: "setting:friends", emotes: "setting:emotes", freePlay: "setting:freePlay" } as const;
 
 const text = (v: unknown, fallback = ""): string => (typeof v === "string" ? v : fallback);
 const num = (v: unknown, fallback = 0): number => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
@@ -49,8 +49,14 @@ export function createFirestoreStore(db: FirestoreLike, collections: { meta?: st
   };
   return {
     async readSettings() {
-      const [character, signin, friends, emotes] = await Promise.all([valueOf(FIRESTORE_KEYS.character), valueOf(FIRESTORE_KEYS.signin), valueOf(FIRESTORE_KEYS.friends), valueOf(FIRESTORE_KEYS.emotes)]);
-      return { character: character?.value, signin: signin?.value, friends: friends?.value, emotes: emotes?.value };
+      const [character, signin, friends, emotes, freePlay] = await Promise.all([
+        valueOf(FIRESTORE_KEYS.character),
+        valueOf(FIRESTORE_KEYS.signin),
+        valueOf(FIRESTORE_KEYS.friends),
+        valueOf(FIRESTORE_KEYS.emotes),
+        valueOf(FIRESTORE_KEYS.freePlay),
+      ]);
+      return { character: character?.value, signin: signin?.value, friends: friends?.value, emotes: emotes?.value, freePlay: freePlay?.value };
     },
 
     async saveSettings(patch: GamePatch, now: number) {
@@ -60,6 +66,7 @@ export function createFirestoreStore(db: FirestoreLike, collections: { meta?: st
       if (patch.signin) (batch.set(db.collection(meta).doc(FIRESTORE_KEYS.signin), { value: patch.signin, at: now }), n++);
       if (patch.friends) (batch.set(db.collection(meta).doc(FIRESTORE_KEYS.friends), { value: patch.friends, at: now }), n++);
       if (patch.emotes) (batch.set(db.collection(meta).doc(FIRESTORE_KEYS.emotes), { value: patch.emotes, at: now }), n++);
+      if (patch.freePlay) (batch.set(db.collection(meta).doc(FIRESTORE_KEYS.freePlay), { value: patch.freePlay, at: now }), n++);
       if (n) await batch.commit();
     },
 

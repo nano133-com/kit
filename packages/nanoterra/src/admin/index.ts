@@ -17,5 +17,5 @@ export type { AdminLogin, AdminOrder, AdminPlayer, AdminStatus, AdminStore, Admi
 export { ORDERS_SHOWN, moneyOf, parseRate, shapeOrders, shapePlayers, statusOf, summarize } from "./summary.js";
 export type { OrderRow } from "./summary.js";
 export { RAW_PER_XNO, xnoText } from "./amount.js";
-export { CHARACTER_NEEDS_SIGNIN, CHARACTER_SIGNIN_OFF, DEFAULT_EMOTES, DEFAULT_FRIENDS, FRIENDS_CHOICES, FRIENDS_TITLE, REVIEW_LINK, REVIEW_NOTE, SWITCHES, isCharacter, isEmotes, isFriends, isSignin, isSigninChoice, mergeSettings, parsePatch, pressOf, signinOn, stateOf } from "./switches.js";
-export type { Character, Emotes, Friends, GamePatch, GameSettings, GameState, Signin, SwitchId } from "./switches.js";
+export { CHARACTER_NEEDS_SIGNIN, CHARACTER_SIGNIN_OFF, DEFAULT_EMOTES, DEFAULT_FREE_PLAY, DEFAULT_FRIENDS, FREE_PLAY_NOTE, FRIENDS_CHOICES, FRIENDS_TITLE, REVIEW_LINK, REVIEW_NOTE, SWITCHES, freePlayOn, isCharacter, isEmotes, isFreePlay, isFriends, isSignin, isSigninChoice, mergeSettings, parsePatch, pressOf, signinOn, stateOf } from "./switches.js";
+export type { Character, Emotes, FreePlay, Friends, GamePatch, GameSettings, GameState, Signin, SwitchId } from "./switches.js";

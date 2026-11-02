@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **"Free play" in /admin (Wes, 2026-11-02):** the Game card's fifth setting, a switch, On by default. Off says that the game has no free play: a player must pay in
+  the game to play. The switch only says so; the game asks for the payment. `freePlay` ("on" or "off") is in `GameSettings`, `GamePatch` and `GameState` (with
+  `fromAdmin.freePlay`), `POST {base}/game` takes `{ "freePlay": "on" | "off" }`, and the memory, D1 and Firestore stores keep it as `setting:freePlay`, with a
+  store conformance case. `freePlayOn(settings)` gives the listing file's word, `"freePlay": true` or `false`: Nanoterra's listing then says "Paid" in place of
+  "Free to play". The game's paid play, its prices and its risk are the creator's. The Overview lists the switch too.
+
 ## 0.13.0 (2026-11-01)
 
 - **The camera's distance on one curve (`createZoom`, `listenZoom` in `@nano133/nanoterra/input`):** one number, the camera's distance from the eyes, moved by

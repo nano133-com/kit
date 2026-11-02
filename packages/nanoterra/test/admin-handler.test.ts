@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ADMIN_LIMITS, ADMIN_SESSION_MS, createAdminHandler, createMemoryStore, loadGameSettings, type AdminHandler, type AdminSession, type AdminStore } from "../src/admin/index.js";
+import { ADMIN_LIMITS, ADMIN_SESSION_MS, createAdminHandler, createMemoryStore, freePlayOn, loadGameSettings, type AdminHandler, type AdminSession, type AdminStore } from "../src/admin/index.js";
 import { createHash, randomBytes } from "node:crypto";
 import { HEAVY_CASE_MS, adminConformance, adminSigninConformance, type ConformanceCase, type ConformanceHost, type SigninHost, type Who } from "../src/admin/conformance.js";
 
@@ -347,36 +347,41 @@ test("GET game gives the defaults, and says that /admin has set nothing yet", as
   const { handler } = make();
   const res = (await call(handler, "/api/admin/game"))!;
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { character: "nanoterra", signin: "exchange", friends: "nanoterra", emotes: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false } });
+  assert.deepEqual(await res.json(), { character: "nanoterra", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false, freePlay: false } });
 });
 
 test("a press is saved, read back, and writes only the setting rows", async () => {
   const { handler, store } = make();
   const res = (await call(handler, "/api/admin/game", { method: "POST", body: JSON.stringify({ signin: "none" }) }))!;
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { character: "nanoterra", signin: "none", friends: "nanoterra", emotes: "on", fromAdmin: { character: false, signin: true, friends: false, emotes: false } });
+  assert.deepEqual(await res.json(), { character: "nanoterra", signin: "none", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: false, signin: true, friends: false, emotes: false, freePlay: false } });
   const res2 = (await call(handler, "/api/admin/game", { method: "POST", body: JSON.stringify({ character: "own", signin: "exchange" }) }))!;
-  assert.deepEqual(await res2.json(), { character: "own", signin: "exchange", friends: "nanoterra", emotes: "on", fromAdmin: { character: true, signin: true, friends: false, emotes: false } });
+  assert.deepEqual(await res2.json(), { character: "own", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: true, signin: true, friends: false, emotes: false, freePlay: false } });
   assert.deepEqual([...store.rows.keys()].sort(), ["setting:character", "setting:signin"]);
   // The friends list is its own setting, with three words.
   for (const friends of ["own", "off", "nanoterra"] as const) {
     const res3 = (await call(handler, "/api/admin/game", { method: "POST", body: JSON.stringify({ friends }) }))!;
-    assert.deepEqual(await res3.json(), { character: "own", signin: "exchange", friends, emotes: "on", fromAdmin: { character: true, signin: true, friends: true, emotes: false } });
+    assert.deepEqual(await res3.json(), { character: "own", signin: "exchange", friends, emotes: "on", freePlay: "on", fromAdmin: { character: true, signin: true, friends: true, emotes: false, freePlay: false } });
   }
   assert.deepEqual([...store.rows.keys()].sort(), ["setting:character", "setting:friends", "setting:signin"]);
   // "Allow Nanoterra emotes" is its own switch: on by default, "off" and "on" saved and read back.
   for (const emotes of ["off", "on"] as const) {
     const res4 = (await call(handler, "/api/admin/game", { method: "POST", body: JSON.stringify({ emotes }) }))!;
-    assert.deepEqual(await res4.json(), { character: "own", signin: "exchange", friends: "nanoterra", emotes, fromAdmin: { character: true, signin: true, friends: true, emotes: true } });
+    assert.deepEqual(await res4.json(), { character: "own", signin: "exchange", friends: "nanoterra", emotes, freePlay: "on", fromAdmin: { character: true, signin: true, friends: true, emotes: true, freePlay: false } });
   }
-  assert.deepEqual([...store.rows.keys()].sort(), ["setting:character", "setting:emotes", "setting:friends", "setting:signin"]);
+  // "Free play" is its own switch: on by default, "off" and "on" saved and read back.
+  for (const freePlay of ["off", "on"] as const) {
+    const res5 = (await call(handler, "/api/admin/game", { method: "POST", body: JSON.stringify({ freePlay }) }))!;
+    assert.deepEqual(await res5.json(), { character: "own", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay, fromAdmin: { character: true, signin: true, friends: true, emotes: true, freePlay: true } });
+  }
+  assert.deepEqual([...store.rows.keys()].sort(), ["setting:character", "setting:emotes", "setting:freePlay", "setting:friends", "setting:signin"]);
   assert.equal(store.orders.length, 0);
   assert.equal(store.owned.length, 0);
 });
 
 test("a bad press is refused with its reason and saves nothing", async () => {
   const { handler, store } = make();
-  for (const body of ['{"signin":"ticket"}', '{"character":"robot"}', '{"friends":"on"}', '{"friends":true}', '{"emotes":true}', '{"emotes":"nanoterra"}', '{"emotes":"on","x":1}', '{"price":1}', "{}", "[]", "null", "not json", '{"signin":"none","extra":1}']) {
+  for (const body of ['{"signin":"ticket"}', '{"character":"robot"}', '{"friends":"on"}', '{"friends":true}', '{"emotes":true}', '{"emotes":"nanoterra"}', '{"emotes":"on","x":1}', '{"freePlay":false}', '{"freePlay":"paid"}', '{"freePlay":false}', '{"freePlay":"paid"}', '{"price":1}', "{}", "[]", "null", "not json", '{"signin":"none","extra":1}']) {
     const res = (await call(handler, "/api/admin/game", { method: "POST", body }))!;
     assert.equal(res.status, 400, body);
   }
@@ -509,18 +514,18 @@ test("the base path must be a path", () => {
 
 test("loadGameSettings: the stored words, the defaults for a missing or odd word, and the defaults when the store fails", async () => {
   const store = createMemoryStore();
-  assert.deepEqual(await loadGameSettings(store, DEFAULTS), { character: "nanoterra", signin: "exchange", friends: "nanoterra", emotes: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false } });
+  assert.deepEqual(await loadGameSettings(store, DEFAULTS), { character: "nanoterra", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false, freePlay: false } });
   store.rows.set("setting:character", "own");
   store.rows.set("setting:signin", "ticket"); // not a word a press can set: ignored
-  assert.deepEqual(await loadGameSettings(store, DEFAULTS), { character: "own", signin: "exchange", friends: "nanoterra", emotes: "on", fromAdmin: { character: true, signin: false, friends: false, emotes: false } });
+  assert.deepEqual(await loadGameSettings(store, DEFAULTS), { character: "own", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: true, signin: false, friends: false, emotes: false, freePlay: false } });
   const broken = { readSettings: async () => { throw new Error("down"); } };
-  assert.deepEqual(await loadGameSettings(broken, { character: "own", signin: "none" }), { character: "own", signin: "none", friends: "nanoterra", emotes: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false } });
+  assert.deepEqual(await loadGameSettings(broken, { character: "own", signin: "none" }), { character: "own", signin: "none", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false, freePlay: false } });
   // The game's own word for the friends list is its default; a stored word wins; an odd stored word is ignored.
   assert.equal((await loadGameSettings(createMemoryStore(), { ...DEFAULTS, friends: "off" })).friends, "off");
   store.rows.set("setting:friends", "own");
   assert.equal((await loadGameSettings(store, { ...DEFAULTS, friends: "off" })).friends, "own");
   store.rows.set("setting:friends", "everyone");
-  assert.deepEqual((await loadGameSettings(store, DEFAULTS)).fromAdmin, { character: true, signin: false, friends: false, emotes: false });
+  assert.deepEqual((await loadGameSettings(store, DEFAULTS)).fromAdmin, { character: true, signin: false, friends: false, emotes: false, freePlay: false });
   // The emotes: on unless the game's own word or /admin says off; an odd stored word is ignored.
   assert.equal((await loadGameSettings(createMemoryStore(), { ...DEFAULTS, emotes: "off" })).emotes, "off");
   store.rows.set("setting:emotes", "off");
@@ -528,6 +533,13 @@ test("loadGameSettings: the stored words, the defaults for a missing or odd word
   store.rows.set("setting:emotes", "maybe");
   assert.equal((await loadGameSettings(store, DEFAULTS)).emotes, "on");
   assert.equal((await loadGameSettings(store, DEFAULTS)).fromAdmin.emotes, false);
+  // Free play: on unless the game's own word or /admin says off; an odd stored word is ignored. The listing's word follows it.
+  assert.equal((await loadGameSettings(createMemoryStore(), { ...DEFAULTS, freePlay: "off" })).freePlay, "off");
+  store.rows.set("setting:freePlay", "off");
+  assert.equal(freePlayOn(await loadGameSettings(store, DEFAULTS)), false);
+  store.rows.set("setting:freePlay", "free");
+  assert.equal(freePlayOn(await loadGameSettings(store, DEFAULTS)), true);
+  assert.equal((await loadGameSettings(store, DEFAULTS)).fromAdmin.freePlay, false);
 });
 
 // ---- what the security read found ----
