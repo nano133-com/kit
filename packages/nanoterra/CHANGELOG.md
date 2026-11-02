@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.0 (2026-11-02)
 
 - **"Free play" in /admin (Wes, 2026-11-02):** the Game card's fifth setting, a switch, On by default. Off says that the game has no free play: a player must pay in
   the game to play. The switch only says so; the game asks for the payment. `freePlay` ("on" or "off") is in `GameSettings`, `GamePatch` and `GameState` (with

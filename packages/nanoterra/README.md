@@ -567,7 +567,7 @@ nothing of the fault (`onError` hears it). The only writes are the five settings
 **Your own routes read the switches** with `loadGameSettings(store, defaults)` (for the listing file's `signin` and `freePlay` words, the character, the friends list and the emotes): the stored word, else your default,
 and your defaults when the store fails.
 
-**Free play** (unreleased). The Game card's switch "Free play" is On by default. Off says that the game has no free play: a player must pay in the game to play. The switch only
+**Free play** (since 0.14.0). The Game card's switch "Free play" is On by default. Off says that the game has no free play: a player must pay in the game to play. The switch only
 says so, and your game asks for the payment. Your listing file carries it as `"freePlay": freePlayOn(settings)` (`true` or `false`; a file without it is a free game), and
 Nanoterra's listing then says "Paid" in place of "Free to play". Like the sign-in word, a change of a listed game's file waits for Nanoterra's review. Your paid game, its prices
 and its risk are yours, and every payment goes to a wallet that you hold the key for.
