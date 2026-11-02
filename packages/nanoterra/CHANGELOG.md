@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.0 (2026-11-01)
 
 - **A passkey for the owner (`createAdminSignin({ passkeys: true })`): the owner's LINKED passkeys open /admin.** A passkey is only a key to /admin; the money stays
   in the owner's wallet. A link counts only when both sides prove their key: `POST /api/admin-signin/passkey/link` needs a live **wallet** admin session of the
