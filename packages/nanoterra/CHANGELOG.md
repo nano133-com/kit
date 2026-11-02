@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.0 (2026-11-01)
 
 - **New path `@nano133/nanoterra/admin-signin`: the admin's wallet sign-in, on one fixed route in every game, `/api/admin-signin`.** The game starter's admin
   sign-in moved into the package with every check and every signed text unchanged: Berry Wallet signs the page `https://<host>/admin` (no query), Nautilus the
