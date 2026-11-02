@@ -544,8 +544,12 @@ and your defaults when the store fails.
 import { adminConformance } from "@nano133/nanoterra/admin/conformance";
 
 const host = { routes: admin.routes, basePath: admin.basePath, origin: "https://game.example", request: (who, req) => sendAs(who, req) };
-for (const c of adminConformance(host)) it(c.name, c.run);   // vitest, node:test or any runner
+for (const c of adminConformance(host)) it(c.name, c.run, c.timeoutMs);   // vitest; node:test: test(c.name, { timeout: c.timeoutMs }, c.run)
 ```
+
+Pass `c.timeoutMs`: the heavy cases (other spellings of a path, a request from another page, OPTIONS and HEAD) each send every visitor with every
+method, a few hundred requests, and say they may need `HEAVY_CASE_MS` (120 s) on a slow machine. They are one case for each route (since 0.10.1),
+so a game with many routes has many short cases, not one long one.
 
 `sendAs(who, req)` makes a request as one of eleven visitors from YOUR sessions: `signed_out`; `game_login` (a login made for your players, which must NOT open the admin);
 `game_token_as_admin` (the token of that player login put in the ADMIN cookie: your store must keep the two scopes apart, not only the cookie names); `nanoterra_login`;
@@ -1318,7 +1322,9 @@ const shop = mountShop(document.getElementById("shop")!, {
 ```
 
 - The looks sheet: a tab for each wear slot (the outfits first) when the game sells items, each look with its price before any step; Wear,
-  Wearing, or Buy. `picture(look)` gives the game's own picture instead of the swatch.
+  Wearing, or Buy. `picture(look)` gives the game's own picture instead of the swatch. **For a test:** the sheet opens on the first tab (the
+  outfits), so the looks of another slot ("Shirts", "Hats") are not in the page until the test clicks their tab (`.n133s-tab`); or the test
+  calls `buy(lookId)`, which needs no tab.
 - Buy: the game's sign-in (`signIn`) when nobody is signed in, then the person check, then the pay sheet: the amount, the QR code of the exact
   `nano:` link (drawn by the package as SVG: no QR library, no outside service), "Open wallet", the address and the amount by hand, the time
   left (live only), and a check every 5 seconds for 2 minutes ("Check again" after). Paid: "Paid. Thank you!" and `onOwned`. Paid late: no look,

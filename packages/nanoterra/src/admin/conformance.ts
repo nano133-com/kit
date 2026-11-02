@@ -62,7 +62,14 @@ export type ConformanceHost = {
   endLogin?(who: Who): Promise<void>;
 };
 
-export type ConformanceCase = { name: string; run: () => Promise<void> };
+/**
+ * One test case. `timeoutMs`, when set, is the time the case may need on a slow machine (each heavy case sends a few hundred requests to the game):
+ * pass it to the runner, `it(c.name, c.run, c.timeoutMs)` (vitest) or `test(c.name, { timeout: c.timeoutMs }, c.run)` (node:test).
+ */
+export type ConformanceCase = { name: string; run: () => Promise<void>; timeoutMs?: number };
+
+/** The time a heavy case may take (every visitor, every method, many spellings or origins of one route). */
+export const HEAVY_CASE_MS = 120_000;
 
 const REFUSALS: { who: Who; status: number; reason?: string; words: string }[] = [
   { who: "signed_out", status: 401, words: "a visitor who is signed out" },
@@ -101,7 +108,7 @@ const DATA_WORDS = /"orders"|"players"|"totals"|"counts"|"character"|"signin"|"f
 
 export function adminConformance(host: ConformanceHost): ConformanceCase[] {
   const cases: ConformanceCase[] = [];
-  const add = (name: string, run: () => Promise<void>) => cases.push({ name, run });
+  const add = (name: string, run: () => Promise<void>, timeoutMs?: number) => cases.push(timeoutMs ? { name, run, timeoutMs } : { name, run });
   const good = (extra: Record<string, string> = {}) => ({ Origin: host.origin, "Content-Type": "application/json", ...extra });
   const body = (r: { method: string }) => (r.method === "POST" ? "{}" : undefined);
   const NOT_OWNER = REFUSALS.map((r) => r.who);
@@ -145,7 +152,7 @@ export function adminConformance(host: ConformanceHost): ConformanceCase[] {
         }
       }
     }
-  });
+  }, HEAVY_CASE_MS);
 
   add("an unknown path under the base is refused like any admin path (so the routes are not leaked): the same refusal for a visitor, 404 for the owner", async () => {
     const path = `${host.basePath}/no-such-page`;
@@ -187,12 +194,10 @@ export function adminConformance(host: ConformanceHost): ConformanceCase[] {
     ];
   };
 
-  add("other spellings of EVERY admin path never open anything for a visitor, with any method", async () => {
-    const seen = new Set<string>();
-    for (const route of host.routes) {
-      for (const path of spellings(route.path)) {
-        if (seen.has(path)) continue;
-        seen.add(path);
+  // One case for each route (not one for all of them): each sends every visitor with every method, so a game with many routes stays inside a runner's time.
+  for (const route of host.routes) {
+    add(`other spellings of ${route.method} ${route.path} never open anything for a visitor, with any method`, async () => {
+      for (const path of new Set(spellings(route.path))) {
         for (const who of NOT_OWNER) {
           for (const method of new Set([route.method, "GET", "POST", "OPTIONS", "HEAD"])) {
             const got = await read(await send(who, { method, path, headers: good(), body: body({ method }) }, false));
@@ -201,14 +206,14 @@ export function adminConformance(host: ConformanceHost): ConformanceCase[] {
           }
         }
       }
-    }
-  });
+    }, HEAVY_CASE_MS);
+  }
 
-  add("a request from another page never gets a CORS header, and never the data: a foreign Origin (another site, 'null', a sibling subdomain) on every route, with every method, for the owner and for every visitor", async () => {
-    const own = new URL(host.origin);
-    const origins = ["https://evil.example", "null", `${own.protocol}//evil.${own.host}`, `${own.protocol}//${own.host.replace(/^[^.]+\./, "sibling.")}`, `${own.protocol}//${own.host}.evil.example`];
-    const WHO: Who[] = ["owner", ...NOT_OWNER];
-    for (const route of host.routes) {
+  const own = new URL(host.origin);
+  const origins = ["https://evil.example", "null", `${own.protocol}//evil.${own.host}`, `${own.protocol}//${own.host.replace(/^[^.]+\./, "sibling.")}`, `${own.protocol}//${own.host}.evil.example`];
+  const WHO: Who[] = ["owner", ...NOT_OWNER];
+  for (const route of host.routes) {
+    add(`a request from another page to ${route.method} ${route.path} never gets a CORS header, and never the data: a foreign Origin (another site, 'null', a sibling subdomain), with every method, for the owner and for every visitor`, async () => {
       for (const origin of origins) {
         for (const who of WHO) {
           for (const method of new Set([route.method, "GET", "OPTIONS", "HEAD"])) {
@@ -224,8 +229,8 @@ export function adminConformance(host: ConformanceHost): ConformanceCase[] {
         const got = await read(await send("owner", { method: route.method, path: route.path, headers: { "Sec-Fetch-Site": site, "Content-Type": "application/json" }, body: body(route) }));
         check(got.status === 403, `${route.method} ${route.path} as owner with Sec-Fetch-Site ${site}: expected 403, got ${got.status}`);
       }
-    }
-  });
+    }, HEAVY_CASE_MS);
+  }
 
   add("an old login that is still valid in the store is refused EVERY time it is used, not only the first: a game must not renew a login on each read", async () => {
     for (const route of host.routes) {

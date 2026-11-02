@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ADMIN_LIMITS, ADMIN_SESSION_MS, createAdminHandler, createMemoryStore, loadGameSettings, type AdminHandler, type AdminSession, type AdminStore } from "../src/admin/index.js";
 import { createHash, randomBytes } from "node:crypto";
-import { adminConformance, adminSigninConformance, type ConformanceCase, type ConformanceHost, type SigninHost, type Who } from "../src/admin/conformance.js";
+import { HEAVY_CASE_MS, adminConformance, adminSigninConformance, type ConformanceCase, type ConformanceHost, type SigninHost, type Who } from "../src/admin/conformance.js";
 
 const OWNER = `nano_1${"a".repeat(59)}`;
 const OTHER = `nano_3${"b".repeat(59)}`;
@@ -116,6 +116,19 @@ test("the conformance suite passes on a handler with the memory store", async ()
   const cases = adminConformance(hostFor(handler, noOwner, undefined, [{ method: "GET", path: "/api/admin/orders" }, { method: "POST", path: "/api/admin/debug" }]));
   assert.ok(cases.length >= 12);
   for (const c of cases) await c.run().catch((e: Error) => assert.fail(`${c.name}: ${e.message}`));
+});
+
+test("the heavy checks are one case for each route, each with a time hint, so a game with many routes stays inside a runner's time (the prompt pack's Echo runs timed out at 30 s)", () => {
+  const { handler } = make();
+  const { handler: noOwner } = make({ owner: null });
+  const host = hostFor(handler, noOwner);
+  const cases = adminConformance(host);
+  for (const words of ["other spellings of", "a request from another page to"]) {
+    const mine = cases.filter((c) => c.name.startsWith(words));
+    assert.deepEqual(mine.map((c) => c.name.slice(words.length + 1).split(" ").slice(0, 2).join(" ")), host.routes.map((r) => `${r.method} ${r.path}`), words);
+    for (const c of mine) assert.equal(c.timeoutMs, HEAVY_CASE_MS, c.name);
+  }
+  assert.ok(cases.filter((c) => c.timeoutMs === undefined).length >= 10, "the light cases keep the runner's own time");
 });
 
 // ---- the suite has teeth: a host that breaks a rule fails it ----

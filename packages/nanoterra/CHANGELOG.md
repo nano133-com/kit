@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **The admin conformance suite's heavy checks are one case for each route.** "Other spellings of EVERY admin path" and "a request from another
+  page" were each one case over every route, every visitor and every method: hundreds of requests, which timed out at the starter's 30 s under load
+  and even alone on a game with more routes (the prompt pack's Echo Island runs). They are now "other spellings of GET /api/admin/summary ..." and
+  "a request from another page to GET /api/admin/summary ...", one for each route; the checks are the same. `ConformanceCase` has an optional
+  `timeoutMs`, and the heavy cases (these two and "OPTIONS and HEAD") set it to the new `HEAVY_CASE_MS` (120 s): pass it to the runner,
+  `it(c.name, c.run, c.timeoutMs)`.
+- README: a test of the shop's sheet clicks a slot's tab (`.n133s-tab`) before it looks for that slot's looks, or calls `buy(lookId)`.
+
 ## 0.10.0 (2026-11-01)
 
 - **No minimum price: a fraction of a cent works.** A look's `priceUsd` may have up to 4 decimals (`0.005` is half a cent, `0.0001` the smallest price
