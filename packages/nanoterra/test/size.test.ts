@@ -25,13 +25,18 @@ const PATHS: [string, string[], number, boolean][] = [
   ["@nano133/nanoterra/shop", ["shop/index.js"], 9_800, false],
   ["@nano133/nanoterra/shop/worker", ["shop/worker.js"], 11_200, false],
   ["@nano133/nanoterra/shop/panel", ["shop/panel/index.js"], 11_000, false],
+  // The admin's sign-in: the server part without @nano133/signin (an optional peer, outside the bundle), the stores, and the panel with its QR code.
+  ["@nano133/nanoterra/admin-signin", ["admin-signin/index.js"], 5_800, false],
+  ["@nano133/nanoterra/admin-signin/d1", ["admin-signin/adapters/d1.js"], 1_500, false],
+  ["@nano133/nanoterra/admin-signin/firestore", ["admin-signin/adapters/firestore.js"], 1_850, false],
+  ["@nano133/nanoterra/admin-signin/panel", ["admin-signin/panel/index.js"], 7_200, false],
 ];
 /** The emote clips: their own chunk, loaded on the first emote (never in a path's bundle above: "./clips.js" stays outside). */
 const LAZY: [string, string, number][] = [["the emote clips (loaded on the first emote)", "emotes/clips.js", 21_000]];
 
 async function bundle(files: string[], whole = true, withDefault = false) {
   const contents = files.map((f) => `export * from ${JSON.stringify(dist + f)};${withDefault ? ` export { default } from ${JSON.stringify(dist + f)};` : ""}`).join("\n");
-  const r = await esbuild!.build({ stdin: { contents, resolveDir: dist }, bundle: true, minify: true, format: "esm", external: ["three", "./clips.js"], write: false, treeShaking: !whole, logLevel: "silent" });
+  const r = await esbuild!.build({ stdin: { contents, resolveDir: dist }, bundle: true, minify: true, format: "esm", external: ["three", "./clips.js", "@nano133/signin"], write: false, treeShaking: !whole, logLevel: "silent" });
   return r.outputFiles[0].text;
 }
 

@@ -74,6 +74,10 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/admin/d1`, `/admin/firestore` | the admin store for D1 (the starter's tables) or Firestore (a small interface, no Firebase dependency): `createD1Store`, `createFirestoreStore` (since 0.2.0) | no | 1.5 kB each |
 | `@nano133/nanoterra/admin/panel` | the admin page, drawn in the browser into one element, and its stylesheet `@nano133/nanoterra/admin/style.css` (since 0.2.0) | no | 18.9 kB with the tabbed layout (10.6 kB on 0.3.0, 8.5 kB on 0.2.0) + 5.9 kB of CSS (minified) |
 | `@nano133/nanoterra/admin/conformance` | test cases that a game runs against its own admin (a dev dependency in practice; since 0.2.0) | no | n/a |
+| `@nano133/nanoterra/admin-signin` | the admin's wallet sign-in on one fixed route, `/api/admin-signin`: the routes, `session(request)` for the admin handler, "Sign out everywhere", the sign-in list, a memory store (server code; it needs `@nano133/signin`; since 0.11.0) | no | 5.5 kB without `@nano133/signin` |
+| `@nano133/nanoterra/admin-signin/d1`, `/admin-signin/firestore` | its store on D1 (the starter's own tables; a new game adds `/admin-signin/d1.sql`) or Firestore (a small interface, no Firebase dependency) (since 0.11.0) | no | 1.4 kB, 1.7 kB |
+| `@nano133/nanoterra/admin-signin/panel` | the admin's sign-in in the browser, for `mountAdmin`'s `signIn` and `signOut`: `adminSignIn()`, `adminSignOut()`, with its own QR code; its stylesheet `@nano133/nanoterra/admin-signin/style.css` is the player sheet's (since 0.11.0) | no | 6.8 kB |
+| `@nano133/nanoterra/admin-signin/conformance` | the store's rules as test cases, for a store a game writes itself (since 0.11.0) | no | n/a |
 | `@nano133/nanoterra/friends` | the game's own friends list: the handler, the rules, a memory store (server code; since 0.6.0) | no | 3.7 kB |
 | `@nano133/nanoterra/friends/d1`, `/friends/firestore` | the friends store for D1 (with the migration `/friends/d1.sql`) or Firestore (a small interface, no Firebase dependency): `createD1Friends`, `createFirestoreFriends` (since 0.6.0) | no | 3.0 kB each |
 | `@nano133/nanoterra/friends/panel` | the Friends key and panel: the nano133 window, or the game's own list, and its stylesheet `@nano133/nanoterra/friends/style.css` (since 0.6.0) | no | 5.0 kB + 4.8 kB of CSS (minified) |
@@ -580,8 +584,8 @@ when your store has the call and your host can move its clock: a host that then 
 
 **List the other routes that your own router serves under the admin base** in `host.otherRoutes` (`{ method, path }`: an old `/api/admin/orders`, a debug route, a route kept for an old page).
 The suite sends each one as every visitor who is not the owner and requires a refusal. It cannot find a route that your router hides from it, so a route that answers BEFORE the handler with no
-guard is a fault only if you list it. **What the suite cannot see:** the code that CREATES admin logins (your wallet sign-in). Test that separately: only a wallet signature started from the
-admin may make an admin login, and never from another sign-in. A security read found these gaps in the first version of this suite, and each one is a test now.
+guard is a fault only if you list it. **What the suite cannot see:** the code that CREATES admin logins (your wallet sign-in). Test that separately (the sign-in chain contract above;
+the package's own sign-in, `/admin-signin`, passes it): only a wallet signature started from the admin may make an admin login, and never from another sign-in. A security read found these gaps in the first version of this suite, and each one is a test now.
 
 ### The store (an adapter for your database)
 
@@ -618,7 +622,8 @@ With D1: `createD1Store(db, { logins: true })` needs the table `admin_logins (id
 `sessions` (`'admin'` for an admin login) and a `scope` column and a `delivered` column on `signin_requests` ("Sign out everywhere" also marks every admin request that was started and not delivered as
 delivered and ends it (`expires_at = 0`, so the wallet app does not show "Signed in" for it either), so a request that the owner signed a moment ago, or signs a moment later, cannot make a new admin login afterwards). The panel shows a browser name only when it is words (letters and spaces, 40 at most): anything else
 a store gives, such as a raw browser text or an address, is shown as "Unknown browser". Without the option the store has neither call, so a game without those tables is not broken. The store contract has cases for both calls.
-The Firestore store does not have them yet (a game's sessions are its own): a game with Firestore writes its own `recentLogins` and `signOutEverywhere`.
+The Firestore store does not have them yet (a game's sessions are its own): a game with Firestore gives it the admin sign-in's (`store.recentLogins = signin.recentLogins;
+store.signOutEverywhere = signin.signOutEverywhere`, see "The admin's sign-in"), or writes its own.
 
 ### Later ideas (not built)
 
@@ -690,7 +695,8 @@ element that holds it. The keys, inputs, switches, swatches and price steps are 
 width (a container query), not the window's: on a phone two cards a row and the five tabs as icons over their words; three cards a row and the orders as a table from
 760 px; four cards from 1000 px. The panel can be up to 1200 px wide: the page that holds it sets the width (the starter's admin page is 900 px).
 
-The wallet sign-in stays yours (`signIn`), because only your game can start a request in the ADMIN scope with its own cookie. The panel never signs anyone in.
+The panel never signs anyone in: `signIn` draws the sign-in. Since 0.11.0 the package has one, `adminSignIn()` from `@nano133/nanoterra/admin-signin/panel` (see "The admin's
+sign-in"); a game with its own keeps giving its own.
 
 **Light and dark** (since 0.7.0). The top bar has a theme key (44 px, a half circle, a sun or a moon; its name says the choice: "Theme: Dark", "Theme: Device (dark
 now)"). A press opens a menu of three: **Device** (the default: it follows the device's setting, `prefers-color-scheme`, and a live change of it), **Light** and **Dark**.
@@ -722,6 +728,94 @@ html[data-n133-theme="dark"] body.admin-page {
 
 The pictures: a look's flat picture and the character previews (`createLookPreview` draws with a clear background) stand on the `stage` colour, which is a mid grey
 blue in dark, so a dark outfit and the outlines still show. The panel draws no QR code.
+
+## The admin's sign-in (`/admin-signin`; since 0.11.0)
+
+The wallet sign-in that makes the ADMIN login, in the package, on **one fixed route in every game: `/api/admin-signin`** (`ADMIN_SIGNIN_BASE`). Before it, every game put it
+somewhere else (the game starter: `/api/signin` with `scope: "admin"` in the body; AI helpers: their own `/api/admin-signin`). It is the game starter's admin sign-in moved into
+the package, **with every check and every signed text unchanged**; only the paths are new. The checks are `@nano133/signin`'s (install it with this package).
+
+```ts
+// The Worker (D1)
+import { createAdminSignin } from "@nano133/nanoterra/admin-signin";
+import { createD1AdminSignin } from "@nano133/nanoterra/admin-signin/d1";
+import { createAdminHandler } from "@nano133/nanoterra/admin";
+import { createD1Store } from "@nano133/nanoterra/admin/d1";
+
+const adminSignin = createAdminSignin({
+  store: createD1AdminSignin(env.DB),           // the starter's own tables: no migration (a new game adds "@nano133/nanoterra/admin-signin/d1.sql")
+  owner: receiveAddress(env),                    // the game's own address, or null: ONLY it makes an admin login
+  limit: (key, n, ms, now) => d1Limit(env.DB, key, n, ms, now),   // optional: your limiter for the starts (default: this copy's memory)
+  visitor: (req) => visitorKey(env.DB, req),     // optional: a keyed hash of the IP address
+  personCheck: (token, req) => turnstileCheck(env, token, req.headers.get("CF-Connecting-IP")),   // optional (Turnstile)
+});
+const admin = createAdminHandler({
+  store: createD1Store(env.DB, { logins: true }),   // the Sign-ins card and "Sign out everywhere", on the same tables
+  defaults, owner: receiveAddress(env),
+  session: (req, now) => adminSignin.session(req, now),   // the ADMIN cookie only
+  status, lookName, check,
+});
+const answer = (await adminSignin.handle(request)) ?? (await admin.handle(request));   // null: not theirs; the game goes on
+// the cron: await adminSignin.clean();
+
+// The admin page
+import { mountAdmin } from "@nano133/nanoterra/admin/panel";
+import { adminSignIn, adminSignOut } from "@nano133/nanoterra/admin-signin/panel";
+import "@nano133/nanoterra/admin/style.css";
+import "@nano133/nanoterra/admin-signin/style.css";
+mountAdmin(el, { looks, signIn: adminSignIn({ personCheck }), signOut: adminSignOut() });
+```
+
+| Route (`base` "/api/admin-signin") | Who calls it | What it does |
+|---|---|---|
+| `POST {base}/start` `{ way, turnstile? }` | the admin page | starts an admin request (`way` "berry", the default, or "nautilus"): `{ way, id, link, walletLink?, code?, expiresAt }` and the starter cookie `starter-admin` (30 minutes) |
+| `GET`, `POST {base}/nano/:id` | Berry Wallet | reads the request; posts its signature (204 and no body when accepted, 401 and the words when refused) |
+| `POST {base}/nautilus?id=` | Nautilus | its signature (always 200: Nautilus shows only a 200's words) |
+| `POST {base}/nanchat` | NanChat's relay server | only with `nanchat: true` (else no route): its signature (always 200; a refusal starts "NOT signed in") |
+| `POST {base}/check` `{ id, way }` | the admin page, every 2 s | `{ status }`: `waiting`, `expired`, `elsewhere`, `used`, `not_owner` (with `address`: another wallet signed; no login, the request stays unused), or `signedin` with `address` and the admin cookie |
+| `POST {base}/signout` | the admin page | ends this browser's ADMIN login only: `{ ok: true }` |
+
+**What the wallet signs names the ADMIN**, so a link that a stranger sends to the owner does not look like any sign-in. Berry Wallet signs the page `https://<host>/admin`
+(`page`, with **no query**: Berry refused `/admin?from=US`); Nautilus signs the label `ADMIN of <host> sign-in ABCD-EFGH from <country>` and shows "Sign in to the ADMIN of
+<host>. Started <time> UTC from <country>. If you did not start this, do not sign." It names the owner's address (no key, no payment). An admin request **lives 2
+minutes**, is delivered for **one more minute**, and works **once**; only the browser that started it gets the login.
+
+**NanChat is OFF by default.** Its text must start "Login to <host>" and **cannot name the ADMIN**, so the owner who is asked to sign cannot tell an admin sign-in from a game
+sign-in. A start with `way: "nanchat"` is refused: "NanChat cannot open the admin yet. Use Berry Wallet or Nautilus." A game may turn it on with `nanchat: true` (and the
+panel's `nanchat: true`): it then signs "Login to <host>" as a player's NanChat sign-in does, with the same admin checks, and the panel says that its text cannot say ADMIN.
+**Berry Wallet is first** in every list of wallets. **No passkey opens /admin** yet.
+
+**The two logins stay apart, on the server.** The admin login is its own cookie, `admin` (`__Host-admin` on https; HttpOnly, SameSite=Lax, **one day**), beside the player's
+`session`, so the game and /admin can have different people signed in at once. The database keeps the SHA-256 of `"admin:"` and the token (`adminKey`), and the player's
+session its plain hash: a player's token put in the admin cookie opens nothing, a player's starter copied to `starter-admin` finishes nothing, and an admin request never
+makes a player's login (the store reads only its own scope's rows). **Only the game's own address (`owner`) makes an admin login**; the guard (`adminAccess`) decides again
+on every call of /admin. `session(request)` gives `{ address, createdAt, via }` (a stored word other than `"wallet"` or `"nanoterra"` is `"unknown"`: refused).
+
+**What it keeps.** Each admin login writes one row of the sign-in list: the time, the country of Cloudflare's country header (two letters, or none) and a short browser
+name from fixed lists ("Chrome on macOS"): no address, no IP and no browser text. A row is kept 30 days. `signOutEverywhere()` deletes every admin login and ends every admin
+request that was not delivered; `recentLogins(limit)` reads the list (give both to an admin store that has neither: the Firestore one, or the memory one in a test).
+
+**The stores** read and write only their three tables or collections, and only the admin's rows:
+
+- **D1:** `createD1AdminSignin(env.DB)` works on the game starter's own tables and columns: `signin_requests` (`scope = 'admin'`), `sessions` (`scope = 'admin'`)
+  and `admin_logins (id, at, country, browser)`. **The starter needs no migration**, and every creator who is signed in stays signed in. A new game adds
+  `@nano133/nanoterra/admin-signin/d1.sql` to its migrations (the same tables, `CREATE TABLE IF NOT EXISTS`; beside the player sign-in's d1.sql it adds only `admin_logins`).
+  "Sign out everywhere" is the same two statements as `createD1Store(db, { logins: true })`. Other table names: `createD1AdminSignin(db, { requests, sessions, logins })`.
+- **Firestore:** `createFirestoreAdminSignin(db, { requests, sessions, logins })` (default `signin_requests`, `sessions`, `admin_logins`; the player sign-in's
+  adapter keeps its own documents in the first two with `scope: "play"`). Each document carries `deleteAt`: set a TTL policy on it.
+- **Your own database:** an `AdminSigninStore` that passes `adminSigninStoreConformance` from `@nano133/nanoterra/admin-signin/conformance`. The whole chain (the
+  player's sign-in and the admin's, side by side) passes `adminSigninConformance` from `@nano133/nanoterra/admin/conformance`: the package runs it on the memory store and on D1,
+  with Berry Wallet, Nautilus and NanChat turned on.
+
+**The rest:** `base` (keep the default), `page` (default `/admin`), `domain` (the host every text names; a call to another host is refused), `cookies`
+(default `{ session: "admin", starter: "starter-admin" }`), `now`, `onError`. Starts: 20 in 10 minutes per visitor (the player's key: one count for both);
+checks 90 a minute and the wallets' calls 30 a minute per IP address. **The panel** (`adminSignIn(options)`, `adminSigninView(options)`, `adminSignOut(options)`): the
+wallets as tiles, on a phone one key that opens the app, on a computer a QR code (the package's own; a link that is too long for it, Nautilus's, shows as a link), the
+check every 2 seconds, and `done()` once the owner has signed in. Options: `base`, `nanchat`, `personCheck(box)`, `qr(text)`, `touch`, `fetch`. Text 16 px, keys 48 px.
+
+**Moving the game starter onto it:** use `createD1AdminSignin(env.DB)` (no migration), answer `adminSignin.handle(request)` before the player's sign-in, give the admin handler
+`session: adminSignin.session`, and in `admin.ts` `signIn: adminSignIn(...)`, `signOut: adminSignOut()`. The player's sign-in then needs no `sharedPaths`, and
+`src/worker/signin.ts` and `src/client/ui/signin.ts` go. Old requests started on `/api/signin` with `scope: "admin"` are 2 minutes long: none outlive the deploy.
 
 ## The friends list (`/friends`; since 0.6.0)
 
@@ -1127,7 +1221,8 @@ These are the game starter's own routes and answers, so its page works unchanged
   exchange and returns the Set-Cookie value; `signin.signOut(request)` likewise; `signin.forget(player)` is for **"Delete my data"** (every session, signed
   request and once-only row of the player); `signin.clean()` is for a cron.
 - **`sharedPaths: true`** for a game whose own admin signs in on the same paths (the starter's `scope: "admin"`): the admin's calls, and a wallet's call for a
-  request this store does not hold, answer null, and the game's admin code answers them.
+  request this store does not hold, answer null, and the game's admin code answers them. A game that uses the package's admin sign-in (`/admin-signin`, on its own
+  route) does not need it.
 - `ways` (default all three), `passkey: false`, `base`, `signOutPath`, `cookies`, `sessionDays` change the rest.
 
 **The stores** read and write only their three tables or collections, and only the player's rows:
@@ -1427,6 +1522,8 @@ counter** as they are, and the page needs no change for the server part.
 - First-person arms, swimming, climbing and the room's other moves: only idle, walk, run, jump and wave, and the emotes (`/emotes`, which sit too).
 - Shared geometry for many characters at once, and a react-three-fiber wrapper.
 - `WebGPURenderer`: the ink is a GLSL `ShaderMaterial`, so use `WebGLRenderer`.
+- A passkey for the admin: the owner's linked passkey comes in a later version. Today only a wallet signature opens /admin.
+- A creator option to accept Berry Wallet only.
 - Move money. The shop (`/shop`) reads the Nano ledger to see a payment to the creator's address; no part of the package holds a key or sends.
 
 ## Build and test

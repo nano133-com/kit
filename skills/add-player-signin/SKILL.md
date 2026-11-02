@@ -22,7 +22,8 @@ Follow step 12 of the package's `ai/SPEC.md` (https://nano133.com/build/nanoterr
    `playerSigninStoreConformance` first.
 5. The server: `createPlayerSignin({ store, siteAddress, limit, visitor, personCheck })`, and
    `handle(request)` first under `/api/`. The starter passes `sharedPaths: true` (its admin signs in
-   on the same paths). The shop's and the friends' `player` hook is `signin.player(request)`.
+   on the same paths); a game that uses the package's admin sign-in (`@nano133/nanoterra/admin-signin`,
+   on `/api/admin-signin`, SPEC step 14) does not. The shop's and the friends' `player` hook is `signin.player(request)`.
 6. "Delete my data" calls `signin.forget(player)`; a cron calls `signin.clean()`.
 7. The page: `mountPlayerSignin(document.body, { name, scheme, qr, onSignedIn })` with
    `@nano133/nanoterra/player-signin/style.css`; the account key and the shop call `open()`.

@@ -64,7 +64,7 @@ prize. Follow `packages/three/ai/SPEC.md` step by step.
 Use it when a game wants the player's Nanoterra identity: a sign-in ticket (a game on a
 **static site**), the player's character in a Three.js scene, or the looks ladder for a game
 that sells looks, a friends list, an options menu, emotes, the player's sign-in, or a shop for its looks. One package; the main paths: `/ticket`, `/character` (and `/character/record`
-with no Three.js), `/looks`, `/friends`, `/options`, `/emotes`, `/player-signin` and `/shop`. Follow `packages/nanoterra/ai/SPEC.md` step by step.
+with no Three.js), `/looks`, `/friends`, `/options`, `/emotes`, `/player-signin`, `/admin-signin` and `/shop`. Follow `packages/nanoterra/ai/SPEC.md` step by step.
 
 - **The ticket** (`/ticket`): a game with a server uses the code exchange, not this. A ticket
   proves nothing to a server: never give a sale, a prize or a score on it. Ask "Sign in as
@@ -117,9 +117,14 @@ with no Three.js), `/looks`, `/friends`, `/options`, `/emotes`, `/player-signin`
   never the admin's login; call `forget(player)` from "Delete my data". A store the game writes itself passes `playerSigninStoreConformance` first. Never
   print, log, store or send the seed.
 
+- **The admin's sign-in** (`/admin-signin`, `/admin-signin/d1`, `/admin-signin/firestore`, `/admin-signin/panel`): the wallet sign-in of /admin, on ONE fixed
+  route in every game, `/api/admin-signin`. Never write an admin sign-in of your own or move it to another path. Berry Wallet and Nautilus sign a text that names
+  the ADMIN; NanChat stays off (`nanchat: false`) unless the owner asks: its text cannot name the admin. Only the owner's address makes an admin login; give
+  `adminSignin.session` to `createAdminHandler`. Do not change its checks or its signed texts.
+
 ## Working in this repository
 
 - `npm test` runs every package's tests (mock ledger; no network, no money).
-- Packages have no runtime dependencies; keep it that way. (`@nano133/nanoterra/player-signin` names `@nano133/signin` as an optional peer, as the character
+- Packages have no runtime dependencies; keep it that way. (`@nano133/nanoterra/player-signin` and `/admin-signin` name `@nano133/signin` as an optional peer, as the character
   names `three`; the root `build` builds `@nano133/signin` first for that.)
 - Code comments and docs: plain, direct English.

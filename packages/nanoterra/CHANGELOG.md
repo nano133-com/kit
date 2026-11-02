@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- **New path `@nano133/nanoterra/admin-signin`: the admin's wallet sign-in, on one fixed route in every game, `/api/admin-signin`.** The game starter's admin
+  sign-in moved into the package with every check and every signed text unchanged: Berry Wallet signs the page `https://<host>/admin` (no query), Nautilus the
+  label "ADMIN of <host> sign-in ABCD-EFGH from <country>"; a request lives 2 minutes, is delivered one more minute and works once; only the browser that started it
+  and only the game's own address (`owner`; another wallet gets `not_owner`) make an admin login; the cookie `admin` (`__Host-admin` on https, one day) and the
+  database's `sha256("admin:" + token)` keep it apart from the player's login; each login writes the sign-in list (time, country, short browser name, 30 days).
+  `createAdminSignin({ store, owner, ... })` gives `handle`, `session` (for `createAdminHandler`), `signOut`, `signOutEverywhere`, `recentLogins` and `clean`.
+- **NanChat is off for the admin** (`nanchat: false`, the default): its text must start "Login to <host>" and cannot name the ADMIN, so a start is refused with
+  "NanChat cannot open the admin yet. Use Berry Wallet or Nautilus." `nanchat: true` turns it on (its "Login to <host>" text, the same admin checks). Berry
+  Wallet is first in every wallet list.
+- Stores: `createD1AdminSignin` on the starter's own tables (`signin_requests` and `sessions` with `scope = 'admin'`, `admin_logins`: **no migration** for the
+  starter; a new game adds `/admin-signin/d1.sql`), `createFirestoreAdminSignin`, `createMemoryAdminSignin`, and `adminSigninStoreConformance`
+  (`/admin-signin/conformance`) for a store a game writes itself.
+- The panel `/admin-signin/panel`: `adminSignIn()` and `adminSignOut()` fit `mountAdmin`'s `signIn` and `signOut`; Berry Wallet and Nautilus as tiles (NanChat with
+  `nanchat: true`), one key on a phone, a QR code on a computer (the package's own; Nautilus's link is too long for it and shows as a link). Its stylesheet
+  `/admin-signin/style.css` is the player sheet's (which gets a two-tile row).
+- The package's tests run `adminSigninConformance` (the player's sign-in and the admin's side by side, Berry Wallet, Nautilus and NanChat turned on) and
+  `adminConformance` (with `createAdminHandler` and the sign-in's `session`) on the memory store and on D1.
+
 ## 0.10.1 (2026-11-01)
 
 - **The admin conformance suite's heavy checks are one case for each route.** "Other spellings of EVERY admin path" and "a request from another

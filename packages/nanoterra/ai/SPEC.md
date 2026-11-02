@@ -3,7 +3,7 @@
 Package: `@nano133/nanoterra` (0.1.0 or later). Follow these steps in order. Each step ends with a check. Ask the owner when a step says
 "ask". The package has five parts: the sign-in ticket (`/ticket`), the player's character (`/character`, Three.js), the
 looks ladder (`/looks`), held input that does not stick (`/input`), the friends list (`/friends`, with its panel), the options menu (`/options`), the emotes (`/emotes`, with the wheel), the player's sign-in (`/player-signin`: a passkey or a wallet app, with
-`@nano133/signin`) and the shop (`/shop`, with its panel). Use only the parts the game needs. Only the player's sign-in and the shop have Nano code; the shop holds no key and sends nothing: it reads the ledger. Read the package README first.
+`@nano133/signin`), the admin's sign-in (`/admin-signin`, with `@nano133/signin`) and the shop (`/shop`, with its panel). Use only the parts the game needs. Only the two sign-ins and the shop have Nano code; the shop holds no key and sends nothing: it reads the ledger. Read the package README first.
 
 ## 0. What the owner decides (ask)
 
@@ -255,7 +255,35 @@ import "@nano133/nanoterra/shop/style.css";
 address and `TEST_MODE` off, the pay sheet shows the QR code and the exact amount; a second player gets the next step (0.0001 XNO more); another player's
 order id answers 404; a payment of one raw too little is not matched. Test with a small real payment only when the owner says so, to the owner's own address.
 
-## 14. Do not
+## 14. The admin's sign-in (a game with /admin)
+
+```sh
+npm install @nano133/nanoterra @nano133/signin
+```
+
+The admin's sign-in is the package's, on ONE fixed route in every game: `/api/admin-signin`. Do not write your own admin sign-in, do not put it on another path, and
+do not change what the wallet signs.
+
+1. **The store.** D1: `createD1AdminSignin(env.DB)` from `@nano133/nanoterra/admin-signin/d1` (a game made from the starter has the tables already: no migration; a
+   new game adds `@nano133/nanoterra/admin-signin/d1.sql` to its migrations). Firestore: `createFirestoreAdminSignin(db)` with a TTL policy on `deleteAt`. Another
+   database: a store that passes `adminSigninStoreConformance`.
+2. **The server.** `const adminSignin = createAdminSignin({ store, owner, limit, visitor, personCheck })`, where `owner` is the creator's own address (RECEIVE_ADDRESS) or
+   null. Answer `adminSignin.handle(request)` under `/api/`, and give the admin handler `session: (req, now) => adminSignin.session(req, now)`. Only the owner's wallet
+   makes an admin login; a player's login never does. A cron calls `adminSignin.clean()`.
+3. **"Sign out everywhere" and the Sign-ins card.** D1: `createD1Store(env.DB, { logins: true })` for the admin handler (the same tables). Another store: give it
+   `recentLogins: adminSignin.recentLogins` and `signOutEverywhere: adminSignin.signOutEverywhere`.
+4. **The page.** `mountAdmin(el, { looks, signIn: adminSignIn({ personCheck }), signOut: adminSignOut() })` from `@nano133/nanoterra/admin-signin/panel`, with
+   `@nano133/nanoterra/admin-signin/style.css`.
+5. **NanChat stays off** unless the owner asks for it: its text cannot name the ADMIN, so the owner cannot tell an admin sign-in from a game sign-in. To turn it on, pass
+   `nanchat: true` to `createAdminSignin` AND to `adminSignIn`. No passkey opens /admin yet.
+6. **Tests.** Run `adminSigninConformance` (`@nano133/nanoterra/admin/conformance`) on the game's own chain (its player sign-in and the admin's), and `adminConformance` with
+   the admin handler and `adminSignin.session`.
+
+**Check:** on the game's public https address, Berry Wallet shows "URI: https://<host>/admin" and Nautilus "ADMIN of <host>"; the owner's wallet opens /admin; another
+wallet gets "That wallet is not this game's address"; the player's login (the owner's own address too) does not open /admin; a NanChat start says "NanChat cannot open the
+admin yet."
+
+## 15. Do not
 
 - Do not edit the geometry, the skeleton or the toon and ink materials.
 - Do not add the katana, the headband or other brands' art. A game's own worn model goes on a socket (`c.socket("head" | "hand" | "back")` or

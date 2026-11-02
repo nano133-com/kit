@@ -1,4 +1,5 @@
-/* The player's sign-in sheet (mountPlayerSignin in ./mount.ts) and its content (signInView in ./view.ts). Every rule is under .n133-signin, so nothing
+/* The player's sign-in sheet (mountPlayerSignin in ./mount.ts) and its content (signInView in ./view.ts), and the admin's sign-in (adminSigninView in
+   ../../admin-signin/panel/view.ts: "@nano133/nanoterra/admin-signin/style.css" is this file). Every rule is under .n133-signin, so nothing
    leaks into the game's page.
    Phone first: text is 16 px, and every key, tile, link, close key and back key is 48 px or more each way. On a phone held upright the sheet comes from the bottom; on a wide or sideways screen it
    is a card in the middle. A scrim covers the game while it is open.
@@ -259,6 +260,11 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+}
+
+/* Two wallets (the admin's sign-in: Berry Wallet and Nautilus) fill the row in two halves. */
+.n133-signin .n133s-tiles[data-count="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .n133-signin .n133s-tile {

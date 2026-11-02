@@ -47,16 +47,17 @@ function graph(entry: string) {
 /** The files of the pure record part: they may be reached by the paths that load no Three.js. */
 const PURE = /^character\/(look|lists|record|edit|color|pure)\.ts$/;
 
-/** The one other package a source file may name: the player sign-in's signature checks (an optional peer), from its own files only. */
+/** The one other package a source file may name: the sign-in's signature checks (an optional peer), from the player sign-in's files and the admin sign-in's server files only. */
 const SIGNIN = /^@nano133\/signin(\/(passkey|purse))?$/;
 
-test("every source file imports only Three.js, @nano133/signin (the player sign-in's files only) or a file of the package, with its .js name", () => {
+test("every source file imports only Three.js, @nano133/signin (the player sign-in's files and the admin sign-in's server files only) or a file of the package, with its .js name", () => {
   assert.ok(sources.length >= 40);
   for (const file of sources) {
     for (const spec of specifiers(readFileSync(file, "utf8"))) {
       if (spec === "three") continue;
       if (SIGNIN.test(spec)) {
-        assert.ok(relative(join(root, "src"), file).startsWith("player-signin/"), `${relative(root, file)} names ${spec}: only the player sign-in may`);
+        const rel = relative(join(root, "src"), file);
+        assert.ok(rel.startsWith("player-signin/") || (rel.startsWith("admin-signin/") && !rel.startsWith("admin-signin/panel/") && spec === "@nano133/signin"), `${relative(root, file)} names ${spec}: only the player sign-in and the admin sign-in's server part may`);
         continue;
       }
       assert.match(spec, /^\.{1,2}\/.*\.js$/, `${relative(root, file)} imports ${spec}`);
@@ -66,7 +67,7 @@ test("every source file imports only Three.js, @nano133/signin (the player sign-
 });
 
 test("the character's code and the admin's, the friends', the player sign-in's and the shop's server code run in Node and in Workers: no window, no document, no storage, no clock of the page", () => {
-  for (const file of sources.filter((f) => f.includes("/src/character/") || (f.includes("/src/admin/") && !f.includes("/src/admin/panel/")) || (f.includes("/src/friends/") && !f.includes("/src/friends/panel/")) || (f.includes("/src/player-signin/") && !f.includes("/src/player-signin/panel/")) || (f.includes("/src/shop/") && !f.includes("/src/shop/panel/")))) {
+  for (const file of sources.filter((f) => f.includes("/src/character/") || (f.includes("/src/admin/") && !f.includes("/src/admin/panel/")) || (f.includes("/src/friends/") && !f.includes("/src/friends/panel/")) || (f.includes("/src/player-signin/") && !f.includes("/src/player-signin/panel/")) || (f.includes("/src/admin-signin/") && !f.includes("/src/admin-signin/panel/")) || (f.includes("/src/shop/") && !f.includes("/src/shop/panel/")))) {
     const code = readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
     assert.doesNotMatch(code, /\b(?:window|document|localStorage|performance)\b/, `${relative(root, file)} reads a browser global`);
   }
@@ -134,6 +135,19 @@ test("the paths that must not load Three.js import no package at all (the record
   // The sheet loads the purse's signing code (and its library) only when a passkey signs in: never with a static import.
   for (const file of sources.filter((f) => f.includes("/src/player-signin/panel/"))) assert.doesNotMatch(readFileSync(file, "utf8"), /(?:^|\n)\s*import\s+(?!type\b)[^;]*?from\s*["']@nano133\/signin\/purse["']/, `${relative(root, file)} imports the purse statically`);
   assert.match(read("src/player-signin/panel/view.ts"), /await import\("@nano133\/signin\/purse"\)/);
+  // The admin's sign-in: its stores, adapters and conformance name no package (they run with no @nano133/signin installed); the server part names only
+  // @nano133/signin and reaches no panel; the panel names no package (no passkey code, no purse) and reaches no server file that names one; no part of it
+  // reaches drawing, looks, friends, options or emotes code.
+  for (const entry of ["src/admin-signin/types.ts", "src/admin-signin/memory.ts", "src/admin-signin/conformance.ts", "src/admin-signin/adapters/d1.ts", "src/admin-signin/adapters/firestore.ts", "src/admin-signin/panel/index.ts"]) assert.deepEqual(graph(entry).packages, [], entry);
+  assert.deepEqual(graph("src/admin-signin/index.ts").packages, ["@nano133/signin"]);
+  for (const entry of ["src/admin-signin/index.ts", "src/admin-signin/conformance.ts", "src/admin-signin/adapters/d1.ts", "src/admin-signin/adapters/firestore.ts"]) assert.ok(!graph(entry).files.some((f) => f.includes("/panel/")), `${entry} reaches a panel`);
+  for (const entry of ["src/admin-signin/index.ts", "src/admin-signin/panel/index.ts"]) {
+    const g = graph(entry);
+    assert.ok(!g.files.some((f) => f.startsWith("character/") || f.startsWith("looks/") || f.startsWith("friends/") || f.startsWith("options/") || f.startsWith("emotes/")), `${entry}: ${g.files.join(", ")}`);
+  }
+  assert.ok(!graph("src/admin-signin/panel/index.ts").files.some((f) => f === "admin-signin/handler.ts" || f.startsWith("player-signin/panel/") || f.startsWith("player-signin/handler")), "the panel reaches server or passkey code");
+  // The admin's server part does not load the admin sign-in, and the admin sign-in loads no admin panel.
+  assert.ok(!graph("src/admin/index.ts").files.some((f) => f.startsWith("admin-signin/")));
   // The shop: no package at all (no QR library, no crypto library: the checksum's BLAKE2b and the QR code are the package's own), the server part never
   // reaches a panel, and neither part reaches drawing code. The shop holds no key: no file of it signs, derives a key or sends a block.
   for (const entry of ["src/shop/index.ts", "src/shop/conformance.ts", "src/shop/adapters/d1.ts", "src/shop/adapters/firestore.ts", "src/shop/worker.ts", "src/shop/panel/index.ts"]) {
@@ -168,7 +182,7 @@ test("package.json: no runtime dependency, three and @nano133/signin are optiona
 
 test("the exports map: the small part, the character, its record, the ticket, the looks, the model check, the admin, the friends, the emotes, the player sign-in and the shop, each with types", () => {
   const pkg = JSON.parse(read("package.json"));
-  assert.deepEqual(Object.keys(pkg.exports), [".", "./character", "./character/record", "./ticket", "./looks", "./model", "./input", "./admin", "./admin/conformance", "./admin/d1", "./admin/firestore", "./admin/panel", "./admin/style.css", "./friends", "./friends/conformance", "./friends/d1", "./friends/d1.sql", "./friends/firestore", "./friends/panel", "./friends/style.css", "./options", "./options/panel", "./options/style.css", "./emotes", "./emotes/player", "./emotes/wheel", "./emotes/style.css", "./emotes/icons.webp", "./player-signin", "./player-signin/conformance", "./player-signin/d1", "./player-signin/d1.sql", "./player-signin/firestore", "./player-signin/panel", "./player-signin/style.css", "./shop", "./shop/conformance", "./shop/d1", "./shop/d1.sql", "./shop/firestore", "./shop/worker", "./shop/panel", "./shop/style.css"]);
+  assert.deepEqual(Object.keys(pkg.exports), [".", "./character", "./character/record", "./ticket", "./looks", "./model", "./input", "./admin", "./admin/conformance", "./admin/d1", "./admin/firestore", "./admin/panel", "./admin/style.css", "./admin-signin", "./admin-signin/conformance", "./admin-signin/d1", "./admin-signin/d1.sql", "./admin-signin/firestore", "./admin-signin/panel", "./admin-signin/style.css", "./friends", "./friends/conformance", "./friends/d1", "./friends/d1.sql", "./friends/firestore", "./friends/panel", "./friends/style.css", "./options", "./options/panel", "./options/style.css", "./emotes", "./emotes/player", "./emotes/wheel", "./emotes/style.css", "./emotes/icons.webp", "./player-signin", "./player-signin/conformance", "./player-signin/d1", "./player-signin/d1.sql", "./player-signin/firestore", "./player-signin/panel", "./player-signin/style.css", "./shop", "./shop/conformance", "./shop/d1", "./shop/d1.sql", "./shop/firestore", "./shop/worker", "./shop/panel", "./shop/style.css"]);
   assert.equal(pkg.exports["./admin/style.css"], "./src/admin/panel/style.css");
   assert.ok(existsSync(join(root, "src/admin/panel/style.css")), "the stylesheet is shipped in src");
   assert.equal(pkg.exports["./friends/style.css"], "./src/friends/panel/style.css");
@@ -177,11 +191,13 @@ test("the exports map: the small part, the character, its record, the ticket, th
   assert.equal(pkg.exports["./emotes/style.css"], "./src/emotes/panel/style.css");
   assert.equal(pkg.exports["./emotes/icons.webp"], "./src/emotes/icons.webp");
   assert.equal(pkg.exports["./player-signin/style.css"], "./src/player-signin/panel/style.css");
+  assert.equal(pkg.exports["./admin-signin/style.css"], "./src/player-signin/panel/style.css", "the two sign-ins share one stylesheet");
+  assert.equal(pkg.exports["./admin-signin/d1.sql"], "./src/admin-signin/adapters/d1.sql");
   assert.equal(pkg.exports["./player-signin/d1.sql"], "./src/player-signin/adapters/d1.sql");
   assert.equal(pkg.exports["./shop/d1.sql"], "./src/shop/adapters/d1.sql");
   assert.equal(pkg.exports["./shop/style.css"], "./src/shop/panel/style.css");
-  for (const f of ["src/friends/panel/style.css", "src/friends/adapters/d1.sql", "src/options/panel/style.css", "src/emotes/panel/style.css", "src/emotes/icons.webp", "src/player-signin/panel/style.css", "src/player-signin/adapters/d1.sql", "src/shop/adapters/d1.sql", "src/shop/panel/style.css"]) assert.ok(existsSync(join(root, f)), `${f} is shipped in src`);
-  const want: Record<string, string> = { ".": "index", "./character": "character/index", "./character/record": "character/pure", "./ticket": "ticket/index", "./looks": "looks/index", "./model": "model/index", "./input": "input/index", "./admin": "admin/index", "./admin/conformance": "admin/conformance", "./admin/d1": "admin/adapters/d1", "./admin/firestore": "admin/adapters/firestore", "./admin/panel": "admin/panel/index", "./friends": "friends/index", "./friends/conformance": "friends/conformance", "./friends/d1": "friends/adapters/d1", "./friends/firestore": "friends/adapters/firestore", "./friends/panel": "friends/panel/index", "./options": "options/index", "./options/panel": "options/panel/index", "./emotes": "emotes/index", "./emotes/player": "emotes/player", "./emotes/wheel": "emotes/panel/index", "./player-signin": "player-signin/index", "./player-signin/conformance": "player-signin/conformance", "./player-signin/d1": "player-signin/adapters/d1", "./player-signin/firestore": "player-signin/adapters/firestore", "./player-signin/panel": "player-signin/panel/index", "./shop": "shop/index", "./shop/conformance": "shop/conformance", "./shop/d1": "shop/adapters/d1", "./shop/firestore": "shop/adapters/firestore", "./shop/worker": "shop/worker", "./shop/panel": "shop/panel/index" };
+  for (const f of ["src/friends/panel/style.css", "src/friends/adapters/d1.sql", "src/options/panel/style.css", "src/emotes/panel/style.css", "src/emotes/icons.webp", "src/player-signin/panel/style.css", "src/player-signin/adapters/d1.sql", "src/admin-signin/adapters/d1.sql", "src/shop/adapters/d1.sql", "src/shop/panel/style.css"]) assert.ok(existsSync(join(root, f)), `${f} is shipped in src`);
+  const want: Record<string, string> = { ".": "index", "./character": "character/index", "./character/record": "character/pure", "./ticket": "ticket/index", "./looks": "looks/index", "./model": "model/index", "./input": "input/index", "./admin": "admin/index", "./admin/conformance": "admin/conformance", "./admin/d1": "admin/adapters/d1", "./admin/firestore": "admin/adapters/firestore", "./admin/panel": "admin/panel/index", "./admin-signin": "admin-signin/index", "./admin-signin/conformance": "admin-signin/conformance", "./admin-signin/d1": "admin-signin/adapters/d1", "./admin-signin/firestore": "admin-signin/adapters/firestore", "./admin-signin/panel": "admin-signin/panel/index", "./friends": "friends/index", "./friends/conformance": "friends/conformance", "./friends/d1": "friends/adapters/d1", "./friends/firestore": "friends/adapters/firestore", "./friends/panel": "friends/panel/index", "./options": "options/index", "./options/panel": "options/panel/index", "./emotes": "emotes/index", "./emotes/player": "emotes/player", "./emotes/wheel": "emotes/panel/index", "./player-signin": "player-signin/index", "./player-signin/conformance": "player-signin/conformance", "./player-signin/d1": "player-signin/adapters/d1", "./player-signin/firestore": "player-signin/adapters/firestore", "./player-signin/panel": "player-signin/panel/index", "./shop": "shop/index", "./shop/conformance": "shop/conformance", "./shop/d1": "shop/adapters/d1", "./shop/firestore": "shop/adapters/firestore", "./shop/worker": "shop/worker", "./shop/panel": "shop/panel/index" };
   for (const [path, file] of Object.entries(want)) {
     assert.deepEqual(pkg.exports[path], { types: `./dist/${file}.d.ts`, import: `./dist/${file}.js` }, path);
     assert.ok(existsSync(join(root, `src/${file}.ts`)), `${path} has its source src/${file}.ts`);
@@ -210,6 +226,12 @@ test("the built paths load, and the ones that must not load Three.js do not (a l
     ["admin/conformance.js", "if (typeof m.adminConformance !== 'function' || typeof m.adminStoreConformance !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["admin/adapters/d1.js", "if (typeof m.createD1Store !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["admin/adapters/firestore.js", "if (typeof m.createFirestoreStore !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
+    ["admin-signin/index.js", "if (typeof m.createAdminSignin !== 'function' || typeof m.createMemoryAdminSignin !== 'function' || m.ADMIN_SIGNIN_BASE !== '/api/admin-signin' || m.ADMIN_WAYS[0] !== 'berry') throw new Error('missing'); process.stdout.write('ok')"],
+    ["admin-signin/conformance.js", "if (typeof m.adminSigninStoreConformance !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
+    ["admin-signin/adapters/d1.js", "if (typeof m.createD1AdminSignin !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
+    ["admin-signin/adapters/firestore.js", "if (typeof m.createFirestoreAdminSignin !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
+    // The panel loads in Node with no DOM (it builds its elements only when called).
+    ["admin-signin/panel/index.js", "if (typeof m.adminSignIn !== 'function' || typeof m.adminSignOut !== 'function' || typeof m.adminSigninView !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["friends/index.js", "if (typeof m.createFriendsHandler !== 'function' || typeof m.createMemoryFriends !== 'function' || m.FRIEND_LIMIT !== 100) throw new Error('missing'); process.stdout.write('ok')"],
     ["friends/conformance.js", "if (typeof m.friendsStoreConformance !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
     ["friends/adapters/d1.js", "if (typeof m.createD1Friends !== 'function') throw new Error('missing'); process.stdout.write('ok')"],
@@ -245,7 +267,7 @@ test("npm pack would ship the built files, the sources, the README, the changelo
   const r = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { cwd: root, encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
   const files: string[] = JSON.parse(r.stdout)[0].files.map((f: { path: string }) => f.path);
-  for (const f of ["package.json", "README.md", "LICENSE", "CHANGELOG.md", "dist/emotes/index.js", "dist/emotes/player.js", "dist/emotes/clips.js", "dist/emotes/panel/index.js", "src/emotes/panel/style.css", "src/emotes/icons.webp", "dist/index.js", "dist/character/index.js", "dist/character/pure.js", "dist/ticket/index.js", "dist/looks/index.js", "dist/model/index.js", "dist/input/index.js", "dist/admin/index.js", "dist/admin/conformance.js", "dist/admin/adapters/d1.js", "dist/admin/adapters/firestore.js", "dist/admin/panel/index.js", "src/admin/panel/style.css", "dist/friends/index.js", "dist/friends/panel/index.js", "src/friends/panel/style.css", "src/friends/adapters/d1.sql", "dist/options/index.js", "dist/options/panel/index.js", "src/options/panel/style.css", "dist/player-signin/index.js", "dist/player-signin/conformance.js", "dist/player-signin/adapters/d1.js", "dist/player-signin/adapters/firestore.js", "dist/player-signin/panel/index.js", "src/player-signin/panel/style.css", "src/player-signin/adapters/d1.sql", "dist/shop/index.js", "dist/shop/worker.js", "dist/shop/panel/index.js", "src/shop/panel/style.css", "src/shop/adapters/d1.sql", "ai/PROMPT.md", "ai/SPEC.md"]) assert.ok(files.includes(f), `${f} is shipped`);
+  for (const f of ["package.json", "README.md", "LICENSE", "CHANGELOG.md", "dist/emotes/index.js", "dist/emotes/player.js", "dist/emotes/clips.js", "dist/emotes/panel/index.js", "src/emotes/panel/style.css", "src/emotes/icons.webp", "dist/index.js", "dist/character/index.js", "dist/character/pure.js", "dist/ticket/index.js", "dist/looks/index.js", "dist/model/index.js", "dist/input/index.js", "dist/admin/index.js", "dist/admin/conformance.js", "dist/admin/adapters/d1.js", "dist/admin/adapters/firestore.js", "dist/admin/panel/index.js", "src/admin/panel/style.css", "dist/admin-signin/index.js", "dist/admin-signin/conformance.js", "dist/admin-signin/adapters/d1.js", "dist/admin-signin/adapters/firestore.js", "dist/admin-signin/panel/index.js", "src/admin-signin/adapters/d1.sql", "dist/friends/index.js", "dist/friends/panel/index.js", "src/friends/panel/style.css", "src/friends/adapters/d1.sql", "dist/options/index.js", "dist/options/panel/index.js", "src/options/panel/style.css", "dist/player-signin/index.js", "dist/player-signin/conformance.js", "dist/player-signin/adapters/d1.js", "dist/player-signin/adapters/firestore.js", "dist/player-signin/panel/index.js", "src/player-signin/panel/style.css", "src/player-signin/adapters/d1.sql", "dist/shop/index.js", "dist/shop/worker.js", "dist/shop/panel/index.js", "src/shop/panel/style.css", "src/shop/adapters/d1.sql", "ai/PROMPT.md", "ai/SPEC.md"]) assert.ok(files.includes(f), `${f} is shipped`);
   for (const f of files) {
     assert.ok(/^(dist|src|ai)\//.test(f) || ["package.json", "README.md", "CHANGELOG.md", "LICENSE"].includes(f), `${f} would be published`);
     assert.doesNotMatch(f, /^test\/|\.env|\.tsbuildinfo|\.test\.|secret|\.key$/i, `${f} must not be published`);
