@@ -55,6 +55,11 @@ const text = (v: unknown, fallback = ""): string => (typeof v === "string" ? v :
 const num = (v: unknown, fallback = 0): number => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
 const orNull = (v: unknown): string | null => (typeof v === "string" ? v : null);
 const STATUSES: readonly OrderStatus[] = ["open", "paid", "expired", "paid_late"];
+/** A transaction that lost to other ones on every attempt: the Admin SDK's gRPC code 10, or the web SDK's "aborted". */
+const aborted = (e: unknown): boolean => {
+  const code = (e as { code?: unknown } | null)?.code;
+  return code === 10 || code === "aborted";
+};
 
 function orderOf(id: string, d: Record<string, unknown>): ShopOrder {
   return {
@@ -149,13 +154,20 @@ export function createFirestoreShop(db: FirestoreShopLike, collections: ShopColl
     async insert(o) {
       const lockRef = col("amounts").doc(o.amount);
       const orderRef = col("orders").doc(o.id);
-      return db.runTransaction(async (tx) => {
-        const [lock, order] = [await tx.get(lockRef), await tx.get(orderRef)];
-        if (lock.exists || order.exists) return false;
-        tx.set(lockRef, { orderId: o.id, holdUntil: o.holdUntil });
-        tx.set(orderRef, dataOf({ ...o, amountLock: o.amount, status: "open", hash: null, payer: null, paidAt: null }));
-        return true;
-      });
+      try {
+        return await db.runTransaction(async (tx) => {
+          const [lock, order] = [await tx.get(lockRef), await tx.get(orderRef)];
+          if (lock.exists || order.exists) return false;
+          tx.set(lockRef, { orderId: o.id, holdUntil: o.holdUntil });
+          tx.set(orderRef, dataOf({ ...o, amountLock: o.amount, status: "open", hash: null, payer: null, paidAt: null }));
+          return true;
+        });
+      } catch (e) {
+        // Many buyers of one price at the same instant all race for one amount's document. Firestore retries the losers, and one that loses on every
+        // attempt gets ABORTED. An aborted transaction wrote nothing, so it is "taken": reserveOrder goes on to the next amount (ShopBusy after the last).
+        if (aborted(e)) return false;
+        throw e;
+      }
     },
 
     async order(id) {

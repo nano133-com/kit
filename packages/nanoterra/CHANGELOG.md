@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **The shop's Firestore adapter: a lost race is the next amount, never an error.** When many buyers of one price order at the same instant, they all race
+  for one amount's document, and Firestore retries the losers. A loser that lost on every attempt got ABORTED (gRPC code 10), and `insert` let it through:
+  `reserveOrder` threw a raw Firestore error, not the next amount and not `ShopBusy`. `insert` now answers an ABORTED (code `10`, or the web SDK's
+  `"aborted"`) as "taken": an aborted transaction wrote nothing, so the order goes on to the next amount, and `ShopBusy` comes after the last one. Any other
+  error still goes to the caller. Found by the conformance case "25 at the same instant" on the Firestore emulator (about 1 run in 6 failed). New tests: the
+  adapter on the fake with an injected ABORTED, and on the emulator a burst of 25 with one attempt per transaction.
+
 ## 0.14.0 (2026-11-02)
 
 - **"Free play" in /admin (Wes, 2026-11-02):** the Game card's fifth setting, a switch, On by default. Off says that the game has no free play: a player must pay in

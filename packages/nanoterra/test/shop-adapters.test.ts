@@ -9,7 +9,7 @@ import { createFirestoreStore, type FirestoreLike } from "../src/admin/adapters/
 import { createD1Shop, d1Limit, visitorKey } from "../src/shop/adapters/d1.js";
 import { createFirestoreShop } from "../src/shop/adapters/firestore.js";
 import { SHOP_CASE_TIMEOUT_MS, shopStoreConformance, type ShopConformanceCase } from "../src/shop/conformance.js";
-import { createMemoryShop, priceRaw, reserveOrder } from "../src/shop/index.js";
+import { createMemoryShop, priceRaw, reserveOrder, ShopBusy, xnoText } from "../src/shop/index.js";
 import { d1Over, fakeFirestore, hash64, noSqlite, sqlite, testAddress } from "./shop-helpers.js";
 
 const counts: Record<string, number> = {};
@@ -143,6 +143,38 @@ test("shop Firestore: it writes only its five collections, and they can be renam
   await h.store.forget("p1", T + 10_000_000);
   assert.deepEqual([...new Set(h.writes)].sort(), ["a", "m", "o", "w", "x"]);
   assert.equal(h.cols.has("orders"), false);
+});
+
+test("shop Firestore: a transaction that loses every attempt (ABORTED) is a taken amount, and any other error still throws", async () => {
+  const T = 1_800_000_000_000;
+  const at = (fail: (call: number) => unknown) => {
+    const f = fakeFirestore();
+    let calls = 0;
+    const db: typeof f.db = {
+      ...f.db,
+      runTransaction: (fn) => {
+        const e = fail(calls++);
+        return e ? Promise.reject(e) : f.db.runTransaction(fn);
+      },
+    };
+    return { ...f, store: createFirestoreShop(db) };
+  };
+  const buy = (store: ReturnType<typeof createFirestoreShop>) => reserveOrder(store, { player: "p1", lookId: "red-coat", usd: "0.25", rate: 1, price: priceRaw(0.25, 1)!, visitor: null, now: T });
+  const abortedError = (code: unknown) => Object.assign(new Error("10 ABORTED: Transaction lock timeout."), { code });
+
+  // The Admin SDK's code 10 and the web SDK's "aborted": the first amount is lost, the order takes the next one and writes nothing for the first.
+  for (const code of [10, "aborted"]) {
+    const h = at((call) => (call === 0 ? abortedError(code) : null));
+    const o = await buy(h.store);
+    assert.equal(xnoText(o.amount), "0.2501", String(code));
+    assert.deepEqual((await h.store.held()).map((x) => x.id), [o.id]);
+  }
+  // Lost on every amount: ShopBusy, as when every amount is held.
+  await assert.rejects(buy(at(() => abortedError(10)).store), ShopBusy);
+  // Any other error is not a lost race: it goes to the caller.
+  for (const e of [abortedError(4), abortedError("deadline-exceeded"), new Error("network down")]) {
+    await assert.rejects(buy(at((call) => (call === 0 ? e : null)).store), (x) => x === e);
+  }
 });
 
 test("shop Firestore: the admin's Firestore store reads the shop's orders, owned looks and price", async () => {
