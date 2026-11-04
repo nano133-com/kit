@@ -58,6 +58,20 @@
   background: var(--gem-dark);
 }
 
+/* The scrim: the game dims under the open panel; a press on it closes the panel. */
+.n133-friends .n133f-scrim {
+  position: fixed;
+  z-index: var(--n133-friends-z, 1000);
+  inset: 0;
+  background: rgb(16 24 40 / 0.4);
+}
+
+.n133-friends .n133f-scrim[data-open="false"] {
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+}
+
 .n133-friends .n133f-panel {
   position: fixed;
   z-index: var(--n133-friends-z, 1000);
@@ -100,6 +114,14 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  .n133-friends .n133f-scrim {
+    transition: opacity 180ms ease-out, visibility 0s linear 180ms;
+  }
+
+  .n133-friends .n133f-scrim[data-open="true"] {
+    transition: opacity 180ms ease-out, visibility 0s;
+  }
+
   .n133-friends .n133f-panel {
     transition: transform 180ms ease-out, visibility 0s linear 180ms;
   }

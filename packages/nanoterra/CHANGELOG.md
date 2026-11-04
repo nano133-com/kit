@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.15.0 (unreleased)
+
+- **The options panel is one page (Banano's UI pass, 2026-11-03; Wes: the less UI and text, the better).** No Basic and Advanced tabs: the Basic rows come
+  first, then one fold row opens the Advanced rows under it. The row says the Advanced rows' group when they are one group (a game whose Advanced rows are
+  only its keys shows "Keys"), else "More options" (`MORE_WORDS`). With no Basic row, the Advanced rows are the page. "Reset to defaults" moves from a footer
+  pinned to the panel's foot to a small key at the end of the page, and on a phone the sheet is as tall as its rows (at most 85% of the screen), so a short
+  page leaves the game in sight. Nothing changes in the store, the defs or the API; `TAB_WORDS` stays exported. A game that styled `.n133o-tabs` or
+  `.n133o-tab` can drop those rules.
+- **The friends panel has a scrim**, as the options panel has: the game dims under the open panel, and a press on it closes the panel.
+
 ## 0.14.1 (2026-11-03)
 
 - **The shop's Firestore adapter: a lost race is the next amount, never an error.** When many buyers of one price order at the same instant, they all race

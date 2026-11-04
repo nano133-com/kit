@@ -1,5 +1,6 @@
 // The Options key and panel of a game: `mountOptions(element, store, options)`. Plain DOM, no framework, no Three.js. It draws the store's defs (../core.ts)
-// in two tabs, Basic and Advanced, each in its groups, and writes every change to the store at once: there is no Save key. A change from elsewhere (the game
+// on one page, in their groups, and writes every change to the store at once: there is no Save key. The Basic rows come first; the Advanced rows wait
+// behind one row that opens them (named for their group when they have one, else "More options"), so a phone shows only what most players change. A change from elsewhere (the game
 // sets a value, another view resets one) shows at once too, and a section a module adds later (store.add) is drawn when it comes.
 //
 //   toggle   a switch: the whole row is the key (role="switch").
@@ -8,7 +9,7 @@
 //   key      a key binding: the key's name; pressed, it waits for the next key (Escape or Tab stops waiting). A key another binding has is swapped (the store does it).
 //
 // Rows are drawn once and changed in place; the panel never scrolls back to the top on a change (Echo Island's draft, 2026-11-01).
-// "Reset to defaults" asks in the panel (a question and a key for each answer), never in a browser dialog. Escape answers the question first, then closes.
+// "Reset to defaults" is a small key at the end of the page; it asks in the panel (a question and a key for each answer), never in a browser dialog. Escape answers the question first, then closes.
 // The panel is phone first: a sheet from the bottom on a phone held upright, from the right on a wide or sideways screen; every key is 44 px or more.
 // `key: false` draws no key, for a game that opens the panel from its own pause menu (`open()`).
 
@@ -43,8 +44,11 @@ export type MountedOptions = {
   destroy(): void;
 };
 
+/** The tabs' old names (0.8.0 to 0.14.x drew Basic and Advanced as tabs). */
 export const TAB_WORDS: Record<Tab, string> = { basic: "Basic", advanced: "Advanced" };
 const TABS: readonly Tab[] = ["basic", "advanced"];
+/** The row that opens the Advanced rows when they are not one group. */
+export const MORE_WORDS = "More options";
 export const RESET_QUESTION = "Put every option back to its default?";
 /** On a key binding while it waits for its key. */
 export const PRESS_A_KEY = "Press a key";
@@ -63,7 +67,8 @@ export function mountOptions(root: HTMLElement, store: OptionsStore, options: Op
   const title = options.title ?? "Options";
   let isOpen = false;
   let destroyed = false;
-  let tab: Tab = "basic";
+  /** The Advanced rows are open (the row under the Basic ones). */
+  let more = false;
   let returnTo: HTMLElement | null = null;
   const cleanup: (() => void)[] = [];
 
@@ -72,12 +77,9 @@ export function mountOptions(root: HTMLElement, store: OptionsStore, options: Op
       ? null
       : h("button", { class: "n133o-key", type: "button", "aria-expanded": "false", "aria-controls": id("panel"), "aria-haspopup": "dialog" }, icon("gear", 20), h("span", { class: "n133o-key-word" }, title));
   const closeKey = h("button", { class: "n133o-close", type: "button", "aria-label": `Close ${title.toLowerCase()}` }, icon("close", 20));
-  const tabKeys = Object.fromEntries(
-    TABS.map((t) => [t, h("button", { class: "n133o-tab", type: "button", role: "tab", id: id(`tab-${t}`), "aria-controls": id(`pane-${t}`), "data-tab": t }, TAB_WORDS[t])]),
-  ) as Record<Tab, HTMLButtonElement>;
-  const tabList = h("div", { class: "n133o-tabs", role: "tablist", "aria-label": title }, tabKeys.basic, tabKeys.advanced);
-  const panes = Object.fromEntries(TABS.map((t) => [t, h("div", { class: "n133o-pane", role: "tabpanel", id: id(`pane-${t}`), "aria-labelledby": id(`tab-${t}`), "data-tab": t })])) as Record<Tab, HTMLDivElement>;
-  const body = h("div", { class: "n133o-body" }, panes.basic, panes.advanced);
+  const panes = Object.fromEntries(TABS.map((t) => [t, h("div", { class: "n133o-pane", id: id(`pane-${t}`), "data-tab": t })])) as Record<Tab, HTMLDivElement>;
+  const moreWord = h("span", { class: "n133o-more-word" });
+  const moreKey = h("button", { class: "n133o-more", type: "button", id: id("more"), "aria-expanded": "false", "aria-controls": id("pane-advanced") }, moreWord, h("span", { class: "n133o-chevron", "aria-hidden": "true" }));
 
   const question = h("p", { class: "n133o-ask-q", id: id("ask") });
   const yesKey = h("button", { class: "n133o-btn n133o-primary", type: "button" });
@@ -86,14 +88,13 @@ export function mountOptions(root: HTMLElement, store: OptionsStore, options: Op
   askBox.hidden = true;
   const resetKey = h("button", { class: "n133o-btn n133o-reset", type: "button" }, icon("refresh", 18), "Reset to defaults");
   const foot = h("footer", { class: "n133o-foot" }, askBox, resetKey);
+  const body = h("div", { class: "n133o-body" }, panes.basic, moreKey, panes.advanced, foot);
 
   const panel = h(
     "section",
     { class: "n133o-panel", id: id("panel"), role: "dialog", "aria-modal": "true", "aria-labelledby": id("title"), "data-open": "false" },
     h("header", { class: "n133o-head" }, h("h2", { class: "n133o-title", id: id("title") }, title), closeKey),
-    tabList,
     body,
-    foot,
   );
   const scrim = h("div", { class: "n133o-scrim", "data-open": "false", "aria-hidden": "true" });
   const wrap = h("div", { class: "n133-options" }, key, scrim, panel);
@@ -230,7 +231,7 @@ export function mountOptions(root: HTMLElement, store: OptionsStore, options: Op
   let held = false;
   let drawLater = false;
 
-  /** Draws both tabs from the store's defs (the ones for this device), in their groups. Keeps the tab and, when it can, the focus. */
+  /** Draws the page from the store's defs (the ones for this device), in their groups. Keeps the open fold and, when it can, the focus. */
   function draw() {
     if (held) {
       drawLater = true;
@@ -242,30 +243,34 @@ export function mountOptions(root: HTMLElement, store: OptionsStore, options: Op
     const focusKey = (document.activeElement as HTMLElement | null)?.closest?.("[data-key]")?.getAttribute("data-key") ?? null;
     shows = new Map();
     const shown = store.defs().filter((d) => !d.devices || d.devices.includes(store.device));
-    const has: Record<Tab, boolean> = { basic: false, advanced: false };
+    const of = (t: Tab) => shown.filter((d) => d.tab === t);
+    const has: Record<Tab, boolean> = { basic: of("basic").length > 0, advanced: of("advanced").length > 0 };
+    // The fold only when there are Basic rows to put first; Advanced rows alone are the page.
+    const folds = has.basic && has.advanced;
+    const advancedGroups = [...new Set(of("advanced").map((d) => d.group))];
+    // One group behind the fold: the fold row says its name, and the group shows no title of its own.
+    const foldGroup = folds && advancedGroups.length === 1 && advancedGroups[0] ? advancedGroups[0] : null;
     for (const t of TABS) {
-      const defs = shown.filter((d) => d.tab === t);
-      has[t] = defs.length > 0;
+      const defs = of(t);
       const loose = defs.filter((d) => !d.group);
       const groups = [...new Set(defs.filter((d) => d.group).map((d) => d.group!))];
       const parts: HTMLElement[] = [];
       if (loose.length) parts.push(h("div", { class: "n133o-rows" }, ...loose.map(rowFor)));
       for (const g of groups) {
+        const rows = h("div", { class: "n133o-rows" }, ...defs.filter((d) => d.group === g).map(rowFor));
+        if (t === "advanced" && g === foldGroup) {
+          parts.push(h("section", { class: "n133o-group", "aria-labelledby": id("more") }, rows));
+          continue;
+        }
         const gid = id(`g-${t}-${groups.indexOf(g)}`);
-        parts.push(h("section", { class: "n133o-group", "aria-labelledby": gid }, h("h3", { class: "n133o-group-title", id: gid }, g), h("div", { class: "n133o-rows" }, ...defs.filter((d) => d.group === g).map(rowFor))));
+        parts.push(h("section", { class: "n133o-group", "aria-labelledby": gid }, h("h3", { class: "n133o-group-title", id: gid }, g), rows));
       }
       panes[t].replaceChildren(...parts);
     }
-    // Both tabs when both have rows; one tab alone needs no tab bar.
-    const both = has.basic && has.advanced;
-    tabList.hidden = !both;
-    if (!has[tab]) tab = has.basic ? "basic" : "advanced";
     if (!has.basic && !has.advanced) panes.basic.replaceChildren(h("p", { class: "n133o-empty" }, "No options yet."));
-    for (const t of TABS) {
-      if (both) panes[t].setAttribute("role", "tabpanel");
-      else panes[t].removeAttribute("role");
-    }
-    selectTab(tab, false);
+    moreWord.textContent = foldGroup ?? MORE_WORDS;
+    moreKey.hidden = !folds;
+    showMore(folds ? more : true);
     body.scrollTop = scroll;
     for (const [k, show] of shows) show(store.get(k));
     resetKey.disabled = store.isDefault();
@@ -274,25 +279,15 @@ export function mountOptions(root: HTMLElement, store: OptionsStore, options: Op
     if (row) (row.tagName === "BUTTON" ? row : row.querySelector<HTMLElement>('button[tabindex="0"], select, input'))?.focus();
   }
 
-  function selectTab(t: Tab, focus: boolean) {
-    const moved = t !== tab;
-    tab = t;
-    for (const x of TABS) {
-      const on = x === t;
-      tabKeys[x].setAttribute("aria-selected", String(on));
-      tabKeys[x].tabIndex = on ? 0 : -1;
-      panes[x].hidden = !on;
-    }
-    if (moved) body.scrollTop = 0;
-    if (focus) tabKeys[t].focus();
+  /** Shows or hides the Advanced rows under their fold row. */
+  function showMore(on: boolean) {
+    panes.advanced.hidden = !on;
+    moreKey.setAttribute("aria-expanded", String(on));
   }
-  for (const t of TABS) tabKeys[t].addEventListener("click", () => selectTab(t, true));
-  tabList.addEventListener("keydown", (e) => {
-    const visible = TABS.filter((t) => !tabKeys[t].hidden);
-    const to = moveKey(e as KeyboardEvent, visible.indexOf(tab), visible.length);
-    if (to === null) return;
-    e.preventDefault();
-    selectTab(visible[to], true);
+  moreKey.addEventListener("click", () => {
+    more = !more;
+    showMore(more);
+    if (more) moreKey.scrollIntoView?.({ block: "start", behavior: "smooth" });
   });
 
   cleanup.push(
@@ -313,7 +308,7 @@ export function mountOptions(root: HTMLElement, store: OptionsStore, options: Op
     panel.dataset.open = scrim.dataset.open = "true";
     key?.setAttribute("aria-expanded", "true");
     options.onOpen?.();
-    (tabList.hidden ? closeKey : tabKeys[tab]).focus();
+    closeKey.focus();
   };
   const close = () => {
     if (destroyed || !isOpen) return;

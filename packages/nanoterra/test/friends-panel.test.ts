@@ -223,11 +223,18 @@ test("nanoterra: with no confirm option the join is asked in the panel, never wi
   }
 });
 
-test("nanoterra: Escape closes the panel; destroy stops listening", () => {
+test("nanoterra: Escape and a press on the scrim close the panel; destroy stops listening", () => {
   const { el, f, say } = nanoterra();
+  const scrim = el.querySelector(".n133f-scrim") as HTMLElement;
+  assert.equal(scrim.dataset.open, "false", "no scrim while closed");
   f.open();
+  assert.equal(scrim.dataset.open, "true", "the scrim dims the game under the open panel");
   document.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Escape" }) as unknown as Event);
   assert.equal((el.querySelector(".n133f-panel") as HTMLElement).dataset.open, "false");
+  assert.equal(scrim.dataset.open, "false");
+  f.open();
+  scrim.click();
+  assert.equal((el.querySelector(".n133f-panel") as HTMLElement).dataset.open, "false", "a press on the scrim closes it");
   f.destroy();
   say({ ...W, type: "badge", online: 5, requests: 0 });
 });

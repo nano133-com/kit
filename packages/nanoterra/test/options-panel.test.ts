@@ -1,4 +1,4 @@
-// The Options key and panel in a fake DOM (happy-dom): the tabs (ARIA, the arrow keys), a change saves at once, a change from the game shows in place,
+// The Options key and panel in a fake DOM (happy-dom): one page (the Advanced rows behind one fold row), a change saves at once, a change from the game shows in place,
 // Reset asks in the panel and never in a browser dialog, a key binding waits for its key, and a section added later is drawn.
 import assert from "node:assert/strict";
 import test, { before } from "node:test";
@@ -10,12 +10,14 @@ let createOptions: typeof import("../src/options/index.js").createOptions;
 let common: typeof import("../src/options/index.js").common;
 let keyBinding: typeof import("../src/options/index.js").keyBinding;
 let reflectOptions: typeof import("../src/options/index.js").reflectOptions;
+let MORE_WORDS: string;
 let win: Window;
 
 before(async () => {
   win = new Window({ url: "https://game.example" });
   Object.assign(globalThis, { document: win.document, window: win, HTMLElement: win.HTMLElement, Node: win.Node, Event: win.Event, KeyboardEvent: win.KeyboardEvent });
   ({ mountOptions, createOptions, common, keyBinding, reflectOptions } = await import("../src/options/index.js"));
+  ({ MORE_WORDS } = await import("../src/options/panel/index.js"));
 });
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -57,7 +59,7 @@ test('focusAfterClose "key": a closed panel gives the focus back to its key', ()
   panel.destroy();
 });
 
-test("the key opens a dialog with two ARIA tabs; the arrow keys, Home and End move between them; Escape and the close key close it", () => {
+test("the key opens a dialog on one page: no tabs; the Advanced rows wait behind one fold row; Escape and the close key close it", () => {
   const { el, panel, q, store } = setup();
   const key = q<HTMLButtonElement>(".n133o-key");
   const dialog = q(".n133o-panel");
@@ -66,29 +68,27 @@ test("the key opens a dialog with two ARIA tabs; the arrow keys, Home and End mo
   key.click();
   assert.equal(dialog.dataset.open, "true");
   assert.equal(key.getAttribute("aria-expanded"), "true");
-  const tabs = [...el.querySelectorAll('[role="tab"]')] as unknown as HTMLButtonElement[];
-  assert.deepEqual(tabs.map((t) => t.textContent), ["Basic", "Advanced"]);
-  assert.equal(q('[role="tablist"]').hidden, false);
-  assert.equal(tabs[0].getAttribute("aria-selected"), "true");
-  assert.equal(document.activeElement, tabs[0], "the open panel focuses its tab");
-  const pane = (t: HTMLButtonElement) => el.querySelector(`#${t.getAttribute("aria-controls")}`) as unknown as HTMLElement;
-  assert.equal(pane(tabs[0]).hidden, false);
-  assert.equal(pane(tabs[1]).hidden, true);
-  // Basic holds Music; Advanced holds Invert look, Quality and the keys. A phone-only row (the stick) is not drawn on a desktop.
-  assert.ok(pane(tabs[0]).querySelector('[data-key="musicVolume"]'));
-  assert.ok(pane(tabs[1]).querySelector('[data-key="quality"]'));
+  assert.equal(el.querySelector('[role="tab"]'), null, "no tabs");
+  assert.equal(el.querySelector('[role="tablist"]'), null);
+  assert.equal(document.activeElement, q(".n133o-close"), "the open panel focuses its close key");
+  // Basic holds Music; Advanced holds Invert look, Quality and the keys, behind the fold row. A phone-only row (the stick) is not drawn on a desktop.
+  const more = q<HTMLButtonElement>(".n133o-more");
+  const advanced = el.querySelector(`#${more.getAttribute("aria-controls")}`) as unknown as HTMLElement;
+  assert.equal(more.hidden, false);
+  assert.equal(more.textContent, MORE_WORDS, "several groups: More options");
+  assert.equal(more.getAttribute("aria-expanded"), "false");
+  assert.equal(advanced.hidden, true);
+  assert.ok(q('[data-key="musicVolume"]').closest(".n133o-pane:not([hidden])"));
+  assert.ok(advanced.querySelector('[data-key="quality"]'));
   assert.equal(el.querySelector('[data-key="stickSide"]'), null);
-  press("ArrowRight", tabs[0]);
-  assert.equal(tabs[1].getAttribute("aria-selected"), "true");
-  assert.equal(tabs[0].tabIndex, -1);
-  assert.equal(pane(tabs[1]).hidden, false);
-  assert.equal(document.activeElement, tabs[1]);
-  press("ArrowRight", tabs[1]);
-  assert.equal(tabs[0].getAttribute("aria-selected"), "true", "wraps");
-  press("End", tabs[0]);
-  assert.equal(tabs[1].getAttribute("aria-selected"), "true");
-  tabs[0].click(); // a tap
-  assert.equal(tabs[0].getAttribute("aria-selected"), "true");
+  more.click(); // a tap
+  assert.equal(more.getAttribute("aria-expanded"), "true");
+  assert.equal(advanced.hidden, false);
+  more.click();
+  assert.equal(advanced.hidden, true, "the same row folds them again");
+  // The page's order: the Basic rows, the fold row, the Advanced rows, then Reset to defaults at the end.
+  const order = [...q(".n133o-body").children].map((c) => (c as HTMLElement).className);
+  assert.deepEqual(order, ["n133o-pane", "n133o-more", "n133o-pane", "n133o-foot"]);
   press("Escape");
   assert.equal(dialog.dataset.open, "false");
   assert.ok(!el.contains(document.activeElement), "the focus leaves the key and the panel: Space goes to the game, not to the key");
@@ -196,19 +196,29 @@ test("a key binding waits for its key, swaps a key another action has, and Escap
   panel.destroy();
 });
 
-test("key: false draws no key; the game opens it; a section added later is drawn; one tab alone has no tab bar", () => {
+test("key: false draws no key; the game opens it; a section added later is drawn; Basic alone has no fold row; one Advanced group names the fold row", () => {
   const store = createOptions({ game: "solo", storage: null, device: () => "phone", defs: common("musicVolume") });
   const el = root();
   const panel = mountOptions(el, store, { key: false, title: "Settings" });
   assert.equal(el.querySelector(".n133o-key"), null);
-  assert.equal((el.querySelector('[role="tablist"]') as unknown as HTMLElement).hidden, true, "Basic only: no tabs");
+  assert.equal((el.querySelector(".n133o-more") as unknown as HTMLElement).hidden, true, "Basic only: no fold row");
   assert.equal(el.querySelector(".n133o-title")!.textContent, "Settings");
   panel.open();
   assert.equal(panel.isOpen, true);
   store.add([{ kind: "toggle", key: "emotes.show", label: "Show emotes", tab: "advanced", group: "Emotes", default: true }]);
-  assert.equal((el.querySelector('[role="tablist"]') as unknown as HTMLElement).hidden, false, "now two tabs");
+  const more = el.querySelector(".n133o-more") as unknown as HTMLButtonElement;
+  assert.equal(more.hidden, false, "now a fold row");
+  assert.equal(more.textContent, "Emotes", "one group: the row says its name");
   assert.ok(el.querySelector('[data-key="emotes.show"]'));
-  assert.deepEqual([...el.querySelectorAll(".n133o-group-title")].map((g) => g.textContent), ["Sound", "Emotes"]);
+  assert.deepEqual([...el.querySelectorAll(".n133o-group-title")].map((g) => g.textContent), ["Sound"], "the folded group shows no second title");
+  panel.destroy();
+  // Advanced rows alone are the page: no fold row, nothing hidden.
+  const only = createOptions({ game: "adv", storage: null, device: () => "desktop", defs: [keyBinding("jump", "Jump", "Space")] });
+  const el2 = root();
+  const p2 = mountOptions(el2, only, { key: false });
+  assert.equal((el2.querySelector(".n133o-more") as unknown as HTMLElement).hidden, true);
+  assert.equal((el2.querySelector('[data-key="keys.jump"]')!.closest(".n133o-pane") as unknown as HTMLElement).hidden, false);
+  p2.destroy();
   panel.destroy();
 });
 
