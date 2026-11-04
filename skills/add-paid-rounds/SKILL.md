@@ -40,6 +40,11 @@ neither, say so and stop.
 10. Test with no money: keep `TEST_MODE` on. Test on a phone first (upright and sideways), then a tablet,
     then a computer: the Play key shows its price, the "18 or older" step comes first, the pay sheet says
     "TEST MODE: DO NOT PAY" with no QR code and shows the refund words before any step. A use with no
-    credit answers 402; the same ref twice answers `again: true`. A pretend payment exists only in tests.
+    credit answers 402; the same ref twice answers `again: true`. A pretend payment exists only in tests:
+    the memory store's `settle`, or a mock node on 127.0.0.1 (the README part "The paid state: in your tests
+    only" has the example). Never make a screen that a person could pay for a test address or a mock node,
+    and never turn test mode off to see "Paid". /admin has no local sign-in: in a test give
+    `createAdminHandler` its own `session`; to see the real panel, the owner deploys a preview with test
+    mode on and signs in with the wallet (README part "On your own computer").
 
 Never deploy, and never turn test mode off: the owner does both. Finish with the SPEC's step 15 check.

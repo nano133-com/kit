@@ -832,6 +832,16 @@ a `"passkey"` session also carries `linkedTo`, only while its link exists: see b
 name from fixed lists ("Chrome on macOS"): no address, no IP and no browser text. A row is kept 30 days. `signOutEverywhere()` deletes every admin login and ends every admin
 request that was not delivered; `recentLogins(limit)` reads the list (give both to an admin store that has neither: the Firestore one, or the memory one in a test).
 
+**On your own computer.** There is no local way to sign in to /admin, and no switch for one, on purpose: only a signature of the owner's
+wallet makes an admin login, and the wallet (Berry Wallet or Nautilus, on a phone) must reach your server, which `http://localhost` is not. A
+passkey opens /admin only after a wallet login linked it. So:
+
+- **In a test,** give `createAdminHandler` your own `session` hook (`session: async () => ({ address: owner, createdAt, via: "wallet" })`), as the
+  kit's `test/admin-panel.test.ts` does, or sign with a key made in the test (the kit's `test/admin-signin-helpers.ts`, the starter's
+  `test/helpers.ts`: `berryAnswer`, `nautilusAnswer`). Never ship such a hook: in the deployed Worker, `session` is `adminSignin.session`.
+- **To see the real panel,** deploy a preview (`*.workers.dev`) with your own address as `RECEIVE_ADDRESS` and `TEST_MODE` on, open `/admin` there
+  and sign in with Berry Wallet or Nautilus. A preview offers no passkey (`previewHost`).
+
 **The stores** read and write only their three tables or collections, and only the admin's rows:
 
 - **D1:** `createD1AdminSignin(env.DB)` works on the game starter's own tables and columns: `signin_requests` (`scope = 'admin'`), `sessions` (`scope = 'admin'`)
@@ -1482,6 +1492,58 @@ The starter's paths and JSON, so the starter's page keeps working. `base` is `"/
 (`nano_1111…hifc8npp`), an address with a wrong checksum (`validAddress` checks it) or `testMode: true`, the pay view carries **no address
 and no link**, and the pay sheet shows **"TEST MODE: DO NOT PAY"** where the QR code would be, with the wallet key off. The sheet decides it
 from the order, never from a setting of the page. A payment to an address that nobody holds the key for is lost for good.
+
+#### The paid state: in your tests only
+
+Test mode has no way to show the paid state on a screen, on purpose: no "pretend pay" key, no switch and no page that pays a mock node. **Never
+draw a pay screen that a person could pay** for a test address or a mock node, and never turn test mode off on your own computer to see "Paid".
+To check what a payment does (a look owned, a round ready, the Play key), pay the order **in a test**, where no person sees a screen:
+
+- **The memory store**, with no node at all: `await store.settle(order, { hash, payer, seenMs }, now)` marks an order paid, as the scan does
+  (the kit's `test/shop-panel.test.ts` pays this way and then checks the panel's "1 round ready").
+- **A mock Nano node** on 127.0.0.1, to test the whole path (the order, the scan, the check, the credit, the use). The kit's tests use
+  `MockNode` (`test/shop-helpers.ts` in the kit's repository; the game starter has the same class in its `test/helpers.ts`): it answers
+  `receivable`, `account_history` and `block_info` from a list of sends. The payee is an address made in the test from a random key that nobody
+  holds (`testAddress()` in the same file): nothing can be paid to it, and nothing is sent.
+
+```ts
+// test/paid-round.test.ts: a pretend payment, in a test only. No real node, no real money, no screen.
+import assert from "node:assert/strict";
+import { after, before, test } from "node:test";
+import { SCAN_GAP_MS, createMemoryShop, createShopHandler } from "@nano133/nanoterra/shop";
+import { MockNode, hash64, testAddress } from "./helpers.js";   // the starter's test helpers
+
+const payee = testAddress();        // nobody holds its key
+const node = new MockNode();
+before(() => node.start());
+after(() => node.stop());
+
+test("a paid play order gives the player one round", async () => {
+  let clock = Date.now();
+  const shop = createShopHandler({
+    store: createMemoryShop(),
+    catalogue: looks,               // your looks.json
+    plays: [{ id: "extra-round", name: "Extra round", priceUsd: 0.05, use: "round" }],
+    legal: () => ({ adultsOnly: false, sellLives: false, refundDays: 14, refundWords: "Ask within {days} days.", lawsConfirmedAt: 1 }),
+    payee,
+    player: async (req) => req.headers.get("X-Test-Player"),
+    nodes: [{ name: "mock", url: node.url }],
+    rate: { feeds: [{ name: "Test feed", url: "https://feed.test/", read: (j) => j.usd }], fetch: async () => Response.json({ usd: 1 }) },
+    now: () => clock,
+  });
+  const post = (path: string, body: unknown) =>
+    shop.handle(new Request(`https://game.test${path}`, { method: "POST", headers: { Origin: "https://game.test", "X-Test-Player": "p1", "Content-Type": "application/json" }, body: JSON.stringify(body) }));
+  const order = await (await post("/api/orders", { playId: "extra-round" }))!.json();
+  node.sends.push({ hash: hash64(), from: testAddress(), to: payee, amount: order.amount, seenMs: clock + 1000, confirmed: true });
+  clock += SCAN_GAP_MS + 1;                                   // the scan runs at most once a gap
+  assert.equal((await (await post(`/api/orders/${order.id}/check`, {}))!.json()).status, "paid");
+  assert.deepEqual(await shop.ready("p1"), [{ playId: "extra-round", ready: 1 }]);
+  assert.deepEqual(await (await post("/api/plays/use", { playId: "extra-round", ref: "round-1" }))!.json(), { used: true, again: false });
+});
+```
+
+A test like this one may run with a payee and test mode off, because nothing in it is drawn for a person. The game's real pages keep
+`TEST_MODE` on until the owner turns it off.
 
 ### The stores
 
