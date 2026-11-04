@@ -9,7 +9,9 @@
 // D1 store ("@nano133/nanoterra/admin/d1") reads the starter's names: keep them unless the game has its own admin store.
 //
 // The plays (a round, a level, a life or a continue, bought and used once) need one more migration, "@nano133/nanoterra/shop/d1-plays.sql" (the orders'
-// `kind`, the table `credits` and the table `play_adults`: the players' "18 or older" yes), and `{ plays: true }`. Without it the store sells looks only, on the tables as they are: an order of a play throws before it is written.
+// `kind`, the table `credits` and the table `play_adults`: the players' "18 or older" yes). The store reads the schema to know whether it is there (the
+// orders' `kind` column, `PRAGMA table_info`): never the game's plays.json, so a game that stops selling plays still reads every play order as a play.
+// Without the migration the store sells looks only, on the tables as they are: an order of a play throws before it is written.
 //
 // The money rules are in the statements themselves: `amount_lock` and `hash` are UNIQUE (no two held orders ask for one amount, one payment pays one
 // order), the payment and the grant (a look, or a play's credit) are ONE batch (a D1 transaction), the scan's claim is one upsert that only one caller in
@@ -129,7 +131,12 @@ export async function visitorKey(db: D1Like, req: Request, tables: Pick<ShopTabl
 
 export type D1ShopOptions = {
   tables?: ShopTables;
-  /** True when the database has the plays' migration (d1-plays.sql): the store then sells plays too. Default false: looks only, no migration. */
+  /**
+   * True: the database has the plays' migration (d1-plays.sql), and the store does not read the schema to know it (a database without it then fails every
+   * call, which is safe). Left out (or false): the store reads the schema (the orders' `kind` column), once; a "no" is read again before each payment
+   * and each "Delete my data", so a migration applied while the store runs is never missed where it matters. Whenever the column is there, a play's
+   * order is a play: it never grants a look, and "Delete my data" deletes its credits.
+   */
   plays?: boolean;
 };
 
@@ -141,9 +148,18 @@ export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore
     credits: tableName(options.tables?.credits, "credits"),
     adults: tableName(options.tables?.adults, "play_adults"),
   };
-  const plays = options.plays === true;
-  const COLS = `id, player, look_id, usd, rate, amount, amount_lock, status, created_at, expires_at, hold_until, hash, payer, paid_at, visitor${plays ? ", kind" : ""}`;
+  // Whether the schema has the plays' migration: true is kept for good; false is kept for reads, and read again (`fresh`) before a write of money.
+  let known: boolean | null = options.plays === true ? true : null;
+  async function hasPlays(fresh = false): Promise<boolean> {
+    if (known === true || (known === false && !fresh)) return known;
+    const cols = (await db.prepare(`PRAGMA table_info(${T.orders})`).all<{ name: string }>()).results;
+    known = cols.some((c) => c.name === "kind");
+    return known;
+  }
+  const BASE_COLS = "id, player, look_id, usd, rate, amount, amount_lock, status, created_at, expires_at, hold_until, hash, payer, paid_at, visitor";
+  const cols = async () => `${BASE_COLS}${(await hasPlays()) ? ", kind" : ""}`;
   const CREDIT_COLS = "order_id, player, play_id, granted_at, used_at, use_ref";
+  const NO_PLAYS = "this D1 shop store sells no plays: apply @nano133/nanoterra/shop/d1-plays.sql";
 
   async function inChunks(sql: (marks: string) => string, values: readonly string[], col: string): Promise<Set<string>> {
     const out = new Set<string>();
@@ -172,7 +188,8 @@ export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore
 
     async insert(o) {
       // A play order on tables with no credits would take a payment and give nothing: it is refused before anything is written.
-      if (!plays && kindOf(o) === "play") throw new Error("this D1 shop store sells no plays: apply @nano133/nanoterra/shop/d1-plays.sql and pass { plays: true }");
+      const plays = await hasPlays(kindOf(o) === "play");
+      if (!plays && kindOf(o) === "play") throw new Error(NO_PLAYS);
       try {
         const values = [o.id, o.player, o.lookId, o.usd, o.rate, o.amount, o.amount, o.createdAt, o.expiresAt, o.holdUntil, o.visitor];
         await (plays
@@ -188,13 +205,13 @@ export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore
     },
 
     async order(id) {
-      const r = await db.prepare(`SELECT ${COLS} FROM ${T.orders} WHERE id = ?`).bind(id).first<Row>();
+      const r = await db.prepare(`SELECT ${await cols()} FROM ${T.orders} WHERE id = ?`).bind(id).first<Row>();
       return r ? orderOf(r) : null;
     },
 
     async openOrder(player, lookId, until) {
       const r = await db
-        .prepare(`SELECT ${COLS} FROM ${T.orders} WHERE player = ? AND look_id = ? AND status = 'open' AND expires_at > ? ORDER BY created_at DESC LIMIT 1`)
+        .prepare(`SELECT ${await cols()} FROM ${T.orders} WHERE player = ? AND look_id = ? AND status = 'open' AND expires_at > ? ORDER BY created_at DESC LIMIT 1`)
         .bind(player, lookId, until)
         .first<Row>();
       return r ? orderOf(r) : null;
@@ -214,13 +231,15 @@ export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore
     },
 
     async held() {
-      return (await db.prepare(`SELECT ${COLS} FROM ${T.orders} WHERE amount_lock IS NOT NULL`).all<Row>()).results.map(orderOf);
+      return (await db.prepare(`SELECT ${await cols()} FROM ${T.orders} WHERE amount_lock IS NOT NULL`).all<Row>()).results.map(orderOf);
     },
 
     usedHashes: (hashes) => inChunks((m) => `SELECT hash FROM ${T.orders} WHERE hash IN (${m})`, hashes, "hash"),
 
     async settle(order, pay, now): Promise<Settled> {
       const status = paidStatus(order, pay.seenMs);
+      // Read the schema afresh unless it is known to have the plays: with the column, only an order of kind 'look' grants a look, whatever the game sells now.
+      const plays = await hasPlays(true);
       try {
         // The payment, and in the same batch the grant: a look (one owned row per player and look) or a play's credit (one per order). Each grant reads
         // the order's row as the batch's first statement left it, so a payment that changed nothing grants nothing.
@@ -267,7 +286,7 @@ export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore
     },
 
     async credits(player, notBefore) {
-      if (!plays) return [];
+      if (!(await hasPlays())) return [];
       const rows = await db
         .prepare(`SELECT play_id, COUNT(*) AS n FROM ${T.credits} WHERE player = ? AND used_at IS NULL AND granted_at >= ? GROUP BY play_id ORDER BY play_id`)
         .bind(player, notBefore)
@@ -278,7 +297,7 @@ export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore
     async useCredit(player, playId, ref, now, notBefore): Promise<UseResult> {
       checkRef(ref);
       // Looks only: no play order was ever written, so no credit exists.
-      if (!plays) return { status: "none" };
+      if (!(await hasPlays(true))) return { status: "none" };
       const byRef = () => db.prepare(`SELECT ${CREDIT_COLS} FROM ${T.credits} WHERE player = ? AND use_ref = ?`).bind(player, ref).first<CreditRow>();
       for (let attempt = 0; attempt < 3; attempt++) {
         const was = await byRef();
@@ -306,13 +325,13 @@ export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore
     },
 
     async adult(player) {
-      if (!plays) return null;
+      if (!(await hasPlays())) return null;
       const r = await db.prepare(`SELECT at FROM ${T.adults} WHERE player = ?`).bind(player).first<{ at: number }>();
       return r ? Number(r.at) : null;
     },
 
     async keepAdult(player, now) {
-      if (!plays) throw new Error("this D1 shop store sells no plays: apply @nano133/nanoterra/shop/d1-plays.sql and pass { plays: true }");
+      if (!(await hasPlays(true))) throw new Error(NO_PLAYS);
       await db.prepare(`INSERT OR IGNORE INTO ${T.adults} (player, at) VALUES (?, ?)`).bind(player, now).run();
     },
 
@@ -320,6 +339,8 @@ export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore
       await tidy(now);
       const w = await waiting(player);
       if (Number(w?.n ?? 0) > 0) return { deleted: 0, kept: 0, waitUntil: Number(w!.until) };
+      // With the plays' migration (read afresh): the player's credits and yes go too, and the payer rule reads the credits.
+      const plays = await hasPlays(true);
       // One batch, and each statement holds the money gate again: an order made meanwhile stops every one of them.
       const gate = `NOT EXISTS (SELECT 1 FROM ${T.orders} WHERE player = ?1 AND amount_lock IS NOT NULL)`;
       // A paid play whose credit is not known to be used (unused, or gone with an earlier "Delete my data") keeps its payer: its payment may go back.

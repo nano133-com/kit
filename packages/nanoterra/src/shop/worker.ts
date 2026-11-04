@@ -74,8 +74,9 @@ export type Shop = ShopHandler & {
 };
 
 export function createShop(env: ShopEnv, options: ShopOptions): Shop {
-  // A game that gives plays has the plays' migration; one with none keeps its tables as they are.
-  const store = createD1Shop(env.DB, { tables: options.tables, plays: Array.isArray(options.plays) && options.plays.length > 0 });
+  // A game that gives plays has the plays' migration. One that gives none may have it too (it sold plays before): the store reads the schema, never
+  // plays.json, so a play order paid after the plays left the file is still a play (a credit, never a look).
+  const store = createD1Shop(env.DB, { tables: options.tables, ...(Array.isArray(options.plays) && options.plays.length > 0 ? { plays: true } : {}) });
   const nodes = nodesFor(env);
   const turnstile = turnstileOn(env);
   const handler = createShopHandler({

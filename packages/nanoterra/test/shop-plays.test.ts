@@ -379,4 +379,28 @@ if (!noSqlite) {
     assert.deepEqual((await call(looksOnly, "/api/plays", { player: "p1" }))!.body, { plays: [] });
     assert.throws(() => createShop(env(STARTER), { catalogue: LOOKS, plays: [{ ...PLAYS[0], odds: 0.5 }], player }), /nothing else/);
   });
+
+  test("the Worker (createShop): plays sold, then plays.json emptied: the held play order, paid, gives a credit and never a look, and forget deletes it", async () => {
+    const rate = { fetch: async () => new Response(JSON.stringify({ nano: { usd: 1 }, result: { X: { c: ["1"] } }, data: { price: "1" } })) };
+    const player = async (req: Request) => req.headers.get("X-Test-Player");
+    const db = sqlite(`${STARTER}\n${PLAYS_SQL}`);
+    const env: ShopEnv = { DB: d1Over(db), RECEIVE_ADDRESS: creator, TEST_MODE: "on" };
+    const selling = createShop(env, { catalogue: LOOKS, plays: PLAYS, legal: () => OPEN, player, rate, now: () => clock });
+    const r = await call(selling, "/api/orders", { body: { playId: "extra-round" }, player: "p1" });
+    assert.equal(r!.status, 201);
+    for (const plays of [[], undefined]) {
+      const emptied = createShop(env, { catalogue: LOOKS, plays, player, rate, now: () => clock });
+      assert.equal((await emptied.store.order(r!.body.id))?.kind, "play", "the order still reads as a play");
+    }
+    const emptied = createShop(env, { catalogue: LOOKS, plays: [], player, rate, now: () => clock });
+    const o = (await emptied.store.order(r!.body.id))!;
+    assert.equal(await emptied.store.settle(o, { hash: hash64(), payer: "nano_another_wallet", seenMs: clock }, clock), "paid");
+    assert.deepEqual(await emptied.owned("p1"), [], "no owned look");
+    assert.equal((db.prepare("SELECT COUNT(*) AS n FROM owned").get() as { n: number }).n, 0);
+    assert.equal((db.prepare("SELECT COUNT(*) AS n FROM credits WHERE player = 'p1' AND used_at IS NULL").get() as { n: number }).n, 1, "the credit is there");
+    assert.deepEqual(await emptied.use("p1", "extra-round", "r1"), { used: false, why: "no-play" }, "a play that left plays.json is not used");
+    const f = await emptied.store.forget("p1", o.holdUntil + 1);
+    assert.deepEqual(f, { deleted: 1, kept: 1, waitUntil: null });
+    assert.equal((db.prepare("SELECT COUNT(*) AS n FROM credits").get() as { n: number }).n, 0, "forget deleted the credit");
+  });
 }

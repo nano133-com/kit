@@ -72,7 +72,7 @@ export type ShopHandlerOptions = {
   catalogue: unknown;
   /**
    * The game's plays (plays.json as it was read), or none: the game sells looks only. They are checked with `checkPlays` (no play takes a look's id): a bad
-   * file throws here, before any sale. A D1 store sells plays only with the plays' migration and `{ plays: true }` (createShop does it).
+   * file throws here, before any sale. A D1 store sells plays only with the plays' migration (it reads the schema; `{ plays: true }` says so).
    */
   plays?: unknown;
   /**

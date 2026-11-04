@@ -178,6 +178,44 @@ else {
     assert.deepEqual([await store.owned("p1"), await store.credits("p1", 0)], [["red-coat"], []]);
   });
 
+  test("shop D1: the schema, not plays.json, says a play is a play: a held play order paid after the game stops selling plays gives a credit and no look, and forget deletes it", async () => {
+    const T = 1_800_000_000_000;
+    for (const opts of [{}, { plays: false }] as const) {
+      const db = sqlite(`${STARTER}\n${PLAYS_SQL}`);
+      const selling = createD1Shop(d1Over(db), { plays: true });
+      const o = await reserveOrder(selling, { player: "p1", lookId: "extra-round", kind: "play", usd: "0.05", rate: 1, price: priceRaw(0.05, 1)!, visitor: null, now: T });
+      const used = await reserveOrder(selling, { player: "p1", lookId: "extra-round", kind: "play", usd: "0.05", rate: 1, price: priceRaw(0.05, 1)!, visitor: null, now: T + 1 });
+      // The game empties plays.json: its store is made with no `plays`, or with `plays: false`.
+      const after = createD1Shop(d1Over(db), opts);
+      const read = await after.order(o.id);
+      assert.equal(read?.kind, "play", JSON.stringify(opts));
+      assert.equal(await after.settle(read!, { hash: hash64(), payer: "nano_other_wallet", seenMs: T + 10 }, T + 10), "paid");
+      assert.equal(await after.settle((await after.order(used.id))!, { hash: hash64(), payer: "nano_other_wallet", seenMs: T + 11 }, T + 11), "paid");
+      assert.deepEqual(await after.owned("p1"), [], `a paid play order is never an owned look (${JSON.stringify(opts)})`);
+      assert.equal((db.prepare("SELECT COUNT(*) AS n FROM owned").get() as { n: number }).n, 0);
+      assert.deepEqual(await after.credits("p1", 0), [{ playId: "extra-round", ready: 2 }]);
+      assert.equal((await after.useCredit("p1", "extra-round", "round-1", T + 20, 0)).status, "used");
+      await after.keepAdult("p1", T + 21);
+      const r = await after.forget("p1", o.holdUntil + 1);
+      assert.deepEqual(r, { deleted: 3, kept: 2, waitUntil: null }, "forget deletes the two credits and the yes");
+      assert.equal((db.prepare("SELECT COUNT(*) AS n FROM credits").get() as { n: number }).n + (db.prepare("SELECT COUNT(*) AS n FROM play_adults").get() as { n: number }).n, 0);
+      const rows = db.prepare("SELECT id, player, payer FROM orders ORDER BY created_at").all() as { id: string; player: string; payer: string }[];
+      assert.deepEqual(rows.map((x) => x.player), ["deleted", "deleted"]);
+    }
+  });
+
+  test("shop D1: a store that read \"no plays\" reads the schema again before a payment, so a migration applied meanwhile never turns a play into a look", async () => {
+    const T = 1_800_000_000_000;
+    const db = sqlite(STARTER);
+    const early = createD1Shop(d1Over(db));
+    assert.deepEqual(await early.credits("p1", 0), [], "no migration yet: no plays");
+    db.exec(PLAYS_SQL);
+    const o = await reserveOrder(createD1Shop(d1Over(db), { plays: true }), { player: "p1", lookId: "extra-round", kind: "play", usd: "0.05", rate: 1, price: priceRaw(0.05, 1)!, visitor: null, now: T });
+    assert.equal(await early.settle(o, { hash: hash64(), payer: "p1", seenMs: T + 1 }, T + 1), "paid");
+    assert.deepEqual(await early.owned("p1"), []);
+    assert.deepEqual(await createD1Shop(d1Over(db)).credits("p1", 0), [{ playId: "extra-round", ready: 1 }]);
+  });
+
   test("shop D1 with plays: the credits table can be renamed too", async () => {
     const db = sqlite(`${SHOP_SQL_RENAMED}\n${PLAYS_SQL.replace(/\borders\b/g, "shop_orders").replace(/\bcredits\b/g, "shop_credits")}`);
     const store = createD1Shop(d1Over(db), { plays: true, tables: { orders: "shop_orders", owned: "shop_owned", meta: "shop_meta", credits: "shop_credits" } });
