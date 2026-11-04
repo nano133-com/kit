@@ -113,7 +113,9 @@ export type MountedShop = {
   /**
    * A Play key for one play, for the game to place: "Play for 5¢" while no credit is ready (a press buys one), "1 round ready" while one is (a press
    * calls `start`: the game's round start, which uses the credit). Hidden while the play is not for sale and none is ready. `ready()` brings it up to
-   * date (call it after a round used a credit). Null for an id that is not a play.
+   * date (call it after a round used a credit). A press with no round ready reads the server again before it buys, and the keys are read again
+   * when the page comes back into view: a credit that came meanwhile (the scan's cron, another tab) starts the round, never a second order. Null for an
+   * id that is not a play.
    */
   playKey(playId: string, start: (playId: string, play: PlayItem) => void): HTMLButtonElement | null;
   /** Draws the looks again (after the player signed in, or wore something). */
@@ -370,6 +372,14 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
     }
   }
 
+  /** The player's credits and what is for sale, from the server (GET {playsBase}); the Play keys are drawn again. */
+  async function readReady(): Promise<PlayReady[]> {
+    const r = await playsApi.get<{ plays: PlayReady[] }>("");
+    for (const p of r.plays ?? []) credits.set(p.playId, { playId: p.playId, ready: Number(p.ready) || 0, forSale: p.forSale !== false });
+    drawPlayKeys();
+    return plays.map((p) => credits.get(p.id) ?? { playId: p.id, ready: 0, forSale: true });
+  }
+
   /** On the next frame (rAF; a hidden page has none): a <dialog> of the game's that closed just before has had its `close` event by then. */
   const nextFrame = (go: () => void) => {
     if (typeof requestAnimationFrame === "function" && !globalThis.document?.hidden) requestAnimationFrame(go);
@@ -383,17 +393,35 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
       const play = plays.find((p) => p.id === playId);
       if (play) nextFrame(() => void buyPlay(play));
     },
-    async ready() {
-      const r = await playsApi.get<{ plays: PlayReady[] }>("");
-      for (const p of r.plays ?? []) credits.set(p.playId, { playId: p.playId, ready: Number(p.ready) || 0, forSale: p.forSale !== false });
-      drawPlayKeys();
-      return plays.map((p) => credits.get(p.id) ?? { playId: p.id, ready: 0, forSale: true });
-    },
+    ready: readReady,
     playKey(playId, start) {
       const play = plays.find((p) => p.id === playId);
       if (!play) return null;
       const key = h("button", { class: "n133s-play-key", type: "button" });
-      key.addEventListener("click", () => ((credits.get(play.id)?.ready ?? 0) > 0 ? start(play.id, play) : nextFrame(() => void buyPlay(play))));
+      let asking = false;
+      key.addEventListener("click", async () => {
+        // A round ready by the last read starts at once (the press is still the player's, for the game's sound or full screen). Otherwise the server
+        // is asked again before an order: a credit may have come since (the scan's cron, another tab, a sheet closed before its payment showed).
+        if ((credits.get(play.id)?.ready ?? 0) > 0) return start(play.id, play);
+        if (asking) return;
+        asking = true;
+        try {
+          if (options.signedIn()) await readReady().catch(() => null);
+        } finally {
+          asking = false;
+        }
+        if (destroyed) return;
+        if ((credits.get(play.id)?.ready ?? 0) > 0) start(play.id, play);
+        else nextFrame(() => void buyPlay(play));
+      });
+      if (!playKeys.length && typeof document !== "undefined") {
+        // Back to the page (another tab, the wallet app): read the credits again, so the key says what the server has.
+        const seen = () => {
+          if (document.visibilityState === "visible" && !destroyed && options.signedIn()) void readReady().catch(() => null);
+        };
+        document.addEventListener("visibilitychange", seen);
+        cleanup.push(() => document.removeEventListener("visibilitychange", seen));
+      }
       playKeys.push({ play, key });
       cleanup.push(() => key.remove());
       drawPlayKeys();

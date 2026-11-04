@@ -408,6 +408,50 @@ test("a play live: the QR code and the wallet key; paid: onCredit, \"Paid. Your 
   assert.equal(key.isConnected, false, "destroy takes the key away");
 });
 
+test("the Play key reads the server again: a credit that came while the page was open starts the round on a press, with no second order; back to the page reads it too", async () => {
+  const g = playGame({ legal: { adultsOnly: false } });
+  const el = root();
+  const shop = mountShop(el, g.opts);
+  mounted.push(shop);
+  const started: string[] = [];
+  const key = shop.playKey("extra-round", (id) => void started.push(id))!;
+  document.body.append(key);
+  await shop.ready();
+  assert.equal(key.textContent, "Play for 5¢");
+  // Paid somewhere else (another tab, a sheet closed before its payment showed): the store has the credit, the page's last read does not.
+  const pay = async () => {
+    const o = await reserveOrder(g.store, { player: "p1", lookId: "extra-round", kind: "play", usd: "0.05", rate: 1, price: priceRaw(0.05, 1)!, visitor: null, now: Date.now() });
+    await g.store.settle(o, { hash: hash64(), payer: testAddress(), seenMs: Date.now() }, Date.now());
+  };
+  await pay();
+  const orders = g.store.orders.size;
+  g.calls.length = 0;
+  key.click();
+  await settle();
+  assert.deepEqual(started, ["extra-round"], "the press started the round");
+  assert.deepEqual(g.calls, ["GET /api/plays"], "it read the credits, and made no order");
+  assert.equal(g.store.orders.size, orders);
+  assert.equal(shop.isOpen, false, "no pay sheet");
+  assert.equal(key.textContent, "1 round ready");
+  // The round used it; a second credit comes while the page is away: back to the page, the key says so before any press.
+  await g.handler.use("p1", "extra-round", "round-1");
+  await shop.ready();
+  assert.equal(key.textContent, "Play for 5¢");
+  await pay();
+  document.dispatchEvent(new win.Event("visibilitychange") as unknown as Event);
+  await settle();
+  assert.equal(key.textContent, "1 round ready");
+  // With none ready on the server either, a press buys (the read first, then the order).
+  await g.handler.use("p1", "extra-round", "round-2");
+  await shop.ready();
+  g.calls.length = 0;
+  key.click();
+  await settle();
+  assert.deepEqual(g.calls, ["GET /api/plays", "POST /api/orders"]);
+  assert.equal(shop.isOpen, true, "the play's sheet");
+  assert.deepEqual(started, ["extra-round"]);
+});
+
 test("a life while the creator does not sell one: its key hides after ready(); buyPlay shows the server's words and Back closes; a ready one still shows", async () => {
   const g = playGame({ legal: { adultsOnly: false } });
   const el = root();
