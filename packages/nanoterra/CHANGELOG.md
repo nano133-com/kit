@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.1 (2026-11-04)
 
 - `/admin/panel`: the Legal card shows only for a game with plays (`mountAdmin({ plays })` has one, or the store has a play's orders). A game that sells
   no play sees nothing new in Settings (Echo Island, 2026-11-04).
