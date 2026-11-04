@@ -163,7 +163,8 @@ test("the paths that must not load Three.js import no package at all (the record
     assert.ok(!g.files.some((f) => f.startsWith("character/") || f.startsWith("friends/") || f.startsWith("emotes/")), `${entry}: ${g.files.join(", ")}`);
   }
   for (const entry of ["src/shop/index.ts", "src/shop/conformance.ts", "src/shop/adapters/d1.ts", "src/shop/adapters/firestore.ts", "src/shop/worker.ts"]) assert.ok(!graph(entry).files.some((f) => f.includes("/panel/")), `${entry} reaches a panel`);
-  for (const file of sources.filter((f) => f.includes("/src/shop/"))) {
+  // The plays (src/looks/play.ts) are money code too: a play is sold through the shop.
+  for (const file of sources.filter((f) => f.includes("/src/shop/") || f.endsWith("/src/looks/play.ts"))) {
     const code = readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
     assert.doesNotMatch(code, /\b(?:seed|privateKey|private_key|signBlock|"process"|action: "send"|work_generate)\b/i, `${relative(root, file)} looks like key or send code`);
   }

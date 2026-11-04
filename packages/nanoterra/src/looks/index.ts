@@ -5,3 +5,5 @@ export type { Rung } from "./ladder.js";
 export { removalProblems, diffLooks, sameSlots } from "./change.js";
 export type { LooksDiff, LookField } from "./change.js";
 export { looksJson, slugId } from "./json.js";
+export { PLAY_FIELDS, PLAY_ONE_USE, PLAY_REFUSED_FIELDS, PLAY_USES, PLAY_WAIT_DAYS, PLAY_WAIT_DAYS_MAX, checkPlays, playProblems } from "./play.js";
+export type { Play, PlayUse } from "./play.js";

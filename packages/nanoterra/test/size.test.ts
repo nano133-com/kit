@@ -17,7 +17,8 @@ const PATHS: [string, string[], number, boolean][] = [
   ["@nano133/nanoterra", ["index.js"], 200, false],
   ["@nano133/nanoterra/character/record", ["character/pure.js"], 6_500, false],
   ["@nano133/nanoterra/ticket", ["ticket/index.js"], 7_000, false],
-  ["@nano133/nanoterra/looks", ["looks/index.js"], 3_500, false],
+  // Since 0.15.0 the looks path holds the plays too (checkPlays, plays.json).
+  ["@nano133/nanoterra/looks", ["looks/index.js"], 4_100, false],
   ["@nano133/nanoterra/character", ["character/index.js"], 28_000, true],
   ["@nano133/nanoterra/emotes", ["emotes/index.js"], 2_500, false],
   ["@nano133/nanoterra/emotes/wheel", ["emotes/panel/index.js"], 6_500, false],
