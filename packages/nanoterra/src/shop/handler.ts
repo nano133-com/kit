@@ -291,8 +291,10 @@ export function createShopHandler(options: ShopHandlerOptions): ShopHandler {
       // The money that waits in credits stays small: the ready credits of the play and its open orders (each may still become one) stay under
       // MAX_READY_PER_PLAY. Separate reads, not one step (see MAX_READY_PER_PLAY): orders made at the same instant can pass together.
       const [readyNow, open] = await Promise.all([readyOf(player, item.play, at), store.countOpen(player, at, item.id)]);
-      if (readyNow + open >= MAX_READY_PER_PLAY)
-        return fail(409, readyNow >= MAX_READY_PER_PLAY ? `You have ${MAX_READY_PER_PLAY} ${item.play.use}s ready. Play one first.` : `You have ${MAX_READY_PER_PLAY} ${item.play.use}s ready or waiting for a payment. Play one first.`);
+      if (readyNow + open >= MAX_READY_PER_PLAY) {
+        const uses = item.play.use === "life" ? "lives" : `${item.play.use}s`;
+        return fail(409, readyNow >= MAX_READY_PER_PLAY ? `You have ${MAX_READY_PER_PLAY} ${uses} ready. Play one first.` : `You have ${MAX_READY_PER_PLAY} ${uses} ready or waiting for a payment. Play one first.`);
+      }
     }
     if ((await store.countOpen(player, at)) >= MAX_OPEN_PER_PLAYER) return fail(429, "You have orders waiting. Pay one or wait until it ends.");
     const rate = await usdPerXno(store, fetchRate, at, feeds);
