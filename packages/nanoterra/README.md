@@ -1492,7 +1492,7 @@ The starter's paths and JSON, so the starter's page keeps working. `base` is `"/
 
 ### The money rules (every store keeps them: `shopStoreConformance` proves it)
 
-- An order holds its amount from its start to **an hour after** it ends (15 minutes; a play's order: 15 minutes after, see "Plays"): **no two held orders ever hold the same amount**, even
+- An order holds its amount from its start to **an hour after** it ends (15 minutes; a play's order too): **no two held orders ever hold the same amount**, even
   when they are made at the same instant. A late payment is then still recognised, and never counts for a newer order.
 - Amounts are text and BigInt, never floats. Prices round **up** (the creator never gets less than the price). At most a tenth of the price
   more (and at most 100 amounts); then the player is asked to try again in a minute.
@@ -1800,9 +1800,9 @@ for each round, and start the round only after the answer says `used`.
 - A `"paid"` play order gives **one credit**, keyed by the order, in the SAME step as the payment. A second settle writes nothing. The credit
   belongs to **the order's player**, whoever paid. A `"paid_late"` order gives no credit, as a late look gives no look.
 - Looks and plays share the reservation: a look's order and a play's order never hold one amount.
-- **A play's order holds its amount 15 minutes, then 15 minutes more** (`PLAY_LATE_HOLD_MS`; a look's: 15 minutes, then 60). Plays are cheap and
-  bought often, so their amounts come free sooner. A payment later than that is not this order's: a newer order of the same amount may take
-  it, or it shows in "Unmatched payments" (below).
+- **A play's order holds its amount 15 minutes, then 60 minutes more**, as a look's does (`PLAY_LATE_HOLD_MS`, equal to `LATE_HOLD_MS`). A payment
+  in that hour is "paid late" (no credit; it is in "To send back"). A payment later than that is not this order's: a newer order of the same
+  amount may take it, or it shows in "Unmatched payments" (below).
 - A use takes the player's oldest ready credit of the play, **exactly once**, in ONE step. Twenty uses with twenty refs and three credits use
   exactly three.
 - **Each credit keeps its own end**, fixed when it is paid: the time the payment is recorded plus the play's `useWithinDays` when the order was made. A later
