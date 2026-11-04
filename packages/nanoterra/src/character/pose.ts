@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { makeHandles, Solver, type Handle } from "./solver.js";
 import { BONES, boneIndex, type BoneName } from "./skeleton.js";
+import { WAVE_SECONDS } from "./wave.js";
 
 // The island's walk, run, jump and idle (app/island/art/Avatar.tsx, the useFrame of nano133.com), driven by the game's own
 // numbers instead of a place that the avatar reads each frame. The walk is the lower layer: the hips' bob and lean and the
@@ -9,8 +10,8 @@ import { BONES, boneIndex, type BoneName } from "./skeleton.js";
 
 /** The longest step `update` takes (s): a slow frame does not read as a fast walk. */
 export const MAX_DT = 0.05;
-/** How long a wave lasts, in seconds. */
-export const WAVE_SECONDS = 1.8;
+/** How long a wave lasts, in seconds (./wave.ts, so the emotes' player can read it alone). */
+export { WAVE_SECONDS };
 /** The island's art scale (app/island/ground.ts): the stride and the bob were tuned under a group scaled by it. */
 const U = 0.75;
 /** The fastest speed that the pose reads (m/s); the island caps it too. */

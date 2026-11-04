@@ -7,6 +7,15 @@
 - `/emotes/wheel`: `keyCap: true` shows the wheel's key as a key cap beside the word, the player's own key; no cap on a touch screen with no keyboard.
 - `/emotes`: the help line of "Show the Emotes key" names the player's own key ("G still opens the wheel on a keyboard"), not always B (`EMOTE_SHOW_HELP`,
   `emoteKeyLabel`).
+- `/emotes/wheel`: the places are 76 px or more and Edit's tiles 78 px or more (were 58 to 70 px), and both grow to the longest name in the game's font (measured
+  when the wheel opens; up to 96 px and 92 px, and a place only as far as the wheel fits the screen's short side), so "Facepalm" in a game's 16 px words is whole.
+  Checked in Chromium and WebKit on eight screens from 320 x 568 to 1440 x 900: no name cut, the wheel and Edit inside the screen, no two places touching.
+- `/emotes/wheel`: `layerIn` (`document.body`) puts the open wheel in another element, so a game's HUD slot with its own `z-index` no longer holds it under the
+  game's top bar. The theme's `--n133-*` values are copied from the key's holder when it opens (`EMOTE_THEME_VARS`).
+- `/emotes/wheel`: the options' "Less motion" (`reducedMotion`) stops the wheel's pop-in, as the device's setting does (`EmoteSettings.calm`).
+- `/emotes/player`: `playing` is `"wave"` for the Wave's 1.8 s (it was always null for the Wave), so a game or a test sees it play. `WAVE_SECONDS` has its own
+  file (`character/wave.ts`), so the player loads none of the pose's code.
+- Sizes (gzip, size test): `/emotes/wheel` 6.8 kB (ceiling 7.0 kB, was 6.5 kB), `/emotes/player` 3.1 kB (3.5 kB).
 - `/options`: a `help` line may name a key binding with `{key:<binding>}` (and a fallback, `{key:<binding>|<code>}`); the panel draws it again when the binding
   changes. `helpText` and `helpKeys` give the words for a menu of your own.
 

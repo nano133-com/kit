@@ -1199,7 +1199,7 @@ pre-bundled: the same) and in plain ESM with an import map. A bundler that does 
 
 | Call (`/emotes/player`) | What it does |
 |---|---|
-| `createEmotes(character, { onEmote?, onStop? })` | The local player's emotes. `play(id)` plays a Nanoterra emote (false, and nothing happens, for another id); `stop()` stops the clip with its fade; `playing` is the clip on show or null; `destroy()` stops the events. |
+| `createEmotes(character, { onEmote?, onStop? })` | The local player's emotes. `play(id)` plays a Nanoterra emote (false, and nothing happens, for another id); `stop()` stops the clip with its fade; `playing` is the emote on show or null: a clip's id, or `"wave"` for the Wave's 1.8 s (the character's own wave: `stop()` does not end it); `destroy()` stops the events. |
 | `onEmote({ id, loop, at, again })` | The player played an emote; while a loop plays, it fires again every 10 s (`LOOP_AGAIN_MS`) with `again: true`, so a player who comes later sees it. Send `emoteMessage(e)`, which is `{ emote: id }`. |
 | `onStop({ id, at, why })` | The player's clip ended: `"end"`, `"move"` (a move, a jump or the water) or `"stop"`. Nothing to send for a move: the others see the character move, and that ends it on their screens too. Send a stop only for `"stop"`, and call `stopEmote` on their side. |
 | `playRemote(character, { id, at? }, { options? })` | Another player's emote on their character. An id that is not one of the eleven is ignored (false). The same play twice (the same `at`) is one, so you may pass the last one each frame; a loop that is on show goes on through a repeat. `at` is when it came (`performance.now()`; left out: now). |
@@ -1207,8 +1207,10 @@ pre-bundled: the same) and in plain ESM with an import map. A bundler that does 
 | `loadEmotes()`, `emotesLoaded()` | Loads the clips (once; a failed load may be tried again), and says whether they are here. |
 
 **The wheel** (`/emotes/wheel`) is nano133's island wheel in plain DOM. `mountEmotes(element, options)` puts an **Emotes** key (44 px) in `element`; a press opens the
-wheel in the middle of the screen over a dim page: eight round places (58 px or more), slot 1 at the top and on clockwise, each the emote's picture and name, and a
-middle disc with the name of the place under the finger and **Edit**.
+wheel in the middle of the screen over a dim page: eight round places (76 px or more), slot 1 at the top and on clockwise, each the emote's picture and name, and a
+middle disc with the name of the place under the finger and **Edit**. The places (and Edit's tiles, 78 px or more) grow to the longest name in your font, so a game
+that sets the names to 16 px still shows "Facepalm" whole: the wheel measures them when it opens, up to 96 px a place (and only as far as the wheel still fits the
+screen's short side) and 92 px a tile.
 
 - A tap on the key opens it and a tap on a place plays it; or a **hold on the key and a slide** onto a place and a let-go plays that one (a slide under 14 px is a tap; a
   let-go in the middle leaves the wheel open). A press beside the wheel or Escape closes it.
@@ -1221,6 +1223,10 @@ middle disc with the name of the place under the finger and **Edit**.
   Nanoterra's eleven. `defaults`: your first wheel. `nanoterraEmotes: "off"` (the admin's switch) leaves Nanoterra's out and keeps yours; with nothing left
   there is no key. `keys: false` turns B and 1 to 8 off. `theme`: `"light"`, `"dark"` or `"device"` (the default: the page's `data-n133-theme`, which the admin
   panel sets too, else `prefers-color-scheme`). It returns `open()`, `close()`, `isOpen`, `slots` and `destroy()`.
+- `layerIn: document.body` puts the open wheel and its dim page in that element, not beside the key. Use it when the key sits in a box of yours with its own
+  `z-index` or `transform` (a HUD slot): inside such a box the wheel stays under whatever covers the box, a top bar for one. The key stays where it is; the wheel
+  takes your `--n133-*` values from the key's holder each time it opens. Your own rules for the wheel must not need the holder around it then.
+- With the options store, the common **Less motion** (`reducedMotion`) on opens the wheel with no pop-in, as the device's `prefers-reduced-motion` does.
 - `keyCap: true` shows the wheel's key as a key cap beside the word ("Emotes [G]"): the player's own `keys.emotes`, and it follows a change. Only with `keys` on;
   a touch screen with no keyboard shows no cap.
 - Theme it with the same `--n133-*` properties as the admin panel (and their `--n133-dark-*` twins), and `--n133-emotes-z` for its z-index (default 1000).
