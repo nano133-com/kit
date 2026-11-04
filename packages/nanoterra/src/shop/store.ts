@@ -16,6 +16,11 @@ export type ShopOrder = {
   lookId: string;
   /** What the order sells. Missing reads as "look" (an order of a store or a version that knows no plays); a store always gives it back. */
   kind?: OrderKind;
+  /**
+   * A play's order: how many days its credit may wait for a use (the play's `useWithinDays` when the order was made, 1 to 365; missing: 30). The settle
+   * turns it into the credit's own end (`Credit.expiresAt`), so a later change of plays.json never moves the end of a credit already paid.
+   */
+  useDays?: number;
   /** The price in US dollars when the order was made: "0.25". */
   usd: string;
   /** Dollars per XNO that turned the price into XNO. */
@@ -56,6 +61,8 @@ export type Credit = {
   playId: string;
   /** When the payment was recorded (the credit's wait counts from here). */
   grantedAt: number;
+  /** The last time the credit can be used: `grantedAt` + the order's `useDays`, fixed at the grant (a use at a later time finds none). */
+  expiresAt: number;
   /** When a round used it, or null while it waits. */
   usedAt: number | null;
   /** The round's own id (its `ref`) that used it, or null. One ref of a player uses one credit, ever. */
@@ -126,14 +133,15 @@ export interface ShopStore {
   claimScan(now: number, gapMs: number): Promise<boolean>;
   readRate(): Promise<KeptRate | null>;
   saveRate(rate: KeptRate): Promise<void>;
-  /** The player's unused credits of each play granted at or after `notBefore` (the wait), by play id. A play with none is not listed. */
-  credits(player: string, notBefore: number): Promise<ReadyCredits[]>;
+  /** The player's unused credits of each play that can still be used at `now` (`expiresAt` at or after it), by play id. A play with none is not listed. */
+  credits(player: string, now: number): Promise<ReadyCredits[]>;
   /**
-   * Uses the oldest unused credit of this player and play granted at or after `notBefore`, exactly once, in ONE step that holds its own check: two calls
-   * can never use one credit. `ref` is the round's own id (USE_REF_PATTERN; any other throws): a ref this player used before answers "again" with that
-   * credit (whatever play it was), and never uses a second one, also when many calls with one ref come at once.
+   * Uses the oldest unused credit of this player and play that can still be used at `now` (its own `expiresAt`), exactly once, in ONE step that holds its
+   * own check: two calls can never use one credit. `ref` is the round's own id (USE_REF_PATTERN; any other throws): a ref this player used before answers
+   * "again" with that credit (whatever play it was), and never uses a second one, also when many calls with one ref come at once. A ref answers "again"
+   * for good (also after the credit's end): a game server that starts its own rounds keeps its own map of ref to round, and starts a round only once.
    */
-  useCredit(player: string, playId: string, ref: string, now: number, notBefore: number): Promise<UseResult>;
+  useCredit(player: string, playId: string, ref: string, now: number): Promise<UseResult>;
   /**
    * When this player said "I am 18 or older" (the Legal card's "Paid rounds for 18 and up only"), or null. One yes per player, kept until "Delete my
    * data". A store that sells no plays answers null.

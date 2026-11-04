@@ -2,7 +2,7 @@
 // never sell with it. It keeps the same rules as the real adapters (the conformance suite runs on it), so it is the reference for what a store does.
 
 import { paidStatus } from "./orders.js";
-import { checkRef } from "./plays.js";
+import { checkRef, creditEnd } from "./plays.js";
 import { FORGOTTEN, kindOf, type Credit, type ForgetResult, type KeptRate, type Settled, type ShopOrder, type ShopStore } from "./store.js";
 
 export type MemoryShop = ShopStore & {
@@ -80,21 +80,21 @@ export function createMemoryShop(): MemoryShop {
       const status = paidStatus(o, pay.seenMs);
       Object.assign(o, { status, hash: pay.hash, payer: pay.payer, paidAt: pay.seenMs, amountLock: null });
       if (status === "paid" && kindOf(o) === "look" && !ownedRows.has(ownKey(o.player, o.lookId))) ownedRows.set(ownKey(o.player, o.lookId), { player: o.player, lookId: o.lookId, orderId: o.id, grantedAt: now });
-      if (status === "paid" && kindOf(o) === "play" && !creditRows.has(o.id)) creditRows.set(o.id, { orderId: o.id, player: o.player, playId: o.lookId, grantedAt: now, usedAt: null, useRef: null });
+      if (status === "paid" && kindOf(o) === "play" && !creditRows.has(o.id)) creditRows.set(o.id, { orderId: o.id, player: o.player, playId: o.lookId, grantedAt: now, expiresAt: creditEnd(o, now), usedAt: null, useRef: null });
       return status;
     },
-    async credits(player, notBefore) {
+    async credits(player, now) {
       const ready = new Map<string, number>();
-      for (const c of creditRows.values()) if (c.player === player && c.usedAt === null && c.grantedAt >= notBefore) ready.set(c.playId, (ready.get(c.playId) ?? 0) + 1);
+      for (const c of creditRows.values()) if (c.player === player && c.usedAt === null && c.expiresAt >= now) ready.set(c.playId, (ready.get(c.playId) ?? 0) + 1);
       return [...ready].sort(([a], [b]) => (a < b ? -1 : 1)).map(([playId, n]) => ({ playId, ready: n }));
     },
-    async useCredit(player, playId, ref, now, notBefore) {
+    async useCredit(player, playId, ref, now) {
       checkRef(ref);
       // No await from the read to the write: one call at a time, so the check and the use are one step.
       const was = [...creditRows.values()].find((c) => c.player === player && c.useRef === ref);
       if (was) return { status: "again", credit: { ...was } };
       const next = [...creditRows.values()]
-        .filter((c) => c.player === player && c.playId === playId && c.usedAt === null && c.grantedAt >= notBefore)
+        .filter((c) => c.player === player && c.playId === playId && c.usedAt === null && c.expiresAt >= now)
         .sort((a, b) => a.grantedAt - b.grantedAt || (a.orderId < b.orderId ? -1 : 1))[0];
       if (!next) return { status: "none" };
       Object.assign(next, { usedAt: now, useRef: ref });

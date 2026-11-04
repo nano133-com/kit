@@ -1,7 +1,6 @@
 // The numbers of the summary from the rows of the orders, the same for every adapter: the counts by status, the totals and the shape of an order; and
 // the plays' numbers from the play orders and the credits (`playsSummary`). An adapter reads its rows; this file turns them into a `StoreSummary`.
 
-import { PLAY_WAIT_DAYS } from "../looks/play.js";
 import { FORGOTTEN } from "../shop/store.js";
 import { isRawText, usdDecimals, xnoText } from "./amount.js";
 import type { AdminOrder, Money, PlayStats, SendBack, StoreSummary, SummaryOptions } from "./store.js";
@@ -79,16 +78,15 @@ export function shapePlayers(owned: readonly { player: string; lookId: string; a
   return [...players.values()];
 }
 
-/** A credit as an adapter reads it (the shop's `credits`): one paid play order of a player, used by a round or not yet. */
-export type CreditRow = { orderId: string; player: string; playId: string; grantedAt: number; usedAt: number | null };
-
-const DAY_MS = 86_400_000;
+/** A credit as an adapter reads it (the shop's `credits`): one paid play order of a player, used by a round or not yet, and its own end (`expiresAt`). */
+export type CreditRow = { orderId: string; player: string; playId: string; grantedAt: number; expiresAt: number; usedAt: number | null };
 
 /**
  * The plays' numbers, the paid plays to send back by hand and each player's ready credits, from the play orders that were paid (in time or late, of any
- * player, "deleted" too) and every credit. A credit is ready while it is unused and in its wait (`waitDays`, 30 days when the play does not say); an
- * unused one past its wait is not used in time: its order's payer and amount are listed to send back. A paid play of a deleted player whose credit is
- * gone and whose order kept its payer was not used either (forget keeps the payer only then): it is listed too. Pure.
+ * player, "deleted" too) and every credit. A credit is ready while it is unused, before its own end and of a play in plays.json (`isPlay`; every play
+ * when it is not given); an unused one past its end is not used in time, and one of a play no longer in plays.json cannot be used ("no_play"): its
+ * order's payer and amount are listed to send back. A paid play of a deleted player whose credit is gone and whose order carries forget's mark that
+ * it was unused was not used either: it is listed too. Pure.
  */
 export function playsSummary(playOrders: readonly OrderRow[], credits: readonly CreditRow[], now: number, options: SummaryOptions = {}): { plays: PlayStats[]; sendBack: (SendBack & { amountRaw: string })[]; ready: Map<string, { id: string; ready: number }[]> } {
   const stats = new Map<string, PlayStats>();
@@ -106,16 +104,16 @@ export function playsSummary(playOrders: readonly OrderRow[], credits: readonly 
   for (const c of credits) {
     withCredit.add(c.orderId);
     const s = of(c.playId);
-    const days = options.waitDays?.(c.playId) ?? PLAY_WAIT_DAYS;
+    const known = options.isPlay ? options.isPlay(c.playId) : true;
     if (c.usedAt !== null) s.used++;
-    else if (c.grantedAt >= now - days * DAY_MS) {
+    else if (known && c.expiresAt >= now) {
       s.ready++;
       const mine = ready.get(c.player) ?? ready.set(c.player, new Map()).get(c.player)!;
       mine.set(c.playId, (mine.get(c.playId) ?? 0) + 1);
     } else {
       s.notUsedInTime++;
       const o = orders.get(c.orderId);
-      if (o) back(o, c.playId, "not_used_in_time");
+      if (o) back(o, c.playId, known ? "not_used_in_time" : "no_play");
     }
   }
   for (const o of playOrders) if (o.status === "paid" && o.player === FORGOTTEN && !withCredit.has(o.id)) back(o, o.lookId, "deleted_player");

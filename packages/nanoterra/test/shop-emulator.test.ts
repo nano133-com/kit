@@ -87,11 +87,11 @@ else {
       assert.equal(await store.settle(o, { hash: `${"A".repeat(60)}${String(i).padStart(4, "0")}`, payer: "p1", seenMs: T + i }, T + i), "paid");
     };
     for (let i = 0; i < 3; i++) await credit(i);
-    const many = await Promise.all(Array.from({ length: 20 }, (_, i) => store.useCredit("p1", "extra-round", `r-${i}`, T + 100, 0)));
+    const many = await Promise.all(Array.from({ length: 20 }, (_, i) => store.useCredit("p1", "extra-round", `r-${i}`, T + 100)));
     const used = many.flatMap((r) => (r.status === "used" ? [r.credit.orderId] : []));
     assert.deepEqual([used.length, new Set(used).size, many.filter((r) => r.status === "none").length], [3, 3, 17]);
     for (let i = 3; i < 5; i++) await credit(i);
-    const one = await Promise.all(Array.from({ length: 20 }, () => store.useCredit("p1", "extra-round", "r-one", T + 200, 0)));
+    const one = await Promise.all(Array.from({ length: 20 }, () => store.useCredit("p1", "extra-round", "r-one", T + 200)));
     assert.equal(one.filter((r) => r.status === "used").length, 1, one.map((r) => r.status).join(","));
     assert.ok(one.every((r) => r.status !== "none"));
     assert.deepEqual(await store.credits("p1", 0), [{ playId: "extra-round", ready: 1 }]);

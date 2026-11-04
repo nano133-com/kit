@@ -6,7 +6,7 @@
 //                                                              "setting:adultsOnly", "setting:sellLives", "setting:refundDays", "setting:refundWords", "setting:lawsConfirmedAt", and "rate" (value is JSON { usd, sources })
 //   orders/{id}         { player, lookId, usd, amount, status, createdAt, expiresAt, paidAt, payer, hash }   `amount` is the raw amount as text
 //   owned/{player__lookId}  { player, lookId, orderId, grantedAt }
-//   credits/{orderId}   { player, playId, grantedAt, usedAt }   the shop's credits of paid plays (read for the plays' numbers; none when the game sells no plays)
+//   credits/{orderId}   { player, playId, grantedAt, expiresAt, usedAt }   the shop's credits of paid plays (read for the plays' numbers; none when the game sells no plays)
 //   (an order's `kind` is "play" for a play's order; a missing kind reads as a look's)
 //
 // The summary reads the newest 5000 orders (the counts and the totals are over those), every owned look and every credit: for a small game. A big game should keep running totals.
@@ -85,7 +85,7 @@ export function createFirestoreStore(db: FirestoreLike, collections: { meta?: st
       const list = ownedDocs.docs.map((d) => ({ player: text(d.data().player), lookId: text(d.data().lookId), at: num(d.data().grantedAt) }));
       const paid: CreditRow[] = creditDocs.docs.map((d) => {
         const c = d.data();
-        return { orderId: d.id, player: text(c.player), playId: text(c.playId), grantedAt: num(c.grantedAt), usedAt: typeof c.usedAt === "number" ? c.usedAt : null };
+        return { orderId: d.id, player: text(c.player), playId: text(c.playId), grantedAt: num(c.grantedAt), expiresAt: num(c.expiresAt, -Infinity), usedAt: typeof c.usedAt === "number" ? c.usedAt : null };
       });
       return summarize(rows, list, parseRate(rate?.value, rate?.at), now, paid, options);
     },

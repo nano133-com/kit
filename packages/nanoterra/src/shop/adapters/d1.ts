@@ -20,7 +20,8 @@
 import type { D1Like } from "../../admin/adapters/d1.js";
 import { parseRate } from "../../admin/rate.js";
 import { paidStatus } from "../orders.js";
-import { checkRef } from "../plays.js";
+import { PLAY_WAIT_DAYS } from "../../looks/play.js";
+import { checkRef, DAY_MS, useDaysOf } from "../plays.js";
 import { FORGOTTEN, kindOf, type Credit, type ForgetResult, type UseResult, type OrderStatus, type Settled, type ShopOrder, type ShopStore } from "../store.js";
 
 export type { D1Like, D1StatementLike } from "../../admin/adapters/d1.js";
@@ -28,13 +29,14 @@ export type { D1Like, D1StatementLike } from "../../admin/adapters/d1.js";
 /** The table names. The defaults are the game starter's, and "credits" and "play_adults" (d1-plays.sql). (`hits` is for `d1Limit` only.) */
 export type ShopTables = { orders?: string; owned?: string; meta?: string; hits?: string; credits?: string; adults?: string };
 
-type CreditRow = { order_id: string; player: string; play_id: string; granted_at: number; used_at: number | null; use_ref: string | null };
+type CreditRow = { order_id: string; player: string; play_id: string; granted_at: number; expires_at: number; used_at: number | null; use_ref: string | null };
 
 const creditOf = (r: CreditRow): Credit => ({
   orderId: r.order_id,
   player: r.player,
   playId: r.play_id,
   grantedAt: Number(r.granted_at),
+  expiresAt: Number(r.expires_at),
   usedAt: r.used_at === null || r.used_at === undefined ? null : Number(r.used_at),
   useRef: r.use_ref ?? null,
 });
@@ -45,6 +47,7 @@ type Row = {
   look_id: string;
   /** Only with the plays' migration (d1-plays.sql). */
   kind?: string;
+  use_days?: number | null;
   usd: string;
   rate: number;
   amount: string;
@@ -66,6 +69,7 @@ const orderOf = (r: Row): ShopOrder => ({
   player: r.player,
   lookId: r.look_id,
   kind: r.kind === "play" ? "play" : "look",
+  ...(r.kind === "play" && r.use_days !== null && r.use_days !== undefined ? { useDays: Number(r.use_days) } : {}),
   usd: r.usd,
   rate: Number(r.rate),
   amount: r.amount,
@@ -157,8 +161,8 @@ export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore
     return known;
   }
   const BASE_COLS = "id, player, look_id, usd, rate, amount, amount_lock, status, created_at, expires_at, hold_until, hash, payer, paid_at, visitor";
-  const cols = async () => `${BASE_COLS}${(await hasPlays()) ? ", kind" : ""}`;
-  const CREDIT_COLS = "order_id, player, play_id, granted_at, used_at, use_ref";
+  const cols = async () => `${BASE_COLS}${(await hasPlays()) ? ", kind, use_days" : ""}`;
+  const CREDIT_COLS = "order_id, player, play_id, granted_at, expires_at, used_at, use_ref";
   const NO_PLAYS = "this D1 shop store sells no plays: apply @nano133/nanoterra/shop/d1-plays.sql";
 
   async function inChunks(sql: (marks: string) => string, values: readonly string[], col: string): Promise<Set<string>> {
@@ -193,7 +197,9 @@ export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore
       try {
         const values = [o.id, o.player, o.lookId, o.usd, o.rate, o.amount, o.amount, o.createdAt, o.expiresAt, o.holdUntil, o.visitor];
         await (plays
-          ? db.prepare(`INSERT INTO ${T.orders} (id, player, look_id, usd, rate, amount, amount_lock, status, created_at, expires_at, hold_until, visitor, kind) VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?)`).bind(...values, kindOf(o))
+          ? db
+              .prepare(`INSERT INTO ${T.orders} (id, player, look_id, usd, rate, amount, amount_lock, status, created_at, expires_at, hold_until, visitor, kind, use_days) VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)`)
+              .bind(...values, kindOf(o), kindOf(o) === "play" ? useDaysOf(o) : null)
           : db.prepare(`INSERT INTO ${T.orders} (id, player, look_id, usd, rate, amount, amount_lock, status, created_at, expires_at, hold_until, visitor) VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)`).bind(...values)
         ).run();
         return true;
@@ -253,7 +259,10 @@ export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore
           ...(plays
             ? [
                 db
-                  .prepare(`INSERT OR IGNORE INTO ${T.credits} (order_id, player, play_id, granted_at) SELECT id, player, look_id, ? FROM ${T.orders} WHERE id = ? AND status = 'paid' AND hash = ? AND kind = 'play'`)
+                  // The credit's own end, fixed now: the order's use_days (PLAY_WAIT_DAYS when it has none) from this grant.
+                  .prepare(
+                    `INSERT OR IGNORE INTO ${T.credits} (order_id, player, play_id, granted_at, expires_at) SELECT id, player, look_id, ?1, ?1 + COALESCE(use_days, ${PLAY_WAIT_DAYS}) * ${DAY_MS} FROM ${T.orders} WHERE id = ?2 AND status = 'paid' AND hash = ?3 AND kind = 'play'`,
+                  )
                   .bind(now, order.id, pay.hash),
               ]
             : []),
@@ -285,16 +294,16 @@ export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore
         .run();
     },
 
-    async credits(player, notBefore) {
+    async credits(player, now) {
       if (!(await hasPlays())) return [];
       const rows = await db
-        .prepare(`SELECT play_id, COUNT(*) AS n FROM ${T.credits} WHERE player = ? AND used_at IS NULL AND granted_at >= ? GROUP BY play_id ORDER BY play_id`)
-        .bind(player, notBefore)
+        .prepare(`SELECT play_id, COUNT(*) AS n FROM ${T.credits} WHERE player = ? AND used_at IS NULL AND expires_at >= ? GROUP BY play_id ORDER BY play_id`)
+        .bind(player, now)
         .all<{ play_id: string; n: number }>();
       return rows.results.map((r) => ({ playId: r.play_id, ready: Number(r.n) }));
     },
 
-    async useCredit(player, playId, ref, now, notBefore): Promise<UseResult> {
+    async useCredit(player, playId, ref, now): Promise<UseResult> {
       checkRef(ref);
       // Looks only: no play order was ever written, so no credit exists.
       if (!(await hasPlays(true))) return { status: "none" };
@@ -306,9 +315,9 @@ export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore
           // ONE statement: it picks the oldest unused credit and takes it only while it is still unused, so two calls never take one credit.
           const row = await db
             .prepare(
-              `UPDATE ${T.credits} SET used_at = ?, use_ref = ? WHERE order_id = (SELECT order_id FROM ${T.credits} WHERE player = ? AND play_id = ? AND used_at IS NULL AND granted_at >= ? ORDER BY granted_at, order_id LIMIT 1) AND used_at IS NULL RETURNING ${CREDIT_COLS}`,
+              `UPDATE ${T.credits} SET used_at = ?, use_ref = ? WHERE order_id = (SELECT order_id FROM ${T.credits} WHERE player = ? AND play_id = ? AND used_at IS NULL AND expires_at >= ? ORDER BY granted_at, order_id LIMIT 1) AND used_at IS NULL RETURNING ${CREDIT_COLS}`,
             )
-            .bind(now, ref, player, playId, notBefore)
+            .bind(now, ref, player, playId, now)
             .first<CreditRow>();
           if (row) return { status: "used", credit: creditOf(row) };
         } catch (e) {

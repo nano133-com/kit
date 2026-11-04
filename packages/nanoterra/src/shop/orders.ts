@@ -11,6 +11,7 @@
 
 import { compareRaw, isClean, plusSteps, STEP_RAW } from "./amount.js";
 import { CLOCK_SLACK_MS } from "./match.js";
+import { useDaysOf } from "./plays.js";
 import type { OrderKind, OrderStatus, ShopOrder, ShopStore } from "./store.js";
 
 export const ORDER_TTL_MS = 15 * 60_000;
@@ -45,8 +46,8 @@ export function amountsFor(price: string): string[] {
 /** A new order id: 12 random bytes as hex. */
 export const newOrderId = (): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(12)), (x) => x.toString(16).padStart(2, "0")).join("");
 
-/** `lookId` is the id of what is sold: a look's, or a play's with `kind: "play"` (default "look"). */
-export type ReserveInput = { player: string; lookId: string; kind?: OrderKind; usd: string; rate: number; price: string; visitor: string | null; now: number; ttlMs?: number };
+/** `lookId` is the id of what is sold: a look's, or a play's with `kind: "play"` (default "look"); a play's `useDays` is its useWithinDays (default 30). */
+export type ReserveInput = { player: string; lookId: string; kind?: OrderKind; useDays?: number; usd: string; rate: number; price: string; visitor: string | null; now: number; ttlMs?: number };
 
 /** Makes an order with the smallest free amount at or above `p.price` (a clean amount in raw). Throws ShopBusy when every allowed amount is held. */
 export async function reserveOrder(store: ShopStore, p: ReserveInput): Promise<ShopOrder> {
@@ -61,6 +62,7 @@ export async function reserveOrder(store: ShopStore, p: ReserveInput): Promise<S
       player: p.player,
       lookId: p.lookId,
       kind: p.kind === "play" ? "play" : "look",
+      ...(p.kind === "play" ? { useDays: useDaysOf(p) } : {}),
       usd: p.usd,
       rate: p.rate,
       amount,

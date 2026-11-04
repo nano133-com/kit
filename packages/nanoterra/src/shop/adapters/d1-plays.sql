@@ -5,6 +5,8 @@
 
 -- What an order sells: 'look' or 'play' (look_id then holds the play's id). Every order made before reads as a look.
 ALTER TABLE orders ADD COLUMN kind TEXT NOT NULL DEFAULT 'look';
+-- A play's order: the days its credit may wait for a use (the play's useWithinDays when the order was made). NULL for a look.
+ALTER TABLE orders ADD COLUMN use_days INTEGER;
 
 -- One credit per paid play order: the order's id is the key, so a second settle of one order writes nothing.
 CREATE TABLE IF NOT EXISTS credits (
@@ -12,10 +14,11 @@ CREATE TABLE IF NOT EXISTS credits (
   player TEXT NOT NULL,              -- the ORDER's player (as settle gives a look)
   play_id TEXT NOT NULL,
   granted_at INTEGER NOT NULL,       -- when the payment was recorded: the wait counts from here
+  expires_at INTEGER NOT NULL,       -- the last time it can be used: granted_at + the order's use_days, fixed at the grant
   used_at INTEGER,                   -- NULL until a round uses it
   use_ref TEXT                       -- the round's own id that used it
 );
-CREATE INDEX IF NOT EXISTS credits_ready ON credits (player, play_id, used_at, granted_at);
+CREATE INDEX IF NOT EXISTS credits_ready ON credits (player, play_id, used_at, expires_at);
 -- One ref of a player uses one credit, ever (NULLs never collide).
 CREATE UNIQUE INDEX IF NOT EXISTS credits_use ON credits (player, use_ref);
 

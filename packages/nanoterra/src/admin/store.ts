@@ -32,18 +32,22 @@ export type AdminPlayer = { player: string; looks: { id: string; name: string; a
 
 /**
  * What one play (plays.json) has done: `sold` paid orders, `used` credits that a round used, `ready` credits that wait in their time, `late` payments
- * that came after the order ended (no credit: to send back), `notUsedInTime` credits past their wait (to send back).
+ * that came after the order ended (no credit: to send back), `notUsedInTime` credits past their end, or of a play no longer in plays.json (to send back).
  */
 export type PlayStats = { playId: string; sold: number; used: number; ready: number; late: number; notUsedInTime: number };
 
 /**
- * A paid play to send back by hand (the kit holds no key): a credit not used in its time ("not_used_in_time"), or the unused credit of a player who used
- * "Delete my data" ("deleted_player": the credit went, the order kept its payer). The payer and the amount say where and how much.
+ * A paid play to send back by hand (the kit holds no key): a credit not used in its time ("not_used_in_time"), an unused credit of a play that is no
+ * longer in plays.json ("no_play": the game cannot use it), or the unused credit of a player who used "Delete my data" ("deleted_player": the credit
+ * went, the order kept its payer and the mark that it was unused). The payer and the amount say where and how much.
  */
-export type SendBack = { orderId: string; playId: string; payer: string; xno: string; usd: string; paidAt: number | null; why: "not_used_in_time" | "deleted_player" };
+export type SendBack = { orderId: string; playId: string; payer: string; xno: string; usd: string; paidAt: number | null; why: "not_used_in_time" | "no_play" | "deleted_player" };
 
-/** What the store needs to know of the plays: how many days a credit of each waits (plays.json's useWithinDays; 30 when it does not say). */
-export type SummaryOptions = { waitDays?: (playId: string) => number };
+/**
+ * What the store needs to know of the plays: whether a play id is in plays.json (`isPlay`; the handler passes it when it was given plays). A credit of
+ * a play that is not can never be used: it is not ready, and is listed to send back. Each credit's end is its own (fixed when it was paid).
+ */
+export type SummaryOptions = { isPlay?: (playId: string) => boolean };
 
 /** The numbers of the orders and the looks that players own. */
 export type StoreSummary = {
@@ -118,7 +122,7 @@ export interface AdminStore {
   readSettings(): Promise<StoredSettings>;
   /** Saves a checked patch: all of it or none of it (`settingRows` gives the text of each setting). */
   saveSettings(patch: GamePatch, now: number): Promise<void>;
-  /** The numbers. `options.waitDays` gives each play's wait (the handler passes plays.json's); a store that sells no plays may ignore it. */
+  /** The numbers. `options.isPlay` says which plays are in plays.json (the handler passes it); a store that sells no plays may ignore it. */
   summary(now: number, options?: SummaryOptions): Promise<StoreSummary>;
   /**
    * Optional. The last sign-ins to the admin, newest first, at most `limit`, with only the three things of `AdminLogin`. With it the summary lists them (the "Sign-ins" card).

@@ -12,7 +12,7 @@
 import { adminAccess, type AdminAccess, type AdminSession } from "./guard.js";
 import { fail, foreignOrigin, json, memoryLimiter, readLimited, sameOrigin } from "./http.js";
 import { ADMIN_LOGINS_SHOWN, type AdminLogin, type AdminOrder, type AdminPlayer, type AdminStatus, type AdminStore, type AdminSummary, type StoreSummary } from "./store.js";
-import { PLAY_WAIT_DAYS, checkPlays } from "../looks/play.js";
+import { checkPlays } from "../looks/play.js";
 import type { LegalState } from "./legal.js";
 import { mergeLegal } from "./legalRules.js";
 import { mergeSettings, parsePatch, type GameSettings, type GameState } from "./switches.js";
@@ -114,7 +114,8 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
   const playOf = (id: string) => plays.find((p) => p.id === id);
 
   async function summary(at: number): Promise<AdminSummary> {
-    const s = await options.store.summary(at, { waitDays: (id) => playOf(id)?.useWithinDays ?? PLAY_WAIT_DAYS });
+    // A credit of a play that left plays.json cannot be used: the summary lists it to send back. (No plays given: the store does not judge.)
+    const s = await options.store.summary(at, options.plays === undefined || options.plays === null ? {} : { isPlay: (id) => Boolean(playOf(id)) });
     const status = options.status ? await options.status(at, s) : { address: options.owner, testMode: false, warnings: [] as string[] };
     const name = (id: string) => options.lookName?.(id) ?? id;
     const playName = (id: string) => playOf(id)?.name ?? id;

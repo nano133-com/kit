@@ -37,7 +37,7 @@ export type OverviewView = {
 };
 
 /** Why a paid round is to be sent back, in words. */
-const BACK_WHY: Record<string, string> = { not_used_in_time: "Not used in time", deleted_player: "The player deleted their data", paid_late: "Paid after the order ended" };
+const BACK_WHY: Record<string, string> = { not_used_in_time: "Not used in time", no_play: "No longer sold", deleted_player: "The player deleted their data", paid_late: "Paid after the order ended" };
 
 export function overviewView(looks: readonly Look[], colourOf: (lookId: string) => string | null, go: (tab: TabId, filter?: OrderFilter) => void, playIds: ReadonlySet<string> = new Set()): OverviewView {
   let game: GameState | null = null;

@@ -112,9 +112,9 @@ else {
     assert.equal(await h.store.settle(o, { hash: hash64(), payer: player, seenMs: T + 1000 }, T + 1000), "paid");
     assert.deepEqual(await h.store.credits(player, 0), [{ playId: "extra-round", ready: 1 }]);
     assert.deepEqual(await h.store.owned(player), [], "a play is never owned");
-    assert.equal((await h.store.useCredit(player, "extra-round", "round:1", T + 2000, 0)).status, "used");
-    assert.equal((await h.store.useCredit(player, "extra-round", "round:1", T + 3000, 0)).status, "again");
-    assert.equal((await h.store.useCredit(player, "extra-round", "round:2", T + 3000, 0)).status, "none");
+    assert.equal((await h.store.useCredit(player, "extra-round", "round:1", T + 2000)).status, "used");
+    assert.equal((await h.store.useCredit(player, "extra-round", "round:1", T + 3000)).status, "again");
+    assert.equal((await h.store.useCredit(player, "extra-round", "round:2", T + 3000)).status, "none");
     await h.store.keepAdult(player, T + 4000);
     assert.equal(await h.store.adult(player), T + 4000);
     await h.store.forget(player, T + 10_000_000);
@@ -141,7 +141,7 @@ else {
     };
     await paid(ann, T);
     const unused = await paid(bob, T + 100);
-    assert.equal((await h.store.useCredit(ann, "extra-round", "round-1", T + 200, 0)).status, "used");
+    assert.equal((await h.store.useCredit(ann, "extra-round", "round-1", T + 200)).status, "used");
     let s = await admin.summary(T + 300);
     assert.deepEqual(s.plays, [{ playId: "extra-round", sold: 2, used: 1, ready: 1, late: 0, notUsedInTime: 0 }]);
     assert.deepEqual(s.players, [{ player: bob, looks: [], ready: [{ id: "extra-round", ready: 1 }] }]);
@@ -166,8 +166,8 @@ else {
     await assert.rejects(reserveOrder(plain.store, play), /d1-plays\.sql/);
     assert.equal((plain.db.prepare("SELECT COUNT(*) AS n FROM orders").get() as { n: number }).n, 0);
     assert.deepEqual(await plain.store.credits("p1", 0), []);
-    assert.deepEqual(await plain.store.useCredit("p1", "extra-round", "r1", T, 0), { status: "none" });
-    await assert.rejects(plain.store.useCredit("p1", "extra-round", "bad ref", T, 0), /ref/);
+    assert.deepEqual(await plain.store.useCredit("p1", "extra-round", "r1", T), { status: "none" });
+    await assert.rejects(plain.store.useCredit("p1", "extra-round", "bad ref", T), /ref/);
     // The starter's database with an order made before the migration: it reads as a look, and a paid look order still gives the look.
     const db = sqlite(STARTER);
     const before = await reserveOrder(createD1Shop(d1Over(db)), { ...play, lookId: "red-coat", kind: undefined });
@@ -194,7 +194,7 @@ else {
       assert.deepEqual(await after.owned("p1"), [], `a paid play order is never an owned look (${JSON.stringify(opts)})`);
       assert.equal((db.prepare("SELECT COUNT(*) AS n FROM owned").get() as { n: number }).n, 0);
       assert.deepEqual(await after.credits("p1", 0), [{ playId: "extra-round", ready: 2 }]);
-      assert.equal((await after.useCredit("p1", "extra-round", "round-1", T + 20, 0)).status, "used");
+      assert.equal((await after.useCredit("p1", "extra-round", "round-1", T + 20)).status, "used");
       await after.keepAdult("p1", T + 21);
       const r = await after.forget("p1", o.holdUntil + 1);
       assert.deepEqual(r, { deleted: 3, kept: 2, waitUntil: null }, "forget deletes the two credits and the yes");
@@ -311,7 +311,7 @@ test("shop Firestore: plays write the credits, shop_uses and play_adults collect
   const o = await reserveOrder(h.store, { player: "p1", lookId: "extra-round", kind: "play", usd: "0.05", rate: 1, price: priceRaw(0.05, 1)!, visitor: null, now: T });
   assert.equal(await h.store.settle(o, { hash: hash64(), payer: "p1", seenMs: T + 1 }, T + 1), "paid");
   assert.deepEqual(await h.store.credits("p1", 0), [{ playId: "extra-round", ready: 1 }]);
-  assert.equal((await h.store.useCredit("p1", "extra-round", "r:1", T + 2, 0)).status, "used");
+  assert.equal((await h.store.useCredit("p1", "extra-round", "r:1", T + 2)).status, "used");
   assert.deepEqual([...h.col("u").keys()], ["p1|r:1"]);
   await h.store.keepAdult("p1", T + 3);
   assert.deepEqual([...h.col("y").keys()], ["p1"]);
@@ -328,11 +328,11 @@ test("shop Firestore: a use document that names another player is never this pla
   await h.store.settle(o, { hash: hash64(), payer: "p1", seenMs: T + 1 }, T + 1);
   const q = await reserveOrder(h.store, { player: "p2", lookId: "extra-round", kind: "play", usd: "0.05", rate: 1, price: priceRaw(0.05, 1)!, visitor: null, now: T });
   await h.store.settle(q, { hash: hash64(), payer: "p2", seenMs: T + 1 }, T + 1);
-  assert.equal((await h.store.useCredit("p2", "extra-round", "r1", T + 2, 0)).status, "used");
+  assert.equal((await h.store.useCredit("p2", "extra-round", "r1", T + 2)).status, "used");
   // A document at p1's id that holds p2's use (an old id scheme, or a fault): it is not p1's.
   const p2use = h.col("shop_uses").get("p2|r1")!;
   h.col("shop_uses").set("p1|r1", { data: { ...p2use.data }, v: 1_000_000 });
-  const r = await h.store.useCredit("p1", "extra-round", "r1", T + 3, 0);
+  const r = await h.store.useCredit("p1", "extra-round", "r1", T + 3);
   assert.equal(r.status, "none", JSON.stringify(r));
   assert.equal(h.col("shop_uses").get("p1|r1")!.data.player, "p2", "the document is not written over");
   assert.deepEqual(await h.store.credits("p1", 0), [{ playId: "extra-round", ready: 1 }], "p1's credit was not used");
@@ -359,16 +359,16 @@ test("shop Firestore: a use whose transaction loses every attempt (ABORTED) goes
   const older = await credit(T);
   const newer = await credit(T + 10);
   failNext = Object.assign(new Error("10 ABORTED"), { code: 10 });
-  const r = await store.useCredit("p1", "extra-round", "r1", T + 20, 0);
+  const r = await store.useCredit("p1", "extra-round", "r1", T + 20);
   assert.equal(r.status, "used");
   assert.equal(r.status === "used" && r.credit.orderId, newer, "the oldest was lost to a race: the next one is used");
   assert.deepEqual(await store.credits("p1", 0), [{ playId: "extra-round", ready: 1 }]);
-  assert.equal((await store.useCredit("p1", "extra-round", "r2", T + 30, 0)).status === "used", true);
+  assert.equal((await store.useCredit("p1", "extra-round", "r2", T + 30)).status === "used", true);
   assert.equal((await store.credits("p1", 0)).length, 0, `the older one (${older}) is used too`);
   const boom = new Error("network down");
   await credit(T + 40);
   failNext = boom;
-  await assert.rejects(store.useCredit("p1", "extra-round", "r3", T + 50, 0), (x) => x === boom);
+  await assert.rejects(store.useCredit("p1", "extra-round", "r3", T + 50), (x) => x === boom);
 });
 
 test("shop Firestore: the admin's Firestore store reads the shop's orders, owned looks and price", async () => {

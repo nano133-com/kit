@@ -34,14 +34,14 @@
 
 import { fail, json, memoryLimiter, readLimited, sameOrigin } from "../admin/http.js";
 import { checkLooks, usdDecimals, type Look } from "../looks/look.js";
-import { checkPlays, type Play } from "../looks/play.js";
+import { checkPlays, PLAY_WAIT_DAYS, type Play } from "../looks/play.js";
 import { DEFAULT_LEGAL, LIFE_USES, refundText, type LegalState } from "../admin/legal.js";
 import { payeeOf } from "./address.js";
 import { nanoUri, priceRaw, xnoText } from "./amount.js";
 import { PUBLIC_NODES, type Fetch, type NanoNode, type RpcOptions } from "./nodes.js";
 import { MAX_OPEN_PER_PLAYER, ORDER_ID_PATTERN, ShopBusy, orderView, reserveOrder } from "./orders.js";
 import { PRICE_FEEDS, usdPerXno, type PriceFeed } from "./price.js";
-import { creditWindow, MAX_READY_PER_PLAY, USE_REF_PATTERN } from "./plays.js";
+import { MAX_READY_PER_PLAY, USE_REF_PATTERN } from "./plays.js";
 import { scanPayments, type ScanResult } from "./scan.js";
 import { kindOf, type OrderStatus, type ReadyCredits, type ShopOrder, type ShopStore } from "./store.js";
 
@@ -224,17 +224,13 @@ export function createShopHandler(options: ShopHandlerOptions): ShopHandler {
     }
   }
 
-  /** How many credits of one play wait for this player now. */
-  const readyOf = async (player: string, play: Play, at: number) => (await store.credits(player, creditWindow(play, at))).find((r) => r.playId === play.id)?.ready ?? 0;
+  /** How many credits of one play wait for this player now (each credit ends at its own time, fixed when it was paid). */
+  const readyOf = async (player: string, play: Play, at: number) => (await store.credits(player, at)).find((r) => r.playId === play.id)?.ready ?? 0;
 
   async function ready(player: string, at = now()): Promise<ReadyCredits[]> {
-    // One read for each wait (most games have one), then each play's count.
-    const byWindow = new Map<number, ReadyCredits[]>();
-    for (const p of plays) {
-      const from = creditWindow(p, at);
-      if (!byWindow.has(from)) byWindow.set(from, await store.credits(player, from));
-    }
-    return plays.map((p) => ({ playId: p.id, ready: byWindow.get(creditWindow(p, at))!.find((r) => r.playId === p.id)?.ready ?? 0 }));
+    // One read, then each play's count. A credit of a play that left plays.json is not listed: it cannot be used (the admin lists it to send back).
+    const all = plays.length ? await store.credits(player, at) : [];
+    return plays.map((p) => ({ playId: p.id, ready: all.find((r) => r.playId === p.id)?.ready ?? 0 }));
   }
 
   async function playsList(player: string, at: number) {
@@ -247,7 +243,7 @@ export function createShopHandler(options: ShopHandlerOptions): ShopHandler {
     const play = playById(playId);
     if (!play) return { used: false, why: "no-play" };
     if (typeof ref !== "string" || !USE_REF_PATTERN.test(ref)) return { used: false, why: "bad-ref" };
-    const r = await store.useCredit(player, play.id, ref, at, creditWindow(play, at));
+    const r = await store.useCredit(player, play.id, ref, at);
     if (r.status === "none") return { used: false, why: "none" };
     // A ref names one use: the same ref for another play is not a second use.
     if (r.credit.playId !== play.id) return { used: false, why: "other-play" };
@@ -292,7 +288,7 @@ export function createShopHandler(options: ShopHandlerOptions): ShopHandler {
     const price = priceRaw(item.priceUsd, rate.usd);
     if (!price) return fail(503, "Prices are not available now. Try again later.");
     try {
-      const order = await reserveOrder(store, { player, lookId: item.id, kind: item.play ? "play" : "look", usd: usdDecimals(item.priceUsd), rate: rate.usd, price, visitor, now: at });
+      const order = await reserveOrder(store, { player, lookId: item.id, ...(item.play ? { kind: "play" as const, useDays: item.play.useWithinDays ?? PLAY_WAIT_DAYS } : {}), usd: usdDecimals(item.priceUsd), rate: rate.usd, price, visitor, now: at });
       return json({ ...payView(order, at), ...refund }, 201);
     } catch (e) {
       if (e instanceof ShopBusy) return fail(503, "Many players are paying this price right now. Try again in a minute.");

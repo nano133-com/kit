@@ -766,8 +766,8 @@ function playsSetup(testMode = true) {
     ],
     owned: [{ player: OTHER, lookId: "mint-cap", at: NOW - 40 }],
     credits: [
-      { orderId: "p1", player: OTHER, playId: "extra-round", grantedAt: NOW - DAY, usedAt: null },
-      { orderId: "p2", player: OTHER, playId: "extra-round", grantedAt: NOW - 40 * DAY, usedAt: null },
+      { orderId: "p1", player: OTHER, playId: "extra-round", grantedAt: NOW - DAY, expiresAt: NOW + 29 * DAY, usedAt: null },
+      { orderId: "p2", player: OTHER, playId: "extra-round", grantedAt: NOW - 40 * DAY, expiresAt: NOW - 10 * DAY, usedAt: null },
     ],
   });
   return setup({ store, plays: PLAYS, status: () => ({ address: OWNER, testMode, warnings: [] }) });

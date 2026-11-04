@@ -83,12 +83,12 @@ export function createD1Store(db: D1Like, options: { logins?: boolean; plays?: b
       if (!plays) return addPlays(base, late, [], [], now, summaryOptions);
       // Every paid play order (in time or late, of any player) and every credit: the plays' numbers and what to send back.
       const playOrders = (await db.prepare(`SELECT ${COLS} FROM orders WHERE kind = 'play' AND status IN ('paid', 'paid_late')`).all<Row>()).results.map(toRow);
-      const credits = (await db.prepare("SELECT order_id, player, play_id, granted_at, used_at FROM credits").all<{ order_id: string; player: string; play_id: string; granted_at: number; used_at: number | null }>()).results;
+      const credits = (await db.prepare("SELECT order_id, player, play_id, granted_at, expires_at, used_at FROM credits").all<{ order_id: string; player: string; play_id: string; granted_at: number; expires_at: number; used_at: number | null }>()).results;
       return addPlays(
         base,
         late,
         playOrders,
-        credits.map((c) => ({ orderId: c.order_id, player: c.player, playId: c.play_id, grantedAt: Number(c.granted_at), usedAt: c.used_at === null || c.used_at === undefined ? null : Number(c.used_at) })),
+        credits.map((c) => ({ orderId: c.order_id, player: c.player, playId: c.play_id, grantedAt: Number(c.granted_at), expiresAt: Number(c.expires_at), usedAt: c.used_at === null || c.used_at === undefined ? null : Number(c.used_at) })),
         now,
         summaryOptions,
       );

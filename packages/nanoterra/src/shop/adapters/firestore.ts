@@ -5,13 +5,14 @@
 //   const store = createFirestoreShop(getFirestore());
 //
 // The data model (the eight collection names can be changed; the first three are the ones the admin's Firestore store reads):
-//   orders/{id}               { player, lookId, kind, usd, rate, amount, amountLock, status, createdAt, expiresAt, holdUntil, hash, payer, paidAt, visitor }
-//                             (kind "look" or "play": a missing kind reads as "look"; a play order's lookId is the play's id)
+//   orders/{id}               { player, lookId, kind, useDays, usd, rate, amount, amountLock, status, createdAt, expiresAt, holdUntil, hash, payer, paidAt, visitor }
+//                             (kind "look" or "play": a missing kind reads as "look"; a play order's lookId is the play's id, and useDays its credit's wait)
 //   owned/{player__lookId}    { player, lookId, orderId, grantedAt }       (the player's id with encodeURIComponent: a Nano address stays as it is)
 //   meta/rate                 { value: JSON { usd, sources }, at }          meta/scan { value: "", at }
 //   shop_amounts/{amount}     { orderId, holdUntil }   the reservation: a document for each held amount, so two orders cannot hold one (a transaction makes it)
 //   shop_hashes/{hash}        { orderId }              one payment pays one order: a document for each recorded payment
-//   credits/{orderId}         { player, playId, orderId, grantedAt, usedAt, useRef }   one credit per paid play order (usedAt null until a round uses it)
+//   credits/{orderId}         { player, playId, orderId, grantedAt, expiresAt, usedAt, useRef }   one credit per paid play order (usedAt null until a round
+//                             uses it; expiresAt, its last time of use, is fixed at the grant)
 //   shop_uses/{player|ref}    { player, orderId, at }  one ref of a player uses one credit: a document for each use, made in the use's transaction (the
 //                             player's id with encodeURIComponent, which writes "|" as %7C, and a ref never holds "|": two players' ids never meet)
 //   play_adults/{player}      { player, at }           the player said "I am 18 or older" (the admin's Legal card), once: "Delete my data" deletes it
@@ -23,7 +24,7 @@
 // goes on to the next candidate; after the last, the candidates are read again (at most three times), then "none".
 
 import { paidStatus } from "../orders.js";
-import { checkRef } from "../plays.js";
+import { checkRef, creditEnd } from "../plays.js";
 import { FORGOTTEN, kindOf, type Credit, type ForgetResult, type UseResult, type OrderStatus, type Settled, type ShopOrder, type ShopStore } from "../store.js";
 
 export type ShopDocSnap = { exists: boolean; data(): Record<string, unknown> | undefined };
@@ -77,6 +78,7 @@ function orderOf(id: string, d: Record<string, unknown>): ShopOrder {
     player: text(d.player),
     lookId: text(d.lookId),
     kind: d.kind === "play" ? "play" : "look",
+    ...(typeof d.useDays === "number" ? { useDays: d.useDays } : {}),
     usd: text(d.usd, "0"),
     rate: num(d.rate),
     amount: text(d.amount, "0"),
@@ -97,6 +99,8 @@ const creditOf = (orderId: string, d: Record<string, unknown>): Credit => ({
   player: text(d.player),
   playId: text(d.playId),
   grantedAt: num(d.grantedAt),
+  // A credit with no end is never usable (every grant writes one).
+  expiresAt: num(d.expiresAt, -Infinity),
   usedAt: typeof d.usedAt === "number" ? d.usedAt : null,
   useRef: orNull(d.useRef),
 });
@@ -105,6 +109,7 @@ const dataOf = (o: ShopOrder): Record<string, unknown> => ({
   player: o.player,
   lookId: o.lookId,
   kind: kindOf(o),
+  ...(kindOf(o) === "play" ? { useDays: o.useDays ?? null } : {}),
   usd: o.usd,
   rate: o.rate,
   amount: o.amount,
@@ -265,7 +270,7 @@ export function createFirestoreShop(db: FirestoreShopLike, collections: ShopColl
         if (lock.exists && lock.data()?.orderId === order.id) tx.delete(lockRef);
         tx.set(hashRef, { orderId: order.id });
         if (status === "paid" && kindOf(o) === "look" && !owned.exists) tx.set(ownedRef, { player: o.player, lookId: o.lookId, orderId: o.id, grantedAt: now });
-        if (status === "paid" && kindOf(o) === "play" && !credit.exists) tx.set(creditRef, { player: o.player, playId: o.lookId, orderId: o.id, grantedAt: now, usedAt: null, useRef: null });
+        if (status === "paid" && kindOf(o) === "play" && !credit.exists) tx.set(creditRef, { player: o.player, playId: o.lookId, orderId: o.id, grantedAt: now, expiresAt: creditEnd(o, now), usedAt: null, useRef: null });
         return status;
       });
     },
@@ -300,16 +305,16 @@ export function createFirestoreShop(db: FirestoreShopLike, collections: ShopColl
       await batch.commit();
     },
 
-    async credits(player, notBefore) {
+    async credits(player, now) {
       const ready = new Map<string, number>();
       for (const d of (await creditsOf(player).get()).docs) {
         const c = creditOf(d.id, d.data());
-        if (c.player === player && c.usedAt === null && c.grantedAt >= notBefore) ready.set(c.playId, (ready.get(c.playId) ?? 0) + 1);
+        if (c.player === player && c.usedAt === null && c.expiresAt >= now) ready.set(c.playId, (ready.get(c.playId) ?? 0) + 1);
       }
       return [...ready].sort(([a], [b]) => (a < b ? -1 : 1)).map(([playId, n]) => ({ playId, ready: n }));
     },
 
-    async useCredit(player, playId, ref, now, notBefore): Promise<UseResult> {
+    async useCredit(player, playId, ref, now): Promise<UseResult> {
       checkRef(ref);
       const useRef = col("uses").doc(useId(player, ref));
       /** The credit this ref used, or null. */
@@ -326,7 +331,7 @@ export function createFirestoreShop(db: FirestoreShopLike, collections: ShopColl
         if (was) return was;
         const list = (await creditsOf(player).where("playId", "==", playId).get()).docs
           .map((d) => ({ ref: d.ref, c: creditOf(d.id, d.data()) }))
-          .filter(({ c }) => c.player === player && c.playId === playId && c.usedAt === null && c.grantedAt >= notBefore)
+          .filter(({ c }) => c.player === player && c.playId === playId && c.usedAt === null && c.expiresAt >= now)
           .sort((a, b) => a.c.grantedAt - b.c.grantedAt || (a.c.orderId < b.c.orderId ? -1 : 1));
         let lost = false;
         for (const { ref: creditRef, c } of list) {
@@ -346,7 +351,7 @@ export function createFirestoreShop(db: FirestoreShopLike, collections: ShopColl
               const d = snap.exists ? snap.data() : undefined;
               const fresh = d ? creditOf(c.orderId, d) : null;
               // Used meanwhile, or no longer this player's: the next candidate.
-              if (!fresh || fresh.player !== player || fresh.playId !== playId || fresh.usedAt !== null || fresh.grantedAt < notBefore) return null;
+              if (!fresh || fresh.player !== player || fresh.playId !== playId || fresh.usedAt !== null || fresh.expiresAt < now) return null;
               tx.set(creditRef, { usedAt: now, useRef: ref }, { merge: true });
               tx.set(useRef, { player, orderId: c.orderId, at: now });
               return { status: "used", credit: { ...fresh, usedAt: now, useRef: ref } };

@@ -193,6 +193,28 @@ describe("the plays' routes", () => {
     assert.equal((await use(h, "p1", { playId: "extra-round", ref: "r-2" }))!.status, 402, "extra-round waits 30 days");
   });
 
+  test("a credit keeps the end it got when it was paid: a later plays.json with another useWithinDays moves no end", async () => {
+    const store = createMemoryShop();
+    const { h } = shop({}, store);
+    await paidPlay(h, store, "p1", "level-2");
+    const paidAt = clock;
+    // The creator gives level-2 30 days, then 1 day: the credit paid with 7 keeps 7.
+    const longer = shop({ plays: [PLAYS[0], { ...PLAYS[1], useWithinDays: 30 }] }, store).h;
+    const shorter = shop({ plays: [PLAYS[0], { ...PLAYS[1], useWithinDays: 1 }] }, store).h;
+    clock = paidAt + 2 * DAY_MS;
+    assert.equal((await call(shorter, "/api/plays", { player: "p1" }))!.body.plays[1].ready, 1, "a shorter wait now does not end it early");
+    clock = paidAt + 7 * DAY_MS + 1;
+    assert.equal((await call(longer, "/api/plays", { player: "p1" }))!.body.plays[1].ready, 0, "a longer wait now does not make it last longer");
+    assert.equal((await use(longer, "p1", { playId: "level-2", ref: "r-1" }))!.status, 402);
+    const [c] = [...store.creditRows.values()];
+    assert.deepEqual([c.grantedAt, c.expiresAt], [paidAt, paidAt + 7 * DAY_MS]);
+    // A play that left plays.json: its credit cannot be used, and is not listed for the player.
+    await paidPlay(h, store, "p2");
+    const gone = shop({ plays: [PLAYS[1]] }, store).h;
+    assert.deepEqual((await call(gone, "/api/plays", { player: "p2" }))!.body.plays, [{ playId: "level-2", ready: 0, forSale: true }]);
+    assert.equal((await use(gone, "p2", { playId: "extra-round", ref: "r-1" }))!.status, 400);
+  });
+
   test(`uses have their own limit (${SHOP_LIMITS.use.limit} a minute for a player), beside the orders'`, async () => {
     const keys: string[] = [];
     const { h } = shop({ limit: (key, limit, windowMs) => (keys.push(`${key} ${limit}/${windowMs}`), !(key.startsWith("use|") && keys.filter((k) => k.startsWith("use|")).length > 2)) });

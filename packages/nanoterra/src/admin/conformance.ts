@@ -500,7 +500,7 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
     check((await store.summary(NOW)).rate === null, "a junk rate row must give null");
   });
 
-  add("(when the store reads plays) the summary counts each play's credits (sold, used, ready, late, not used in time), lists what to send back and the players' ready credits; saving settings changes no credit", async (h) => {
+  add("(when the store reads plays) the summary counts each play's credits (sold, used, ready, late, not used in time, by each credit's own end), lists what to send back (a play no longer sold too) and the players' ready credits; saving settings changes no credit", async (h) => {
     if (!h.plays) return;
     const DAY = 86_400_000;
     const play = (id: string, over: Partial<OrderRow>): OrderRow => order(id, { kind: "play", lookId: "extra-round", usd: "0.05", amountRaw: rawOf(0.05), ...over });
@@ -514,30 +514,46 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
         play("d1", { player: "deleted", payer: B }),
         play("d2", { player: "deleted", payer: "deleted" }),
         play("v1", { lookId: "level-2", usd: "0.10", amountRaw: rawOf(0.1) }),
+        play("n1", { lookId: "gone-play" }),
         order("k1", {}),
       ],
+      // Each credit's end is its own (fixed when it was paid): u1, r1 and r2 30 days, o1 ended 10 days ago, the level v1 (7 days) a day ago.
       credits: [
-        { orderId: "u1", player: A, playId: "extra-round", grantedAt: NOW - 2 * DAY, usedAt: NOW - DAY },
-        { orderId: "r1", player: A, playId: "extra-round", grantedAt: NOW - DAY, usedAt: null },
-        { orderId: "r2", player: B, playId: "extra-round", grantedAt: NOW - DAY, usedAt: null },
-        { orderId: "o1", player: A, playId: "extra-round", grantedAt: NOW - 40 * DAY, usedAt: null },
-        { orderId: "v1", player: A, playId: "level-2", grantedAt: NOW - 8 * DAY, usedAt: null },
+        { orderId: "u1", player: A, playId: "extra-round", grantedAt: NOW - 2 * DAY, expiresAt: NOW + 28 * DAY, usedAt: NOW - DAY },
+        { orderId: "r1", player: A, playId: "extra-round", grantedAt: NOW - DAY, expiresAt: NOW + 29 * DAY, usedAt: null },
+        { orderId: "r2", player: B, playId: "extra-round", grantedAt: NOW - DAY, expiresAt: NOW + 29 * DAY, usedAt: null },
+        { orderId: "o1", player: A, playId: "extra-round", grantedAt: NOW - 40 * DAY, expiresAt: NOW - 10 * DAY, usedAt: null },
+        { orderId: "v1", player: A, playId: "level-2", grantedAt: NOW - 8 * DAY, expiresAt: NOW - DAY, usedAt: null },
+        { orderId: "n1", player: A, playId: "gone-play", grantedAt: NOW - DAY, expiresAt: NOW + 29 * DAY, usedAt: null },
       ],
     });
-    const s = await h.store.summary(NOW, { waitDays: (id) => (id === "level-2" ? 7 : 30) });
+    const s = await h.store.summary(NOW, { isPlay: (id) => id === "extra-round" || id === "level-2" });
     const plays = JSON.stringify(s.plays);
     check(
-      plays === JSON.stringify([{ playId: "extra-round", sold: 6, used: 1, ready: 2, late: 1, notUsedInTime: 1 }, { playId: "level-2", sold: 1, used: 0, ready: 0, late: 0, notUsedInTime: 1 }]),
-      `each play's numbers (a deleted player's paid plays count as sold; a level waits 7 days): ${plays}`,
+      plays ===
+        JSON.stringify([
+          { playId: "extra-round", sold: 6, used: 1, ready: 2, late: 1, notUsedInTime: 1 },
+          { playId: "gone-play", sold: 1, used: 0, ready: 0, late: 0, notUsedInTime: 1 },
+          { playId: "level-2", sold: 1, used: 0, ready: 0, late: 0, notUsedInTime: 1 },
+        ]),
+      `each play's numbers (a deleted player's paid plays count as sold; each credit's own end; a play no longer sold has none ready): ${plays}`,
     );
     const back = (s.sendBack ?? []).map((x) => [x.orderId, x.why, x.payer, x.xno, x.usd, x.playId]);
     check(
-      JSON.stringify(back) === JSON.stringify([["o1", "not_used_in_time", A, "0.05", "0.05", "extra-round"], ["d1", "deleted_player", B, "0.05", "0.05", "extra-round"], ["v1", "not_used_in_time", A, "0.1", "0.10", "level-2"]]),
+      JSON.stringify(back) ===
+        JSON.stringify([
+          ["o1", "not_used_in_time", A, "0.05", "0.05", "extra-round"],
+          ["d1", "deleted_player", B, "0.05", "0.05", "extra-round"],
+          ["n1", "no_play", A, "0.05", "0.05", "gone-play"],
+          ["v1", "not_used_in_time", A, "0.1", "0.10", "level-2"],
+        ]),
       `to send back, oldest payment first, with the payer and the amount (a deleted player's used credit is not listed): ${JSON.stringify(back)}`,
     );
-    check(JSON.stringify(s.totals.sendBack) === JSON.stringify({ count: 4, xno: "0.25", usd: "0.25" }), `"To send back" holds the late payment and the three plays: ${JSON.stringify(s.totals.sendBack)}`);
+    check(JSON.stringify(s.totals.sendBack) === JSON.stringify({ count: 5, xno: "0.3", usd: "0.30" }), `"To send back" holds the late payment and the four plays: ${JSON.stringify(s.totals.sendBack)}`);
     check(JSON.stringify(s.players) === JSON.stringify([{ player: A, looks: [], ready: [{ id: "extra-round", ready: 1 }] }, { player: B, looks: [], ready: [{ id: "extra-round", ready: 1 }] }]), `each player's ready credits: ${JSON.stringify(s.players)}`);
-    check(s.orders.filter((o) => o.kind === "play").length === 8 && s.orders.find((o) => o.id === "k1")?.kind === undefined, "a play's order says so; a look's does not");
+    const all = await h.store.summary(NOW);
+    check(JSON.stringify(all.plays?.find((p) => p.playId === "gone-play")) === JSON.stringify({ playId: "gone-play", sold: 1, used: 0, ready: 1, late: 0, notUsedInTime: 0 }), "with no isPlay, a credit of any play is ready in its time");
+    check(s.orders.filter((o) => o.kind === "play").length === 9 && s.orders.find((o) => o.id === "k1")?.kind === undefined, "a play's order says so; a look's does not");
     const before = await h.snapshot();
     check(before.includes("o1") && before.includes(String(NOW - 40 * DAY)), "the snapshot must hold the credits");
     await h.store.saveSettings({ freePlay: "off", adultsOnly: "off", sellLives: "on", refundDays: 3, refundWords: "Ask me.", confirmLaws: true }, NOW + 1);
