@@ -125,6 +125,11 @@ export function visitorIp(req: Request): string {
  * starter's `visitorKey`: the same salt row, so the keys stay the same after a switch.
  */
 export async function visitorKey(db: D1Like, req: Request, tables: Pick<ShopTables, "meta"> = {}): Promise<string> {
+  return (await sha256Hex(`${await saltOf(db, tables)}|${visitorIp(req)}`)).slice(0, 32);
+}
+
+/** The game's random salt (made once and kept in `meta` as "salt"). */
+async function saltOf(db: D1Like, tables: Pick<ShopTables, "meta">): Promise<string> {
   const meta = tableName(tables.meta, "meta");
   let row = await db.prepare(`SELECT value FROM ${meta} WHERE key = 'salt'`).first<{ value: string }>();
   if (!row) {
@@ -132,7 +137,17 @@ export async function visitorKey(db: D1Like, req: Request, tables: Pick<ShopTabl
     await db.prepare(`INSERT OR IGNORE INTO ${meta} (key, value, at) VALUES ('salt', ?, ?)`).bind(fresh, Date.now()).run();
     row = await db.prepare(`SELECT value FROM ${meta} WHERE key = 'salt'`).first<{ value: string }>();
   }
-  return (await sha256Hex(`${row!.value}|${visitorIp(req)}`)).slice(0, 32);
+  return row!.value;
+}
+
+/**
+ * A limit's key as `hits` keeps it: its name (before the first "|") as it is, and the rest (a player's id, a visitor's key) as a hash with the game's
+ * salt, so the table never holds a player's id. "use|nano_1abc..." becomes "use|<32 hex>". createShop counts with it.
+ */
+export async function limitKey(db: D1Like, key: string, tables: Pick<ShopTables, "meta"> = {}): Promise<string> {
+  const cut = key.indexOf("|");
+  const [name, rest] = cut < 0 ? ["key", key] : [key.slice(0, cut), key.slice(cut + 1)];
+  return `${name}|${(await sha256Hex(`${await saltOf(db, tables)}|limit|${rest}`)).slice(0, 32)}`;
 }
 
 export type D1ShopOptions = {

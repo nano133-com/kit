@@ -17,7 +17,7 @@
 // deploys). The player's sign-in is the game's own (`player`).
 
 import type { D1Like } from "../admin/adapters/d1.js";
-import { createD1Shop, d1Limit, visitorKey, type ShopTables } from "./adapters/d1.js";
+import { createD1Shop, d1Limit, limitKey, visitorKey, type ShopTables } from "./adapters/d1.js";
 import { createShopHandler, SHOP_LIMITS, type ShopHandler, type ShopHandlerOptions } from "./handler.js";
 import { nodesFor, settingValue, type Fetch } from "./nodes.js";
 import type { ShopStore } from "./store.js";
@@ -86,8 +86,9 @@ export function createShop(env: ShopEnv, options: ShopOptions): Shop {
     testMode: isOn(env.TEST_MODE),
     nodes,
     visitor: (req) => visitorKey(env.DB, req, { meta: options.tables?.meta }),
-    // Two layers, as the starter: the game's router counts every call in memory; this one counts new orders for the whole game, in D1 (`hits`).
-    limit: (key, limit, windowMs, at) => d1Limit(env.DB, key, limit, windowMs, at),
+    // Two layers, as the starter: the game's router counts every call in memory; this one counts new orders, uses and yeses for the whole game, in D1
+    // (`hits`). A key there holds no player's id: its part after the name is a salted hash (limitKey).
+    limit: async (key, limit, windowMs, at) => d1Limit(env.DB, await limitKey(env.DB, key, { meta: options.tables?.meta }), limit, windowMs, at),
     personCheck: turnstile ? (token, req) => turnstileCheck(env, token, req.headers.get("CF-Connecting-IP"), options.fetch) : undefined,
   });
   return {

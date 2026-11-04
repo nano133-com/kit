@@ -97,7 +97,11 @@ export type ShopHandlerOptions = {
   rate?: { feeds?: readonly PriceFeed[]; fetch?: Fetch };
   /** For the scan's node calls (a test gives its own fetch and timeouts). */
   rpc?: RpcOptions;
-  /** A limiter for new orders and for uses: false means "too many". Default: a fixed window in memory, SHOP_LIMITS.order and SHOP_LIMITS.use. */
+  /**
+   * A limiter for new orders, uses and yeses: false means "too many". Default: a fixed window in memory, SHOP_LIMITS. A key may hold a player's id
+   * ("use|<player>", "adult|<player>", "order|<player>" with no `visitor` hook): a limiter that STORES its keys keeps a hash of them (createShop's
+   * does: `limitKey` in "/shop/d1").
+   */
   limit?: (key: string, limit: number, windowMs: number, now: number) => boolean | Promise<boolean>;
   /** A keyed hash of the visitor's IP address (never the address), kept on the order and used as the limit's key; null or no hook: the player's id. */
   visitor?: (request: Request) => Promise<string | null>;

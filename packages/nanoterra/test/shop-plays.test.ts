@@ -417,6 +417,20 @@ if (!noSqlite) {
     assert.throws(() => createShop(env(STARTER), { catalogue: LOOKS, plays: [{ ...PLAYS[0], odds: 0.5 }], player }), /nothing else/);
   });
 
+  test("the Worker (createShop): the D1 limits of uses, yeses and orders keep no player's id in `hits` (a salted hash), and still count", async () => {
+    const rate = { fetch: async () => new Response(JSON.stringify({ nano: { usd: 1 }, result: { X: { c: ["1"] } }, data: { price: "1" } })) };
+    const player = async (req: Request) => req.headers.get("X-Test-Player");
+    const db = sqlite(`${STARTER}\n${PLAYS_SQL}`);
+    const shopped = createShop({ DB: d1Over(db), RECEIVE_ADDRESS: creator, TEST_MODE: "on" }, { catalogue: LOOKS, plays: PLAYS, legal: () => ({ ...OPEN, adultsOnly: true }), player, rate, now: () => clock });
+    const who = "player-id-7f3e";
+    for (let i = 0; i < 3; i++) assert.equal((await use(shopped, who, { playId: "extra-round", ref: `r-${i}` }))!.status, 402);
+    assert.equal((await call(shopped, "/api/plays/adult", { body: { adult: true }, player: who }))!.status, 200);
+    assert.equal((await call(shopped, "/api/orders", { body: { playId: "extra-round" }, player: who }))!.status, 201);
+    const rows = db.prepare("SELECT key, count FROM hits ORDER BY key").all() as { key: string; count: number }[];
+    assert.ok(rows.every((r) => !r.key.includes(who)), JSON.stringify(rows));
+    assert.deepEqual(rows.map((r) => [r.key.split("|")[0], /^[a-z]+\|[0-9a-f]{32}$/.test(r.key), r.count]), [["adult", true, 1], ["order", true, 1], ["use", true, 3]]);
+  });
+
   test("the Worker (createShop): plays sold, then plays.json emptied: the held play order, paid, gives a credit and never a look, and forget deletes it", async () => {
     const rate = { fetch: async () => new Response(JSON.stringify({ nano: { usd: 1 }, result: { X: { c: ["1"] } }, data: { price: "1" } })) };
     const player = async (req: Request) => req.headers.get("X-Test-Player");
