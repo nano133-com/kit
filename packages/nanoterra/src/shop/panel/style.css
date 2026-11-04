@@ -485,15 +485,21 @@
   margin-top: 6px;
 }
 
-/* A phone on its side: the QR code (or the stamp) alone on the left, as big as the height allows; the words, the amount and the wallet key on the right. */
+/* A phone on its side: the QR code (or the stamp) alone on the left, as big as the height allows; the words, the amount and the wallet key on the right.
+   A play's refund words take the whole first row, above the QR code and the wallet key (before any step); the body scrolls when they need more room. */
 @media (orientation: landscape) and (max-height: 520px) {
   .n133-shop .n133s-pay {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    grid-template-areas: "qr what" "qr amount" "qr side";
-    grid-template-rows: auto auto 1fr;
+    grid-template-areas: "refund refund" "qr what" "qr amount" "qr side";
+    grid-template-rows: auto auto auto 1fr;
     gap: 0 20px;
     align-items: start;
+  }
+
+  .n133-shop .n133s-pay .n133s-refund {
+    grid-area: refund;
+    margin: 0 0 8px;
   }
 
   .n133-shop .n133s-pay-main {
@@ -513,6 +519,12 @@
     grid-area: qr;
     width: min(250px, calc(100vh - 96px));
     width: min(250px, calc(100dvh - 96px));
+  }
+
+  /* The refund words' row: the QR code gives up their height, so the sheet stays one screen for most words. */
+  .n133-shop .n133s-pay:has(.n133s-refund) :is(.n133s-live-pay, .n133s-test-pay) {
+    width: min(250px, calc(100vh - 160px));
+    width: min(250px, calc(100dvh - 160px));
   }
 
   .n133-shop .n133s-pay-side {
@@ -539,8 +551,10 @@
 
 /* ---- a play: the refund words, the "18 or older" step, and the Play key ---- */
 
+/* The refund words stand above the pay box in every layout: after the amount on a phone held up and on a wide screen, the first row on a phone on its side. */
 .n133-shop .n133s-refund {
-  margin: 8px 0 0;
+  margin: 8px 0 12px;
+  overflow-wrap: anywhere;
 }
 
 .n133-shop .n133s-age .n133s-wide + .n133s-wide {
