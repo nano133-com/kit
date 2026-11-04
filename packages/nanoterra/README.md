@@ -1504,21 +1504,24 @@ To check what a payment does (a look owned, a round ready, the Play key), pay th
 - **A mock Nano node** on 127.0.0.1, to test the whole path (the order, the scan, the check, the credit, the use). The kit's tests use
   `MockNode` (`test/shop-helpers.ts` in the kit's repository; the game starter has the same class in its `test/helpers.ts`): it answers
   `receivable`, `account_history` and `block_info` from a list of sends. The payee is an address made in the test from a random key that nobody
-  holds (`testAddress()` in the same file): nothing can be paid to it, and nothing is sent.
+  holds (`testAccount().address` in the starter's `test/helpers.ts`, `testAddress()` in the kit's): nothing can be paid to it, and nothing is
+  sent.
+
+The game starter runs its tests with Vitest; this one goes in its `test/` folder as it is:
 
 ```ts
-// test/paid-round.test.ts: a pretend payment, in a test only. No real node, no real money, no screen.
-import assert from "node:assert/strict";
-import { after, before, test } from "node:test";
+// test/paidRound.test.ts: a pretend payment, in a test only. No real node, no real money, no screen.
+import { afterAll, beforeAll, expect, it } from "vitest";
 import { SCAN_GAP_MS, createMemoryShop, createShopHandler } from "@nano133/nanoterra/shop";
-import { MockNode, hash64, testAddress } from "./helpers.js";   // the starter's test helpers
+import looks from "../looks.json" with { type: "json" };
+import { MockNode, hash64, testAccount } from "./helpers";   // the starter's test helpers
 
-const payee = testAddress();        // nobody holds its key
+const payee = testAccount().address;   // made from a random key: nobody holds it
 const node = new MockNode();
-before(() => node.start());
-after(() => node.stop());
+beforeAll(() => node.start());
+afterAll(() => node.stop());
 
-test("a paid play order gives the player one round", async () => {
+it("a paid play order gives the player one round", async () => {
   let clock = Date.now();
   const shop = createShopHandler({
     store: createMemoryShop(),
@@ -1534,11 +1537,11 @@ test("a paid play order gives the player one round", async () => {
   const post = (path: string, body: unknown) =>
     shop.handle(new Request(`https://game.test${path}`, { method: "POST", headers: { Origin: "https://game.test", "X-Test-Player": "p1", "Content-Type": "application/json" }, body: JSON.stringify(body) }));
   const order = await (await post("/api/orders", { playId: "extra-round" }))!.json();
-  node.sends.push({ hash: hash64(), from: testAddress(), to: payee, amount: order.amount, seenMs: clock + 1000, confirmed: true });
+  node.sends.push({ hash: hash64(), from: testAccount().address, to: payee, amount: order.amount, seenMs: clock + 1000, confirmed: true });
   clock += SCAN_GAP_MS + 1;                                   // the scan runs at most once a gap
-  assert.equal((await (await post(`/api/orders/${order.id}/check`, {}))!.json()).status, "paid");
-  assert.deepEqual(await shop.ready("p1"), [{ playId: "extra-round", ready: 1 }]);
-  assert.deepEqual(await (await post("/api/plays/use", { playId: "extra-round", ref: "round-1" }))!.json(), { used: true, again: false });
+  expect((await (await post(`/api/orders/${order.id}/check`, {}))!.json()).status).toBe("paid");
+  expect(await shop.ready("p1")).toEqual([{ playId: "extra-round", ready: 1 }]);
+  expect(await (await post("/api/plays/use", { playId: "extra-round", ref: "round-1" }))!.json()).toEqual({ used: true, again: false });
 });
 ```
 

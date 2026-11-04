@@ -2213,8 +2213,10 @@
     white-space: nowrap;
   }
 
+  /* The word is hidden here, so the icon alone is the key: 44 px wide too. */
   .n133-admin .orders:not(.is-compact) .order-player .copy-key {
     flex: none;
+    min-width: 44px;
     padding: 0 8px;
   }
 

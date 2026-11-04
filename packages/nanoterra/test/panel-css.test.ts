@@ -116,6 +116,14 @@ test("the admin's tap targets: every key, tab, segment, switch and summary is at
   for (const sel of [".n133-admin .btn", ".n133-admin .btn-small", ".n133-admin .seg-btn", ".n133-admin .tabbar-tab"]) assert.equal(prop(find(ADMIN, "", sel), "min-height"), "44px", sel);
 });
 
+test("the admin's icon-only keys: where the wide Orders table hides the copy key's word, the key is still 44 px wide", () => {
+  const hides = ADMIN.find((r) => /\.copy-word/.test(r.selector) && prop(r, "display") === "none");
+  assert.ok(hides, "the wide table hides the word");
+  const key = find(ADMIN, hides!.at, ".n133-admin .orders:not(.is-compact) .order-player .copy-key");
+  const w = /^(\d+)px$/.exec(prop(key, "min-width") ?? "");
+  assert.ok(w && Number(w[1]) >= 44, `min-width ${prop(key, "min-width")}`);
+});
+
 test("the admin's sticky tabs never cover a heading the page scrolls to: the tab panels and the cards keep a margin as high as the tabs, and a little more", () => {
   const room = prop(find(ADMIN, "", ".n133-admin"), "--tabs-room");
   assert.ok(room, "the room for the tabs is one value");
