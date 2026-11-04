@@ -128,6 +128,36 @@ else {
     assert.equal((h.db.prepare("SELECT COUNT(*) AS n FROM play_adults").get() as { n: number }).n, 0, "forget deleted the yes");
   });
 
+  test("shop D1 with plays: the admin's D1 store with { plays: true } reads the shop's play orders and credits: sold, ready, used, and a deleted player's unused credit to send back", async () => {
+    const h = d1Harness(STARTER, true);
+    const admin = createD1Store(d1Over(h.db), { plays: true });
+    const T = 1_800_000_000_000;
+    const ann = testAddress();
+    const bob = testAddress();
+    const paid = async (player: string, at: number) => {
+      const o = await reserveOrder(h.store, { player, lookId: "extra-round", kind: "play", usd: "0.05", rate: 1, price: priceRaw(0.05, 1)!, visitor: null, now: at });
+      assert.equal(await h.store.settle(o, { hash: hash64(), payer: player, seenMs: at + 1 }, at + 2), "paid");
+      return o;
+    };
+    await paid(ann, T);
+    const unused = await paid(bob, T + 100);
+    assert.equal((await h.store.useCredit(ann, "extra-round", "round-1", T + 200, 0)).status, "used");
+    let s = await admin.summary(T + 300);
+    assert.deepEqual(s.plays, [{ playId: "extra-round", sold: 2, used: 1, ready: 1, late: 0, notUsedInTime: 0 }]);
+    assert.deepEqual(s.players, [{ player: bob, looks: [], ready: [{ id: "extra-round", ready: 1 }] }]);
+    assert.ok(s.orders.every((o) => o.kind === "play"));
+    await h.store.forget(bob, unused.holdUntil + 1);
+    s = await admin.summary(unused.holdUntil + 2);
+    assert.deepEqual(s.sendBack?.map((x) => [x.orderId, x.why, x.payer, x.xno, x.usd]), [[unused.id, "deleted_player", bob, "0.05", "0.05"]]);
+    assert.deepEqual(s.totals.sendBack, { count: 1, xno: "0.05", usd: "0.05" });
+    // Past its wait (30 days) a credit is listed to send back too.
+    await paid(ann, T + 400);
+    s = await admin.summary(T + 400 + 31 * 86_400_000);
+    assert.deepEqual(s.sendBack?.map((x) => [x.why, x.payer]), [["deleted_player", bob], ["not_used_in_time", ann]]);
+    // Without { plays: true } the admin reads the tables as before and lists no play.
+    assert.deepEqual((await createD1Store(d1Over(h.db)).summary(T)).plays, []);
+  });
+
   test("shop D1: a store with no plays refuses a play order before it writes it; the starter's rows read as looks after the plays' migration", async () => {
     const T = 1_800_000_000_000;
     const play = { player: "p1", lookId: "extra-round", kind: "play" as const, usd: "0.05", rate: 1, price: priceRaw(0.05, 1)!, visitor: null, now: T };
@@ -315,6 +345,17 @@ test("shop Firestore: the admin's Firestore store reads the shop's orders, owned
   assert.equal(s.orders[0].xno, "0.25");
   assert.deepEqual(s.players, [{ player: "nano_buyer", looks: [{ id: "red-coat", at: T + 2 }] }]);
   assert.deepEqual(s.rate, { usd: 0.9, sources: ["A", "B"], at: T });
+  // A paid play: the admin counts its credit, and after "Delete my data" lists it to send back with its payer.
+  const p = await reserveOrder(h.store, { player: "nano_round", lookId: "extra-round", kind: "play", usd: "0.05", rate: 1, price: priceRaw(0.05, 1)!, visitor: null, now: T + 10 });
+  await h.store.settle(p, { hash: hash64(), payer: "nano_round", seenMs: T + 11 }, T + 12);
+  const admin = createFirestoreStore(adminView);
+  let a = await admin.summary(T + 13);
+  assert.deepEqual(a.plays, [{ playId: "extra-round", sold: 1, used: 0, ready: 1, late: 0, notUsedInTime: 0 }]);
+  assert.equal(a.orders.find((o) => o.id === p.id)?.kind, "play");
+  assert.deepEqual(a.players.find((x) => x.player === "nano_round")?.ready, [{ id: "extra-round", ready: 1 }]);
+  await h.store.forget("nano_round", p.holdUntil + 1);
+  a = await admin.summary(p.holdUntil + 2);
+  assert.deepEqual(a.sendBack?.map((x) => [x.orderId, x.why, x.payer, x.xno]), [[p.id, "deleted_player", "nano_round", "0.05"]]);
 });
 
 test("the conformance suite is the same on every store", () => {

@@ -1,6 +1,6 @@
 // The admin handler: the routes of /admin on the Web `Request` and `Response` types, so it fits a Worker, Firebase Functions and Node.
 //
-//   GET  {base}/summary   the numbers: status, orders, the looks that players own
+//   GET  {base}/summary   the numbers: status, orders, the looks that players own, the plays (sold, used, ready, not used in time) and what to send back
 //   GET  {base}/game      the game switches
 //   POST {base}/game      a press: { character }, { signin }, { friends }, { emotes } or { freePlay } (only the known words), or one of the Legal card's
 //                         { adultsOnly }, { sellLives }, { refundDays }, { refundWords } or { confirmLaws: true } (./legal.ts)
@@ -12,6 +12,7 @@
 import { adminAccess, type AdminAccess, type AdminSession } from "./guard.js";
 import { fail, foreignOrigin, json, memoryLimiter, readLimited, sameOrigin } from "./http.js";
 import { ADMIN_LOGINS_SHOWN, type AdminLogin, type AdminOrder, type AdminPlayer, type AdminStatus, type AdminStore, type AdminSummary, type StoreSummary } from "./store.js";
+import { PLAY_WAIT_DAYS, checkPlays } from "../looks/play.js";
 import type { LegalState } from "./legal.js";
 import { mergeLegal } from "./legalRules.js";
 import { mergeSettings, parsePatch, type GameSettings, type GameState } from "./switches.js";
@@ -31,6 +32,11 @@ export type AdminHandlerOptions = {
   status?: (now: number, summary: StoreSummary) => Promise<AdminStatus> | AdminStatus;
   /** What a look is called, for the orders. Default: its id. */
   lookName?: (id: string) => string | undefined;
+  /**
+   * The game's plays (plays.json as it was read), or none. They name the play orders, give each play's wait to the summary (`useWithinDays`) and list
+   * every play in the summary's `plays`. Checked with `checkPlays`: a bad file throws here.
+   */
+  plays?: unknown;
   /** The payment check (POST check). Its answer is sent as `scan`. With none given, the route does not exist. */
   check?: (now: number) => Promise<unknown>;
   /** Where the routes are. Default "/api/admin". */
@@ -104,14 +110,27 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
   ];
 
   const settings = async (): Promise<GameState> => mergeSettings(await options.store.readSettings(), options.defaults);
+  const plays = options.plays === undefined || options.plays === null ? [] : checkPlays(options.plays);
+  const playOf = (id: string) => plays.find((p) => p.id === id);
 
   async function summary(at: number): Promise<AdminSummary> {
-    const s = await options.store.summary(at);
+    const s = await options.store.summary(at, { waitDays: (id) => playOf(id)?.useWithinDays ?? PLAY_WAIT_DAYS });
     const status = options.status ? await options.status(at, s) : { address: options.owner, testMode: false, warnings: [] as string[] };
     const name = (id: string) => options.lookName?.(id) ?? id;
-    const orders: AdminOrder[] = s.orders.map((o) => ({ ...o, look: name(o.lookId) }));
-    const players: AdminPlayer[] = s.players.map((p) => ({ player: p.player, looks: p.looks.map((l) => ({ id: l.id, name: name(l.id), at: l.at })) }));
-    const out: AdminSummary = { ...status, counts: s.counts, totals: s.totals, rate: s.rate, orders, players, canCheck: Boolean(options.check) };
+    const playName = (id: string) => playOf(id)?.name ?? id;
+    const orders: AdminOrder[] = s.orders.map((o) => ({ ...o, look: o.kind === "play" ? playName(o.lookId) : name(o.lookId) }));
+    const players: AdminPlayer[] = s.players.map((p) => ({
+      player: p.player,
+      looks: p.looks.map((l) => ({ id: l.id, name: name(l.id), at: l.at })),
+      ...(p.ready?.length ? { ready: p.ready.map((r) => ({ id: r.id, name: playName(r.id), ready: r.ready })) } : {}),
+    }));
+    // Every play of plays.json (with nothing sold: zeros), then any play that sold and is no longer in it.
+    const stats = s.plays ?? [];
+    const zero = (playId: string) => ({ playId, sold: 0, used: 0, ready: 0, late: 0, notUsedInTime: 0 });
+    const playRows = [...plays.map((p) => stats.find((x) => x.playId === p.id) ?? zero(p.id)), ...stats.filter((x) => !playOf(x.playId))].map((x) => ({ ...x, name: playName(x.playId) }));
+    const sendBack = (s.sendBack ?? []).map((x) => ({ ...x, name: playName(x.playId) }));
+    const totals = { paid: s.totals.paid, paidLate: s.totals.paidLate, sendBack: s.totals.sendBack ?? s.totals.paidLate };
+    const out: AdminSummary = { ...status, counts: s.counts, totals, rate: s.rate, orders, players, plays: playRows, sendBack, canCheck: Boolean(options.check) };
     if (options.store.recentLogins) {
       // Only the three things of a sign-in go out, whatever the store gave (a store that returns an address or a browser text by mistake does not show it).
       const rows = await options.store.recentLogins(ADMIN_LOGINS_SHOWN);

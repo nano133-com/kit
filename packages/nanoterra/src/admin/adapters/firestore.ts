@@ -1,16 +1,18 @@
 // The admin store for a game on Firestore (the Admin SDK). The package has no Firebase dependency: the adapter uses the small interface below, which the
 // Admin SDK's `Firestore` fits. It writes ONLY the ten settings (SETTING_KEYS); everything else it does is a read.
 //
-// The data model (the names a game must have; only the three collection names can be changed):
+// The data model (the names a game must have; only the four collection names can be changed):
 //   meta/{key}          { value: string, at: number }          keys "setting:character", "setting:signin", "setting:friends", "setting:emotes", "setting:freePlay", the Legal card's
 //                                                              "setting:adultsOnly", "setting:sellLives", "setting:refundDays", "setting:refundWords", "setting:lawsConfirmedAt", and "rate" (value is JSON { usd, sources })
 //   orders/{id}         { player, lookId, usd, amount, status, createdAt, expiresAt, paidAt, payer, hash }   `amount` is the raw amount as text
 //   owned/{player__lookId}  { player, lookId, orderId, grantedAt }
+//   credits/{orderId}   { player, playId, grantedAt, usedAt }   the shop's credits of paid plays (read for the plays' numbers; none when the game sells no plays)
+//   (an order's `kind` is "play" for a play's order; a missing kind reads as a look's)
 //
-// The summary reads the newest 5000 orders (the counts and the totals are over those) and every owned look: for a small game. A big game should keep running totals.
+// The summary reads the newest 5000 orders (the counts and the totals are over those), every owned look and every credit: for a small game. A big game should keep running totals.
 
-import { parseRate, summarize, type OrderRow } from "../summary.js";
-import { SETTING_KEYS, settingRows, type AdminStore, type SettingName, type StoredSettings, type StoreSummary } from "../store.js";
+import { parseRate, summarize, type CreditRow, type OrderRow } from "../summary.js";
+import { SETTING_KEYS, settingRows, type AdminStore, type SettingName, type StoredSettings, type StoreSummary, type SummaryOptions } from "../store.js";
 import type { GamePatch } from "../switches.js";
 
 export interface FirestoreDocLike {
@@ -41,10 +43,11 @@ const text = (v: unknown, fallback = ""): string => (typeof v === "string" ? v :
 const num = (v: unknown, fallback = 0): number => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
 const orNull = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
-export function createFirestoreStore(db: FirestoreLike, collections: { meta?: string; orders?: string; owned?: string } = {}): AdminStore {
+export function createFirestoreStore(db: FirestoreLike, collections: { meta?: string; orders?: string; owned?: string; credits?: string } = {}): AdminStore {
   const meta = collections.meta ?? "meta";
   const orders = collections.orders ?? "orders";
   const owned = collections.owned ?? "owned";
+  const credits = collections.credits ?? "credits";
   const valueOf = async (key: string) => {
     const snap = await db.collection(meta).doc(key).get();
     return snap.exists ? snap.data() : undefined;
@@ -68,18 +71,23 @@ export function createFirestoreStore(db: FirestoreLike, collections: { meta?: st
       await batch.commit();
     },
 
-    async summary(now: number): Promise<StoreSummary> {
-      const [orderDocs, ownedDocs, rate] = await Promise.all([
+    async summary(now: number, options?: SummaryOptions): Promise<StoreSummary> {
+      const [orderDocs, ownedDocs, creditDocs, rate] = await Promise.all([
         db.collection(orders).orderBy("createdAt", "desc").limit(FIRESTORE_SCAN_LIMIT).get(),
         db.collection(owned).get(),
+        db.collection(credits).get(),
         valueOf("rate"),
       ]);
       const rows: OrderRow[] = orderDocs.docs.map((d) => {
         const o = d.data();
-        return { id: d.id, player: text(o.player), lookId: text(o.lookId), usd: text(o.usd, "0"), amountRaw: text(o.amount, "0"), status: text(o.status, "open"), createdAt: num(o.createdAt), expiresAt: num(o.expiresAt), paidAt: typeof o.paidAt === "number" ? o.paidAt : null, payer: orNull(o.payer), hash: orNull(o.hash) };
+        return { id: d.id, player: text(o.player), lookId: text(o.lookId), kind: text(o.kind, "look"), usd: text(o.usd, "0"), amountRaw: text(o.amount, "0"), status: text(o.status, "open"), createdAt: num(o.createdAt), expiresAt: num(o.expiresAt), paidAt: typeof o.paidAt === "number" ? o.paidAt : null, payer: orNull(o.payer), hash: orNull(o.hash) };
       });
       const list = ownedDocs.docs.map((d) => ({ player: text(d.data().player), lookId: text(d.data().lookId), at: num(d.data().grantedAt) }));
-      return summarize(rows, list, parseRate(rate?.value, rate?.at), now);
+      const paid: CreditRow[] = creditDocs.docs.map((d) => {
+        const c = d.data();
+        return { orderId: d.id, player: text(c.player), playId: text(c.playId), grantedAt: num(c.grantedAt), usedAt: typeof c.usedAt === "number" ? c.usedAt : null };
+      });
+      return summarize(rows, list, parseRate(rate?.value, rate?.at), now, paid, options);
     },
   };
 }

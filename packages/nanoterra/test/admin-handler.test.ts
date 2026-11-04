@@ -480,6 +480,38 @@ test("the summary has the status, the numbers, and names for the looks", async (
   assert.deepEqual(s.players, [{ player: OTHER, looks: [{ id: "mint-cap", name: "Mint Cap", at: NOW - 40 }] }]);
 });
 
+test("the summary with plays: every play of plays.json with its name and numbers (zeros when none sold), play orders named and marked, the ready credits, what to send back", async () => {
+  const DAY = 86_400_000;
+  const PLAYS = [
+    { id: "extra-round", name: "Extra round", priceUsd: 0.05, use: "round" },
+    { id: "level-2", name: "Level 2", priceUsd: 0.1, use: "level", useWithinDays: 7 },
+    { id: "extra-life", name: "Extra life", priceUsd: 0.02, use: "life" },
+  ];
+  const { handler, store } = make({ plays: PLAYS, lookName: (id) => ({ "mint-cap": "Mint Cap" })[id] });
+  const row = (id: string, lookId: string, over: Record<string, unknown> = {}) => ({ id, player: OTHER, lookId, kind: "play", usd: "0.05", amountRaw: RAW_04, status: "paid", createdAt: NOW - 100, expiresAt: NOW + 100, paidAt: NOW - 50, payer: OTHER, hash: `H${id}`, ...over });
+  store.orders.push(row("a", "extra-round"), row("b", "level-2"), row("c", "gone-play"), { ...row("d", "mint-cap"), kind: undefined } as never);
+  store.credits.push(
+    { orderId: "a", player: OTHER, playId: "extra-round", grantedAt: NOW - DAY, usedAt: null },
+    { orderId: "b", player: OTHER, playId: "level-2", grantedAt: NOW - 8 * DAY, usedAt: null },
+    { orderId: "c", player: OTHER, playId: "gone-play", grantedAt: NOW - DAY, usedAt: NOW },
+  );
+  const s = await (await call(handler, "/api/admin/summary"))!.json();
+  assert.deepEqual(s.plays, [
+    { playId: "extra-round", sold: 1, used: 0, ready: 1, late: 0, notUsedInTime: 0, name: "Extra round" },
+    { playId: "level-2", sold: 1, used: 0, ready: 0, late: 0, notUsedInTime: 1, name: "Level 2" },
+    { playId: "extra-life", sold: 0, used: 0, ready: 0, late: 0, notUsedInTime: 0, name: "Extra life" },
+    { playId: "gone-play", sold: 1, used: 1, ready: 0, late: 0, notUsedInTime: 0, name: "gone-play" },
+  ]);
+  assert.deepEqual(s.orders.map((o: { id: string; look: string; kind?: string }) => [o.id, o.look, o.kind ?? "look"]).sort(), [["a", "Extra round", "play"], ["b", "Level 2", "play"], ["c", "gone-play", "play"], ["d", "Mint Cap", "look"]]);
+  assert.deepEqual(s.players, [{ player: OTHER, looks: [], ready: [{ id: "extra-round", name: "Extra round", ready: 1 }] }]);
+  assert.deepEqual(s.sendBack.map((x: { orderId: string; name: string; why: string; payer: string }) => [x.orderId, x.name, x.why, x.payer]), [["b", "Level 2", "not_used_in_time", OTHER]], "the level's own wait (7 days) is used");
+  assert.deepEqual(s.totals.sendBack, { count: 1, xno: "0.04", usd: "0.05" });
+  // A game with no plays: no play rows, and "To send back" is the late payments.
+  const none = await (await call(make().handler, "/api/admin/summary"))!.json();
+  assert.deepEqual([none.plays, none.sendBack, none.totals.sendBack], [[], [], none.totals.paidLate]);
+  assert.throws(() => make({ plays: [{ id: "x", name: "X", priceUsd: 0.05, use: "round", prize: 1 }] }), /nothing else/);
+});
+
 test("the status hook gets the store's numbers, so a warning can depend on them", async () => {
   let seen: unknown = null;
   const { handler, store } = make({

@@ -11,8 +11,11 @@ export type AdminOrder = {
   id: string;
   /** The player's Nano address. */
   player: string;
+  /** The id of what the order sells: a look's, or a play's (`kind` "play"). */
   lookId: string;
-  /** What the player reads for the look (the handler fills it from `lookName`). */
+  /** Only on a play's order (a round, a level, a life or a continue): "play". */
+  kind?: "play";
+  /** What the player reads for the look or the play (the handler fills it from `lookName`, or from plays.json). */
   look: string;
   usd: string;
   xno: string;
@@ -24,18 +27,39 @@ export type AdminOrder = {
   hash: string | null;
 };
 
-export type AdminPlayer = { player: string; looks: { id: string; name: string; at: number }[] };
+/** A player, the looks that paid orders gave them, and (only when they have some) their credits that wait for a round, by play. */
+export type AdminPlayer = { player: string; looks: { id: string; name: string; at: number }[]; ready?: { id: string; name: string; ready: number }[] };
+
+/**
+ * What one play (plays.json) has done: `sold` paid orders, `used` credits that a round used, `ready` credits that wait in their time, `late` payments
+ * that came after the order ended (no credit: to send back), `notUsedInTime` credits past their wait (to send back).
+ */
+export type PlayStats = { playId: string; sold: number; used: number; ready: number; late: number; notUsedInTime: number };
+
+/**
+ * A paid play to send back by hand (the kit holds no key): a credit not used in its time ("not_used_in_time"), or the unused credit of a player who used
+ * "Delete my data" ("deleted_player": the credit went, the order kept its payer). The payer and the amount say where and how much.
+ */
+export type SendBack = { orderId: string; playId: string; payer: string; xno: string; usd: string; paidAt: number | null; why: "not_used_in_time" | "deleted_player" };
+
+/** What the store needs to know of the plays: how many days a credit of each waits (plays.json's useWithinDays; 30 when it does not say). */
+export type SummaryOptions = { waitDays?: (playId: string) => number };
 
 /** The numbers of the orders and the looks that players own. */
 export type StoreSummary = {
   counts: { open: number; paid: number; expired: number; paid_late: number };
-  totals: { paid: Money; paidLate: Money };
+  /** `sendBack`: the late payments and the paid plays to send back, together (the "To send back" number). A store with no plays may leave it out. */
+  totals: { paid: Money; paidLate: Money; sendBack?: Money };
   /** Newest first, at most 500. `look` is filled by the handler. */
   orders: Omit<AdminOrder, "look">[];
-  /** Players and the looks that a paid order gave them. `name` is filled by the handler. */
-  players: { player: string; looks: { id: string; at: number }[] }[];
+  /** Players and the looks that a paid order gave them (and their ready credits). `name` is filled by the handler. */
+  players: { player: string; looks: { id: string; at: number }[]; ready?: { id: string; ready: number }[] }[];
   /** The price of XNO in US dollars that the game uses, and where it came from. */
   rate: { usd: number; sources: string[]; at: number } | null;
+  /** Each play that sold or has credits (a store that sells no plays leaves it out or gives none). */
+  plays?: PlayStats[];
+  /** The paid plays to send back by hand, oldest payment first. */
+  sendBack?: SendBack[];
 };
 
 /**
@@ -94,7 +118,8 @@ export interface AdminStore {
   readSettings(): Promise<StoredSettings>;
   /** Saves a checked patch: all of it or none of it (`settingRows` gives the text of each setting). */
   saveSettings(patch: GamePatch, now: number): Promise<void>;
-  summary(now: number): Promise<StoreSummary>;
+  /** The numbers. `options.waitDays` gives each play's wait (the handler passes plays.json's); a store that sells no plays may ignore it. */
+  summary(now: number, options?: SummaryOptions): Promise<StoreSummary>;
   /**
    * Optional. The last sign-ins to the admin, newest first, at most `limit`, with only the three things of `AdminLogin`. With it the summary lists them (the "Sign-ins" card).
    * An adapter that has it must never return more than those three things for a sign-in.
@@ -123,9 +148,14 @@ export type AdminStatus = {
 
 /** The whole of GET summary. */
 export type AdminSummary = AdminStatus &
-  Omit<StoreSummary, "orders" | "players"> & {
+  Omit<StoreSummary, "orders" | "players" | "plays" | "sendBack" | "totals"> & {
+    totals: { paid: Money; paidLate: Money; sendBack: Money };
     orders: AdminOrder[];
     players: AdminPlayer[];
+    /** Every play of plays.json (and any play that sold and is no longer in it), with its name. None when the game sells no plays. */
+    plays: (PlayStats & { name: string })[];
+    /** The paid plays to send back by hand, with the play's name. */
+    sendBack: (SendBack & { name: string })[];
     /** Whether the game gave a payment check (POST check). The panel shows "Check payments now" only then. */
     canCheck: boolean;
     /** The last admin sign-ins (newest first), when the store can list them. */
