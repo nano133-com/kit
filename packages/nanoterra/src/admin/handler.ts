@@ -5,6 +5,7 @@
 //   POST {base}/game      a press: { character }, { signin }, { friends }, { emotes } or { freePlay } (only the known words), or one of the Legal card's
 //                         { adultsOnly }, { sellLives }, { refundDays }, { refundWords } or { confirmLaws: true } (./legal.ts)
 //   POST {base}/check     the payment check, when the game gives one
+//   POST {base}/unmatched the receives on the game's address that no order recorded, when the game gives the read (a POST: it asks the nodes)
 //
 // EVERY request under the base goes through `adminAccess` first, before the route is even looked up: a visitor who is not the owner gets 401 or 403
 // for any path, a real one or not, and learns nothing about the routes. The handler sets no CORS header. A POST must come from the game's own page.
@@ -39,6 +40,11 @@ export type AdminHandlerOptions = {
   plays?: unknown;
   /** The payment check (POST check). Its answer is sent as `scan`. With none given, the route does not exist. */
   check?: (now: number) => Promise<unknown>;
+  /**
+   * The unmatched payments (POST unmatched): `findUnmatched` of "@nano133/nanoterra/shop", or the Worker shop's `unmatched`. `since` is the time of the
+   * oldest order the summary lists (null: no order yet). Its answer is sent as `unmatched`. With none given, the route does not exist.
+   */
+  unmatched?: (now: number, since: number | null) => Promise<unknown>;
   /** Where the routes are. Default "/api/admin". */
   basePath?: string;
   /** How old an admin login may be, in ms: one day at most (a bigger number is cut to one day). */
@@ -68,6 +74,8 @@ export const ADMIN_LIMITS = {
   game: { limit: 30, windowMs: 60_000 },
   /** A payment check. */
   check: { limit: 20, windowMs: 60_000 },
+  /** A read of the unmatched payments (one history call on the nodes). */
+  unmatched: { limit: 6, windowMs: 60_000 },
   /** "Sign out everywhere". */
   signOutAll: { limit: 5, windowMs: 60_000 },
   /** The biggest body a press can have (the Legal card's refund words are the longest: 280 characters). */
@@ -106,6 +114,7 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
     { method: "GET", path: `${base}/game` },
     { method: "POST", path: `${base}/game` },
     ...(options.check ? [{ method: "POST" as const, path: `${base}/check` }] : []),
+    ...(options.unmatched ? [{ method: "POST" as const, path: `${base}/unmatched` }] : []),
     ...(options.store.signOutEverywhere ? [{ method: "POST" as const, path: `${base}/signout-all` }] : []),
   ];
 
@@ -138,6 +147,7 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
       out.logins = rows.slice(0, ADMIN_LOGINS_SHOWN).map((l): AdminLogin => ({ at: Number(l.at), country: typeof l.country === "string" && /^[A-Z]{2}$/.test(l.country) ? l.country : null, browser: typeof l.browser === "string" && BROWSER_NAME.test(l.browser) ? l.browser : "Unknown browser" }));
     }
     if (options.store.signOutEverywhere) out.canSignOutEverywhere = true;
+    if (options.unmatched) out.canListUnmatched = true;
     return out;
   }
 
@@ -202,6 +212,12 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
         if (!(await limit(lkey("admin-signout-all"), ADMIN_LIMITS.signOutAll.limit, ADMIN_LIMITS.signOutAll.windowMs, at))) return fail(429, "Too many tries. Wait a minute.");
         const n = await options.store.signOutEverywhere!();
         return json({ ok: true, signedOut: n });
+      }
+      if (route.path === `${base}/unmatched`) {
+        if (!(await limit(lkey("admin-unmatched"), ADMIN_LIMITS.unmatched.limit, ADMIN_LIMITS.unmatched.windowMs, at))) return fail(429, "Too many checks. Wait a minute.");
+        const s = await options.store.summary(at, options.plays === undefined || options.plays === null ? {} : { isPlay: (id) => Boolean(playOf(id)) });
+        const since = s.orders.reduce((m, o) => (Number.isFinite(o.createdAt) ? Math.min(m, o.createdAt) : m), Infinity);
+        return json({ unmatched: await options.unmatched!(at, Number.isFinite(since) ? since : null) });
       }
       // POST check
       if (!(await limit(lkey("admin-check"), ADMIN_LIMITS.check.limit, ADMIN_LIMITS.check.windowMs, at))) return fail(429, "Too many checks. Wait a minute.");

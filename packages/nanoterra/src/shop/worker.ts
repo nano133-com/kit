@@ -9,6 +9,7 @@
 //   const answer = await shop.handle(request);            // null when it is not a shop route
 //   ...
 //   async scheduled(_e, env, ctx) { ctx.waitUntil(createShop(env, opts).scan()); }   // the */10 cron
+//   createAdminHandler({ ..., check: (now) => shop.scan(now), unmatched: shop.unmatched });    // the admin's two reads of the address
 //
 // The settings (the starter's names): RECEIVE_ADDRESS (the creator's address; the example or a wrong checksum keeps test mode), TEST_MODE ("on" keeps
 // test mode with a real address), NODE_API_KEY (secret, optional: Nanswap Nodes first), NANO_NODES (optional: the game's own nodes), TURNSTILE_SITE_KEY
@@ -21,6 +22,7 @@ import { createD1Shop, d1Limit, limitKey, visitorKey, type ShopTables } from "./
 import { createShopHandler, SHOP_LIMITS, type ShopHandler, type ShopHandlerOptions } from "./handler.js";
 import { nodesFor, settingValue, type Fetch } from "./nodes.js";
 import type { ShopStore } from "./store.js";
+import { findUnmatched, type UnmatchedResult } from "./unmatched.js";
 
 /** The settings the shop reads. Every one is optional except the database. */
 export type ShopEnv = {
@@ -71,6 +73,8 @@ export type Shop = ShopHandler & {
   config(): { testMode: boolean; turnstileSiteKey: string | null };
   /** For the admin's Status card: the address, test mode, Turnstile, the nodes' names and plain sentences about what is still off. */
   status(): { address: string | null; testMode: boolean; turnstile: boolean; nodes: string[]; warnings: string[] };
+  /** The admin's "Unmatched payments" (`createAdminHandler`'s `unmatched`): the receives on the address that no order recorded, on the same nodes as the scan. */
+  unmatched(at: number, since: number | null): Promise<UnmatchedResult>;
 };
 
 export function createShop(env: ShopEnv, options: ShopOptions): Shop {
@@ -94,6 +98,7 @@ export function createShop(env: ShopEnv, options: ShopOptions): Shop {
   return {
     ...handler,
     store,
+    unmatched: (_at, since) => findUnmatched(store, { address: handler.payee, nodes, since, rpc: options.rpc }),
     config: () => ({ testMode: handler.testMode, turnstileSiteKey: turnstile ? settingValue(env.TURNSTILE_SITE_KEY)! : null }),
     status() {
       const warnings: string[] = [];

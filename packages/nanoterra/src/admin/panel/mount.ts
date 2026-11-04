@@ -23,6 +23,7 @@ import { playersView } from "./players.js";
 import { shelfView } from "./shelf.js";
 import { signinsCard } from "./signins.js";
 import { tabBar, type TabId } from "./tabs.js";
+import { unmatchedCard } from "./unmatched.js";
 import { createTheme, themeKey, type ThemeControl } from "./theme.js";
 
 export type MountOptions = {
@@ -208,7 +209,9 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
       if (filter) orders.setFilter(filter);
       tabs.select(tab);
     };
-    const overview = overviewView(options.looks, colourOf, go, new Set(plays.map((p) => p.id)));
+    // "Unmatched payments" sits under "To send back" (no sixth tab); it reads the address only when the owner asks.
+    const unmatched = unmatchedCard(api);
+    const overview = overviewView(options.looks, colourOf, go, new Set(plays.map((p) => p.id)), [unmatched.el]);
     // The Cosmetics tab: the Shelf, and with plays a "Looks / Rounds" switch at its top (no sixth tab).
     let kind: "looks" | "rounds" = "looks";
     const kindKeys = rounds
@@ -288,6 +291,7 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
         tabs.setCount("orders", s.orders.length);
         tabs.setCount("players", s.players.length);
         overview.update(s);
+        unmatched.update(s);
         overview.setGame(gameState);
         const shelfEl = shelfCard(s);
         rounds?.update(s);

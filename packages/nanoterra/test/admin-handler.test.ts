@@ -63,6 +63,8 @@ function make(over: Partial<Parameters<typeof createAdminHandler>[0]> = {}) {
       };
     })(),
     check: async () => ({ scanned: true, settled: [], n: ++n }),
+    // The unmatched payments' read (a stand-in: no node), so the conformance suite walks that route too.
+    unmatched: async (_now: number, since: number | null) => ({ read: true, payments: [], since, entries: 0, more: false, waiting: 0 }),
     ...over,
   });
   return { store, handler };
@@ -581,7 +583,7 @@ test("a session that is the owner's but too old, with a shorter limit set by the
 test("the base path must be a path", () => {
   for (const basePath of ["", "admin", "/", "/api/admin/"]) assert.throws(() => make({ basePath }), /basePath/);
   const other = make({ basePath: "/_admin" });
-  assert.deepEqual(other.handler.routes.map((r) => `${r.method} ${r.path}`), ["GET /_admin/summary", "GET /_admin/game", "POST /_admin/game", "POST /_admin/check"]);
+  assert.deepEqual(other.handler.routes.map((r) => `${r.method} ${r.path}`), ["GET /_admin/summary", "GET /_admin/game", "POST /_admin/game", "POST /_admin/check", "POST /_admin/unmatched"]);
 });
 
 test("loadGameSettings: the stored words, the defaults for a missing or odd word, and the defaults when the store fails", async () => {

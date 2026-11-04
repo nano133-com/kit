@@ -2394,6 +2394,30 @@
   list-style: none;
 }
 
+/* "Unmatched payments" (Overview): one card a payment, its lines wrap on a phone; the raw amount (39 digits) breaks anywhere. */
+.n133-admin .unmatched-row {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+.n133-admin .unmatched-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.n133-admin .unmatched-raw {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .n133-admin .ready-chips {
   margin-top: 6px;
 }

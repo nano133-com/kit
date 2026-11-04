@@ -166,4 +166,6 @@ export type AdminSummary = AdminStatus &
     logins?: AdminLogin[];
     /** Whether the route "sign out everywhere" exists (the store can do it). */
     canSignOutEverywhere?: boolean;
+    /** Whether the game gave the read of the unmatched payments (POST unmatched). The panel shows "Unmatched payments" only then. */
+    canListUnmatched?: boolean;
   };

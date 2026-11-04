@@ -165,7 +165,8 @@ test("the paths that must not load Three.js import no package at all (the record
   for (const entry of ["src/shop/index.ts", "src/shop/conformance.ts", "src/shop/adapters/d1.ts", "src/shop/adapters/firestore.ts", "src/shop/worker.ts"]) assert.ok(!graph(entry).files.some((f) => f.includes("/panel/")), `${entry} reaches a panel`);
   // The plays (src/looks/play.ts) are money code too: a play is sold through the shop; and so are the Legal card's rules (src/admin/legal.ts, and their
   // checks in legalRules.ts), which the shop reads at each play order, and the kept price (src/admin/rate.ts), which the shop's D1 store reads.
-  const moneyFiles = ["/src/looks/play.ts", "/src/admin/legal.ts", "/src/admin/legalRules.ts", "/src/admin/rate.ts"];
+  // The admin's "Unmatched payments" card (src/admin/panel/unmatched.ts) and its read (src/shop/unmatched.ts) list money to send back by hand: they hold no key and send nothing either.
+  const moneyFiles = ["/src/looks/play.ts", "/src/admin/legal.ts", "/src/admin/legalRules.ts", "/src/admin/rate.ts", "/src/admin/panel/unmatched.ts", "/src/shop/unmatched.ts"];
   for (const f of moneyFiles) assert.ok(sources.some((s) => s.endsWith(f)), `${f} is read`);
   for (const file of sources.filter((f) => f.includes("/src/shop/") || moneyFiles.some((m) => f.endsWith(m)))) {
     const code = readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");

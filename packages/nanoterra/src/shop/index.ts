@@ -5,6 +5,7 @@
 //   createShopHandler     the routes (POST an order of a look or a play, GET it, POST its check; the plays' ready list and their use), on Request
 //                         and Response
 //   scanPayments          one look at the creator's address that settles every held order (the cron's and the admin's check)
+//   findUnmatched         the receives on the creator's address that no order recorded (the admin's "Unmatched payments"), read only
 //   createMemoryShop      a store in memory, for tests
 //   the rules             amounts (raw text and BigInt), the reservation, the match, the price, the nodes, the address check, the CSP lists
 //   (the adapters are "/shop/d1" and "/shop/firestore", a Worker set up from the starter's settings "/shop/worker", the conformance suite
@@ -22,6 +23,8 @@ export { PRICE_FEEDS, RATE_FRESH_MS, RATE_LAST_GOOD_MS, readFeeds, usdPerXno } f
 export type { PriceFeed, Rate } from "./price.js";
 export { SCAN_GAP_MS, forgetBlocks, scanPayments } from "./scan.js";
 export type { ScanOptions, ScanResult } from "./scan.js";
+export { UNMATCHED_ENTRIES, findUnmatched } from "./unmatched.js";
+export type { UnmatchedOptions, UnmatchedPayment, UnmatchedResult } from "./unmatched.js";
 export { FORGOTTEN, kindOf } from "./store.js";
 export type { Credit, ForgetResult, KeptRate, OrderKind, OrderStatus, Payment, ReadyCredits, Settled, ShopOrder, ShopStore, UseResult } from "./store.js";
 export { DAY_MS, MAX_READY_PER_PLAY, USE_REF_PATTERN, checkRef, creditEnd, useDaysOf } from "./plays.js";

@@ -330,6 +330,15 @@ export function adminConformance(host: ConformanceHost): ConformanceCase[] {
     }
   });
 
+  add("the unmatched payments are read with a POST only (the read asks the game's nodes): a GET is refused for the owner too, and the owner's POST from the game's page gets the list", async () => {
+    for (const route of host.routes.filter((r) => r.method === "POST" && r.path.endsWith("/unmatched"))) {
+      const get = await read(await send("owner", { method: "GET", path: route.path, headers: good() }));
+      check(get.status === 405, `GET ${route.path} as owner: expected 405, got ${get.status}`);
+      const got = await read(await send("owner", { method: "POST", path: route.path, headers: good(), body: "{}" }));
+      check(got.status === 200 && got.json !== null && "unmatched" in got.json, `POST ${route.path} as owner: expected 200 with "unmatched", got ${got.status} ${got.text.slice(0, 120)}`);
+    }
+  });
+
   return cases;
 }
 

@@ -39,7 +39,8 @@ export type OverviewView = {
 /** Why a paid round is to be sent back, in words. */
 const BACK_WHY: Record<string, string> = { not_used_in_time: "Not used in time", no_play: "No longer sold", deleted_player: "The player deleted their data", paid_late: "Paid after the order ended" };
 
-export function overviewView(looks: readonly Look[], colourOf: (lookId: string) => string | null, go: (tab: TabId, filter?: OrderFilter) => void, playIds: ReadonlySet<string> = new Set()): OverviewView {
+/** `cards`: more cards for the main column, after "To send back" (the panel's "Unmatched payments"). */
+export function overviewView(looks: readonly Look[], colourOf: (lookId: string) => string | null, go: (tab: TabId, filter?: OrderFilter) => void, playIds: ReadonlySet<string> = new Set(), cards: readonly HTMLElement[] = []): OverviewView {
   let game: GameState | null = null;
   const sellers = h("section", { class: "admin-card best-card", "aria-labelledby": "n133-best-title" });
   const sendBack = h("section", { class: "admin-card send-back-card", "aria-labelledby": "n133-back-title", tabindex: -1 });
@@ -47,7 +48,7 @@ export function overviewView(looks: readonly Look[], colourOf: (lookId: string) 
   const gameBox = h("section", { class: "admin-card glance-card", "aria-labelledby": "n133-glance-game" });
   const shelfBox = h("section", { class: "admin-card glance-card", "aria-labelledby": "n133-glance-shelf" });
   const start = h("section", { class: "admin-card start-card", "aria-labelledby": "n133-start-title" });
-  const main = h("div", { class: "overview-main" }, start, sendBack, sellers, recent);
+  const main = h("div", { class: "overview-main" }, start, sendBack, ...cards, sellers, recent);
   const side = h("div", { class: "overview-side" }, gameBox, shelfBox);
   const el = h("div", { class: "overview" }, main, side);
 

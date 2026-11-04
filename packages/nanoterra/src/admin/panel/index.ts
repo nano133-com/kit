@@ -23,6 +23,8 @@ export type { OrderFilter, OrdersView } from "./orders.js";
 export { bestSellers, overviewView } from "./overview.js";
 export type { BestSeller, OverviewView } from "./overview.js";
 export { playerMatches, playersView } from "./players.js";
+export { unmatchedCard } from "./unmatched.js";
+export type { UnmatchedCard } from "./unmatched.js";
 export { TABS, tabBar } from "./tabs.js";
 export type { TabBar, TabId } from "./tabs.js";
 export { THEME_CHOICES, THEME_KEY, createTheme, readThemeChoice, resolveTheme, themeKey, themeLabel } from "./theme.js";
