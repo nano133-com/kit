@@ -26,6 +26,8 @@ export {
   DEVICE_CLASSES,
   keyBinding,
   keyLabel,
+  helpKeys,
+  helpText,
   optionsKey,
   OPTIONS_PREFIX,
   optionSection,

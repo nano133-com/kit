@@ -14,7 +14,7 @@
 
 import { h, releaseFocus } from "../../admin/panel/dom.js";
 import { icon } from "../../admin/panel/icons.js";
-import { keyLabel, type ChoiceDef, type KeyDef, type OptionDef, type OptionsStore, type OptionValue, type RangeDef, type Tab, type ToggleDef } from "../core.js";
+import { helpKeys, helpText, keyLabel, type ChoiceDef, type KeyDef, type OptionDef, type OptionsStore, type OptionValue, type RangeDef, type Tab, type ToggleDef } from "../core.js";
 
 export type OptionsMountOptions = {
   /** The panel's heading and the key's word. Default "Options". */
@@ -103,10 +103,16 @@ export function mountOptions(root: HTMLElement, store: OptionsStore, options: Op
 
   /** Each drawn key's way to show a new value. */
   let shows = new Map<string, (v: OptionValue) => void>();
+  /** The help lines that name a key binding ("{key:keys.emotes}"), by that binding's key: each draws its words again when the binding changes. */
+  let helps = new Map<string, (() => void)[]>();
 
   const textOf = (def: OptionDef, labelTag: "span" | "label" = "span", forId?: string) => {
     const label = h(labelTag, { class: "n133o-label", id: id(`l-${def.key}`), for: forId }, def.label);
-    const help = def.help ? h("span", { class: "n133o-help", id: id(`h-${def.key}`) }, def.help) : null;
+    const help = def.help ? h("span", { class: "n133o-help", id: id(`h-${def.key}`) }, helpText(def.help, store)) : null;
+    if (help && def.help) {
+      const words = def.help;
+      for (const k of helpKeys(words)) helps.set(k, [...(helps.get(k) ?? []), () => (help.textContent = helpText(words, store))]);
+    }
     return { label, help, describedBy: help ? id(`h-${def.key}`) : undefined };
   };
 
@@ -241,6 +247,7 @@ export function mountOptions(root: HTMLElement, store: OptionsStore, options: Op
     const scroll = body.scrollTop;
     const focusKey = (document.activeElement as HTMLElement | null)?.closest?.("[data-key]")?.getAttribute("data-key") ?? null;
     shows = new Map();
+    helps = new Map();
     const shown = store.defs().filter((d) => !d.devices || d.devices.includes(store.device));
     const has: Record<Tab, boolean> = { basic: false, advanced: false };
     for (const t of TABS) {
@@ -298,6 +305,7 @@ export function mountOptions(root: HTMLElement, store: OptionsStore, options: Op
   cleanup.push(
     store.subscribe((k, v) => {
       shows.get(k)?.(v);
+      for (const f of helps.get(k) ?? []) f();
       resetKey.disabled = store.isDefault();
     }),
   );

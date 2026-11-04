@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- `/emotes/wheel`: the Emotes key has its own theme properties, `--n133e-key-edge`, `--n133e-key-edge-color`, `--n133e-key-radius`, `--n133e-key-shadow`,
+  `--n133e-key-font` and `--n133e-key-weight` (defaults: today's look). They are inherited, so a game's value wins whichever stylesheet loads last.
+- `/emotes/wheel`: `keyCap: true` shows the wheel's key as a key cap beside the word, the player's own key; no cap on a touch screen with no keyboard.
+- `/emotes`: the help line of "Show the Emotes key" names the player's own key ("G still opens the wheel on a keyboard"), not always B (`EMOTE_SHOW_HELP`,
+  `emoteKeyLabel`).
+- `/options`: a `help` line may name a key binding with `{key:<binding>}` (and a fallback, `{key:<binding>|<code>}`); the panel draws it again when the binding
+  changes. `helpText` and `helpKeys` give the words for a menu of your own.
+
 ## 0.14.1 (2026-11-03)
 
 - **The shop's Firestore adapter: a lost race is the next amount, never an error.** When many buyers of one price order at the same instant, they all race

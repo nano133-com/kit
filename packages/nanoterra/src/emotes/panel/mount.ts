@@ -14,7 +14,7 @@ import { h, releaseFocus } from "../../admin/panel/dom.js";
 import { icon } from "../../admin/panel/icons.js";
 import { EMOTE_ICONS_URL } from "../icons.js";
 import { EMOTES, emoteOf, isEmote, type EmoteId } from "../list.js";
-import { readEmoteOptions, type EmoteOptionsStore } from "../options.js";
+import { emoteKeyLabel, readEmoteOptions, type EmoteOptionsStore } from "../options.js";
 import { WHEEL_FULL, WHEEL_SLOTS, createWheel, type Slots } from "../wheel.js";
 
 /** One of the game's own emotes: its id (what `onPlay` gets), the name on the wheel, and a picture's address (square; left out: the name alone). */
@@ -39,6 +39,11 @@ export type EmotesMountOptions = {
   icons?: string;
   /** B (or the player's own key: the options' "keys.emotes") opens and closes the wheel, and 1 to 8 play its places. Default true. */
   keys?: boolean;
+  /**
+   * Show the wheel's key on a keyboard as a key cap beside the word ("Emotes [G]"): the player's own key from the options' "keys.emotes", and it follows a
+   * change. Only with `keys` on; a touch screen with no keyboard shows no cap (the stylesheet). Default false (the word alone).
+   */
+  keyCap?: boolean;
   /** Asked before B opens or closes the wheel: false when the game uses the key now (a dialog of its own, B bound to an action). */
   keyAllowed?: (e: KeyboardEvent) => boolean;
   /** The wheel opened. Load the clips here the first time: `loadEmotes` of "@nano133/nanoterra/emotes/player". */
@@ -141,7 +146,8 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
   };
   const labelOf = (id: string) => byId.get(id)?.label ?? id;
 
-  const key = h("button", { class: "n133e-key", type: "button", "aria-expanded": "false", "aria-haspopup": "dialog", "aria-controls": `n133e-wheel-${n}` }, icon("smile", 20), h("span", {}, "Emotes"));
+  const cap = keys && options.keyCap === true ? h("kbd", { class: "n133e-cap", "aria-hidden": "true" }) : null;
+  const key = h("button", { class: "n133e-key", type: "button", "aria-expanded": "false", "aria-haspopup": "dialog", "aria-controls": `n133e-wheel-${n}` }, icon("smile", 20), h("span", {}, "Emotes"), cap);
   const hubName = h("span", { class: "n133e-hub-name", "aria-live": "polite" });
   const editKey = h("button", { class: "n133e-edit", type: "button", "aria-pressed": "false" }, "Edit");
   const slotKeys = AT.map((p, i) => {
@@ -192,6 +198,7 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
     key.hidden = !o.show;
     openCode = o.key;
     if (keys) key.setAttribute("aria-keyshortcuts", openCode.replace(/^(Key|Digit)/, ""));
+    if (cap) cap.textContent = emoteKeyLabel(openCode);
   };
   drawShow();
   const unOptions = options.options?.subscribe?.((k) => {

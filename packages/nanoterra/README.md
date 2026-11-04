@@ -1075,6 +1075,9 @@ const panel = mountOptions(document.getElementById("options")!, options);   // t
 
 **The defs.** Each has a `key`, a `label` (short: the player reads it), an optional `help` line, a `tab` (`"basic"` or `"advanced"`), an optional `group` heading, a
 `default`, and optionally `devices` (show the row only on `"phone"`, `"tablet"` or `"desktop"`; the value is kept everywhere).
+A `help` line may name a key binding as the player has it: `"{key:keys.dig} digs"` reads "E digs", and "H digs" after the player moves it (the panel draws the line
+again). `"{key:keys.dig|KeyE}"` says E when the store has no such binding; with no fallback it says "Its key". `helpText(help, store)` gives the words for a menu of
+your own.
 
 | `kind` | Value | Drawn as | Its own fields |
 |---|---|---|---|
@@ -1218,7 +1221,13 @@ middle disc with the name of the place under the finger and **Edit**.
   Nanoterra's eleven. `defaults`: your first wheel. `nanoterraEmotes: "off"` (the admin's switch) leaves Nanoterra's out and keeps yours; with nothing left
   there is no key. `keys: false` turns B and 1 to 8 off. `theme`: `"light"`, `"dark"` or `"device"` (the default: the page's `data-n133-theme`, which the admin
   panel sets too, else `prefers-color-scheme`). It returns `open()`, `close()`, `isOpen`, `slots` and `destroy()`.
+- `keyCap: true` shows the wheel's key as a key cap beside the word ("Emotes [G]"): the player's own `keys.emotes`, and it follows a change. Only with `keys` on;
+  a touch screen with no keyboard shows no cap.
 - Theme it with the same `--n133-*` properties as the admin panel (and their `--n133-dark-*` twins), and `--n133-emotes-z` for its z-index (default 1000).
+  The **Emotes key alone** has its own, so it can look like your other keys while the wheel stays as it is: `--n133e-key-edge` (the edge's width, 1px),
+  `--n133e-key-edge-color` (`--n133-line`'s colour), `--n133e-key-radius` (999px), `--n133e-key-shadow` (none), `--n133e-key-font` (`--n133-font`) and
+  `--n133e-key-weight` (650). Set them on the element that holds the key or a parent: they are inherited, so they win whichever stylesheet loads last (the wheel's
+  stylesheet loads with `import()`, after yours), and you need no `#id` selectors.
 
 The clips and the icons are nano133's own work, made in Blender for Nano Island, and are part of the package under its MIT licence.
 

@@ -4,6 +4,10 @@
    To theme it, set the --n133-* custom properties on the element that holds the key (or a parent): --n133-ink, --n133-ink-soft, --n133-paper,
    --n133-ground, --n133-line, --n133-gem, --n133-gem-dark, --n133-radius, --n133-font and --n133-emotes-z (the wheel's z-index, default 1000).
    Those set the LIGHT theme; the dark one reads the twins with "dark-" in the name (--n133-dark-ink and so on), as the admin panel does.
+   The Emotes key alone has its own: --n133e-key-edge (the edge's width, 1px), --n133e-key-edge-color (the edge's colour, --n133-line's),
+   --n133e-key-radius (999px: a pill), --n133e-key-shadow (none), --n133e-key-font (the --n133-font) and --n133e-key-weight (650), so a game dresses
+   the key like its own keys and the wheel stays as it is. Custom properties are inherited, so a value on the holder or a parent wins whichever
+   stylesheet loads last: a game needs no #id selectors to beat these rules.
    mountEmotes sets data-theme="light" or "dark" on .n133-emotes. */
 
 .n133-emotes {
@@ -53,11 +57,12 @@
   min-width: 44px;
   min-height: 44px;
   padding: 0 14px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
+  border: var(--n133e-key-edge, 1px) solid var(--n133e-key-edge-color, var(--line));
+  border-radius: var(--n133e-key-radius, 999px);
   background: var(--paper);
   color: var(--ink);
-  font: 650 15px/1 var(--font);
+  box-shadow: var(--n133e-key-shadow, none);
+  font: var(--n133e-key-weight, 650) 15px/1 var(--n133e-key-font, var(--font));
   cursor: pointer;
   touch-action: none;
   user-select: none;
@@ -68,6 +73,27 @@
 
 .n133-emotes .n133e-key[hidden] {
   display: none;
+}
+
+/* The key cap (mountEmotes' keyCap): the wheel's key on a keyboard, beside the word. A device with no keyboard (a touch screen only) shows no cap. */
+.n133-emotes .n133e-cap {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  border: 1px solid var(--n133e-key-edge-color, var(--line));
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: var(--ground);
+  color: var(--ink-soft);
+  font: 700 12px/1 var(--n133e-key-font, var(--font));
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .n133-emotes .n133e-cap {
+    display: none;
+  }
 }
 
 /* The dim page and the wheel in the middle of it. */

@@ -338,3 +338,57 @@ test("the panel: Nanoterra's emotes off leaves only the game's own; nothing left
   keyed.destroy();
   assert.equal(root.childElementCount, 0);
 });
+
+test("the Emotes key: a key cap names the player's own key and follows a change; no cap without keyCap or without keys; the help line names the key", async () => {
+  const win = new Window({ url: "https://game.example" });
+  Object.assign(globalThis, { document: win.document, window: win, HTMLElement: win.HTMLElement, Node: win.Node, Event: win.Event, KeyboardEvent: win.KeyboardEvent });
+  const { mountEmotes } = await import("../src/emotes/panel/index.js");
+  const { mountOptions } = await import("../src/options/index.js");
+  const { EMOTE_SHOW_HELP, emoteKeyLabel } = await import("../src/emotes/index.js");
+  const root = win.document.createElement("div") as unknown as HTMLElement;
+  win.document.body.append(root as never);
+  const cap = () => root.querySelector(".n133e-cap");
+  const plain = mountEmotes(root, { game: "g", onPlay() {}, storage: null });
+  assert.equal(cap(), null, "no cap by default");
+  plain.destroy();
+  const noKeys = mountEmotes(root, { game: "g", onPlay() {}, storage: null, keys: false, keyCap: true });
+  assert.equal(cap(), null, "no cap when the keyboard does not open the wheel");
+  noKeys.destroy();
+  const b = mountEmotes(root, { game: "g", onPlay() {}, storage: null, keyCap: true });
+  assert.equal(cap()!.textContent, "B");
+  assert.equal(cap()!.getAttribute("aria-hidden"), "true", "the key's name stays Emotes; aria-keyshortcuts names the key");
+  b.destroy();
+  // A game whose wheel is on G (Echo Island), and the player moves it to H.
+  const store = createOptions({ game: "g", storage: null, defs: [...EMOTE_OPTION_DEFS.map((d) => ({ ...d, key: `emotes.${d.key}`, group: "Emotes" })), keyBinding("emotes", "Emotes wheel", "KeyG")] });
+  const g = mountEmotes(root, { game: "g", onPlay() {}, storage: null, options: store, keyCap: true });
+  assert.equal(cap()!.textContent, "G");
+  store.set("keys.emotes", "KeyH");
+  assert.equal(cap()!.textContent, "H");
+  g.destroy();
+  assert.equal(emoteKeyLabel("Digit5"), "5");
+  assert.equal(emoteKeyLabel("Backquote"), "`");
+  // The options panel's line under "Show the Emotes key" names the same key, not B.
+  assert.ok(EMOTE_OPTION_DEFS[0].help === EMOTE_SHOW_HELP && !/^B /.test(EMOTE_SHOW_HELP));
+  const holder = win.document.createElement("div") as unknown as HTMLElement;
+  win.document.body.append(holder as never);
+  const panel = mountOptions(holder, store);
+  panel.open();
+  assert.equal(holder.querySelector('[data-key="emotes.show"] .n133o-help')!.textContent, "H still opens the wheel on a keyboard");
+  panel.destroy();
+  const bStore = createOptions({ game: "g3", storage: null, defs: [...EMOTE_OPTIONS] });
+  const bPanel = mountOptions(holder, bStore);
+  bPanel.open();
+  assert.equal(holder.querySelector('[data-key="emotes.show"] .n133o-help')!.textContent, "B still opens the wheel on a keyboard");
+  bPanel.destroy();
+});
+
+test("the Emotes key's stylesheet: the key reads --n133e-key-* (edge, edge colour, radius, shadow, font, weight) with today's look as the default, and never sets them itself", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const css = await readFile(new URL("../src/emotes/panel/style.css", import.meta.url), "utf8");
+  const keyRule = css.match(/\.n133-emotes \.n133e-key \{([^}]*)\}/)![1];
+  for (const [prop, fallback] of [["edge", "1px"], ["edge-color", "var(--line)"], ["radius", "999px"], ["shadow", "none"], ["font", "var(--font)"], ["weight", "650"]]) {
+    assert.ok(keyRule.includes(`var(--n133e-key-${prop}, ${fallback})`), `the key reads --n133e-key-${prop} (default ${fallback})`);
+  }
+  // A value on the holder or a parent must win whichever stylesheet loads last: the kit never declares these properties.
+  assert.equal(/--n133e-key-[a-z-]+\s*:/.test(css), false);
+});
