@@ -9,7 +9,7 @@
 // exactly one use) run unless `{ plays: false }`: a store of a game that sells looks only (D1 with no plays' migration) passes the others.
 
 import { CLOCK_SLACK_MS } from "./match.js";
-import { amountsFor, LATE_HOLD_MS, ORDER_TTL_MS, ShopBusy, newOrderId, reserveOrder } from "./orders.js";
+import { amountsFor, LATE_HOLD_MS, ORDER_TTL_MS, PLAY_LATE_HOLD_MS, ShopBusy, newOrderId, reserveOrder } from "./orders.js";
 import { priceRaw, xnoText } from "./amount.js";
 import { DAY_MS } from "./plays.js";
 import { FORGOTTEN, type ShopOrder, type ShopStore } from "./store.js";
@@ -263,6 +263,21 @@ export function shopStoreConformance(make: () => Promise<ShopHarness>, options: 
     const end = T0 + 2000 + 30 * DAY_MS;
     check((await ready(store, ANN, end)).includes('"ready":1') && (await ready(store, ANN, end + 1)) === "[]", "the credit's wait (30 days when the order says none) counts from the settle");
     check((await store.usedHashes([h])).has(h) && (await store.order(a.id))?.amountLock === null, "the payment is recorded and the amount freed");
+  });
+
+  add("a play order holds its amount 15 minutes after it ends (a look's an hour), then the amount is free again", async ({ store }) => {
+    const p = await playOrder(store);
+    const l = await order(store, BOB);
+    check(p.expiresAt === T0 + ORDER_TTL_MS && p.holdUntil === p.expiresAt + PLAY_LATE_HOLD_MS && PLAY_LATE_HOLD_MS === 15 * 60_000, `the play's hold: ${JSON.stringify(p)}`);
+    check(l.holdUntil === l.expiresAt + LATE_HOLD_MS && LATE_HOLD_MS === 60 * 60_000, `the look's hold is an hour: ${JSON.stringify(l)}`);
+    const back = await store.order(p.id);
+    check(back?.holdUntil === p.holdUntil, "the store keeps the play's hold");
+    const during = await order(store, CYD, p.holdUntil - 1);
+    check(during.amount !== p.amount, "during its hold, the play's amount is not given again");
+    const after = await order(store, id("dan"), p.holdUntil + 1);
+    check(after.amount === p.amount, `after its hold the play's amount is free again: ${xnoText(after.amount)}`);
+    check((await store.order(p.id))?.amountLock === null && (await pay(store, p, p.expiresAt + 1000, p.holdUntil + 2)) === "taken", "and a payment for the old play order can no longer settle it");
+    check((await store.order(l.id))?.amountLock === l.amount, "the look still holds its amount");
   });
 
   add("a paid-late play order gives no credit, and frees its amount", async ({ store }) => {

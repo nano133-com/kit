@@ -417,7 +417,7 @@ test("shop Firestore: the admin's Firestore store reads the shop's orders, owned
 test("the conformance suite is the same on every store", () => {
   const values = Object.values(counts);
   assert.ok(values.length >= 2 && values.every((v) => v === values[0] && v >= 26), JSON.stringify(counts));
-  // The plays add twelve cases (nine, the "18 or older" yes, the refs of two players whose ids run together and forget of a player who paid another's
-  // play); a looks-only store runs the rest.
-  for (const v of Object.values(looksOnly)) assert.equal(v, values[0] - 12, JSON.stringify(looksOnly));
+  // The plays add thirteen cases (nine, the "18 or older" yes, the refs of two players whose ids run together, forget of a player who paid another's
+  // play and the play's shorter hold); a looks-only store runs the rest.
+  for (const v of Object.values(looksOnly)) assert.equal(v, values[0] - 13, JSON.stringify(looksOnly));
 });

@@ -16,7 +16,7 @@ export { CLOCK_SLACK_MS, candidates, checkSend } from "./match.js";
 export type { Verdict } from "./match.js";
 export { KEYED_NODE, NodeDown, PUBLIC_NODES, forgetNodeHealth, nodesFor, rpc, settingValue } from "./nodes.js";
 export type { Fetch, NanoNode, RpcOptions } from "./nodes.js";
-export { LATE_HOLD_MS, MAX_EXTRA_PERCENT, MAX_OPEN_PER_PLAYER, MAX_STEPS, ORDER_ID_PATTERN, ORDER_TTL_MS, ShopBusy, amountsFor, newOrderId, orderView, paidStatus, reserveOrder, smallestAmount, statusAt, stepsFor } from "./orders.js";
+export { LATE_HOLD_MS, PLAY_LATE_HOLD_MS, MAX_EXTRA_PERCENT, MAX_OPEN_PER_PLAYER, MAX_STEPS, ORDER_ID_PATTERN, ORDER_TTL_MS, ShopBusy, amountsFor, newOrderId, orderView, paidStatus, reserveOrder, smallestAmount, statusAt, stepsFor } from "./orders.js";
 export type { ReserveInput } from "./orders.js";
 export { PRICE_FEEDS, RATE_FRESH_MS, RATE_LAST_GOOD_MS, readFeeds, usdPerXno } from "./price.js";
 export type { PriceFeed, Rate } from "./price.js";
