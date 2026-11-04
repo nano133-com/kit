@@ -1,9 +1,16 @@
 /* The Emotes key and the emote wheel (mountEmotes in ./mount.ts). Every rule is under .n133-emotes, so nothing leaks into the game's page.
-   Phone first: the key is 44 px, each place of the wheel 58 px or more, each tile of Edit 70 px. The wheel's sizes follow the screen's short side
-   (a phone on its side too): --r is the ring's radius, --slot a place's size, as on nano133.com's island.
+   Phone first: the key is 44 px, each place of the wheel 76 px or more and each tile of Edit 78 px wide; both grow to the longest name in the
+   game's own font (mountEmotes measures them: --n133e-fit and --n133e-tile-fit), up to 96 px and 92 px, and a place only as far as the wheel still
+   fits the screen's short side (its width is about 3.62 places and 16 px). The wheel's sizes follow the screen's short
+   side (a phone on its side too): --r is the ring's radius, --slot a place's size, as on nano133.com's island; --r is never less than the eight
+   places need (1.31 places and 4 px), so they never touch.
    To theme it, set the --n133-* custom properties on the element that holds the key (or a parent): --n133-ink, --n133-ink-soft, --n133-paper,
    --n133-ground, --n133-line, --n133-gem, --n133-gem-dark, --n133-radius, --n133-font and --n133-emotes-z (the wheel's z-index, default 1000).
    Those set the LIGHT theme; the dark one reads the twins with "dark-" in the name (--n133-dark-ink and so on), as the admin panel does.
+   The Emotes key alone has its own: --n133e-key-edge (the edge's width, 1px), --n133e-key-edge-color (the edge's colour, --n133-line's),
+   --n133e-key-radius (999px: a pill), --n133e-key-shadow (none), --n133e-key-font (the --n133-font) and --n133e-key-weight (650), so a game dresses
+   the key like its own keys and the wheel stays as it is. Custom properties are inherited, so a value on the holder or a parent wins whichever
+   stylesheet loads last: a game needs no #id selectors to beat these rules.
    mountEmotes sets data-theme="light" or "dark" on .n133-emotes. */
 
 .n133-emotes {
@@ -53,11 +60,12 @@
   min-width: 44px;
   min-height: 44px;
   padding: 0 14px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
+  border: var(--n133e-key-edge, 1px) solid var(--n133e-key-edge-color, var(--line));
+  border-radius: var(--n133e-key-radius, 999px);
   background: var(--paper);
   color: var(--ink);
-  font: 650 15px/1 var(--font);
+  box-shadow: var(--n133e-key-shadow, none);
+  font: var(--n133e-key-weight, 650) 15px/1 var(--n133e-key-font, var(--font));
   cursor: pointer;
   touch-action: none;
   user-select: none;
@@ -68,6 +76,27 @@
 
 .n133-emotes .n133e-key[hidden] {
   display: none;
+}
+
+/* The key cap (mountEmotes' keyCap): the wheel's key on a keyboard, beside the word. A device with no keyboard (a touch screen only) shows no cap. */
+.n133-emotes .n133e-cap {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  border: 1px solid var(--n133e-key-edge-color, var(--line));
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: var(--ground);
+  color: var(--ink-soft);
+  font: 700 12px/1 var(--n133e-key-font, var(--font));
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .n133-emotes .n133e-cap {
+    display: none;
+  }
 }
 
 /* The dim page and the wheel in the middle of it. */
@@ -89,9 +118,14 @@
   display: none;
 }
 
+/* mountEmotes' layerIn: the wheel's own .n133-emotes in another element (document.body). It draws no box; the theme passes through it. */
+.n133-emotes.n133e-portal {
+  display: contents;
+}
+
 .n133-emotes .n133e-wheel {
-  --r: clamp(96px, 29vmin, 140px);
-  --slot: clamp(66px, 20vmin, 90px);
+  --slot: max(clamp(76px, 20vmin, 90px), min(96px, var(--n133e-fit, 0px), calc((100vmin - 20px) / 3.62)));
+  --r: max(clamp(96px, 29vmin, 140px), calc(var(--slot) * 1.31 + 4px));
   position: relative;
   flex: none;
   width: calc(2 * var(--r) + var(--slot) + 8px);
@@ -101,13 +135,14 @@
 /* A low screen (a phone on its side): a little smaller, so the top place stays inside the screen. */
 @media (max-height: 500px) {
   .n133-emotes .n133e-wheel {
-    --r: clamp(84px, 26vmin, 120px);
-    --slot: clamp(60px, 18vmin, 80px);
+    --slot: max(clamp(76px, 18vmin, 80px), min(96px, var(--n133e-fit, 0px), calc((100vmin - 20px) / 3.62)));
+    --r: max(clamp(84px, 26vmin, 120px), calc(var(--slot) * 1.31 + 4px));
   }
 }
 
+/* The pop-in: not with the device's reduced motion, nor with the options' "Less motion" (data-calm, from the store's reducedMotion). */
 @media (prefers-reduced-motion: no-preference) {
-  .n133-emotes .n133e-wheel {
+  .n133-emotes:not([data-calm]) .n133e-wheel {
     animation: n133e-in 0.12s ease-out;
   }
 }
@@ -187,7 +222,7 @@
 }
 
 .n133-emotes .n133e-name {
-  max-width: 92%;
+  max-width: 96%;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -289,15 +324,18 @@
 
 /* Edit: every emote under the wheel (beside it on a low screen); a tap puts one on or takes it off. */
 .n133-emotes .n133e-layer.is-edit .n133e-wheel {
-  --r: clamp(84px, 24vmin, 118px);
-  --slot: clamp(58px, 17vmin, 78px);
+  --slot: max(clamp(76px, 17vmin, 78px), min(96px, var(--n133e-fit, 0px), calc((100vmin - 20px) / 3.62)));
+  --r: max(clamp(84px, 24vmin, 118px), calc(var(--slot) * 1.31 + 4px));
 }
 
 .n133-emotes .n133e-list {
+  --tile: max(78px, min(92px, var(--n133e-tile-fit, 0px)));
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 46vh;
+  /* Under the wheel on a phone held upright: what the screen has left (the wheel is about 300 px high there). */
+  max-height: min(46vh, calc(100vh - 340px));
+  max-height: min(46vh, calc(100dvh - 340px));
   max-width: 100%;
   padding: 10px;
   overflow-y: auto;
@@ -327,7 +365,7 @@
 
 .n133-emotes .n133e-grid {
   display: grid;
-  grid-template-columns: repeat(4, 74px);
+  grid-template-columns: repeat(4, var(--tile));
   gap: 6px;
   justify-content: center;
 }
@@ -339,8 +377,8 @@
   align-items: center;
   justify-content: flex-end;
   gap: 1px;
-  width: 74px;
-  height: 78px;
+  width: var(--tile);
+  height: 80px;
   padding: 2px 2px 5px;
   border-radius: 12px;
   font: 650 12px/1.1 var(--font);
@@ -393,12 +431,12 @@
   }
 
   .n133-emotes .n133e-grid {
-    grid-template-columns: repeat(4, 70px);
+    grid-template-columns: repeat(4, var(--tile));
   }
 
   .n133-emotes .n133e-tile {
-    width: 70px;
-    height: 70px;
+    width: var(--tile);
+    height: 72px;
   }
 
   .n133-emotes .n133e-tile-pic {
@@ -407,9 +445,22 @@
   }
 }
 
-/* A narrow phone held upright: three tiles a row, so Edit stays inside the screen. */
-@media (max-width: 340px) {
+/* A narrow phone held upright: three tiles a row, so Edit stays inside the screen (four need 372 px with the list's and the page's edges). */
+@media (max-width: 379px) {
   .n133-emotes .n133e-grid {
-    grid-template-columns: repeat(3, 74px);
+    grid-template-columns: repeat(3, var(--tile));
+  }
+}
+
+/* A small phone on its side: the wheel (about 300 px) and the tiles beside it fit in fewer columns. */
+@media (orientation: landscape) and (max-height: 600px) and (max-width: 719px) {
+  .n133-emotes .n133e-grid {
+    grid-template-columns: repeat(3, var(--tile));
+  }
+}
+
+@media (orientation: landscape) and (max-height: 600px) and (max-width: 619px) {
+  .n133-emotes .n133e-grid {
+    grid-template-columns: repeat(2, var(--tile));
   }
 }

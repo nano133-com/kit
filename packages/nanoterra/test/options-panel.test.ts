@@ -236,3 +236,31 @@ test("reflectOptions keeps a setting on <html> for the page's CSS, and takes it 
 });
 
 void (null as unknown as OptionsStore);
+
+test('a help line names a key binding as the player has it ("{key:...}") and follows a change; a missing binding says its fallback', async () => {
+  const { helpText, helpKeys } = await import("../src/options/index.js");
+  const storage = memory();
+  const store = createOptions({
+    game: "g",
+    storage,
+    device: () => "desktop",
+    reducedMotion: () => false,
+    defs: [
+      { kind: "toggle", key: "emotes.show", label: "Show the Emotes key", help: "{key:keys.emotes|KeyB} still opens the wheel on a keyboard", tab: "basic", default: true },
+      keyBinding("emotes", "Emotes wheel", "KeyG"),
+    ],
+  });
+  const el = root();
+  const panel = mountOptions(el, store);
+  panel.open();
+  const help = () => el.querySelector('[data-key="emotes.show"] .n133o-help')!.textContent;
+  assert.equal(help(), "G still opens the wheel on a keyboard");
+  store.set("keys.emotes", "KeyH");
+  assert.equal(help(), "H still opens the wheel on a keyboard", "the line follows the binding, in place");
+  panel.destroy();
+  const bare = createOptions({ game: "g2", storage: null, device: () => "desktop", reducedMotion: () => false, defs: [] });
+  assert.equal(helpText("{key:keys.emotes|KeyB} still opens the wheel", bare), "B still opens the wheel");
+  assert.equal(helpText("{key:keys.jump} jumps", bare), "Its key jumps");
+  assert.equal(helpText("No key here", bare), "No key here");
+  assert.deepEqual(helpKeys("{key:a.b} and {key:c|KeyX} and {key:a.b}"), ["a.b", "c"]);
+});

@@ -10,6 +10,7 @@
 
 import type { Character } from "../character/create.js";
 import { setPoseLayer } from "../character/layer.js";
+import { WAVE_SECONDS } from "../character/wave.js";
 import { newRun, startClip, stepClip, stopClip, type ClipRun } from "./clip.js";
 import { LOOP_AGAIN_MS, type EmoteEvent, type EmoteStop } from "./events.js";
 import { emoteOf, isEmote } from "./list.js";
@@ -26,6 +27,8 @@ type State = {
   seen: number;
   /** The age of the run when its loop was last sent. */
   sent: number;
+  /** Seconds left of the Wave that `start` began (the character's own wave lasts WAVE_SECONDS): `playing` says "wave" meanwhile. */
+  wave: number;
   local: EmotesOptions | null;
 };
 const states = new WeakMap<Character, State>();
@@ -36,8 +39,9 @@ const now = () => (typeof performance !== "undefined" ? performance.now() : Date
 function stateOf(character: Character): State {
   let st = states.get(character);
   if (st) return st;
-  const s: State = { run: newRun(), seen: Number.NaN, sent: 0, local: null };
+  const s: State = { run: newRun(), seen: Number.NaN, sent: 0, wave: 0, local: null };
   setPoseLayer(character, (bones, f) => {
+    if (s.wave > 0) s.wave = Math.max(0, s.wave - f.dt);
     const was = s.run.id;
     stepClip(s.run, bones, { dt: f.dt, moving: f.speed > MOVING, air: f.airborne, swim: false, calm: f.reducedMotion });
     if (!s.local) return;
@@ -56,11 +60,12 @@ function stateOf(character: Character): State {
 /** Plays a Nanoterra emote on a character: the Wave is its own `wave()`, the others start a clip. False for an id that is not one. */
 function start(character: Character, id: unknown, age = 0): id is string {
   if (!isEmote(id)) return false;
+  const st = stateOf(character);
   if (id === "wave") {
     character.wave();
+    st.wave = WAVE_SECONDS;
     return true;
   }
-  const st = stateOf(character);
   startClip(st.run, id, age);
   return true;
 }
@@ -77,7 +82,7 @@ export type LocalEmotes = {
   play(id: string): boolean;
   /** Stops the player's clip, with its fade. A game with water calls it when the character goes in. */
   stop(): void;
-  /** The clip on show, or null (the Wave is not a clip: it is never here). */
+  /** The emote on show, or null: a clip's id, or "wave" for the 1.8 s of the Wave (the character's own wave, so `stop` does not end it). */
   readonly playing: string | null;
   /** Stops listening (`onEmote`, `onStop`). The character keeps playing what it plays. */
   destroy(): void;
@@ -98,7 +103,7 @@ export function createEmotes(character: Character, options: EmotesOptions = {}):
       stopClip(st.run);
     },
     get playing() {
-      return st.run.id;
+      return st.run.id ?? (st.wave > 0 ? "wave" : null);
     },
     destroy() {
       if (st.local === options) st.local = null;

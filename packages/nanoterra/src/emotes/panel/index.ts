@@ -6,6 +6,6 @@
 //
 // With the game's own animations: `emotes: [{ id: "flip", label: "Flip", icon: "/emotes/flip.png" }, ...]` and an `onPlay` that plays them.
 
-export { SLIDE_PX, mountEmotes, placeAt } from "./mount.js";
+export { EMOTE_THEME_VARS, SLIDE_PX, mountEmotes, placeAt } from "./mount.js";
 export type { EmotesMountOptions, MountedEmotes, OwnEmote, WheelEmote } from "./mount.js";
 export { EMOTE_ICONS_URL } from "../icons.js";

@@ -14,7 +14,7 @@ import { h, releaseFocus } from "../../admin/panel/dom.js";
 import { icon } from "../../admin/panel/icons.js";
 import { EMOTE_ICONS_URL } from "../icons.js";
 import { EMOTES, emoteOf, isEmote, type EmoteId } from "../list.js";
-import { readEmoteOptions, type EmoteOptionsStore } from "../options.js";
+import { emoteKeyLabel, readEmoteOptions, type EmoteOptionsStore } from "../options.js";
 import { WHEEL_FULL, WHEEL_SLOTS, createWheel, type Slots } from "../wheel.js";
 
 /** One of the game's own emotes: its id (what `onPlay` gets), the name on the wheel, and a picture's address (square; left out: the name alone). */
@@ -33,12 +33,20 @@ export type EmotesMountOptions = {
   nanoterraEmotes?: "on" | "off";
   /** The eight places before the player changes them (ids, or null for an empty place). Default: the island's wheel, or the list's first eight. */
   defaults?: readonly (string | null)[];
-  /** The options menu's store: `emotes.show` off hides the key (B still opens the wheel); `keys.emotes` is the wheel's key. Left out: the key shows, and B. */
+  /**
+   * The options menu's store: `emotes.show` off hides the key (B still opens the wheel); `keys.emotes` is the wheel's key; the common `reducedMotion`
+   * ("Less motion") on opens the wheel with no pop-in. Left out: the key shows, and B.
+   */
   options?: EmoteOptionsStore | null;
   /** The address of Nanoterra's picture strip. Default: the package's icons.webp (see the README for bundlers). */
   icons?: string;
   /** B (or the player's own key: the options' "keys.emotes") opens and closes the wheel, and 1 to 8 play its places. Default true. */
   keys?: boolean;
+  /**
+   * Show the wheel's key on a keyboard as a key cap beside the word ("Emotes [G]"): the player's own key from the options' "keys.emotes", and it follows a
+   * change. Only with `keys` on; a touch screen with no keyboard shows no cap (the stylesheet). Default false (the word alone).
+   */
+  keyCap?: boolean;
   /** Asked before B opens or closes the wheel: false when the game uses the key now (a dialog of its own, B bound to an action). */
   keyAllowed?: (e: KeyboardEvent) => boolean;
   /** The wheel opened. Load the clips here the first time: `loadEmotes` of "@nano133/nanoterra/emotes/player". */
@@ -52,6 +60,13 @@ export type EmotesMountOptions = {
    * other keys reach the game again (a focused key would take Space and open the wheel again). "key": back to the key, for a page with no keys of its own.
    */
   focusAfterClose?: "game" | "key";
+  /**
+   * Where the open wheel and its dim page go. Left out: beside the key, inside `element`, so a z-index or a transform on one of the game's own boxes
+   * around it holds the wheel too (a top bar of the game's can cover it). `document.body` puts it over the whole page (its z-index is the theme's
+   * --n133-emotes-z). The wheel takes the theme's --n133-* values from `element` each time it opens; a game's own rules for the wheel must then not
+   * need `element` around it.
+   */
+  layerIn?: HTMLElement;
 };
 
 export type MountedEmotes = {
@@ -63,6 +78,11 @@ export type MountedEmotes = {
   /** Removes the key and the wheel, and stops listening to the keyboard and the options. */
   destroy(): void;
 };
+
+/** The theme's custom properties that the wheel reads (style.css). With `layerIn` they are copied from the key's holder each time the wheel opens. */
+export const EMOTE_THEME_VARS: readonly string[] = ["ink", "ink-soft", "paper", "ground", "line", "gem", "gem-dark", "on-gem", "radius", "font", "emotes-z"].flatMap((n) =>
+  ["radius", "font", "emotes-z"].includes(n) ? [`--n133-${n}`] : [`--n133-${n}`, `--n133-dark-${n}`],
+);
 
 /** How far a finger moves on the key before it is a slide, not a tap (CSS pixels). */
 export const SLIDE_PX = 14;
@@ -141,7 +161,8 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
   };
   const labelOf = (id: string) => byId.get(id)?.label ?? id;
 
-  const key = h("button", { class: "n133e-key", type: "button", "aria-expanded": "false", "aria-haspopup": "dialog", "aria-controls": `n133e-wheel-${n}` }, icon("smile", 20), h("span", {}, "Emotes"));
+  const cap = keys && options.keyCap === true ? h("kbd", { class: "n133e-cap", "aria-hidden": "true" }) : null;
+  const key = h("button", { class: "n133e-key", type: "button", "aria-expanded": "false", "aria-haspopup": "dialog", "aria-controls": `n133e-wheel-${n}` }, icon("smile", 20), h("span", {}, "Emotes"), cap);
   const hubName = h("span", { class: "n133e-hub-name", "aria-live": "polite" });
   const editKey = h("button", { class: "n133e-edit", type: "button", "aria-pressed": "false" }, "Edit");
   const slotKeys = AT.map((p, i) => {
@@ -165,8 +186,22 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
   const editList = h("div", { class: "n133e-list", role: "group", "aria-label": "All emotes" }, fullLine, grid);
   const layer = h("div", { class: "n133e-layer", "data-open": "false" }, ring, editList);
   layer.hidden = true;
-  const wrap = h("div", { class: "n133-emotes" }, key, layer);
+  // With `layerIn` the wheel has its own .n133-emotes (display: contents) there, so the kit's rules and the theme still reach it.
+  const portal = options.layerIn ? h("div", { class: "n133-emotes n133e-portal" }, layer) : null;
+  const wrap = h("div", { class: "n133-emotes" }, key, portal ? null : layer);
+  const both = portal ? [wrap, portal] : [wrap];
   root.append(wrap);
+  if (portal) options.layerIn!.append(portal);
+  /** The holder's theme values onto the portal (the wheel is no longer inside the holder, so they are not inherited). */
+  const copyTheme = () => {
+    if (!portal || typeof getComputedStyle !== "function") return;
+    const cs = getComputedStyle(wrap);
+    for (const name of EMOTE_THEME_VARS) {
+      const v = cs.getPropertyValue(name).trim();
+      if (v) portal.style.setProperty(name, v);
+      else portal.style.removeProperty(name);
+    }
+  };
 
   // The theme: the game's word, or the page's (data-n133-theme, which the admin panel sets too), or the device's setting.
   let media: MediaQueryList | null = null;
@@ -179,7 +214,7 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
     const want = options.theme ?? "device";
     const page = globalThis.document?.documentElement?.getAttribute("data-n133-theme");
     const dark = want === "device" ? (page === "dark" || page === "light" ? page === "dark" : media?.matches === true) : want === "dark";
-    wrap.setAttribute("data-theme", dark ? "dark" : "light");
+    for (const el of both) el.setAttribute("data-theme", dark ? "dark" : "light");
   };
   drawTheme();
   media?.addEventListener?.("change", drawTheme);
@@ -192,10 +227,12 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
     key.hidden = !o.show;
     openCode = o.key;
     if (keys) key.setAttribute("aria-keyshortcuts", openCode.replace(/^(Key|Digit)/, ""));
+    if (cap) cap.textContent = emoteKeyLabel(openCode);
+    for (const el of both) el.toggleAttribute("data-calm", o.calm);
   };
   drawShow();
   const unOptions = options.options?.subscribe?.((k) => {
-    if (k === "emotes.show" || k === "keys.emotes") drawShow();
+    if (k === "emotes.show" || k === "keys.emotes" || k === "reducedMotion") drawShow();
   });
   if (unOptions) cleanup.push(unOptions);
 
@@ -239,11 +276,33 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
           );
         }),
       );
+      // A name has the tile's width less its 2 px sides and 1 px edges.
+      if (!layer.hidden) fit(grid.firstElementChild, "n133e-tile-name", "--n133e-tile-fit", (w) => w + 6);
     }
     drawLit();
   }
   const unWheel = wheel.subscribe(drawSlots);
   cleanup.push(unWheel);
+
+  /**
+   * The places and the tiles grow to the longest name in the game's own font and size (a game that sets its words to 16 px: "Facepalm" is 75 px
+   * there), up to a cap in the stylesheet: each name is measured once in a place (and in a tile), and the size goes on the layer as --n133e-fit
+   * (a place) and --n133e-tile-fit (a tile). With no layout (a test's fake page) nothing is measured and the floors of the stylesheet hold.
+   */
+  function fit(host: Element | null | undefined, cls: string, prop: string, size: (w: number) => number) {
+    if (!host) return;
+    const probe = h("span", { class: cls, "aria-hidden": "true" });
+    probe.style.cssText = "position:absolute;visibility:hidden;max-width:none;width:auto;white-space:nowrap;pointer-events:none";
+    host.append(probe);
+    let w = 0;
+    for (const it of items) {
+      probe.textContent = it.label;
+      // offsetWidth: the layout's width, not the pop-in's scaled box.
+      w = Math.max(w, probe.offsetWidth + 1);
+    }
+    probe.remove();
+    if (w > 0) layer.style.setProperty(prop, `${Math.ceil(size(w))}px`);
+  }
 
   function tap(id: string) {
     full = wheel.toggle(id) === "full";
@@ -278,9 +337,12 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
     hover = null;
     mouse = null;
     drawTheme();
+    copyTheme();
     drawSlots();
     layer.hidden = false;
     layer.dataset.open = "true";
+    // A place's name has 96% of the place.
+    fit(slotKeys[0], "n133e-name", "--n133e-fit", (w) => w / 0.96 + 2);
     key.setAttribute("aria-expanded", "true");
     options.onOpen?.();
     if (focusFirst) slotKeys[Math.max(0, wheel.slots.findIndex((x) => x !== null))].focus();
@@ -295,7 +357,7 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
     key.setAttribute("aria-expanded", "false");
     if (options.focusAfterClose === "key") {
       if (focusKey && !key.hidden) key.focus();
-    } else releaseFocus(wrap);
+    } else for (const el of both) releaseFocus(el);
   }
 
   editKey.addEventListener("click", () => {
@@ -392,6 +454,7 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
       destroyed = true;
       for (const f of cleanup) f();
       wrap.remove();
+      portal?.remove();
     },
   };
 }

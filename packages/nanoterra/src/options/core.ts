@@ -25,7 +25,11 @@ type DefBase<V> = {
   key: string;
   /** The words on the row: short, the player reads them ("Music", "Invert look"). */
   label: string;
-  /** One short line under the label. */
+  /**
+   * One short line under the label. "{key:<a key binding's key>}" in it names that binding's key as the player has it now ("{key:keys.emotes} still opens
+   * the wheel" reads "G still opens the wheel"), and the panel draws it again when the binding changes; "{key:<key>|<code>}" names <code>'s key when the
+   * store has no such binding. See `helpText`.
+   */
   help?: string;
   tab: Tab;
   /** The heading the row goes under, in the order the groups first appear. Rows with no group come first. */
@@ -182,6 +186,27 @@ export function keyLabel(code: string): string {
     ControlRight: "Right Ctrl", AltLeft: "Alt", AltRight: "Right Alt", MetaLeft: "Cmd", MetaRight: "Right Cmd", Enter: "Enter", Space: "Space", Backspace: "Backspace", CapsLock: "Caps Lock",
   };
   return named[code] ?? code;
+}
+
+const HELP_KEY_RE = /\{key:([A-Za-z0-9_.-]+)(?:\|([A-Za-z0-9]+))?\}/g;
+
+/** The key bindings a help line names with "{key:...}", each once. */
+export const helpKeys = (help: string): string[] => [...new Set(Array.from(help.matchAll(HELP_KEY_RE), (m) => m[1]))];
+
+/**
+ * A help line's words: each "{key:<binding>}" becomes that binding's key cap words now (`keyLabel` of the store's value). A binding the store does not
+ * have gives the code after "|" ("{key:keys.emotes|KeyB}"), else "Its key". A line with no "{key:" comes back as it is.
+ */
+export function helpText(help: string, store: Pick<OptionsStore, "get">): string {
+  return help.replace(HELP_KEY_RE, (_, k: string, code?: string) => {
+    let v: unknown;
+    try {
+      v = store.get(k);
+    } catch {
+      v = undefined;
+    }
+    return typeof v === "string" && v ? keyLabel(v) : code ? keyLabel(code) : "Its key";
+  });
 }
 
 /** Whether a value fits a def as it is (a range's number must be in range; it is not snapped here). */
