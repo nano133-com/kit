@@ -1,4 +1,5 @@
-// Every word that the shop's sheets show: the looks sheet, Buy and the pay sheet. A game gives `words` to `mountShop` (or to `looksView` and `payPanel`)
+// Every word that the shop's sheets show: the looks sheet, Buy, the pay sheet, and a play's (a round, a level, a life or a continue: the Play key, the
+// "18 or older" step, its pay sheet). A game gives `words` to `mountShop` (or to `looksView` and `payPanel`)
 // with the keys it wants to change, in its own words or language; the rest stay these. A text with a value in it is a function of that value.
 //
 // Two things a game cannot change, because a player's money depends on them: the stamp "TEST MODE: DO NOT PAY" (it is not a key), and the words
@@ -7,7 +8,7 @@
 //
 // The defaults are short on purpose (Wes, 2026-11-01: fewer words): the pay sheet shows at most 30 words, and no sentence has more than 10.
 
-import type { Hat } from "../../looks/look.js";
+import { usdText, type Hat } from "../../looks/look.js";
 
 export type ShopWords = {
   // ---- the looks sheet ----
@@ -94,7 +95,33 @@ export type ShopWords = {
   expired: string;
   /** The price's sources ("CoinGecko", "Kraken", "KuCoin"). "Powered by CoinGecko" is added when CoinGecko is one and the words leave it out. */
   prices: (sources: readonly string[]) => string;
+
+  // ---- a play (plays.json) ----
+  /** The Play key while no credit is ready, with the price ("5¢"): a press buys one. */
+  playFor: (price: string) => string;
+  /** The Play key while credits are ready (a press starts one): "1 round ready". `use` is the play's use word ("round", "level", "life", "continue"). */
+  playReady: (use: string, n: number) => string;
+  /** The title of a play's sheets: the play's name. */
+  playTitle: (play: string) => string;
+  /** The line under the title of a play's pay sheet: one use, used once. */
+  playLine: (use: string) => string;
+  /** The paid play's words, where the QR code was. */
+  playPaid: (use: string) => string;
+  /** A play's payment after the order ended: it gives no credit, and the creator sends it back. */
+  playLate: (use: string) => string;
+  /** At a play's Buy, while nobody is signed in. */
+  playSignIn: (use: string) => string;
+  /** The "18 or older" step before a player's first paid play (the creator's Legal card): the line, the yes key and the key that stops. */
+  ageLine: string;
+  ageYes: string;
+  ageNo: string;
 };
+
+/** A use word for `n` of them: "round", "rounds"; "life", "lives"; "continue", "continues". */
+export const useWord = (use: string, n = 1): string => (n === 1 ? use : use === "life" ? "lives" : `${use}s`);
+
+/** A play's price on its key: cents under a dollar ("5¢", "0.5¢"), dollars from one dollar ("$1.50"). */
+export const playPrice = (usd: number): string => (usd < 1 ? `${Math.round(usd * 10_000) / 100}¢` : usdText(usd));
 
 const HATS: Record<Hat, string> = { cap: "with a cap", beanie: "with a beanie", crown: "with a crown", tophat: "with a top hat" };
 const spaced = (slot: string) => slot.replace(/-/g, " ");
@@ -155,6 +182,17 @@ export const SHOP_WORDS: ShopWords = {
     const credit = sources.includes("CoinGecko") ? ` ${COINGECKO_CREDIT}.` : "";
     return others.length ? `Price: ${others.join(", ")}.${credit}` : credit.trim();
   },
+
+  playFor: (price) => `Play for ${price}`,
+  playReady: (use, n) => `${n} ${useWord(use, n)} ready`,
+  playTitle: (play) => play,
+  playLine: (use) => `1 ${use}. Used once.`,
+  playPaid: (use) => `Paid. Your ${use} is ready.`,
+  playLate: (use) => `Paid after the order ended, so no ${use}. The creator sends it back.`,
+  playSignIn: (use) => `Sign in first to buy a ${use}.`,
+  ageLine: "Paid rounds are for players 18 and up.",
+  ageYes: "I am 18 or older",
+  ageNo: "Not now",
 };
 
 /** The game's words over the defaults. A key the game leaves out, or gives as undefined, keeps its default. */

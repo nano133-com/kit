@@ -536,3 +536,41 @@
     margin-top: 0;
   }
 }
+
+/* ---- a play: the refund words, the "18 or older" step, and the Play key ---- */
+
+.n133-shop .n133s-refund {
+  margin: 8px 0 0;
+}
+
+.n133-shop .n133s-age .n133s-wide + .n133s-wide {
+  margin-top: 12px;
+}
+
+/* The Play key (playKey): the game puts it in its own page, outside .n133-shop, so it carries its own look. Phone first: 48 px high, 16 px text. */
+.n133s-play-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0 20px;
+  border: 2px solid var(--n133-gem-dark, #0e8a72);
+  border-radius: 999px;
+  background: var(--n133-gem, #20c9a6);
+  color: var(--n133-on-gem, #062b23);
+  font: 700 16px/1 var(--n133-font, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.n133s-play-key:focus-visible {
+  outline: 3px solid var(--n133-gem-dark, #0e8a72);
+  outline-offset: 2px;
+}
+
+.n133s-play-key[hidden] {
+  display: none;
+}
