@@ -58,7 +58,7 @@
   meanwhile starts the round, never a second order; the admin's Orders keep the name's width and wrap a long payer line (the price never runs over
   it); every admin key, tab, filter key and summary is at least 44 px high; "To send back" stops under the sticky tabs, not behind them; the Rounds
   draft offers a life or a continue only while the Legal card sells them; "No NODE_API_KEY" is no longer said for the game's own `NANO_NODES`.
-- Sizes (gzip, size test): `/looks` 4.0 kB (ceiling 4.1 kB), `/shop` 12.7 kB (12.9 kB), `/shop/worker` 14.3 kB (14.5 kB), `/shop/panel` 11.2 kB (11.6 kB).
+- Sizes (gzip, size test): `/looks` 4.0 kB (ceiling 4.1 kB), `/shop` 12.7 kB (12.9 kB), `/shop/worker` 14.4 kB (14.5 kB), `/shop/panel` 11.3 kB (11.6 kB).
 
 ## 0.14.1 (2026-11-03)
 
