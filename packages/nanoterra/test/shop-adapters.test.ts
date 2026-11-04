@@ -230,6 +230,53 @@ test("shop Firestore: a transaction that loses every attempt (ABORTED) is a take
   }
 });
 
+test("shop Firestore: plays write the credits and shop_uses collections too, and those can be renamed", async () => {
+  const h = firestoreHarness({ orders: "o", owned: "w", meta: "m", amounts: "a", hashes: "x", credits: "c", uses: "u" });
+  const T = 1_800_000_000_000;
+  const o = await reserveOrder(h.store, { player: "p1", lookId: "extra-round", kind: "play", usd: "0.05", rate: 1, price: priceRaw(0.05, 1)!, visitor: null, now: T });
+  assert.equal(await h.store.settle(o, { hash: hash64(), payer: "p1", seenMs: T + 1 }, T + 1), "paid");
+  assert.deepEqual(await h.store.credits("p1", 0), [{ playId: "extra-round", ready: 1 }]);
+  assert.equal((await h.store.useCredit("p1", "extra-round", "r:1", T + 2, 0)).status, "used");
+  assert.deepEqual([...h.col("u").keys()], ["p1__r:1"]);
+  await h.store.forget("p1", T + 10_000_000);
+  assert.deepEqual([...new Set(h.writes)].sort(), ["a", "c", "o", "u", "x"]);
+  assert.equal(h.col("c").size + h.col("u").size, 0, "the credit and the use went");
+  assert.equal(h.cols.has("credits") || h.cols.has("shop_uses"), false);
+});
+
+test("shop Firestore: a use whose transaction loses every attempt (ABORTED) goes on to the next credit, and any other error throws", async () => {
+  const T = 1_800_000_000_000;
+  const f = fakeFirestore();
+  let failNext: unknown = null;
+  const db: typeof f.db = {
+    ...f.db,
+    runTransaction: (fn) => {
+      const e = failNext;
+      failNext = null;
+      return e ? Promise.reject(e) : f.db.runTransaction(fn);
+    },
+  };
+  const store = createFirestoreShop(db);
+  const credit = async (at: number) => {
+    const o = await reserveOrder(store, { player: "p1", lookId: "extra-round", kind: "play", usd: "0.05", rate: 1, price: priceRaw(0.05, 1)!, visitor: null, now: at });
+    await store.settle(o, { hash: hash64(), payer: "p1", seenMs: at + 1 }, at + 1);
+    return o.id;
+  };
+  const older = await credit(T);
+  const newer = await credit(T + 10);
+  failNext = Object.assign(new Error("10 ABORTED"), { code: 10 });
+  const r = await store.useCredit("p1", "extra-round", "r1", T + 20, 0);
+  assert.equal(r.status, "used");
+  assert.equal(r.status === "used" && r.credit.orderId, newer, "the oldest was lost to a race: the next one is used");
+  assert.deepEqual(await store.credits("p1", 0), [{ playId: "extra-round", ready: 1 }]);
+  assert.equal((await store.useCredit("p1", "extra-round", "r2", T + 30, 0)).status === "used", true);
+  assert.equal((await store.credits("p1", 0)).length, 0, `the older one (${older}) is used too`);
+  const boom = new Error("network down");
+  await credit(T + 40);
+  failNext = boom;
+  await assert.rejects(store.useCredit("p1", "extra-round", "r3", T + 50, 0), (x) => x === boom);
+});
+
 test("shop Firestore: the admin's Firestore store reads the shop's orders, owned looks and price", async () => {
   const h = firestoreHarness();
   const T = 1_800_000_000_000;
