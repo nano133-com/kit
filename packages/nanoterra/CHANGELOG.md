@@ -11,7 +11,7 @@
 - `/emotes/wheel`: the fit to the longest name reads each place's and tile's own padding and edges (it took a 1 px edge), so a game's 3 px tile edge no
   longer cuts the name.
 - `/emotes/wheel`: `layerClass` puts a game's class names on the holder of the open wheel (with `layerIn` the wheel's own holder, else the key's holder).
-- Sizes (gzip, size test): `/emotes/wheel` 7.1 kB (ceiling 7.2 kB, was 7.0 kB).
+- Sizes (gzip, size test): `/emotes/wheel` 7.1 kB, 7.2 kB on CI (ceiling 7.4 kB, was 7.0 kB).
 
 ## 0.15.0 (2026-11-04)
 
