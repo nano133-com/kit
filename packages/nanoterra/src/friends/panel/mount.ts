@@ -9,7 +9,8 @@
 //                60 s while closed, for the badge), a pulse every 45 s with this tab's lease, and a "leave" pulse when the page goes away.
 //   "off"        nothing is drawn.
 //
-// The panel is phone first: a sheet from the bottom on a phone held upright, from the side on a wide or sideways screen; every key is 44 px.
+// The panel is phone first: a sheet from the bottom on a phone held upright, from the side on a wide or sideways screen; every key is 44 px. A scrim
+// dims the game under it (a press on it closes the panel), as under the options panel.
 
 import { ApiError, createApi, type Api } from "../../admin/panel/api.js";
 import { h, releaseFocus } from "../../admin/panel/dom.js";
@@ -83,7 +84,9 @@ export function mountFriends(root: HTMLElement, options: FriendsMountOptions): M
   const askBox = h("div", { class: "n133f-ask", role: "alertdialog", "aria-labelledby": `n133f-ask-${n}` }, question, h("div", { class: "n133f-ask-keys" }, yesKey, noKey));
   askBox.hidden = true;
   const panel = h("section", { class: `n133f-panel n133f-${options.mode}`, id: `n133f-panel-${n}`, role: "dialog", "aria-labelledby": `n133f-title-${n}`, "data-open": "false" }, h("header", { class: "n133f-head" }, title, closeKey), askBox, body);
-  const wrap = h("div", { class: "n133-friends" }, key, panel);
+  // The scrim dims the game while the panel is open, as the options panel's does; a press on it closes the panel.
+  const scrim = h("div", { class: "n133f-scrim", "data-open": "false", "aria-hidden": "true" });
+  const wrap = h("div", { class: "n133-friends" }, key, scrim, panel);
   root.append(wrap);
 
   /** The requests (the thing to do) when there are any, else the friends online (another colour). The key's name says both. */
@@ -101,7 +104,7 @@ export function mountFriends(root: HTMLElement, options: FriendsMountOptions): M
   const open = () => {
     if (destroyed || isOpen) return;
     isOpen = true;
-    panel.dataset.open = "true";
+    panel.dataset.open = scrim.dataset.open = "true";
     key.setAttribute("aria-expanded", "true");
     onOpen();
     closeKey.focus();
@@ -110,7 +113,7 @@ export function mountFriends(root: HTMLElement, options: FriendsMountOptions): M
     if (destroyed || !isOpen) return;
     answer?.(false);
     isOpen = false;
-    panel.dataset.open = "false";
+    panel.dataset.open = scrim.dataset.open = "false";
     key.setAttribute("aria-expanded", "false");
     onClose();
     if (options.focusAfterClose === "key") key.focus();
@@ -118,6 +121,7 @@ export function mountFriends(root: HTMLElement, options: FriendsMountOptions): M
   };
   key.addEventListener("click", () => (isOpen ? close() : open()));
   closeKey.addEventListener("click", close);
+  scrim.addEventListener("click", close);
 
   /** The question in the panel: one at a time (a new one answers the old with no), and closing the panel answers no. */
   let answer: ((yes: boolean) => void) | null = null;

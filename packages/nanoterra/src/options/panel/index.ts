@@ -8,5 +8,5 @@
 //
 // The store (../core.ts) has no DOM: a game with its own menu reads, writes and hears it without this panel.
 
-export { choiceDisplay, mountOptions, PRESS_A_KEY, rangeText, RESET_QUESTION, TAB_WORDS } from "./mount.js";
+export { choiceDisplay, MORE_WORDS, mountOptions, PRESS_A_KEY, rangeText, RESET_QUESTION, TAB_WORDS } from "./mount.js";
 export type { MountedOptions, OptionsMountOptions } from "./mount.js";

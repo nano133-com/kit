@@ -11,7 +11,7 @@ themselves. This package gives your game these things:
 - **The looks ladder** (`/looks`): the rules of `looks.json`, the price steps, and what a change does to the players who own a look.
 - **Held input that does not stick** (`/input`, since 0.3.1): lets go of the keys and the stick when the player leaves the page, so the character never walks on by itself, and pauses a free round.
 - **A friends list** (`/friends`, since 0.6.0): a Friends key that holds the player's Nanoterra friends (a nano133 window), or a full friends list of the game's own players on the game's own database, as the admin's Game card chooses.
-- **An options menu** (`/options`, since 0.8.0): the game's settings as data, with defaults for each device, kept in the player's browser, and a ready Options key and panel (Basic and Advanced); common settings to opt into, and a section another module adds.
+- **An options menu** (`/options`, since 0.8.0): the game's settings as data, with defaults for each device, kept in the player's browser, and a ready Options key and panel (one page: the Advanced rows behind one row that opens them); common settings to opt into, and a section another module adds.
 - **The player's sign-in** (`/player-signin`, since 0.9.0): a passkey (Face ID, Touch ID or the device PIN) or a wallet app (Berry Wallet, NanChat, Nautilus), the sessions and a ready sign-in sheet, for a game with a server. It needs `@nano133/signin` (an optional peer).
 - **Emotes** (`/emotes`, since 0.8.0): Nano Island's eleven emotes on the player's character (the Wave, Cheer, Clap, Dance and seven more, made in Blender), and the emote wheel of eight that the player picks, which also plays a game's own animations.
 - **A shop** (`/shop`, since 0.9.0): sells looks for Nano (XNO) straight to the creator's address, with no key on the server: the routes, the payment check, D1 and Firestore stores, and the Looks and pay sheets (QR code, test mode stamp).
@@ -951,8 +951,8 @@ friends.setWhere("Level 2");       // when the player moves; null for no place
 // friends.open(), friends.close(), friends.destroy()
 ```
 
-The key is 44 px, with a badge (the requests, or else the friends online). The panel is a sheet from the bottom on a phone held upright and from the right on a wide or sideways screen;
-Escape and its close key close it. Theme it with the same `--n133-*` properties as the admin panel, and `--n133-friends-z` for its z-index (default 1000).
+The key is 44 px, with a badge (the requests, or else the friends online). The panel is a sheet from the bottom on a phone held upright and from the right on a wide or sideways screen,
+over a scrim (since 0.15.0); Escape, its close key and a press on the scrim close it. Theme it with the same `--n133-*` properties as the admin panel, and `--n133-friends-z` for its z-index (default 1000).
 
 ### The nano133 window (contract v1 with the site)
 
@@ -1052,7 +1052,7 @@ panel answers no. The kit never opens a browser dialog. To ask in your game's ow
 ## The options menu (`/options`; since 0.8.0)
 
 A game's settings as data, kept in the player's browser, and a ready Options key and panel. A game declares its settings; the kit resolves their defaults for
-the device, keeps only what the player changed, and draws them in two tabs, **Basic** and **Advanced**. A game with its own menu uses the store alone.
+the device, keeps only what the player changed, and draws them on one page: the **Basic** rows, then the **Advanced** rows behind one row that opens them. A game with its own menu uses the store alone.
 
 ```ts
 import { common, createOptions, keyBinding, mountOptions, reflectOptions } from "@nano133/nanoterra/options";
@@ -1126,8 +1126,10 @@ under "Keys", on a desktop only.
 (`emotes.show`), a key that is already there throws at once, a value kept before the section came is read when it comes, and a mounted panel draws the new rows.
 
 **The panel.** `mountOptions(el, store, { title?, key?, onOpen?, onClose?, onRangeDone?, confirm? })` puts a 44 px key (a gear and "Options") in `el`, and a panel: a
-sheet from the bottom on a phone held upright, from the right on a wide or sideways screen, over a scrim (a press on it closes the panel). The two tabs are real tabs
-(the arrow keys, Home and End; one tab alone has no tab bar); each tab draws its rows without a group first, then each group under its heading. **A change applies
+sheet from the bottom on a phone held upright, from the right on a wide or sideways screen, over a scrim (a press on it closes the panel), as tall as its rows on a phone. **One page, no tabs** (since 0.15.0): the Basic rows first,
+then one fold row that opens the Advanced rows under it (`aria-expanded`); it says the Advanced rows' group when they are one group (keyBinding's "Keys"), else
+`MORE_WORDS` ("More options"). With no Basic row there is no fold: the Advanced rows are the page. Each part draws its rows without a group first, then each
+group under its heading. **Reset to defaults** is a small key at the end of the page. **A change applies
 at once** (there is no Save key), and a change from elsewhere shows in place: the rows are drawn once, a slider under a finger is never drawn again, and the panel
 never scrolls back to the top. **Reset to defaults** asks in the panel ("Put every option back to its default?", Reset and Cancel), never in a browser dialog;
 Escape answers the question first, then closes the panel. `key: false` draws no key, for a game that puts "Options" in its own pause menu and calls `open()`.
@@ -1137,7 +1139,7 @@ key, to what had it before), for a page with no keys of its own. `onOpen` and `o
 level). The panel holds the focus while it is open. Every key, switch, choice and slider is 44 px or more, and a row's label is 16 px.
 
 **Light and dark.** The panel follows `data-n133-theme="light" | "dark"` on the page's `<html>` when the page sets it (the admin panel does), else the device's
-`prefers-color-scheme`. Every colour is a variable: `--n133-ink`, `--n133-ink-soft`, `--n133-paper`, `--n133-ground` (the tab bar and a choice's well),
+`prefers-color-scheme`. Every colour is a variable: `--n133-ink`, `--n133-ink-soft`, `--n133-paper`, `--n133-ground` (a choice's well and a key cap),
 `--n133-line`, `--n133-gem`, `--n133-gem-dark`, `--n133-on-gem` set the light theme, and each has a `--n133-dark-*` twin; `--n133-radius`, `--n133-font` and
 `--n133-options-z` (default 1100, above the friends panel) too. The stylesheet is scoped under `.n133-options`.
 
