@@ -20,7 +20,7 @@
 import type { D1Like } from "../admin/adapters/d1.js";
 import { createD1Shop, d1Limit, limitKey, visitorKey, type ShopTables } from "./adapters/d1.js";
 import { createShopHandler, SHOP_LIMITS, type ShopHandler, type ShopHandlerOptions } from "./handler.js";
-import { nodesFor, settingValue, type Fetch } from "./nodes.js";
+import { nodesFor, PUBLIC_NODES, settingValue, type Fetch } from "./nodes.js";
 import type { ShopStore } from "./store.js";
 import { findUnmatched, type UnmatchedResult } from "./unmatched.js";
 
@@ -109,7 +109,8 @@ export function createShop(env: ShopEnv, options: ShopOptions): Shop {
             ? "Turnstile is OFF: set both TURNSTILE_SITE_KEY and the secret TURNSTILE_SECRET."
             : "Turnstile is OFF: sign-in and orders are not checked for bots. Add a free Turnstile widget (see README).",
         );
-      if (!settingValue(env.NODE_API_KEY)) warnings.push("No NODE_API_KEY: payments are checked on public Nano nodes only, which promise no uptime.");
+      // Only when the public nodes are the ones asked: the game's own nodes (NANO_NODES) need no key.
+      if (!settingValue(env.NODE_API_KEY) && nodes.every((n) => PUBLIC_NODES.some((p) => p.url === n.url))) warnings.push("No NODE_API_KEY: payments are checked on public Nano nodes only, which promise no uptime.");
       return { address: handler.payee, testMode: handler.testMode, turnstile, nodes: nodes.map((n) => n.name), warnings };
     },
   };
