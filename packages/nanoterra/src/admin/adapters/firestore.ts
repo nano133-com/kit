@@ -1,15 +1,16 @@
 // The admin store for a game on Firestore (the Admin SDK). The package has no Firebase dependency: the adapter uses the small interface below, which the
-// Admin SDK's `Firestore` fits. It writes ONLY the five settings; everything else it does is a read.
+// Admin SDK's `Firestore` fits. It writes ONLY the ten settings (SETTING_KEYS); everything else it does is a read.
 //
 // The data model (the names a game must have; only the three collection names can be changed):
-//   meta/{key}          { value: string, at: number }          keys "setting:character", "setting:signin", "setting:friends", "setting:emotes", "setting:freePlay", "rate" (value is JSON { usd, sources })
+//   meta/{key}          { value: string, at: number }          keys "setting:character", "setting:signin", "setting:friends", "setting:emotes", "setting:freePlay", the Legal card's
+//                                                              "setting:adultsOnly", "setting:sellLives", "setting:refundDays", "setting:refundWords", "setting:lawsConfirmedAt", and "rate" (value is JSON { usd, sources })
 //   orders/{id}         { player, lookId, usd, amount, status, createdAt, expiresAt, paidAt, payer, hash }   `amount` is the raw amount as text
 //   owned/{player__lookId}  { player, lookId, orderId, grantedAt }
 //
 // The summary reads the newest 5000 orders (the counts and the totals are over those) and every owned look: for a small game. A big game should keep running totals.
 
 import { parseRate, summarize, type OrderRow } from "../summary.js";
-import type { AdminStore, StoreSummary } from "../store.js";
+import { SETTING_KEYS, settingRows, type AdminStore, type SettingName, type StoredSettings, type StoreSummary } from "../store.js";
 import type { GamePatch } from "../switches.js";
 
 export interface FirestoreDocLike {
@@ -33,7 +34,8 @@ export interface FirestoreLike {
 }
 
 export const FIRESTORE_SCAN_LIMIT = 5000;
-export const FIRESTORE_KEYS = { character: "setting:character", signin: "setting:signin", friends: "setting:friends", emotes: "setting:emotes", freePlay: "setting:freePlay" } as const;
+/** The meta documents of the settings (the Game card's five and the Legal card's five). */
+export const FIRESTORE_KEYS = SETTING_KEYS;
 
 const text = (v: unknown, fallback = ""): string => (typeof v === "string" ? v : fallback);
 const num = (v: unknown, fallback = 0): number => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
@@ -49,25 +51,21 @@ export function createFirestoreStore(db: FirestoreLike, collections: { meta?: st
   };
   return {
     async readSettings() {
-      const [character, signin, friends, emotes, freePlay] = await Promise.all([
-        valueOf(FIRESTORE_KEYS.character),
-        valueOf(FIRESTORE_KEYS.signin),
-        valueOf(FIRESTORE_KEYS.friends),
-        valueOf(FIRESTORE_KEYS.emotes),
-        valueOf(FIRESTORE_KEYS.freePlay),
-      ]);
-      return { character: character?.value, signin: signin?.value, friends: friends?.value, emotes: emotes?.value, freePlay: freePlay?.value };
+      const names = Object.keys(FIRESTORE_KEYS) as SettingName[];
+      const docs = await Promise.all(names.map((name) => valueOf(FIRESTORE_KEYS[name])));
+      const out: StoredSettings = {};
+      names.forEach((name, i) => {
+        if (docs[i] !== undefined) out[name] = docs[i]?.value;
+      });
+      return out;
     },
 
     async saveSettings(patch: GamePatch, now: number) {
+      const rows = settingRows(patch, now);
+      if (!rows.length) return;
       const batch = db.batch();
-      let n = 0;
-      if (patch.character) (batch.set(db.collection(meta).doc(FIRESTORE_KEYS.character), { value: patch.character, at: now }), n++);
-      if (patch.signin) (batch.set(db.collection(meta).doc(FIRESTORE_KEYS.signin), { value: patch.signin, at: now }), n++);
-      if (patch.friends) (batch.set(db.collection(meta).doc(FIRESTORE_KEYS.friends), { value: patch.friends, at: now }), n++);
-      if (patch.emotes) (batch.set(db.collection(meta).doc(FIRESTORE_KEYS.emotes), { value: patch.emotes, at: now }), n++);
-      if (patch.freePlay) (batch.set(db.collection(meta).doc(FIRESTORE_KEYS.freePlay), { value: patch.freePlay, at: now }), n++);
-      if (n) await batch.commit();
+      for (const [name, value] of rows) batch.set(db.collection(meta).doc(FIRESTORE_KEYS[name]), { value, at: now });
+      await batch.commit();
     },
 
     async summary(now: number): Promise<StoreSummary> {

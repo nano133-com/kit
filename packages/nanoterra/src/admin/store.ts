@@ -48,14 +48,51 @@ export type AdminLogin = { at: number; country: string | null; browser: string }
 export const ADMIN_LOGINS_SHOWN = 10;
 
 /**
- * The game's database, as the handler needs it. An adapter writes ONLY what these calls say: the five settings and, when the game turns it on, the deletion of the admin sessions
- * (`signOutEverywhere`). Nothing else.
- * (There is no call that writes a look, a price or an order: the Shelf gives text to copy, and a change of looks is a change of the repository.)
+ * The settings an admin store keeps, by name, and the key of each in the game's meta table (D1) or meta collection (Firestore). The Game card's five and
+ * the Legal card's five. A value is kept as text: "14" for the refund days, the time in ms for the owner's confirmation (`confirmLaws` in a patch).
+ */
+export const SETTING_KEYS = {
+  character: "setting:character",
+  signin: "setting:signin",
+  friends: "setting:friends",
+  emotes: "setting:emotes",
+  freePlay: "setting:freePlay",
+  adultsOnly: "setting:adultsOnly",
+  sellLives: "setting:sellLives",
+  refundDays: "setting:refundDays",
+  refundWords: "setting:refundWords",
+  lawsConfirmedAt: "setting:lawsConfirmedAt",
+} as const;
+export type SettingName = keyof typeof SETTING_KEYS;
+/** The settings as a store holds them: each one as it was kept (text), or missing. */
+export type StoredSettings = { [K in SettingName]?: unknown };
+
+/** The text a store keeps for each setting of a checked patch (`confirmLaws` keeps the time of the press). Only known settings, never anything else. */
+export function settingRows(patch: GamePatch, now: number): [SettingName, string][] {
+  const rows: [SettingName, string][] = [];
+  if (patch.character) rows.push(["character", patch.character]);
+  if (patch.signin) rows.push(["signin", patch.signin]);
+  if (patch.friends) rows.push(["friends", patch.friends]);
+  if (patch.emotes) rows.push(["emotes", patch.emotes]);
+  if (patch.freePlay) rows.push(["freePlay", patch.freePlay]);
+  if (patch.adultsOnly) rows.push(["adultsOnly", patch.adultsOnly]);
+  if (patch.sellLives) rows.push(["sellLives", patch.sellLives]);
+  if (patch.refundDays !== undefined) rows.push(["refundDays", String(patch.refundDays)]);
+  if (patch.refundWords !== undefined) rows.push(["refundWords", patch.refundWords]);
+  if (patch.confirmLaws === true) rows.push(["lawsConfirmedAt", String(Math.floor(now))]);
+  return rows;
+}
+
+/**
+ * The game's database, as the handler needs it. An adapter writes ONLY what these calls say: the ten settings (SETTING_KEYS) and, when the game turns it
+ * on, the deletion of the admin sessions (`signOutEverywhere`). Nothing else.
+ * (There is no call that writes a look, a play, a price, an order or a credit: the Shelf gives text to copy, and a change of looks or plays is a change of
+ * the repository.)
  */
 export interface AdminStore {
   /** The settings that /admin has saved. A value that is not a known word is ignored by the handler, so an adapter returns what it holds. */
-  readSettings(): Promise<{ character?: unknown; signin?: unknown; friends?: unknown; emotes?: unknown; freePlay?: unknown }>;
-  /** Saves a checked patch: all of it or none of it. */
+  readSettings(): Promise<StoredSettings>;
+  /** Saves a checked patch: all of it or none of it (`settingRows` gives the text of each setting). */
   saveSettings(patch: GamePatch, now: number): Promise<void>;
   summary(now: number): Promise<StoreSummary>;
   /**

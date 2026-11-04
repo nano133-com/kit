@@ -1,12 +1,13 @@
 // The admin store for a game on Cloudflare D1, with the tables of the game starter (migrations/0001_init.sql): `meta`, `orders` and `owned`.
-// It writes ONLY the five settings (`setting:character`, `setting:signin`, `setting:friends`, `setting:emotes`, `setting:freePlay` in `meta`); everything else it does is a read, except when the game turns the sign-in list on
+// It writes ONLY the ten settings (SETTING_KEYS in `meta`: the Game card's `setting:character`, `setting:signin`, `setting:friends`, `setting:emotes`, `setting:freePlay`, and the Legal card's
+// `setting:adultsOnly`, `setting:sellLives`, `setting:refundDays`, `setting:refundWords`, `setting:lawsConfirmedAt`); everything else it does is a read, except when the game turns the sign-in list on
 // (`logins: true`): then the one other write is `DELETE FROM sessions WHERE scope = 'admin'` ("sign out everywhere").
 //
 //   import { createD1Store } from "@nano133/nanoterra/admin/d1";
 //   const store = createD1Store(env.DB);
 
 import { ORDERS_SHOWN, moneyOf, parseRate, shapeOrders, shapePlayers, type OrderRow } from "../summary.js";
-import type { AdminStore, StoreSummary } from "../store.js";
+import { SETTING_KEYS, settingRows, type AdminStore, type SettingName, type StoredSettings, type StoreSummary } from "../store.js";
 import type { GamePatch } from "../switches.js";
 
 /** The part of D1 that the adapter uses. Cloudflare's `D1Database` fits it. */
@@ -21,7 +22,8 @@ export interface D1Like {
   batch(statements: D1StatementLike[]): Promise<unknown[]>;
 }
 
-export const D1_KEYS = { character: "setting:character", signin: "setting:signin", friends: "setting:friends", emotes: "setting:emotes", freePlay: "setting:freePlay" } as const;
+/** The meta keys of the settings (the Game card's five and the Legal card's five). */
+export const D1_KEYS = SETTING_KEYS;
 
 type Row = { id: string; player: string; look_id: string; usd: string; amount: string; status: string; created_at: number; expires_at: number; paid_at: number | null; payer: string | null; hash: string | null };
 
@@ -34,20 +36,20 @@ type Row = { id: string; player: string; look_id: string; usd: string; amount: s
 export function createD1Store(db: D1Like, options: { logins?: boolean } = {}): AdminStore {
   const store: AdminStore = {
     async readSettings() {
-      const rows = (await db.prepare("SELECT key, value FROM meta WHERE key IN (?, ?, ?, ?, ?)").bind(D1_KEYS.character, D1_KEYS.signin, D1_KEYS.friends, D1_KEYS.emotes, D1_KEYS.freePlay).all<{ key: string; value: string }>()).results;
-      const row = (key: string) => rows.find((r) => r.key === key)?.value;
-      return { character: row(D1_KEYS.character), signin: row(D1_KEYS.signin), friends: row(D1_KEYS.friends), emotes: row(D1_KEYS.emotes), freePlay: row(D1_KEYS.freePlay) };
+      const keys = Object.values(D1_KEYS);
+      const rows = (await db.prepare(`SELECT key, value FROM meta WHERE key IN (${keys.map(() => "?").join(", ")})`).bind(...keys).all<{ key: string; value: string }>()).results;
+      const out: StoredSettings = {};
+      for (const [name, key] of Object.entries(D1_KEYS) as [SettingName, string][]) {
+        const row = rows.find((r) => r.key === key);
+        if (row) out[name] = row.value;
+      }
+      return out;
     },
 
     async saveSettings(patch: GamePatch, now: number) {
       const write = (key: string, value: string) =>
         db.prepare("INSERT INTO meta (key, value, at) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, at = excluded.at").bind(key, value, now);
-      const batch = [];
-      if (patch.character) batch.push(write(D1_KEYS.character, patch.character));
-      if (patch.signin) batch.push(write(D1_KEYS.signin, patch.signin));
-      if (patch.friends) batch.push(write(D1_KEYS.friends, patch.friends));
-      if (patch.emotes) batch.push(write(D1_KEYS.emotes, patch.emotes));
-      if (patch.freePlay) batch.push(write(D1_KEYS.freePlay, patch.freePlay));
+      const batch = settingRows(patch, now).map(([name, value]) => write(D1_KEYS[name], value));
       if (batch.length) await db.batch(batch);
     },
 

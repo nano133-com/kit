@@ -2,7 +2,7 @@
 // (on an in-memory fake of the small interface it uses), plus what is specific to each: the ONLY writes are the two settings.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createMemoryStore, xnoText, RAW_PER_XNO, type OrderRow } from "../src/admin/index.js";
+import { SETTING_KEYS, createMemoryStore, xnoText, RAW_PER_XNO, type OrderRow } from "../src/admin/index.js";
 import { createD1Store, type D1Like, type D1StatementLike } from "../src/admin/adapters/d1.js";
 import { createFirestoreStore, type FirestoreLike } from "../src/admin/adapters/firestore.js";
 import { adminStoreConformance, type ConformanceCase, type StoreHarness } from "../src/admin/conformance.js";
@@ -130,7 +130,7 @@ function d1Harness(withLogins = true): StoreHarness & { log: { sql: string; args
     },
     async snapshot() {
       const q = (sql: string) => JSON.stringify(db.prepare(sql).all());
-      return [q("SELECT * FROM orders ORDER BY id"), q("SELECT * FROM owned ORDER BY player, look_id"), q("SELECT * FROM meta WHERE key NOT IN ('setting:character', 'setting:signin', 'setting:friends', 'setting:emotes', 'setting:freePlay') ORDER BY key")].join("|");
+      return [q("SELECT * FROM orders ORDER BY id"), q("SELECT * FROM owned ORDER BY player, look_id"), q(`SELECT * FROM meta WHERE key NOT IN (${Object.values(SETTING_KEYS).map((k) => `'${k}'`).join(", ")}) ORDER BY key`)].join("|");
     },
   };
 }
@@ -251,7 +251,7 @@ function firestoreHarness() {
     },
     async snapshot() {
       const dump = (name: string, skipKeys: string[] = []) => JSON.stringify([...f.col(name)].filter(([id]) => !skipKeys.includes(id)).sort(([a], [b]) => (a < b ? -1 : 1)));
-      return [dump("orders"), dump("owned"), dump("meta", ["setting:character", "setting:signin", "setting:friends", "setting:emotes", "setting:freePlay"])].join("|");
+      return [dump("orders"), dump("owned"), dump("meta", Object.values(SETTING_KEYS))].join("|");
     },
   };
   return h;

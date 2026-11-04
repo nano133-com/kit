@@ -2,17 +2,20 @@
 //
 //   adminAccess            the guard: one pure function, who may open /admin
 //   createAdminHandler     the routes, on Request and Response
-//   loadGameSettings       the game switches for the game's own routes
+//   loadGameSettings       the game switches for the game's own routes (and loadLegal: the Legal card's settings, for the shop)
 //   createMemoryStore      a store in memory, for tests
 //   (the conformance suite is its own path: "@nano133/nanoterra/admin/conformance"; the adapters are "/admin/d1" and "/admin/firestore")
 
 export { ADMIN_SESSION_MS, CLOCK_SKEW_MS, OWNER_PATTERN, adminAccess } from "./guard.js";
 export type { AdminAccess, AdminAccessInput, AdminRefusal, AdminSession } from "./guard.js";
-export { ADMIN_LIMITS, createAdminHandler, loadGameSettings } from "./handler.js";
+export { ADMIN_LIMITS, createAdminHandler, loadGameSettings, loadLegal } from "./handler.js";
 export type { AdminHandler, AdminHandlerOptions, AdminRoute } from "./handler.js";
 export { createMemoryStore } from "./memory.js";
 export type { MemoryStore } from "./memory.js";
-export { ADMIN_LOGINS_SHOWN } from "./store.js";
+export { ADMIN_LOGINS_SHOWN, SETTING_KEYS, settingRows } from "./store.js";
+export type { SettingName, StoredSettings } from "./store.js";
+export { DEFAULT_LEGAL, DEFAULT_REFUND_WORDS, LIFE_USES, REFUND_DAYS_MAX, REFUND_WORDS_MAX, isRefundDays, isRefundWords, mergeLegal, parseLegalKey, refundText } from "./legal.js";
+export type { LegalPatch, LegalState } from "./legal.js";
 export type { AdminLogin, AdminOrder, AdminPlayer, AdminStatus, AdminStore, AdminSummary, Money, OrderStatus, StoreSummary } from "./store.js";
 export { ORDERS_SHOWN, moneyOf, parseRate, shapeOrders, shapePlayers, statusOf, summarize } from "./summary.js";
 export type { OrderRow } from "./summary.js";

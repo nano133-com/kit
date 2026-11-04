@@ -2,7 +2,7 @@
 // real adapters (./summary.ts), so it is the reference for what a summary says.
 
 import { summarize, type OrderRow } from "./summary.js";
-import type { AdminLogin, AdminStore, StoreSummary } from "./store.js";
+import { SETTING_KEYS, settingRows, type AdminLogin, type AdminStore, type SettingName, type StoredSettings, type StoreSummary } from "./store.js";
 import type { GamePatch } from "./switches.js";
 
 export type MemoryStore = AdminStore & {
@@ -35,14 +35,12 @@ export function createMemoryStore(seed: { orders?: OrderRow[]; owned?: { player:
     pendingAdminRequests: 0,
     pendingGameRequests: 0,
     async readSettings() {
-      return { character: store.rows.get("setting:character"), signin: store.rows.get("setting:signin"), friends: store.rows.get("setting:friends"), emotes: store.rows.get("setting:emotes"), freePlay: store.rows.get("setting:freePlay") };
+      const out: StoredSettings = {};
+      for (const [name, key] of Object.entries(SETTING_KEYS) as [SettingName, string][]) if (store.rows.has(key)) out[name] = store.rows.get(key);
+      return out;
     },
-    async saveSettings(patch: GamePatch) {
-      if (patch.character) store.rows.set("setting:character", patch.character);
-      if (patch.signin) store.rows.set("setting:signin", patch.signin);
-      if (patch.friends) store.rows.set("setting:friends", patch.friends);
-      if (patch.emotes) store.rows.set("setting:emotes", patch.emotes);
-      if (patch.freePlay) store.rows.set("setting:freePlay", patch.freePlay);
+    async saveSettings(patch: GamePatch, now: number) {
+      for (const [name, value] of settingRows(patch, now)) store.rows.set(SETTING_KEYS[name], value);
       store.writes++;
     },
     async summary(now: number): Promise<StoreSummary> {

@@ -1,5 +1,9 @@
 // The switches of the "Game" card in /admin, and the words that say what each does. The handler checks a press with `parsePatch`; the panel
 // draws the card from `SWITCHES` and `FRIENDS_CHOICES`. A switch changes ONLY these five settings; never a look, a price or an order.
+// The "Legal" card's five settings (./legal.ts) go through the same press and the same store: `LEGAL_WORDS` are its words.
+
+import { mergeLegal, parseLegalKey, type LegalPatch, type LegalState } from "./legal.js";
+import type { StoredSettings } from "./store.js";
 
 /** Which character the player is: Nanoterra's island character (the one the player has there) or the game's own. */
 export type Character = "nanoterra" | "own";
@@ -19,9 +23,12 @@ export type Emotes = "on" | "off";
 export type FreePlay = "on" | "off";
 /** The game's own words for the switches. `friends`, `emotes` and `freePlay` may be left out: "nanoterra", "on" and "on" then (on by default). */
 export type GameSettings = { character: Character; signin: Signin; friends?: Friends; emotes?: Emotes; freePlay?: FreePlay };
-/** What a press can set: sign-in is on ("exchange": a game with a server) or off ("none"). */
-export type GamePatch = { character?: Character; signin?: "exchange" | "none"; friends?: Friends; emotes?: Emotes; freePlay?: FreePlay };
-/** The settings as they are now, and which ones /admin has set (the others still have the game's default). */
+/** What a press can set: sign-in is on ("exchange": a game with a server) or off ("none"); and the Legal card's settings (./legal.ts). */
+export type GamePatch = { character?: Character; signin?: "exchange" | "none"; friends?: Friends; emotes?: Emotes; freePlay?: FreePlay } & LegalPatch;
+/**
+ * The settings as they are now, and which of the Game card's /admin has set (the others still have the game's default). `legal` is the Legal card's: the
+ * kit's defaults (DEFAULT_LEGAL) until /admin sets them.
+ */
 export type GameState = {
   character: Character;
   signin: Signin;
@@ -29,6 +36,7 @@ export type GameState = {
   emotes: Emotes;
   freePlay: FreePlay;
   fromAdmin: { character: boolean; signin: boolean; friends: boolean; emotes: boolean; freePlay: boolean };
+  legal: LegalState;
 };
 
 export const isCharacter = (v: unknown): v is Character => v === "nanoterra" || v === "own";
@@ -50,10 +58,13 @@ export const signinOn = (s: Signin): boolean => s !== "none";
 
 /** A request body for a press: only the known words, at least one. Anything else is refused, with the reason in words. */
 export function parsePatch(body: unknown): { ok: true; patch: GamePatch } | { ok: false; error: string } {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, error: 'Send an object with "character", "signin", "friends", "emotes" or "freePlay".' };
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, error: 'Send an object with "character", "signin", "friends", "emotes", "freePlay" or a Legal setting.' };
   const patch: GamePatch = {};
   for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
-    if (key === "character" && isCharacter(value)) patch.character = value;
+    const legal = parseLegalKey(key, value);
+    if (legal && "error" in legal) return { ok: false, error: legal.error };
+    if (legal) Object.assign(patch, legal.patch);
+    else if (key === "character" && isCharacter(value)) patch.character = value;
     else if (key === "signin" && isSigninChoice(value)) patch.signin = value;
     else if (key === "friends" && isFriends(value)) patch.friends = value;
     else if (key === "emotes" && isEmotes(value)) patch.emotes = value;
@@ -65,12 +76,12 @@ export function parsePatch(body: unknown): { ok: true; patch: GamePatch } | { ok
     else if (key === "signin") return { ok: false, error: '"signin" must be "exchange" or "none".' };
     else return { ok: false, error: `"${key}" is not a game switch.` };
   }
-  if (!Object.keys(patch).length) return { ok: false, error: 'Send "character", "signin", "friends", "emotes" or "freePlay".' };
+  if (!Object.keys(patch).length) return { ok: false, error: 'Send "character", "signin", "friends", "emotes", "freePlay" or a Legal setting.' };
   return { ok: true, patch };
 }
 
 /** The settings from what the store kept and the game's defaults. A stored value that is not one of the known words is ignored. */
-export function mergeSettings(stored: { character?: unknown; signin?: unknown; friends?: unknown; emotes?: unknown; freePlay?: unknown }, defaults: GameSettings): GameState {
+export function mergeSettings(stored: StoredSettings, defaults: GameSettings): GameState {
   return {
     character: isCharacter(stored.character) ? stored.character : defaults.character,
     signin: isSigninChoice(stored.signin) ? stored.signin : defaults.signin,
@@ -78,6 +89,7 @@ export function mergeSettings(stored: { character?: unknown; signin?: unknown; f
     emotes: isEmotes(stored.emotes) ? stored.emotes : isEmotes(defaults.emotes) ? defaults.emotes : DEFAULT_EMOTES,
     freePlay: isFreePlay(stored.freePlay) ? stored.freePlay : isFreePlay(defaults.freePlay) ? defaults.freePlay : DEFAULT_FREE_PLAY,
     fromAdmin: { character: isCharacter(stored.character), signin: isSigninChoice(stored.signin), friends: isFriends(stored.friends), emotes: isEmotes(stored.emotes), freePlay: isFreePlay(stored.freePlay) },
+    legal: mergeLegal(stored),
   };
 }
 

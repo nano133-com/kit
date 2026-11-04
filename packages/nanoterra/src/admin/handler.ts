@@ -2,7 +2,8 @@
 //
 //   GET  {base}/summary   the numbers: status, orders, the looks that players own
 //   GET  {base}/game      the game switches
-//   POST {base}/game      a press: { character }, { signin }, { friends }, { emotes } or { freePlay } (only the known words)
+//   POST {base}/game      a press: { character }, { signin }, { friends }, { emotes } or { freePlay } (only the known words), or one of the Legal card's
+//                         { adultsOnly }, { sellLives }, { refundDays }, { refundWords } or { confirmLaws: true } (./legal.ts)
 //   POST {base}/check     the payment check, when the game gives one
 //
 // EVERY request under the base goes through `adminAccess` first, before the route is even looked up: a visitor who is not the owner gets 401 or 403
@@ -11,6 +12,7 @@
 import { adminAccess, type AdminAccess, type AdminSession } from "./guard.js";
 import { fail, foreignOrigin, json, memoryLimiter, readLimited, sameOrigin } from "./http.js";
 import { ADMIN_LOGINS_SHOWN, type AdminLogin, type AdminOrder, type AdminPlayer, type AdminStatus, type AdminStore, type AdminSummary, type StoreSummary } from "./store.js";
+import { mergeLegal, type LegalState } from "./legal.js";
 import { mergeSettings, parsePatch, type GameSettings, type GameState } from "./switches.js";
 
 export type AdminRoute = { method: "GET" | "POST"; path: string };
@@ -61,8 +63,8 @@ export const ADMIN_LIMITS = {
   check: { limit: 20, windowMs: 60_000 },
   /** "Sign out everywhere". */
   signOutAll: { limit: 5, windowMs: 60_000 },
-  /** The biggest body a press can have. */
-  gameBodyMax: 512,
+  /** The biggest body a press can have (the Legal card's refund words are the longest: 280 characters). */
+  gameBodyMax: 2048,
 } as const;
 
 /**
@@ -169,7 +171,10 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
         }
         const parsed = parsePatch(body);
         if (!parsed.ok) return fail(400, parsed.error);
-        await options.store.saveSettings(parsed.patch, at);
+        const patch = parsed.patch;
+        // The owner's confirmation is kept once: its time is the first press.
+        if (patch.confirmLaws && (await settings()).legal.lawsConfirmedAt !== null) delete patch.confirmLaws;
+        if (Object.keys(patch).length) await options.store.saveSettings(patch, at);
         return json(await settings());
       }
       if (route.path === `${base}/signout-all`) {
@@ -190,11 +195,24 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
   return { routes, basePath: options.basePath ?? "/api/admin", handle };
 }
 
-/** The settings as the game's own routes need them (the listing file, the character, the friends list, the emotes, free play): the stored words, or the game's defaults. A fault in the store gives the defaults. */
+/** The settings as the game's own routes need them (the listing file, the character, the friends list, the emotes, free play, the Legal card): the stored words, or the game's defaults. A fault in the store gives the defaults. */
 export async function loadGameSettings(store: Pick<AdminStore, "readSettings">, defaults: GameSettings): Promise<GameState> {
   try {
     return mergeSettings(await store.readSettings(), defaults);
   } catch {
     return mergeSettings({}, defaults);
+  }
+}
+
+/**
+ * The Legal card's settings, for the shop (`createShopHandler({ legal: () => loadLegal(adminStore) })`): the stored words, or the kit's defaults
+ * (DEFAULT_LEGAL). A fault in the store gives the defaults, which are the careful ones: 18 and up, no life or continue on sale, no owner's confirmation
+ * (so no play order outside test mode).
+ */
+export async function loadLegal(store: Pick<AdminStore, "readSettings">): Promise<LegalState> {
+  try {
+    return mergeLegal(await store.readSettings());
+  } catch {
+    return mergeLegal({});
   }
 }

@@ -9,7 +9,8 @@
 // only for statuses and for the words "reason" and "error"; it never reads a cookie.
 
 import type { AdminRoute } from "./handler.js";
-import type { AdminStore } from "./store.js";
+import { DEFAULT_LEGAL, mergeLegal } from "./legal.js";
+import { SETTING_KEYS, type AdminStore, type SettingName, type StoredSettings } from "./store.js";
 import { ORDERS_SHOWN, type OrderRow } from "./summary.js";
 
 /**
@@ -337,7 +338,7 @@ export function adminConformance(host: ConformanceHost): ConformanceCase[] {
 export type StoreHarness = {
   store: AdminStore;
   seed(data: { orders?: OrderRow[]; owned?: { player: string; lookId: string; at: number }[]; rate?: { value: string; at: number } }): Promise<void>;
-  /** Every row that the store could change by mistake, as one text: the orders, the owned looks and the meta rows that are NOT the five settings. Same rows, same text. */
+  /** Every row that the store could change by mistake, as one text: the orders, the owned looks and the meta rows that are NOT the ten settings (SETTING_KEYS). Same rows, same text. */
   snapshot(): Promise<string>;
   /** Only for a store with `recentLogins` and `signOutEverywhere`: put admin sign-ins in the game's database (the store only reads them). */
   seedLogins?(rows: { at: number; country: string | null; browser: string }[]): Promise<void>;
@@ -361,9 +362,32 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
   const B = `nano_3${"b".repeat(59)}`;
   const order = (id: string, over: Partial<OrderRow>): OrderRow => ({ id, player: A, lookId: "mint-cap", usd: "0.25", amountRaw: rawOf(0.25), status: "paid", createdAt: NOW - 1000, expiresAt: NOW + 1000, paidAt: NOW - 500, payer: A, hash: `H${id}`, ...over });
 
-  add("a new store has no settings of its own", async ({ store }) => {
+  /** Every setting the store returned that is not missing. */
+  const setNames = (s: StoredSettings) => (Object.keys(SETTING_KEYS) as SettingName[]).filter((k) => s[k] !== undefined);
+
+  add("a new store has no settings of its own, so the Legal card's defaults hold (18 and up, no life or continue, 14 days, the sample words, no confirmation)", async ({ store }) => {
     const s = await store.readSettings();
-    check(s.character === undefined && s.signin === undefined && s.friends === undefined && s.emotes === undefined && s.freePlay === undefined, `expected no settings, got ${JSON.stringify(s)}`);
+    check(setNames(s).length === 0, `expected no settings, got ${JSON.stringify(s)}`);
+    check(JSON.stringify(mergeLegal(s)) === JSON.stringify(DEFAULT_LEGAL), `the Legal defaults must hold: ${JSON.stringify(mergeLegal(s))}`);
+  });
+
+  add("the Legal card's settings are each kept on their own: 18 and up, a life or a continue, the refund days and words, the owner's confirmation", async ({ store }) => {
+    await store.saveSettings({ signin: "none", freePlay: "off" }, NOW);
+    await store.saveSettings({ adultsOnly: "off" }, NOW + 1);
+    let s = await store.readSettings();
+    check(s.adultsOnly === "off" && s.signin === "none" && s.freePlay === "off" && s.sellLives === undefined, `after adultsOnly off: ${JSON.stringify(s)}`);
+    await store.saveSettings({ sellLives: "on", refundDays: 7 }, NOW + 2);
+    await store.saveSettings({ refundWords: "Ask within {days} days. Write to me." }, NOW + 3);
+    s = await store.readSettings();
+    const legal = mergeLegal(s);
+    check(!legal.adultsOnly && legal.sellLives && legal.refundDays === 7 && legal.refundWords === "Ask within {days} days. Write to me." && legal.lawsConfirmedAt === null, `the Legal settings read back: ${JSON.stringify(legal)}`);
+    check(s.signin === "none" && s.freePlay === "off", `a Legal patch must leave the Game card's settings: ${JSON.stringify(s)}`);
+    await store.saveSettings({ refundDays: 0, adultsOnly: "on" }, NOW + 4);
+    check(mergeLegal(await store.readSettings()).refundDays === 0, "0 refund days is kept as 0");
+    await store.saveSettings({ confirmLaws: true }, NOW + 5);
+    s = await store.readSettings();
+    check(mergeLegal(s).lawsConfirmedAt === NOW + 5, `the owner's confirmation keeps the time of the press: ${JSON.stringify(s.lawsConfirmedAt)}`);
+    check(mergeLegal(s).adultsOnly && mergeLegal(s).sellLives && mergeLegal(s).refundDays === 0, `the confirmation leaves the rest: ${JSON.stringify(s)}`);
   });
 
   add("the friends list is kept as its own setting: each of its three words, and a patch of it leaves the other two", async ({ store }) => {
@@ -408,14 +432,20 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
   add("an empty patch writes nothing and does not fail", async ({ store }) => {
     await store.saveSettings({}, NOW);
     const s = await store.readSettings();
-    check(s.character === undefined && s.signin === undefined && s.friends === undefined && s.emotes === undefined && s.freePlay === undefined, "an empty patch must save nothing");
+    check(setNames(s).length === 0, "an empty patch must save nothing");
   });
 
-  add("saving changes nothing but the settings: no order, no owned look, no other meta row", async (h) => {
+  add("saving changes nothing but the settings: no order, no owned look, no other meta row; the Legal card's settings touch no order either", async (h) => {
     await h.seed({ orders: [order("1", {}), order("2", { status: "open" })], owned: [{ player: A, lookId: "mint-cap", at: NOW }], rate: { value: JSON.stringify({ usd: 1.2, sources: ["x"] }), at: NOW } });
     const before = await h.snapshot();
     await h.store.saveSettings({ character: "own", signin: "none", friends: "off", emotes: "off", freePlay: "off" }, NOW + 5);
     check((await h.snapshot()) === before, "the rows of the game changed after saving the settings");
+    for (const [i, patch] of ([{ adultsOnly: "off" }, { sellLives: "on" }, { refundDays: 30 }, { refundWords: "No refunds after a use." }, { confirmLaws: true }] as const).entries()) {
+      await h.store.saveSettings(patch, NOW + 6 + i);
+      check((await h.snapshot()) === before, `the rows of the game changed after saving ${JSON.stringify(patch)}`);
+    }
+    const s = await h.store.readSettings();
+    check(setNames(s).length === Object.keys(SETTING_KEYS).length, `every setting was saved and only the known ones are read: ${JSON.stringify(s)}`);
   });
 
   add("the summary counts the orders by status, reads an open order past its expiry as expired, and totals the money", async ({ store, seed }) => {
