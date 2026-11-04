@@ -109,6 +109,14 @@ with no Three.js), `/looks`, `/friends`, `/options`, `/emotes`, `/player-signin`
   no QR code, no address and the wallet key off. The server decides every price. `player(req)` is the PLAYER sign-in, never the
   admin's; the shop draws no sign-in (the panel's `signIn()` hook). A store of the game's own passes `shopStoreConformance`. Merge
   `SHOP_CSP` into the game's policy; never replace it. "Delete my data" calls `store.forget(player, now)`.
+- **Plays: charge for a round** (`/shop`, `plays.json`; since 0.15.0; SPEC step 15): a play is a round, a level, a life or a continue that a player
+  buys and uses ONCE. Pay to play only: a round never pays out money or a prize of value, nothing bought is random or changes the odds, and no
+  credit converts or moves. Ask the owner what a player pays for; stop if the answer is money, a prize of value, tickets or anything random. Check
+  `plays.json` with `checkPlays`. D1: apply `/shop/d1-plays.sql` BEFORE the Worker that sells plays. Wire the Legal card: `legal: () =>
+  loadLegal(adminStore)` and `createD1Store(db, { plays: true })`; give the admin `plays` (and `unmatched: shop.unmatched`). Never change the Legal
+  card's defaults or press the owner's confirmation. The round's start posts a NEW `ref` to `/api/plays/use` and starts only after `used`; a paid
+  round never pauses, and one that used a paid life or continue posts no score and earns nothing. Refunds are by hand: never add a key to send
+  them. The listing file carries `"paidRounds": paidRoundsOn(plays)`. Say "ask a lawyer before you turn test mode off"; give no legal advice.
 
 - **The player's sign-in** (`/player-signin`, `/player-signin/d1`, `/player-signin/firestore`, `/player-signin/panel`): a passkey (the passkey purse:
   a Nano account made in the browser from the passkey's PRF) or a wallet app (Berry Wallet, NanChat, Nautilus), for a game with a server. It needs

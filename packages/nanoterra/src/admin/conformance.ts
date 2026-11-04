@@ -9,8 +9,10 @@
 // only for statuses and for the words "reason" and "error"; it never reads a cookie.
 
 import type { AdminRoute } from "./handler.js";
-import type { AdminStore } from "./store.js";
-import { ORDERS_SHOWN, type OrderRow } from "./summary.js";
+import { DEFAULT_LEGAL } from "./legal.js";
+import { mergeLegal } from "./legalRules.js";
+import { SETTING_KEYS, type AdminStore, type SettingName, type StoredSettings } from "./store.js";
+import { ORDERS_SHOWN, type CreditRow, type OrderRow } from "./summary.js";
 
 /**
  * The kinds of visitor the game must be able to make:
@@ -328,6 +330,15 @@ export function adminConformance(host: ConformanceHost): ConformanceCase[] {
     }
   });
 
+  add("the unmatched payments are read with a POST only (the read asks the game's nodes): a GET is refused for the owner too, and the owner's POST from the game's page gets the list", async () => {
+    for (const route of host.routes.filter((r) => r.method === "POST" && r.path.endsWith("/unmatched"))) {
+      const get = await read(await send("owner", { method: "GET", path: route.path, headers: good() }));
+      check(get.status === 405, `GET ${route.path} as owner: expected 405, got ${get.status}`);
+      const got = await read(await send("owner", { method: "POST", path: route.path, headers: good(), body: "{}" }));
+      check(got.status === 200 && got.json !== null && "unmatched" in got.json, `POST ${route.path} as owner: expected 200 with "unmatched", got ${got.status} ${got.text.slice(0, 120)}`);
+    }
+  });
+
   return cases;
 }
 
@@ -336,8 +347,11 @@ export function adminConformance(host: ConformanceHost): ConformanceCase[] {
 /** What a test gives to run the store contract: the store, and a way to put rows in the game's database the way the game's own code does (the store has no write for them). */
 export type StoreHarness = {
   store: AdminStore;
-  seed(data: { orders?: OrderRow[]; owned?: { player: string; lookId: string; at: number }[]; rate?: { value: string; at: number } }): Promise<void>;
-  /** Every row that the store could change by mistake, as one text: the orders, the owned looks and the meta rows that are NOT the five settings. Same rows, same text. */
+  /** Puts rows in the game's database. With `plays`, an order's `kind` ("play") is kept and `credits` are the shop's credits of paid plays. */
+  seed(data: { orders?: OrderRow[]; owned?: { player: string; lookId: string; at: number }[]; credits?: CreditRow[]; rate?: { value: string; at: number } }): Promise<void>;
+  /** True when the store reads the shop's plays (the orders' kind and the credits): the plays' case runs, and `snapshot` must hold the credits too. */
+  plays?: boolean;
+  /** Every row that the store could change by mistake, as one text: the orders, the owned looks and the meta rows that are NOT the ten settings (SETTING_KEYS). Same rows, same text. */
   snapshot(): Promise<string>;
   /** Only for a store with `recentLogins` and `signOutEverywhere`: put admin sign-ins in the game's database (the store only reads them). */
   seedLogins?(rows: { at: number; country: string | null; browser: string }[]): Promise<void>;
@@ -361,9 +375,32 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
   const B = `nano_3${"b".repeat(59)}`;
   const order = (id: string, over: Partial<OrderRow>): OrderRow => ({ id, player: A, lookId: "mint-cap", usd: "0.25", amountRaw: rawOf(0.25), status: "paid", createdAt: NOW - 1000, expiresAt: NOW + 1000, paidAt: NOW - 500, payer: A, hash: `H${id}`, ...over });
 
-  add("a new store has no settings of its own", async ({ store }) => {
+  /** Every setting the store returned that is not missing. */
+  const setNames = (s: StoredSettings) => (Object.keys(SETTING_KEYS) as SettingName[]).filter((k) => s[k] !== undefined);
+
+  add("a new store has no settings of its own, so the Legal card's defaults hold (18 and up, no life or continue, 14 days, the sample words, no confirmation)", async ({ store }) => {
     const s = await store.readSettings();
-    check(s.character === undefined && s.signin === undefined && s.friends === undefined && s.emotes === undefined && s.freePlay === undefined, `expected no settings, got ${JSON.stringify(s)}`);
+    check(setNames(s).length === 0, `expected no settings, got ${JSON.stringify(s)}`);
+    check(JSON.stringify(mergeLegal(s)) === JSON.stringify(DEFAULT_LEGAL), `the Legal defaults must hold: ${JSON.stringify(mergeLegal(s))}`);
+  });
+
+  add("the Legal card's settings are each kept on their own: 18 and up, a life or a continue, the refund days and words, the owner's confirmation", async ({ store }) => {
+    await store.saveSettings({ signin: "none", freePlay: "off" }, NOW);
+    await store.saveSettings({ adultsOnly: "off" }, NOW + 1);
+    let s = await store.readSettings();
+    check(s.adultsOnly === "off" && s.signin === "none" && s.freePlay === "off" && s.sellLives === undefined, `after adultsOnly off: ${JSON.stringify(s)}`);
+    await store.saveSettings({ sellLives: "on", refundDays: 7 }, NOW + 2);
+    await store.saveSettings({ refundWords: "Ask within {days} days. Write to me." }, NOW + 3);
+    s = await store.readSettings();
+    const legal = mergeLegal(s);
+    check(!legal.adultsOnly && legal.sellLives && legal.refundDays === 7 && legal.refundWords === "Ask within {days} days. Write to me." && legal.lawsConfirmedAt === null, `the Legal settings read back: ${JSON.stringify(legal)}`);
+    check(s.signin === "none" && s.freePlay === "off", `a Legal patch must leave the Game card's settings: ${JSON.stringify(s)}`);
+    await store.saveSettings({ refundDays: 0, adultsOnly: "on" }, NOW + 4);
+    check(mergeLegal(await store.readSettings()).refundDays === 0, "0 refund days is kept as 0");
+    await store.saveSettings({ confirmLaws: true }, NOW + 5);
+    s = await store.readSettings();
+    check(mergeLegal(s).lawsConfirmedAt === NOW + 5, `the owner's confirmation keeps the time of the press: ${JSON.stringify(s.lawsConfirmedAt)}`);
+    check(mergeLegal(s).adultsOnly && mergeLegal(s).sellLives && mergeLegal(s).refundDays === 0, `the confirmation leaves the rest: ${JSON.stringify(s)}`);
   });
 
   add("the friends list is kept as its own setting: each of its three words, and a patch of it leaves the other two", async ({ store }) => {
@@ -408,14 +445,20 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
   add("an empty patch writes nothing and does not fail", async ({ store }) => {
     await store.saveSettings({}, NOW);
     const s = await store.readSettings();
-    check(s.character === undefined && s.signin === undefined && s.friends === undefined && s.emotes === undefined && s.freePlay === undefined, "an empty patch must save nothing");
+    check(setNames(s).length === 0, "an empty patch must save nothing");
   });
 
-  add("saving changes nothing but the settings: no order, no owned look, no other meta row", async (h) => {
+  add("saving changes nothing but the settings: no order, no owned look, no other meta row; the Legal card's settings touch no order either", async (h) => {
     await h.seed({ orders: [order("1", {}), order("2", { status: "open" })], owned: [{ player: A, lookId: "mint-cap", at: NOW }], rate: { value: JSON.stringify({ usd: 1.2, sources: ["x"] }), at: NOW } });
     const before = await h.snapshot();
     await h.store.saveSettings({ character: "own", signin: "none", friends: "off", emotes: "off", freePlay: "off" }, NOW + 5);
     check((await h.snapshot()) === before, "the rows of the game changed after saving the settings");
+    for (const [i, patch] of ([{ adultsOnly: "off" }, { sellLives: "on" }, { refundDays: 30 }, { refundWords: "No refunds after a use." }, { confirmLaws: true }] as const).entries()) {
+      await h.store.saveSettings(patch, NOW + 6 + i);
+      check((await h.snapshot()) === before, `the rows of the game changed after saving ${JSON.stringify(patch)}`);
+    }
+    const s = await h.store.readSettings();
+    check(setNames(s).length === Object.keys(SETTING_KEYS).length, `every setting was saved and only the known ones are read: ${JSON.stringify(s)}`);
   });
 
   add("the summary counts the orders by status, reads an open order past its expiry as expired, and totals the money", async ({ store, seed }) => {
@@ -464,6 +507,67 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
     check(JSON.stringify((await store.summary(NOW)).rate) === JSON.stringify({ usd: 1.18, sources: ["a", "b"], at: NOW - 60 }), "a good rate row must be read");
     await seed({ rate: { value: "not json", at: NOW } });
     check((await store.summary(NOW)).rate === null, "a junk rate row must give null");
+  });
+
+  add("(when the store reads plays) the summary counts each play's credits (sold, used, ready, late, not used in time, by each credit's own end), lists what to send back (a play no longer sold too) and the players' ready credits; saving settings changes no credit", async (h) => {
+    if (!h.plays) return;
+    const DAY = 86_400_000;
+    const play = (id: string, over: Partial<OrderRow>): OrderRow => order(id, { kind: "play", lookId: "extra-round", usd: "0.05", amountRaw: rawOf(0.05), ...over });
+    await h.seed({
+      orders: [
+        play("u1", {}),
+        play("r1", {}),
+        play("r2", { player: B, payer: B }),
+        play("o1", { paidAt: NOW - 40 * DAY }),
+        play("l1", { status: "paid_late" }),
+        play("d1", { player: "deleted", payer: B, forgotUnused: NOW - 100 }),
+        play("d2", { player: "deleted", payer: "deleted" }),
+        play("d3", { player: "deleted", payer: B }),
+        play("v1", { lookId: "level-2", usd: "0.10", amountRaw: rawOf(0.1) }),
+        play("n1", { lookId: "gone-play" }),
+        order("k1", {}),
+      ],
+      // Each credit's end is its own (fixed when it was paid): u1, r1 and r2 30 days, o1 ended 10 days ago, the level v1 (7 days) a day ago.
+      credits: [
+        { orderId: "u1", player: A, playId: "extra-round", grantedAt: NOW - 2 * DAY, expiresAt: NOW + 28 * DAY, usedAt: NOW - DAY },
+        { orderId: "r1", player: A, playId: "extra-round", grantedAt: NOW - DAY, expiresAt: NOW + 29 * DAY, usedAt: null },
+        { orderId: "r2", player: B, playId: "extra-round", grantedAt: NOW - DAY, expiresAt: NOW + 29 * DAY, usedAt: null },
+        { orderId: "o1", player: A, playId: "extra-round", grantedAt: NOW - 40 * DAY, expiresAt: NOW - 10 * DAY, usedAt: null },
+        { orderId: "v1", player: A, playId: "level-2", grantedAt: NOW - 8 * DAY, expiresAt: NOW - DAY, usedAt: null },
+        { orderId: "n1", player: A, playId: "gone-play", grantedAt: NOW - DAY, expiresAt: NOW + 29 * DAY, usedAt: null },
+      ],
+    });
+    const s = await h.store.summary(NOW, { isPlay: (id) => id === "extra-round" || id === "level-2" });
+    const plays = JSON.stringify(s.plays);
+    check(
+      plays ===
+        JSON.stringify([
+          { playId: "extra-round", sold: 7, used: 1, ready: 2, late: 1, notUsedInTime: 1 },
+          { playId: "gone-play", sold: 1, used: 0, ready: 0, late: 0, notUsedInTime: 1 },
+          { playId: "level-2", sold: 1, used: 0, ready: 0, late: 0, notUsedInTime: 1 },
+        ]),
+      `each play's numbers (a deleted player's paid plays count as sold; each credit's own end; a play no longer sold has none ready): ${plays}`,
+    );
+    const back = (s.sendBack ?? []).map((x) => [x.orderId, x.why, x.payer, x.xno, x.usd, x.playId]);
+    check(
+      JSON.stringify(back) ===
+        JSON.stringify([
+          ["o1", "not_used_in_time", A, "0.05", "0.05", "extra-round"],
+          ["d1", "deleted_player", B, "0.05", "0.05", "extra-round"],
+          ["n1", "no_play", A, "0.05", "0.05", "gone-play"],
+          ["v1", "not_used_in_time", A, "0.1", "0.10", "level-2"],
+        ]),
+      `to send back, oldest payment first, with the payer and the amount (a deleted player's play is listed only with forget's mark that its credit was unused): ${JSON.stringify(back)}`,
+    );
+    check(JSON.stringify(s.totals.sendBack) === JSON.stringify({ count: 5, xno: "0.3", usd: "0.30" }), `"To send back" holds the late payment and the four plays: ${JSON.stringify(s.totals.sendBack)}`);
+    check(JSON.stringify(s.players) === JSON.stringify([{ player: A, looks: [], ready: [{ id: "extra-round", ready: 1 }] }, { player: B, looks: [], ready: [{ id: "extra-round", ready: 1 }] }]), `each player's ready credits: ${JSON.stringify(s.players)}`);
+    const all = await h.store.summary(NOW);
+    check(JSON.stringify(all.plays?.find((p) => p.playId === "gone-play")) === JSON.stringify({ playId: "gone-play", sold: 1, used: 0, ready: 1, late: 0, notUsedInTime: 0 }), "with no isPlay, a credit of any play is ready in its time");
+    check(s.orders.filter((o) => o.kind === "play").length === 10 && s.orders.find((o) => o.id === "k1")?.kind === undefined, "a play's order says so; a look's does not");
+    const before = await h.snapshot();
+    check(before.includes("o1") && before.includes(String(NOW - 40 * DAY)), "the snapshot must hold the credits");
+    await h.store.saveSettings({ freePlay: "off", adultsOnly: "off", sellLives: "on", refundDays: 3, refundWords: "Ask me.", confirmLaws: true }, NOW + 1);
+    check((await h.snapshot()) === before, "saving the settings changed a credit or an order");
   });
 
   // The sign-in list and "sign out everywhere" are optional: a store that has them must pass these cases (a store that has not skips them).

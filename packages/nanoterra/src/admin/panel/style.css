@@ -10,6 +10,8 @@
 
 .n133-admin {
   --font: var(--n133-font, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+  /* The sticky tab bar's height (64 px on a phone, 58 px wider) and a little more: what a heading the page scrolls to keeps above it. */
+  --tabs-room: 76px;
   --radius: var(--n133-radius, 18px);
   --ink: var(--n133-ink, #16202e);
   --ink-soft: var(--n133-ink-soft, #4a5568);
@@ -193,8 +195,9 @@
   color: var(--bad);
 }
 
+/* Smaller words and padding, never a smaller target: every key of the admin is at least 44 px high (a finger on a phone). */
 .n133-admin .btn-small {
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 12px;
   font-size: 14px;
 }
@@ -706,7 +709,7 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-height: 42px;
+  min-height: 44px;
   padding: 0 12px;
   border: 0;
   border-radius: 11px;
@@ -743,7 +746,11 @@
   grid-template-columns: minmax(0, 1fr);
   gap: var(--gap);
   min-width: 0;
-  scroll-margin-top: 72px;
+}
+
+/* A tab's panel and a card the page scrolls to (the Overview's "To send back", a look opened in the Shelf) stop under the sticky tabs, not behind them. */
+.n133-admin :is(.tabpanel, .admin-card, .shelf-editing) {
+  scroll-margin-top: var(--tabs-room);
 }
 
 /* ---- Filter keys (a segmented row) and the tool row above a list ---- */
@@ -773,7 +780,7 @@
   flex: none;
   align-items: center;
   gap: 6px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 12px;
   border: 0;
   border-radius: 10px;
@@ -1066,7 +1073,7 @@
 }
 
 .n133-admin .start-steps .link-key {
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 6px;
 }
 
@@ -1077,9 +1084,11 @@
   gap: 8px;
 }
 
+/* The right column (the status, "Made" and "Paid … from nano_…") is at most half the card: the name and the price keep the left half, and a long
+   payer line wraps in its own half rather than squeezing the name to nothing or running over the price. */
 .n133-admin .order {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) fit-content(50%);
   grid-template-areas: "look status" "amount when" "player player" "extra extra";
   align-items: center;
   gap: 6px 10px;
@@ -1096,15 +1105,16 @@
 .n133-admin .order-look {
   display: flex;
   grid-area: look;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   min-width: 0;
 }
 
+/* A long name wraps (never cut to "Extra r…" or to no width); the Round mark goes under it when the line is full. */
 .n133-admin .order-look strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .n133-admin .order-status {
@@ -1115,9 +1125,14 @@
 .n133-admin .order-amount {
   display: flex;
   grid-area: amount;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 8px;
+  gap: 0 8px;
+  min-width: 0;
   font-variant-numeric: tabular-nums;
+}
+
+.n133-admin .order-amount > * {
   white-space: nowrap;
 }
 
@@ -1134,9 +1149,11 @@
   display: grid;
   grid-area: when;
   justify-items: end;
+  min-width: 0;
   color: var(--ink-soft);
   font-size: 13px;
   text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .n133-admin .order-extra {
@@ -1816,7 +1833,7 @@
 .n133-admin .foot-more summary {
   display: inline-flex;
   align-items: center;
-  min-height: 40px;
+  min-height: 44px;
   color: var(--sea);
   font-weight: 700;
   cursor: pointer;
@@ -1850,34 +1867,34 @@
   min-height: 44px;
 }
 
-.n133-admin .game-card .switch-row {
+.n133-admin :is(.game-card, .legal-card) .switch-row {
   display: grid;
   gap: 6px;
   padding: 14px 0 0;
   border-top: 1px solid var(--line);
 }
 
-.n133-admin .game-card .switch-head {
+.n133-admin :is(.game-card, .legal-card) .switch-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.n133-admin .game-card .switch-title {
+.n133-admin :is(.game-card, .legal-card) .switch-title {
   flex: 1 1 14rem;
   min-width: 0;
   font: 700 16px/1.3 var(--font);
 }
 
-.n133-admin .game-card .switch-note {
+.n133-admin :is(.game-card, .legal-card) .switch-note {
   max-width: 62ch;
   color: var(--ink-soft);
   font-size: 14px;
   line-height: 1.45;
 }
 
-.n133-admin .game-card .switch-review {
+.n133-admin :is(.game-card, .legal-card) .switch-review {
   padding-top: 12px;
   border-top: 1px solid var(--line);
 }
@@ -2196,8 +2213,10 @@
     white-space: nowrap;
   }
 
+  /* The word is hidden here, so the icon alone is the key: 44 px wide too. */
   .n133-admin .orders:not(.is-compact) .order-player .copy-key {
     flex: none;
+    min-width: 44px;
     padding: 0 8px;
   }
 
@@ -2266,4 +2285,158 @@
     margin-left: 0;
   }
 
+}
+
+/* ---- The "Legal" card (legalCard.ts): its switches share the Game card's rows; the refund rule, the owner's confirmation, the rules the kit holds ---- */
+
+.n133-admin .legal-confirm {
+  margin-top: 4px;
+}
+
+.n133-admin .legal-confirm.is-alert {
+  outline: 2px solid var(--alarm-ink);
+}
+
+.n133-admin .legal-confirm.is-done p {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.n133-admin .legal-field {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.n133-admin textarea.input.legal-words {
+  min-height: 88px;
+  padding: 10px 12px;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.n133-admin .legal-preview-box {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--ground);
+}
+
+.n133-admin .legal-preview {
+  margin: 0;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+
+.n133-admin .legal-fixed-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}
+
+.n133-admin .legal-fixed-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---- The Cosmetics tab's "Looks / Rounds" switch and the Rounds screen (rounds.ts) ---- */
+
+.n133-admin .cosmetics-kind {
+  margin-bottom: 12px;
+}
+
+.n133-admin .cosmetics-kind .seg-btn {
+  min-height: 44px;
+  padding: 0 18px;
+}
+
+.n133-admin .rounds-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.n133-admin .round-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+}
+
+.n133-admin .round-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.n133-admin .round-name {
+  font-size: 16px;
+}
+
+.n133-admin .round-price {
+  margin: 0;
+}
+
+.n133-admin .round-numbers li.is-alert strong {
+  color: var(--alarm-ink);
+}
+
+.n133-admin .round-field {
+  display: grid;
+  gap: 4px;
+}
+
+.n133-admin .mark-round {
+  margin-left: 6px;
+  background: var(--info-bg);
+  color: var(--info-ink);
+}
+
+/* ---- The Overview's "To send back" card ---- */
+
+.n133-admin .send-back-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* "Unmatched payments" (Overview): one card a payment, its lines wrap on a phone; the raw amount (39 digits) breaks anywhere. */
+.n133-admin .unmatched-row {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+.n133-admin .unmatched-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.n133-admin .unmatched-raw {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.n133-admin .ready-chips {
+  margin-top: 6px;
 }

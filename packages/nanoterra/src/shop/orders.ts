@@ -6,15 +6,21 @@
 //   on: at most a tenth of the price more, and at most 99 steps. When every step is held, the player is asked to try again in a moment.
 // - No two held orders can ever ask for the same amount (the store's unique rule), so one payment can only match one order. Two orders made at the same
 //   instant cannot both take an amount: the store refuses the second, and it moves on to the next step.
-// - The amount stays held from the order's start to LATE_HOLD_MS after it expires, so a late payment is still recognised (as "paid late") and never counts
-//   for a newer order. A paid order frees its amount at once (its payment's hash is recorded, so that payment never counts again).
+// - The amount stays held from the order's start to LATE_HOLD_MS after it expires (a play's order: PLAY_LATE_HOLD_MS), so a late payment is still
+//   recognised (as "paid late") and never counts for a newer order. A paid order frees its amount at once (its payment's hash is recorded, so that payment never counts again).
 
 import { compareRaw, isClean, plusSteps, STEP_RAW } from "./amount.js";
 import { CLOCK_SLACK_MS } from "./match.js";
-import type { OrderStatus, ShopOrder, ShopStore } from "./store.js";
+import { useDaysOf } from "./plays.js";
+import type { OrderKind, OrderStatus, ShopOrder, ShopStore } from "./store.js";
 
 export const ORDER_TTL_MS = 15 * 60_000;
 export const LATE_HOLD_MS = 60 * 60_000;
+/**
+ * A play's order holds its amount only this long after it expires (a look's: LATE_HOLD_MS). Plays are cheap and bought often, so their amounts come
+ * free sooner; a payment later than this is not seen as this order's (a look's longer hold keeps its amounts out of use for an hour).
+ */
+export const PLAY_LATE_HOLD_MS = 15 * 60_000;
 export const MAX_STEPS = 100;
 export const MAX_EXTRA_PERCENT = 10;
 /** One player can wait on this many orders at once. */
@@ -45,7 +51,8 @@ export function amountsFor(price: string): string[] {
 /** A new order id: 12 random bytes as hex. */
 export const newOrderId = (): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(12)), (x) => x.toString(16).padStart(2, "0")).join("");
 
-export type ReserveInput = { player: string; lookId: string; usd: string; rate: number; price: string; visitor: string | null; now: number; ttlMs?: number };
+/** `lookId` is the id of what is sold: a look's, or a play's with `kind: "play"` (default "look"); a play's `useDays` is its useWithinDays (default 30). */
+export type ReserveInput = { player: string; lookId: string; kind?: OrderKind; useDays?: number; usd: string; rate: number; price: string; visitor: string | null; now: number; ttlMs?: number };
 
 /** Makes an order with the smallest free amount at or above `p.price` (a clean amount in raw). Throws ShopBusy when every allowed amount is held. */
 export async function reserveOrder(store: ShopStore, p: ReserveInput): Promise<ShopOrder> {
@@ -59,6 +66,8 @@ export async function reserveOrder(store: ShopStore, p: ReserveInput): Promise<S
       id: newOrderId(),
       player: p.player,
       lookId: p.lookId,
+      kind: p.kind === "play" ? "play" : "look",
+      ...(p.kind === "play" ? { useDays: useDaysOf(p) } : {}),
       usd: p.usd,
       rate: p.rate,
       amount,
@@ -66,7 +75,7 @@ export async function reserveOrder(store: ShopStore, p: ReserveInput): Promise<S
       status: "open",
       createdAt: p.now,
       expiresAt,
-      holdUntil: expiresAt + LATE_HOLD_MS,
+      holdUntil: expiresAt + (p.kind === "play" ? PLAY_LATE_HOLD_MS : LATE_HOLD_MS),
       hash: null,
       payer: null,
       paidAt: null,

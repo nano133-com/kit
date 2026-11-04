@@ -5,7 +5,7 @@ import test, { before } from "node:test";
 import { Window } from "happy-dom";
 import { createFriendsHandler, createMemoryFriends, type PlayerDirectory } from "../src/friends/index.js";
 import { readWindowMessage, whereText, windowUrl } from "../src/friends/panel/window.js";
-import type { GameState } from "../src/admin/index.js";
+import { DEFAULT_LEGAL, type GameState } from "../src/admin/index.js";
 
 const ORIGIN = "https://game.example";
 const NANO = "https://nano133.com";
@@ -373,7 +373,7 @@ test("own: the show-online choice is saved", async () => {
 // ---- the admin Game card's friends choice ----
 
 test("the Game card has a three-way friends choice: a radio group, saved at once, with its sentence", async () => {
-  let state: GameState = { character: "nanoterra", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false, freePlay: false } };
+  let state: GameState = { character: "nanoterra", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false, freePlay: false }, legal: DEFAULT_LEGAL };
   const posts: unknown[] = [];
   const api = {
     get: async <T>() => state as T,

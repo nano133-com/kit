@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.15.0 (unreleased)
+## 0.15.0 (2026-11-04)
 
 - **The options panel is one page (Banano's UI pass, 2026-11-03; Wes: the less UI and text, the better).** No Basic and Advanced tabs: the Basic rows come
   first, then one fold row opens the Advanced rows under it. The row says the Advanced rows' group when they are one group (a game whose Advanced rows are
@@ -22,9 +22,67 @@
 - `/emotes/wheel`: the options' "Less motion" (`reducedMotion`) stops the wheel's pop-in, as the device's setting does (`EmoteSettings.calm`).
 - `/emotes/player`: `playing` is `"wave"` for the Wave's 1.8 s (it was always null for the Wave), so a game or a test sees it play. `WAVE_SECONDS` has its own
   file (`character/wave.ts`), so the player loads none of the pose's code.
-- Sizes (gzip, size test): `/emotes/wheel` 6.8 kB (ceiling 7.0 kB, was 6.5 kB), `/emotes/player` 3.1 kB (3.5 kB).
 - `/options`: a `help` line may name a key binding with `{key:<binding>}` (and a fallback, `{key:<binding>|<code>}`); the panel draws it again when the binding
   changes. `helpText` and `helpKeys` give the words for a menu of your own.
+- Sizes (gzip, size test): `/emotes/wheel` 6.8 kB (ceiling 7.0 kB, was 6.5 kB), `/emotes/player` 3.1 kB (3.5 kB).
+- **Plays: charge for a round (Wes, 2026-11-03 and 2026-11-04).** A play is one thing a player buys and uses ONCE: a round, a level, a life or a continue.
+  Pay to play only: a play buys one use of the game, never money or a prize of value, nothing bought is random or changes the odds, and no credit
+  converts or moves. A play goes through the same orders, reservation, scan and test mode as a look; only the grant differs (one credit per paid order).
+- **`plays.json` and `checkPlays`** (in `@nano133/nanoterra/looks`, and `/shop`): `id`, `name`, `priceUsd`, `use` (`PLAY_USES`: round, level, life,
+  continue) and `useWithinDays` (1 to 365, default 30). An unknown field is a mistake; `prize`, `reward`, `odds`, `chance`, `random`, `tickets`,
+  `tokens`, `cash` and `bonus` are refused with "a play buys one use of the game, nothing else". A play never takes a look's id. Also `playProblems`.
+- **`paidRoundsOn(plays)`** (`/looks` and `/shop`): the listing file's word, `"paidRounds": paidRoundsOn(plays)`, beside `"freePlay"`. A file without it
+  sells no paid rounds.
+- **The routes** (`createShopHandler({ plays, legal })`, `createShop` passes them): `POST /api/orders { playId }`, `GET /api/plays` (`ready` and `forSale`
+  of each play), `POST /api/plays/use { playId, ref }` (200 `{ used, again }`, 402, 409, 400; 60 a minute) and `POST /api/plays/adult`. The handler
+  has `use`, `ready` and `refusal` for a game's own round route. A use comes at the round's start; a ref answers "again" for good. At most 5 credits
+  of one play ready or waiting for a payment (`MAX_READY_PER_PLAY`).
+- **The store contract** adds `credits`, `useCredit`, `adult` and `keepAdult`; `forget` deletes the credits and the yes, and keeps a paid play's payer
+  while its credit was unused. Each credit keeps its own end, fixed when it is paid. Memory, D1 and Firestore keep the rules; `shopStoreConformance`
+  has the plays' cases (`{ plays: false }` leaves them out).
+- **A new migration file, `@nano133/nanoterra/shop/d1-plays.sql`:** the orders' `kind`, `use_days` and `forgot_unused`, the tables `credits` and
+  `play_adults`. Apply it before the Worker that sells plays. A game that sells only looks needs none of it.
+- **The D1 shop reads the schema** (the orders' `kind` column) to know whether it has the plays, never `plays.json`: a play order paid after the plays
+  left the file is still a play. `{ plays: true }` skips the read. The D1 limits keep a salted hash of their keys in `hits` (`limitKey`), never a
+  player's id. Firestore: `credits`, `shop_uses` and `play_adults`.
+- **A shorter hold for a play's order:** its amount stays held 15 minutes after the order ends (`PLAY_LATE_HOLD_MS`); a look's keeps its hour.
+- **The Legal card in /admin** (the Settings tab, after the Game card): "Paid rounds for 18 and up only" (on), "Sell an extra life or a continue" (off),
+  the refund rule (14 days and the creator's words, shown before any pay step) and the owner's one confirmation, "You are responsible for the laws where
+  you sell." Outside test mode no play is sold until the owner confirms. Five more settings in `SETTING_KEYS`; `loadLegal(store)`, `DEFAULT_LEGAL`,
+  `refundText`, `mergeLegal`, `parseLegalKey`. A press may be 2048 bytes (was 512).
+- **The age step:** with "18 and up only" on, a play's order answers 403 `needs: "age"` until the player says "I am 18 or older" (kept once). The pay
+  sheet shows the step.
+- **The panel** (`mountShop({ plays, playsBase, onCredit })`): `buyPlay`, `playKey` ("Play for 5¢", "1 round ready"), `ready`, the refund words before
+  any step, and new words in `SHOP_WORDS` (`playFor`, `playReady`, `playTitle`, `playLine`, `playPaid`, `playLate`, `playSignIn`, `ageLine`, `ageYes`,
+  `ageNo`), `playPrice` and `useWord`.
+- **The admin** (`createAdminHandler({ plays, unmatched })`, `mountAdmin({ plays })`, `createD1Store(db, { plays: true })`): the Cosmetics tab's
+  "Looks / Rounds" switch and the plays' draft (text to copy: the admin writes no play); a "Round" mark in Orders; each player's ready rounds; the
+  summary's `plays`, `sendBack` and `totals.sendBack`. "To send back" lists late payments, credits not used in time, credits of a play no longer sold
+  and the unused credits of deleted players, each with its payer.
+- **"Unmatched payments"** (the Overview tab; `POST {base}/unmatched`, 6 a minute; `findUnmatched` in `/shop`, `shop.unmatched` on a Worker): the
+  receives on the game's address that no order recorded, from the newest 200 entries since the oldest listed order. It only reads, and a read that
+  fails lists nothing. The creator checks each one and sends it back by hand.
+- **What a game's own tests see change** (no code of the game must change, but a test that pins these does):
+  - `GameState` (the admin's `GET /api/admin/game` and every press's answer) gains `legal` (`LegalState`): a test that builds a GameState by hand
+    adds `legal: DEFAULT_LEGAL`.
+  - The admin's press body may be 2048 bytes (`ADMIN_LIMITS.gameBodyMax`, was 512): a test that expects a 413 between 513 and 2048 bytes gets 200 or 400.
+  - The admin conformance's `snapshot` leaves out ten settings (`SETTING_KEYS`), not five: a game store's own snapshot must leave out the five new
+    keys too, `setting:adultsOnly`, `setting:sellLives`, `setting:refundDays`, `setting:refundWords` and `setting:lawsConfirmedAt`, or the
+    conformance sees them as rows changed by mistake. `seed` takes `credits`, and `plays: true` runs the plays' case. The host conformance has a
+    case for each `POST …/unmatched` route the host lists.
+  - The admin summary gains `plays`, `sendBack` and `totals.sendBack` (a deep-equal of a summary sees them).
+  - The Worker's D1 limits keep `limitKey`'s salted hash in `hits`: a test that reads a `hits` row by `order|<visitor>` finds none.
+  - `SHOP_LIMITS` gains `use` and `adult`. The Worker's status warns "No NODE_API_KEY" only when the public nodes are asked: with `NANO_NODES` set
+    and no key, the warnings are one fewer.
+  - The panel's Play key: a press with no round ready reads `GET {playsBase}` before it orders (a test awaits the press, and sees that GET first).
+  - `roundsView` (`/admin/panel`) gains `setSellLives(on)`.
+- **Fixes from the phone check (2026-11-04):** on a phone on its side the pay sheet's refund words have their own row above the QR code (they fell
+  under it, cut by the sheet); the Play key reads the credits again before it buys and when the page comes back into view, so a credit paid
+  meanwhile starts the round, never a second order; the admin's Orders keep the name's width and wrap a long payer line (the price never runs over
+  it); every admin key, tab, filter key and summary is at least 44 px high (and the Orders table's copy key, an icon alone there, 44 px wide); "To send back" stops under the sticky tabs, not behind them; the Rounds
+  draft offers a life or a continue only while the Legal card sells them; "No NODE_API_KEY" is no longer said for the game's own `NANO_NODES`; the
+  README's "paid state" test is the starter's Vitest file (`testAccount()`, `looks.json` imported) and runs there as it is.
+- Sizes (gzip, size test): `/looks` 4.0 kB (ceiling 4.1 kB), `/shop` 12.7 kB (12.9 kB), `/shop/worker` 14.4 kB (14.5 kB), `/shop/panel` 11.3 kB (11.6 kB).
 
 ## 0.14.1 (2026-11-03)
 

@@ -1,11 +1,12 @@
-// The Overview tab of /admin: the game at a glance. The best-selling looks with their share of the money, the last five orders, the two game switches as On or
-// Off, and the shelf in numbers; each part has a key to its own tab. A game with no sale yet gets three first steps instead of empty lists.
+// The Overview tab of /admin: the game at a glance. The best-selling looks and rounds with their share of the money, what to send back by hand (late
+// payments, rounds not used in time, the unused rounds of deleted players), the last five orders, the two game switches as On or Off, and the shelf in
+// numbers; each part has a key to its own tab. A game with no sale yet gets three first steps instead of empty lists.
 
 import type { Look } from "../../looks/look.js";
 import { priceText } from "../../looks/ladder.js";
 import type { AdminSummary } from "../store.js";
 import { FRIENDS_CHOICES, FRIENDS_TITLE, SWITCHES, stateOf, type GameState } from "../switches.js";
-import { dollars, h, plural } from "./dom.js";
+import { copyKey, dollars, h, plural, shortAddress } from "./dom.js";
 import { icon } from "./icons.js";
 import { orderRow, type OrderFilter } from "./orders.js";
 import { shelfStats } from "./shelfData.js";
@@ -29,18 +30,25 @@ export function bestSellers(s: Pick<AdminSummary, "orders" | "players">, looks: 
 export type OverviewView = {
   el: HTMLElement;
   update(s: AdminSummary): void;
+  /** Brings the "To send back" card into view (a press on the number does it). */
+  showSendBack(): void;
   /** The game switches as they are now (null: they could not be read). */
   setGame(state: GameState | null): void;
 };
 
-export function overviewView(looks: readonly Look[], colourOf: (lookId: string) => string | null, go: (tab: TabId, filter?: OrderFilter) => void): OverviewView {
+/** Why a paid round is to be sent back, in words. */
+const BACK_WHY: Record<string, string> = { not_used_in_time: "Not used in time", no_play: "No longer sold", deleted_player: "The player deleted their data", paid_late: "Paid after the order ended" };
+
+/** `cards`: more cards for the main column, after "To send back" (the panel's "Unmatched payments"). */
+export function overviewView(looks: readonly Look[], colourOf: (lookId: string) => string | null, go: (tab: TabId, filter?: OrderFilter) => void, playIds: ReadonlySet<string> = new Set(), cards: readonly HTMLElement[] = []): OverviewView {
   let game: GameState | null = null;
   const sellers = h("section", { class: "admin-card best-card", "aria-labelledby": "n133-best-title" });
+  const sendBack = h("section", { class: "admin-card send-back-card", "aria-labelledby": "n133-back-title", tabindex: -1 });
   const recent = h("section", { class: "admin-card recent-card", "aria-labelledby": "n133-recent-title" });
   const gameBox = h("section", { class: "admin-card glance-card", "aria-labelledby": "n133-glance-game" });
   const shelfBox = h("section", { class: "admin-card glance-card", "aria-labelledby": "n133-glance-shelf" });
   const start = h("section", { class: "admin-card start-card", "aria-labelledby": "n133-start-title" });
-  const main = h("div", { class: "overview-main" }, start, sellers, recent);
+  const main = h("div", { class: "overview-main" }, start, sendBack, ...cards, sellers, recent);
   const side = h("div", { class: "overview-side" }, gameBox, shelfBox);
   const el = h("div", { class: "overview" }, main, side);
 
@@ -77,8 +85,37 @@ export function overviewView(looks: readonly Look[], colourOf: (lookId: string) 
   drawGame();
   drawShelf();
 
+  function drawSendBack(s: AdminSummary) {
+    // Every payment the creator sends back by hand (the game holds no key): the late payments, and the paid rounds not used in time or of deleted players.
+    const late = s.orders.filter((o) => o.status === "paid_late" && o.payer).map((o) => ({ key: o.id, name: o.look, payer: o.payer!, xno: o.xno, usd: o.usd, why: "paid_late" }));
+    const rows = [...s.sendBack.map((b) => ({ key: b.orderId, name: b.name, payer: b.payer, xno: b.xno, usd: b.usd, why: b.why })), ...late];
+    sendBack.hidden = !s.sendBack.length;
+    sendBack.replaceChildren(
+      h("div", { class: "card-head" }, h("h2", { id: "n133-back-title" }, "To send back"), h("span", { class: "fine" }, `${s.totals.sendBack.xno} XNO · $${s.totals.sendBack.usd}`)),
+      h("p", { class: "fine" }, "The game holds no key, so it sends nothing back. Send each amount by hand from your wallet to the address it came from."),
+      h(
+        "ul",
+        { class: "send-back-list" },
+        ...rows.map((r) =>
+          h(
+            "li",
+            { class: "late-note", "data-order": r.key },
+            icon("back", 16),
+            h("span", {}, h("strong", {}, `${r.xno} XNO`), ` ($${r.usd}) · ${r.name} · ${BACK_WHY[r.why] ?? r.why} · to `, h("code", { title: r.payer }, shortAddress(r.payer))),
+            copyKey(r.payer, "Copy the address to send it back to", icon("copy", 14)),
+          ),
+        ),
+      ),
+    );
+  }
+
   return {
     el,
+    showSendBack() {
+      if (sendBack.hidden) return;
+      sendBack.scrollIntoView?.({ block: "start" });
+      sendBack.focus({ preventScroll: true });
+    },
     setGame(state) {
       game = state;
       drawGame();
@@ -100,9 +137,10 @@ export function overviewView(looks: readonly Look[], colourOf: (lookId: string) 
         ),
       );
 
+      drawSendBack(s);
       sellers.hidden = !best.length;
       sellers.replaceChildren(
-        h("div", { class: "card-head" }, h("h2", { id: "n133-best-title" }, "Best sellers"), linkKey("All looks", () => go("cosmetics"))),
+        h("div", { class: "card-head" }, h("h2", { id: "n133-best-title" }, "Best sellers"), linkKey(playIds.size ? "All looks and rounds" : "All looks", () => go("cosmetics"))),
         h(
           "ol",
           { class: "best-list" },
@@ -118,7 +156,7 @@ export function overviewView(looks: readonly Look[], colourOf: (lookId: string) 
               {},
               h("span", { class: "best-rank" }, String(i + 1)),
               dot,
-              h("div", { class: "best-main" }, h("div", { class: "best-top" }, h("strong", {}, b.name), h("span", { class: "best-money" }, dollars(b.cents))), h("div", { class: "share", title: `${share}% of the money from sales` }, bar, h("span", { class: "fine" }, `${plural(b.paid, "sale")} · ${share}%`))),
+              h("div", { class: "best-main" }, h("div", { class: "best-top" }, h("strong", {}, b.name, playIds.has(b.id) ? h("span", { class: "mark mark-round" }, "Round") : null), h("span", { class: "best-money" }, dollars(b.cents))), h("div", { class: "share", title: `${share}% of the money from sales` }, bar, h("span", { class: "fine" }, `${plural(b.paid, "sale")} · ${share}%`))),
             );
           }),
         ),

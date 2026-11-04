@@ -47,6 +47,12 @@ else {
       "Turnstile is OFF: sign-in and orders are not checked for bots. Add a free Turnstile widget (see README).",
       "No NODE_API_KEY: payments are checked on public Nano nodes only, which promise no uptime.",
     ]);
+    // The game's own nodes (NANO_NODES) and no key: no warning about the key, since the public nodes are not the ones asked.
+    const own = createShop(env({ NANO_NODES: "https://node.game.example/rpc, http://127.0.0.1:7076", TURNSTILE_SITE_KEY: "a", TURNSTILE_SECRET: "b" }), opts).status();
+    assert.deepEqual(own.nodes, ["node.game.example", "127.0.0.1:7076"]);
+    assert.deepEqual(own.warnings, []);
+    // No key and no own node: the public nodes, and the warning.
+    assert.ok(createShop(env({ TURNSTILE_SITE_KEY: "a", TURNSTILE_SECRET: "b" }), opts).status().warnings.some((w) => w.startsWith("No NODE_API_KEY")));
     const live = createShop(env({ NODE_API_KEY: "key-not-real", TURNSTILE_SITE_KEY: "a", TURNSTILE_SECRET: "b" }), opts).status();
     assert.deepEqual(live.warnings, []);
     assert.equal(live.nodes[0], "Nanswap Nodes");

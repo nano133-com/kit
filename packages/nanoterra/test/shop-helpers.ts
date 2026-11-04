@@ -36,6 +36,8 @@ try {
 }
 export const noSqlite = DatabaseSync ? false : "node:sqlite is not in this Node";
 export const SHOP_SQL = readFileSync(new URL("../src/shop/adapters/d1.sql", import.meta.url), "utf8");
+/** The plays' migration, applied after the shop's tables (d1.sql or the starter's own). */
+export const PLAYS_SQL = readFileSync(new URL("../src/shop/adapters/d1-plays.sql", import.meta.url), "utf8");
 
 /** A D1 over a SQLite database, as the friends tests make it; `log` gets every statement. */
 export function d1Over(db: Sqlite, log: { sql: string; args: unknown[] }[] = []): D1Like {

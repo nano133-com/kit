@@ -1,8 +1,8 @@
 // A store in memory, for tests (and for a game's first try). Nothing is kept after the process ends. It builds its summary with the same code as the
 // real adapters (./summary.ts), so it is the reference for what a summary says.
 
-import { summarize, type OrderRow } from "./summary.js";
-import type { AdminLogin, AdminStore, StoreSummary } from "./store.js";
+import { summarize, type CreditRow, type OrderRow } from "./summary.js";
+import { SETTING_KEYS, settingRows, type AdminLogin, type AdminStore, type SettingName, type StoredSettings, type StoreSummary, type SummaryOptions } from "./store.js";
 import type { GamePatch } from "./switches.js";
 
 export type MemoryStore = AdminStore & {
@@ -12,6 +12,8 @@ export type MemoryStore = AdminStore & {
   writes: number;
   orders: OrderRow[];
   owned: { player: string; lookId: string; at: number }[];
+  /** The credits of paid plays (the shop's), for the plays' numbers. */
+  credits: CreditRow[];
   rate: StoreSummary["rate"];
   /** The admin sign-ins and the count of admin sessions, when the store was made with `logins: true`. */
   logins: (AdminLogin & Record<string, unknown>)[];
@@ -22,12 +24,13 @@ export type MemoryStore = AdminStore & {
   pendingGameRequests: number;
 };
 
-export function createMemoryStore(seed: { orders?: OrderRow[]; owned?: { player: string; lookId: string; at: number }[]; rate?: StoreSummary["rate"]; logins?: boolean } = {}): MemoryStore {
+export function createMemoryStore(seed: { orders?: OrderRow[]; owned?: { player: string; lookId: string; at: number }[]; credits?: CreditRow[]; rate?: StoreSummary["rate"]; logins?: boolean } = {}): MemoryStore {
   const store: MemoryStore = {
     rows: new Map(),
     writes: 0,
     orders: seed.orders ?? [],
     owned: seed.owned ?? [],
+    credits: seed.credits ?? [],
     rate: seed.rate ?? null,
     logins: [],
     adminSessions: 0,
@@ -35,18 +38,16 @@ export function createMemoryStore(seed: { orders?: OrderRow[]; owned?: { player:
     pendingAdminRequests: 0,
     pendingGameRequests: 0,
     async readSettings() {
-      return { character: store.rows.get("setting:character"), signin: store.rows.get("setting:signin"), friends: store.rows.get("setting:friends"), emotes: store.rows.get("setting:emotes"), freePlay: store.rows.get("setting:freePlay") };
+      const out: StoredSettings = {};
+      for (const [name, key] of Object.entries(SETTING_KEYS) as [SettingName, string][]) if (store.rows.has(key)) out[name] = store.rows.get(key);
+      return out;
     },
-    async saveSettings(patch: GamePatch) {
-      if (patch.character) store.rows.set("setting:character", patch.character);
-      if (patch.signin) store.rows.set("setting:signin", patch.signin);
-      if (patch.friends) store.rows.set("setting:friends", patch.friends);
-      if (patch.emotes) store.rows.set("setting:emotes", patch.emotes);
-      if (patch.freePlay) store.rows.set("setting:freePlay", patch.freePlay);
+    async saveSettings(patch: GamePatch, now: number) {
+      for (const [name, value] of settingRows(patch, now)) store.rows.set(SETTING_KEYS[name], value);
       store.writes++;
     },
-    async summary(now: number): Promise<StoreSummary> {
-      return summarize(store.orders, store.owned, store.rate, now);
+    async summary(now: number, options?: SummaryOptions): Promise<StoreSummary> {
+      return summarize(store.orders, store.owned, store.rate, now, store.credits, options);
     },
   };
   if (seed.logins) {

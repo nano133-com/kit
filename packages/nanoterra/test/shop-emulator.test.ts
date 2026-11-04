@@ -26,9 +26,9 @@ else {
   let n = 0;
 
   for (const c of shopStoreConformance(async () => {
-    // Each case gets its own five collections: a new, empty store.
+    // Each case gets its own eight collections: a new, empty store.
     const k = `s${process.pid}_${n++}`;
-    const names = { orders: `${k}_orders`, owned: `${k}_owned`, meta: `${k}_meta`, amounts: `${k}_amounts`, hashes: `${k}_hashes` };
+    const names = { orders: `${k}_orders`, owned: `${k}_owned`, meta: `${k}_meta`, amounts: `${k}_amounts`, hashes: `${k}_hashes`, credits: `${k}_credits`, uses: `${k}_uses`, adults: `${k}_adults` };
     const store = createFirestoreShop(db as unknown as FirestoreShopLike, names);
     const dump = async () => {
       const parts = await Promise.all(Object.values(names).map(async (name) => (await db.collection(name).get()).docs.map((d: { id: string; data(): unknown }) => [d.id, d.data()])));
@@ -64,5 +64,37 @@ else {
     assert.equal(held.length, 25);
     assert.deepEqual(new Set(held.map((o) => o.id)), new Set(made.map((o) => o.id)));
     console.log(`# burst of 25: ${lost} transaction(s) lost every attempt (ABORTED) and went on to the next amount`);
+  });
+
+  // The uses under real contention: 20 at once for 3 credits (20 refs), then 20 at once with one ref. A use whose transaction is ABORTED goes on to the
+  // next credit; the line counts those, so many runs of this test show that the path ran. Exactly 3 used, then exactly 1.
+  test("shop Firestore emulator: 20 uses at once: 3 credits are used once each, and one ref uses one credit", { timeout: SHOP_CASE_TIMEOUT_MS }, async () => {
+    const k = `u${process.pid}_${n++}`;
+    let lost = 0;
+    const counted: FirestoreShopLike = {
+      collection: (name) => db.collection(name),
+      batch: () => db.batch(),
+      runTransaction: (fn) =>
+        db.runTransaction(fn).catch((e: { code?: unknown }) => {
+          if (e?.code === 10) lost++;
+          throw e;
+        }),
+    };
+    const store = createFirestoreShop(counted, { orders: `${k}_orders`, owned: `${k}_owned`, meta: `${k}_meta`, amounts: `${k}_amounts`, hashes: `${k}_hashes`, credits: `${k}_credits`, uses: `${k}_uses` });
+    const T = Date.now();
+    const credit = async (i: number) => {
+      const o = await reserveOrder(store, { player: "p1", lookId: "extra-round", kind: "play", usd: "0.05", rate: 1, price: priceRaw(0.05, 1)!, visitor: null, now: T + i });
+      assert.equal(await store.settle(o, { hash: `${"A".repeat(60)}${String(i).padStart(4, "0")}`, payer: "p1", seenMs: T + i }, T + i), "paid");
+    };
+    for (let i = 0; i < 3; i++) await credit(i);
+    const many = await Promise.all(Array.from({ length: 20 }, (_, i) => store.useCredit("p1", "extra-round", `r-${i}`, T + 100)));
+    const used = many.flatMap((r) => (r.status === "used" ? [r.credit.orderId] : []));
+    assert.deepEqual([used.length, new Set(used).size, many.filter((r) => r.status === "none").length], [3, 3, 17]);
+    for (let i = 3; i < 5; i++) await credit(i);
+    const one = await Promise.all(Array.from({ length: 20 }, () => store.useCredit("p1", "extra-round", "r-one", T + 200)));
+    assert.equal(one.filter((r) => r.status === "used").length, 1, one.map((r) => r.status).join(","));
+    assert.ok(one.every((r) => r.status !== "none"));
+    assert.deepEqual(await store.credits("p1", 0), [{ playId: "extra-round", ready: 1 }]);
+    console.log(`# uses at once: ${lost} transaction(s) lost every attempt (ABORTED) and went on to the next credit`);
   });
 }

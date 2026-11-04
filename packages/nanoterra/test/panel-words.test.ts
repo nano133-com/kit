@@ -6,6 +6,7 @@ import test, { after, before } from "node:test";
 import { Window } from "happy-dom";
 import { createMemoryShop, createShopHandler } from "../src/shop/index.js";
 import { LOOKS, testAddress } from "./shop-helpers.js";
+import { DEFAULT_LEGAL } from "../src/admin/legal.js";
 
 const ORIGIN = "https://game.example";
 let shopPanel: typeof import("../src/shop/panel/index.js");
@@ -201,4 +202,62 @@ test("the sign-in sheet's ways: short, no sentence over 10 words", async (t) => 
   assert.ok(count(lines) <= 30);
   assert.ok(longest(lines) <= 10);
   v.stop();
+});
+
+// ---- a play's sheets: the "18 or older" step and the pay sheet with the creator's refund words (the sample words) ----
+
+const PLAYS = [{ id: "extra-round", name: "Extra round", priceUsd: 0.05, use: "round" }];
+
+/** A play's sheet as the player first sees it: with `adultsOnly` the "18 or older" step, else the pay sheet (with the sample refund words). */
+async function playSheet(payee: string | null, adultsOnly: boolean) {
+  const handler = createShopHandler({
+    store: createMemoryShop(),
+    catalogue: LOOKS,
+    plays: PLAYS,
+    legal: () => ({ ...DEFAULT_LEGAL, adultsOnly, lawsConfirmedAt: 1 }),
+    payee,
+    player: async () => "p1",
+    rate: { feeds: ["CoinGecko", "Kraken", "KuCoin"].map((name) => ({ name, url: `https://${name}.test/`, read: (j: { usd: number }) => j.usd })), fetch: async () => new Response(JSON.stringify({ usd: 1 })) },
+    nodes: [],
+  });
+  const fetchFn = (async (input: string, init?: RequestInit) => {
+    const res = await handler.handle(new Request(`${ORIGIN}${input}`, { ...init, headers: { ...(init?.headers as Record<string, string>), Origin: ORIGIN } }));
+    return res ?? new Response(JSON.stringify({ error: "No such route." }), { status: 404 });
+  }) as unknown as typeof fetch;
+  const el = document.createElement("div");
+  document.body.append(el);
+  const shop = shopPanel.mountShop(el, { looks: LOOKS, plays: PLAYS, fetch: fetchFn, owned: () => [], signedIn: () => true, signIn: async () => true, worn: () => false, wear: () => {} });
+  mounted.push(shop);
+  shop.buyPlay("extra-round");
+  await settle();
+  return el.querySelector("dialog")!;
+}
+
+// The creator's refund words are the creator's own (as a look's name is): the kit's words stay at most 30 beside them, and the sample words are short too
+// (at most 15, no sentence over 10).
+test("a play's sheets: the 18-or-older step, and the pay sheet in TEST MODE and live: the kit's words at most 30 beside the creator's refund words, no sentence over 10", async (t) => {
+  for (const [name, payee, adultsOnly] of [["the 18-or-older step", null, true], ["a play in TEST MODE", null, false], ["a play live", testAddress(), false]] as const) {
+    const sheet = await playSheet(payee, adultsOnly);
+    const lines = visibleLines(sheet);
+    const refund = sheet.querySelector(".n133s-refund");
+    const own = refund ? count(lines) - count(visibleLines(refund)) : count(lines);
+    t.diagnostic(`${name}: ${own} words of the kit (${count(lines)} with the refund words), longest sentence ${longest(lines)}: ${lines.join(" | ")}`);
+    assert.ok(own <= 30, `${name}: ${own} words`);
+    assert.ok(longest(lines) <= 10, `${name}: a sentence of ${longest(lines)} words`);
+    if (refund) assert.ok(count(visibleLines(refund)) <= 15, "the sample refund words are short");
+    if (adultsOnly) assert.ok(lines.includes("Paid rounds are for players 18 and up."));
+    else {
+      assert.ok(lines.includes("1 round. Used once."));
+      assert.ok(lines.includes("Not used? Ask for your money back within 14 days. Write to the game's owner."));
+    }
+    if (!adultsOnly && payee === null) assert.equal(sheet.querySelector(".n133s-stamp")!.textContent, "TEST MODE: DO NOT PAY");
+  }
+  const w = shopPanel.SHOP_WORDS;
+  assert.equal(w.playFor(shopPanel.playPrice(0.05)), "Play for 5¢");
+  assert.equal(w.playReady("round", 1), "1 round ready");
+  assert.equal(w.playReady("life", 2), "2 lives ready");
+  assert.equal(w.playPaid("round"), "Paid. Your round is ready.");
+  assert.equal(w.playLine("round"), "1 round. Used once.");
+  assert.deepEqual([0.005, 0.25, 0.9999, 1, 1.5].map(shopPanel.playPrice), ["0.5¢", "25¢", "99.99¢", "$1.00", "$1.50"]);
+  assert.match(w.playLate("round"), /no round/);
 });

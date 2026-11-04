@@ -2,10 +2,11 @@
 // (on an in-memory fake of the small interface it uses), plus what is specific to each: the ONLY writes are the two settings.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createMemoryStore, xnoText, RAW_PER_XNO, type OrderRow } from "../src/admin/index.js";
+import { SETTING_KEYS, createMemoryStore, xnoText, RAW_PER_XNO, type OrderRow } from "../src/admin/index.js";
 import { createD1Store, type D1Like, type D1StatementLike } from "../src/admin/adapters/d1.js";
 import { createFirestoreStore, type FirestoreLike } from "../src/admin/adapters/firestore.js";
 import { adminStoreConformance, type ConformanceCase, type StoreHarness } from "../src/admin/conformance.js";
+import { PLAYS_SQL } from "./shop-helpers.js";
 
 const run = (name: string, cases: ConformanceCase[]) => {
   for (const c of cases) test(`${name}: ${c.name}`, c.run);
@@ -17,6 +18,7 @@ run("memory store", adminStoreConformance(async () => {
   const store = createMemoryStore({ logins: true });
   const h: StoreHarness = {
     store,
+    plays: true,
     async seedLogins(rows) {
       store.logins.push(...rows);
     },
@@ -37,10 +39,11 @@ run("memory store", adminStoreConformance(async () => {
     async seed(d) {
       if (d.orders) store.orders = d.orders;
       if (d.owned) store.owned = d.owned;
+      if (d.credits) store.credits = d.credits;
       if (d.rate) store.rate = (await import("../src/admin/index.js")).parseRate(d.rate.value, d.rate.at);
     },
     async snapshot() {
-      return JSON.stringify([store.orders, store.owned, store.rate]);
+      return JSON.stringify([store.orders, store.owned, store.credits, store.rate]);
     },
   };
   return h;
@@ -93,15 +96,17 @@ function d1Over(db: Sqlite, log: { sql: string; args: unknown[] }[] = []): D1Lik
   };
 }
 
-function d1Harness(withLogins = true): StoreHarness & { log: { sql: string; args: unknown[] }[]; db: Sqlite } {
+function d1Harness(withLogins = true, plays = false): StoreHarness & { log: { sql: string; args: unknown[] }[]; db: Sqlite } {
   const db = new DatabaseSync!(":memory:");
   db.exec(SCHEMA);
+  if (plays) db.exec(PLAYS_SQL);
   const log: { sql: string; args: unknown[] }[] = [];
   let n = 0;
   return {
     db,
     log,
-    store: createD1Store(d1Over(db, log), { logins: withLogins }),
+    plays,
+    store: createD1Store(d1Over(db, log), { logins: withLogins, plays }),
     async seedLogins(rows) {
       for (const r of rows) db.prepare("INSERT INTO admin_logins (at, country, browser) VALUES (?, ?, ?)").run(r.at, r.country, r.browser);
     },
@@ -124,13 +129,15 @@ function d1Harness(withLogins = true): StoreHarness & { log: { sql: string; args
     async seed(d) {
       for (const o of d.orders ?? []) {
         db.prepare("INSERT INTO orders (id, player, look_id, usd, amount, status, created_at, expires_at, paid_at, payer, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(o.id, o.player, o.lookId, o.usd, o.amountRaw, o.status, o.createdAt, o.expiresAt, o.paidAt, o.payer, o.hash);
+        if (plays && o.kind === "play") db.prepare("UPDATE orders SET kind = 'play', forgot_unused = ? WHERE id = ?").run(o.forgotUnused ?? null, o.id);
       }
+      for (const c of d.credits ?? []) db.prepare("INSERT INTO credits (order_id, player, play_id, granted_at, expires_at, used_at) VALUES (?, ?, ?, ?, ?, ?)").run(c.orderId, c.player, c.playId, c.grantedAt, c.expiresAt, c.usedAt);
       for (const o of d.owned ?? []) db.prepare("INSERT OR REPLACE INTO owned (player, look_id, granted_at) VALUES (?, ?, ?)").run(o.player, o.lookId, o.at);
       if (d.rate) db.prepare("INSERT OR REPLACE INTO meta (key, value, at) VALUES ('rate', ?, ?)").run(d.rate.value, d.rate.at);
     },
     async snapshot() {
       const q = (sql: string) => JSON.stringify(db.prepare(sql).all());
-      return [q("SELECT * FROM orders ORDER BY id"), q("SELECT * FROM owned ORDER BY player, look_id"), q("SELECT * FROM meta WHERE key NOT IN ('setting:character', 'setting:signin', 'setting:friends', 'setting:emotes', 'setting:freePlay') ORDER BY key")].join("|");
+      return [q("SELECT * FROM orders ORDER BY id"), q("SELECT * FROM owned ORDER BY player, look_id"), plays ? q("SELECT * FROM credits ORDER BY order_id") : "", q(`SELECT * FROM meta WHERE key NOT IN (${Object.values(SETTING_KEYS).map((k) => `'${k}'`).join(", ")}) ORDER BY key`)].join("|");
     },
   };
 }
@@ -138,6 +145,7 @@ function d1Harness(withLogins = true): StoreHarness & { log: { sql: string; args
 if (skip) test("D1 adapter on SQLite", { skip }, () => {});
 else {
   run("D1 adapter", adminStoreConformance(async () => d1Harness()));
+  run("D1 adapter with the shop's plays", adminStoreConformance(async () => d1Harness(true, true)));
 
   test("D1 adapter: the only statements that write are the two setting rows of meta, and every other statement is a SELECT", async () => {
     const h = d1Harness();
@@ -244,14 +252,16 @@ function firestoreHarness() {
   const h: StoreHarness & { writes: typeof f.writes } = {
     writes: f.writes,
     store: createFirestoreStore(f.db),
+    plays: true,
     async seed(d) {
-      for (const o of d.orders ?? []) f.col("orders").set(o.id, { player: o.player, lookId: o.lookId, usd: o.usd, amount: o.amountRaw, status: o.status, createdAt: o.createdAt, expiresAt: o.expiresAt, paidAt: o.paidAt, payer: o.payer, hash: o.hash });
+      for (const o of d.orders ?? []) f.col("orders").set(o.id, { player: o.player, lookId: o.lookId, ...(o.kind ? { kind: o.kind } : {}), ...(typeof o.forgotUnused === "number" ? { forgotUnused: o.forgotUnused } : {}), usd: o.usd, amount: o.amountRaw, status: o.status, createdAt: o.createdAt, expiresAt: o.expiresAt, paidAt: o.paidAt, payer: o.payer, hash: o.hash });
+      for (const c of d.credits ?? []) f.col("credits").set(c.orderId, { player: c.player, playId: c.playId, orderId: c.orderId, grantedAt: c.grantedAt, expiresAt: c.expiresAt, usedAt: c.usedAt, useRef: null });
       for (const o of d.owned ?? []) f.col("owned").set(`${o.player}__${o.lookId}`, { player: o.player, lookId: o.lookId, orderId: "", grantedAt: o.at });
       if (d.rate) f.col("meta").set("rate", { value: d.rate.value, at: d.rate.at });
     },
     async snapshot() {
       const dump = (name: string, skipKeys: string[] = []) => JSON.stringify([...f.col(name)].filter(([id]) => !skipKeys.includes(id)).sort(([a], [b]) => (a < b ? -1 : 1)));
-      return [dump("orders"), dump("owned"), dump("meta", ["setting:character", "setting:signin", "setting:friends", "setting:emotes", "setting:freePlay"])].join("|");
+      return [dump("orders"), dump("owned"), dump("credits"), dump("meta", Object.values(SETTING_KEYS))].join("|");
     },
   };
   return h;

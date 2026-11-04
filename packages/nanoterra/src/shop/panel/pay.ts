@@ -1,6 +1,9 @@
 // The pay sheet for one order (the game starter's src/client/ui/pay.ts). It shows the exact amount, a QR code and a "nano:" link for the wallet, and asks
 // the game every 5 seconds whether the payment arrived, for 2 minutes per check.
 //
+// The same sheet pays a play (a round, a level, a life or a continue: `play`): its line says one use, used once, and the creator's refund words (`refund`,
+// from the order's answer) stand before any step (above the QR code, the address and the wallet key).
+//
 // TEST MODE: the server sends no address and no link, and this sheet shows a large "TEST MODE: DO NOT PAY" stamp where the QR code would be, with the
 // wallet key off. Never change that: a payment to an address that nobody holds the key for is lost for good. The sheet decides it from the ORDER (its
 // `test`, a missing `uri` or a missing `address`), never from a setting of the page. The stamp's words are not among the game's words (./words.ts).
@@ -14,11 +17,15 @@ import { priceLine, shopWords, type ShopWords } from "./words.js";
 export const PAY_TIMING = { pollMs: 5000, checkForMs: 2 * 60_000 } as const;
 
 export type PayOptions = {
-  /** The look's name, for the line at the top. */
+  /** The look's name (or the play's), for the line at the top. */
   lookName: string;
+  /** The order sells a play: its use ("round", "level", "life", "continue"). The sheet then says one use, used once, and the paid words of a play. */
+  play?: { use: string };
+  /** The creator's refund words (a play's order answer: `refund.text`), shown before any step. Plain text, never HTML. */
+  refund?: string;
   /** POST {base}/{id}/check: the order again, after a payment scan. */
   check(id: string): Promise<PayView>;
-  /** The order is paid: the look is the player's now. */
+  /** The order is paid: the look is the player's now (a play: its credit is ready). */
   onPaid(order: PayView): void;
   /** Words of a failed check (an ApiError's message), or null for "No connection". */
   errorText?(e: unknown): string | null;
@@ -104,8 +111,9 @@ export function payPanel(start: PayView, options: PayOptions): PayPanel {
     h(
       "div",
       { class: "n133s-pay-main" },
-      h("p", { class: "n133s-pay-what" }, w.lookLine(options.lookName)),
+      h("p", { class: "n133s-pay-what" }, options.play ? w.playLine(options.play.use) : w.lookLine(options.lookName)),
       amount,
+      options.refund ? h("p", { class: "n133s-fine n133s-refund" }, options.refund) : null,
       payArea,
     ),
     h(
@@ -139,7 +147,7 @@ export function payPanel(start: PayView, options: PayOptions): PayPanel {
     order = o;
     if (o.status === "paid") {
       stop();
-      payArea.replaceChildren(h("div", { class: "n133s-paid" }, h("strong", {}, w.paid), h("p", {}, w.paidLine(options.lookName))));
+      payArea.replaceChildren(h("div", { class: "n133s-paid" }, ...(options.play ? [h("strong", {}, w.playPaid(options.play.use))] : [h("strong", {}, w.paid), h("p", {}, w.paidLine(options.lookName))])));
       wallet.hidden = true;
       status.textContent = "";
       again.hidden = true;
@@ -148,7 +156,7 @@ export function payPanel(start: PayView, options: PayOptions): PayPanel {
     }
     if (o.status === "paid_late") {
       stop();
-      status.textContent = w.paidLate;
+      status.textContent = options.play ? w.playLate(options.play.use) : w.paidLate;
       again.hidden = true;
       return true;
     }

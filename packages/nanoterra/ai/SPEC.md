@@ -3,7 +3,7 @@
 Package: `@nano133/nanoterra` (0.1.0 or later). Follow these steps in order. Each step ends with a check. Ask the owner when a step says
 "ask". The package has five parts: the sign-in ticket (`/ticket`), the player's character (`/character`, Three.js), the
 looks ladder (`/looks`), held input that does not stick (`/input`), the friends list (`/friends`, with its panel), the options menu (`/options`), the emotes (`/emotes`, with the wheel), the player's sign-in (`/player-signin`: a passkey or a wallet app, with
-`@nano133/signin`), the admin's sign-in (`/admin-signin`, with `@nano133/signin`) and the shop (`/shop`, with its panel). Use only the parts the game needs. Only the two sign-ins and the shop have Nano code; the shop holds no key and sends nothing: it reads the ledger. Read the package README first.
+`@nano133/signin`), the admin's sign-in (`/admin-signin`, with `@nano133/signin`) and the shop (`/shop`, with its panel; it sells looks, and plays: a round, a level, a life or a continue, used once). Use only the parts the game needs. Only the two sign-ins and the shop have Nano code; the shop holds no key and sends nothing: it reads the ledger. Read the package README first.
 
 ## 0. What the owner decides (ask)
 
@@ -22,6 +22,8 @@ looks ladder (`/looks`), held input that does not stick (`/input`), the friends 
 8. The player's sign-in (step 12), for a game with a server: which ways (a passkey and the three wallet apps by default), the game's DOMAIN for good (a
    passkey belongs to one domain), the game's frozen passkey SCHEME (the owner approves its texts: they can never change), and whether the sheet offers the
    spare key (yes by default; "no" for a game for small children).
+9. Does the game charge for a round (step 15)? Only for a game with a server, the shop and /admin. Ask what a player pays for: a round, a level, a
+   life or a continue. Stop if the owner names money, a prize of value, tickets or anything random as what a round gives.
 
 **Check:** the owner has named the server (yes or no), the source of the character and the quality.
 
@@ -291,7 +293,52 @@ wallet gets "That wallet is not this game's address"; the player's login (the ow
 admin yet." With passkeys on: the owner's wallet adds a passkey in Settings, Owner passkeys; that passkey then opens /admin from the Passkey tile and cannot add
 or remove a passkey; after Remove it opens nothing.
 
-## 15. Do not
+## 15. Plays: charge for a round (only if the game sells plays; since 0.15.0)
+
+A play is one thing a player buys and uses ONCE: a round, a level, a life or a continue. It needs the shop (step 13) and /admin (step 14). Read the
+README parts "Plays: charge for a round" and "Pay to play: the rules" first.
+
+1. **The rule, pay to play only.** A play buys one use of the game and nothing else. A round never pays out money or a prize of value (an item to
+   trade, tickets, tokens, crypto, a gift card). Nothing bought is random. Nothing bought changes the odds. No credit is converted, moved, given or
+   sold back. **Ask** the owner what a player pays for, and what a round gives at its end. If the owner names money, a prize of value, tickets or
+   anything random: stop, and say why in plain words. Tell the owner: "Some places have laws about paid games. Ask a lawyer before you turn test
+   mode off." Give no legal advice.
+2. **`plays.json`** beside `looks.json`: `[{ "id": "extra-round", "name": "Extra round", "priceUsd": 0.05, "use": "round" }]`. `use` is `"round"`,
+   `"level"`, `"life"` or `"continue"`; `useWithinDays` is optional (1 to 365, default 30). Never give a play another field, and never the id of a
+   look. Check it with `checkPlays(raw, looks)` from `@nano133/nanoterra/looks`. A price under about 5¢ has few free amounts and can be busy.
+3. **The migration first (D1).** Add `@nano133/nanoterra/shop/d1-plays.sql` as the game's next migration, after the shop's tables, and apply it
+   BEFORE the Worker that sells plays is deployed. Firestore needs no migration.
+4. **The server.** `createShop(env, { catalogue: looks, plays, legal: () => loadLegal(adminStore), player })` (or `createShopHandler` with the same
+   `plays` and `legal`), where `adminStore` is the admin's store: `createD1Store(env.DB, { plays: true })` on D1. Give the admin handler
+   `plays` and, on a Worker, `unmatched: shop.unmatched`. Give `mountAdmin` the same `plays`.
+5. **The Legal card** (the admin's Settings tab) holds the creator's rules: "Paid rounds for 18 and up only" (on), "Sell an extra life or a continue"
+   (off), the refund rule (14 days and the creator's words, shown before any pay step) and the owner's one confirmation, "You are responsible for
+   the laws where you sell." Outside test mode no play is sold until the owner confirms. Do not change these defaults yourself, and never press the
+   confirmation for the owner.
+6. **The age step.** With "18 and up only" on, the shop answers an order with 403 `needs: "age"` until the player says "I am 18 or older"; the
+   kit's pay sheet shows the step. A game with its own sheet shows the same step and posts `{ "adult": true }` to `/api/plays/adult`. Never say
+   yes for the player. Never put a Play key on a page for children.
+7. **The round's start.** Mount the panel with `plays` and `onCredit`; place `shop.playKey(playId, start)` ("Play for 5¢", "1 round ready") and
+   call `shop.ready()` once a player is signed in. `start` makes a NEW round id (`ref`: 1 to 64 letters, digits, `:`, `_` or `-`) and posts
+   `{ playId, ref }` to `/api/plays/use`; the round starts only after `{ used: true }`, and starts once for each ref. Then `shop.ready()` again.
+   The credit is used at the start, never at the buy. A game whose server starts its rounds calls `shop.use(player, playId, ref)` in its own round
+   route and keeps its own map of ref to round (a ref answers "again" for good).
+8. **A paid round never pauses**: its deadline never moves. Keep `releaseWhenLost` (step 8) and leave `pauseWhenLeft` out of a paid round.
+9. **What a paid round may not do.** A round that used a paid life or continue posts no board score and earns nothing. A paid round gives no
+   ticket, prize or reward, and its chance comes only from a public or committed seed or the player's input. The kit guards the money, not the
+   round: a round in the browser can be cheated, so a trusted score needs a server replay.
+10. **Refunds are by hand.** The kit holds no key and sends nothing back. The admin lists each payment to send back ("To send back") and the
+    payments that match no order ("Unmatched payments"). Never add a key or a send to return them. "Delete my data" calls `store.forget(player, now)`
+    as in step 13: it deletes the credits and the yes, and keeps a paid play's payer while its credit was unused.
+11. **The listing file** carries `"paidRounds": paidRoundsOn(plays)` beside `"freePlay"`.
+
+**Check:** with `TEST_MODE` on, the Play key shows its price, the pay sheet says "TEST MODE: DO NOT PAY" with no QR code and shows the refund words
+before any step, and `POST /api/orders { playId }` holds no `address` and no `uri`. With the default Legal card, the first order shows the "18 or
+older" step. `POST /api/plays/use` with no credit answers 402; with one credit (a test only: `createMemoryShop()` and `store.settle` with a pretend payment),
+the same ref twice answers `again: true` and a new ref answers 402. A paid round does not pause when the tab is hidden. `plays.json` passes
+`checkPlays`. Never turn test mode off, and never deploy: the owner does both.
+
+## 16. Do not
 
 - Do not edit the geometry, the skeleton or the toon and ink materials.
 - Do not add the katana, the headband or other brands' art. A game's own worn model goes on a socket (`c.socket("head" | "hand" | "back")` or
@@ -301,3 +348,4 @@ or remove a passkey; after Remove it opens nothing.
   The game loads the model and frees it; the character never does.
 - Do not use a look or a record for a game's rules, a score or a payment: it is display only.
 - Do not give a look on anything but a paid order (`"paid"`), and never give one on a sign-in or a ticket alone.
+- Do not sell a play that pays out money, a prize of value or tickets, that is random, or that changes the odds (step 15).

@@ -4,7 +4,8 @@
 import assert from "node:assert/strict";
 import test, { after, before } from "node:test";
 import { Window } from "happy-dom";
-import { createMemoryShop, createShopHandler, type ShopStore } from "../src/shop/index.js";
+import { createMemoryShop, createShopHandler, priceRaw, reserveOrder, type ShopStore } from "../src/shop/index.js";
+import { DEFAULT_LEGAL, type LegalState } from "../src/admin/legal.js";
 import type { Look } from "../src/looks/look.js";
 import { LOOKS, hash64, testAddress } from "./shop-helpers.js";
 
@@ -283,4 +284,212 @@ test("a session that ended (401 at Buy): onSessionEnd runs, and the Sign in key 
   assert.deepEqual(g.events, ["signIn"]);
   assert.deepEqual(g.calls.slice(0, 2), ["POST /api/orders", "POST /api/orders"], "one refused order, then one after the new sign-in");
   assert.ok(el.querySelector(".n133s-pay"), "the order after the new sign-in");
+});
+
+// ---- plays: buyPlay, the "18 or older" step, the Play key, ready() ----
+
+const PLAYS = [
+  { id: "extra-round", name: "Extra round", priceUsd: 0.05, use: "round" },
+  { id: "extra-life", name: "Extra life", priceUsd: 0.02, use: "life" },
+];
+
+/** A game that sells plays: the real handler with the creator's Legal card (`legal`), the plays' routes, and what the game heard. */
+function playGame(o: { payee?: string | null; legal?: Partial<LegalState>; signedIn?: boolean } = {}) {
+  const store = createMemoryShop();
+  let player: string | null = o.signedIn === false ? null : "p1";
+  const legal: LegalState = { ...DEFAULT_LEGAL, lawsConfirmedAt: 1, ...o.legal };
+  const handler = createShopHandler({
+    store,
+    catalogue: LOOKS,
+    plays: PLAYS,
+    legal: () => legal,
+    payee: o.payee === undefined ? testAddress() : o.payee,
+    player: async () => player,
+    rate: { feeds: [{ name: "Test feed", url: "https://feed.test/", read: (j) => j.usd }], fetch: async () => new Response(JSON.stringify({ usd: 1 })) },
+    nodes: [],
+  });
+  const calls: string[] = [];
+  const fetchFn = (async (input: string, init?: RequestInit) => {
+    calls.push(`${init?.method ?? "GET"} ${input}`);
+    const res = await handler.handle(new Request(`${ORIGIN}${input}`, { ...init, headers: { ...(init?.headers as Record<string, string>), Origin: ORIGIN } }));
+    return res ?? new Response(JSON.stringify({ error: "No such route." }), { status: 404 });
+  }) as unknown as typeof fetch;
+  const events: string[] = [];
+  const opts = {
+    looks: LOOKS,
+    plays: PLAYS,
+    fetch: fetchFn,
+    owned: () => [],
+    signedIn: () => player !== null,
+    signIn: async () => {
+      events.push("signIn");
+      player = "p1";
+      return true;
+    },
+    worn: () => false,
+    wear: () => {},
+    onCredit: (id: string) => void events.push(`credit:${id}`),
+  };
+  return { store, handler, calls, events, opts, legal };
+}
+
+test("a play in TEST MODE: the \"18 or older\" step first (Not now closes, nothing is sold), the yes kept once, then the same pay sheet with the refund words before any step", async () => {
+  const g = playGame({ payee: null });
+  const el = root();
+  const shop = mountShop(el, g.opts);
+  mounted.push(shop);
+  shop.buyPlay("extra-round");
+  await settle();
+  assert.equal(el.querySelector(".n133s-title")!.textContent, "Extra round");
+  assert.deepEqual(texts(el, ".n133s-age .n133s-status, .n133s-age .n133s-btn"), ["Paid rounds are for players 18 and up.", "I am 18 or older", "Not now", ""]);
+  assert.equal(document.activeElement, el.querySelector(".n133s-title"), "the focus is on the title, as the other sheets");
+  assert.equal(el.querySelector(".n133s-pay"), null, "no pay sheet before the yes");
+  (el.querySelectorAll(".n133s-age .n133s-btn")[1] as HTMLButtonElement).click(); // Not now
+  await settle();
+  assert.equal(shop.isOpen, false);
+  assert.equal(g.store.orders.size, 0, "nothing was ordered");
+  assert.equal(await g.store.adult("p1"), null);
+  shop.buyPlay("extra-round");
+  await settle();
+  (el.querySelector(".n133s-age .n133s-primary") as HTMLButtonElement).click(); // I am 18 or older
+  await settle();
+  assert.ok((await g.store.adult("p1")) !== null, "the server kept the yes");
+  assert.deepEqual(g.calls, ["POST /api/orders", "POST /api/orders", "POST /api/plays/adult", "POST /api/orders"]);
+  const pay = el.querySelector(".n133s-pay")!;
+  assert.equal(pay.querySelector(".n133s-stamp")!.textContent, "TEST MODE: DO NOT PAY");
+  assert.equal((pay.querySelector(".n133s-foot button") as HTMLButtonElement).disabled, true);
+  assert.ok(!pay.innerHTML.includes("nano_") && !pay.innerHTML.includes("nano:"));
+  assert.equal(pay.querySelector(".n133s-pay-what")!.textContent, "1 round. Used once.");
+  assert.equal(pay.querySelector(".n133s-amount strong")!.textContent, "0.05 XNO");
+  const refund = pay.querySelector(".n133s-refund")!;
+  assert.equal(refund.textContent, "Not used? Ask for your money back within 14 days. Write to the game's owner.");
+  const main = [...pay.querySelector(".n133s-pay-main")!.children];
+  assert.ok(main.indexOf(refund) < main.indexOf(pay.querySelector(".n133s-test-pay")!), "the refund words stand before any step");
+  // Once per player: the next play goes straight to its pay sheet.
+  shop.close();
+  shop.buyPlay("extra-round");
+  await settle();
+  assert.equal(el.querySelector(".n133s-age"), null);
+  assert.ok(el.querySelector(".n133s-pay"));
+});
+
+test("a play live: the QR code and the wallet key; paid: onCredit, \"Paid. Your round is ready.\", and the Play key turns to \"1 round ready\" and starts the round", async () => {
+  const payee = testAddress();
+  const g = playGame({ payee, legal: { adultsOnly: false, refundDays: 7, refundWords: "Ask me within {days} days." } });
+  const el = root();
+  const shop = mountShop(el, g.opts);
+  mounted.push(shop);
+  const started: string[] = [];
+  const key = shop.playKey("extra-round", (id) => void started.push(id))!;
+  document.body.append(key);
+  assert.equal(shop.playKey("no-such", () => {}), null);
+  assert.equal(key.textContent, "Play for 5¢", "the price on the key, before any step");
+  key.click();
+  await settle();
+  const pay = el.querySelector(".n133s-pay")!;
+  assert.equal(pay.querySelector(".n133s-stamp"), null);
+  assert.match((pay.querySelector(".n133s-foot a") as HTMLAnchorElement).getAttribute("href")!, new RegExp(`^nano:${payee}\\?amount=50000000000000000000000000000$`));
+  assert.ok(pay.querySelector("svg.n133s-qr-code"));
+  assert.equal(pay.querySelector(".n133s-refund")!.textContent, "Ask me within 7 days.");
+  const held = (await g.store.held())[0];
+  await g.store.settle(held, { hash: hash64(), payer: testAddress(), seenMs: Date.now() }, Date.now());
+  (pay.querySelector(".n133s-pay-side .n133s-btn") as HTMLButtonElement).click(); // Check again
+  await settle();
+  assert.deepEqual(g.events, ["credit:extra-round"]);
+  assert.equal(el.querySelector(".n133s-paid")!.textContent, "Paid. Your round is ready.");
+  assert.equal(key.textContent, "1 round ready");
+  key.click();
+  assert.deepEqual(started, ["extra-round"], "a press with a round ready starts it (the game's round start uses the credit)");
+  assert.deepEqual(await shop.ready(), [{ playId: "extra-round", ready: 1, forSale: true }, { playId: "extra-life", ready: 0, forSale: false }]);
+  await g.handler.use("p1", "extra-round", "round-1");
+  await shop.ready();
+  assert.equal(key.textContent, "Play for 5¢", "after the use, the key buys again");
+  shop.destroy();
+  assert.equal(key.isConnected, false, "destroy takes the key away");
+});
+
+test("the Play key reads the server again: a credit that came while the page was open starts the round on a press, with no second order; back to the page reads it too", async () => {
+  const g = playGame({ legal: { adultsOnly: false } });
+  const el = root();
+  const shop = mountShop(el, g.opts);
+  mounted.push(shop);
+  const started: string[] = [];
+  const key = shop.playKey("extra-round", (id) => void started.push(id))!;
+  document.body.append(key);
+  await shop.ready();
+  assert.equal(key.textContent, "Play for 5¢");
+  // Paid somewhere else (another tab, a sheet closed before its payment showed): the store has the credit, the page's last read does not.
+  const pay = async () => {
+    const o = await reserveOrder(g.store, { player: "p1", lookId: "extra-round", kind: "play", usd: "0.05", rate: 1, price: priceRaw(0.05, 1)!, visitor: null, now: Date.now() });
+    await g.store.settle(o, { hash: hash64(), payer: testAddress(), seenMs: Date.now() }, Date.now());
+  };
+  await pay();
+  const orders = g.store.orders.size;
+  g.calls.length = 0;
+  key.click();
+  await settle();
+  assert.deepEqual(started, ["extra-round"], "the press started the round");
+  assert.deepEqual(g.calls, ["GET /api/plays"], "it read the credits, and made no order");
+  assert.equal(g.store.orders.size, orders);
+  assert.equal(shop.isOpen, false, "no pay sheet");
+  assert.equal(key.textContent, "1 round ready");
+  // The round used it; a second credit comes while the page is away: back to the page, the key says so before any press.
+  await g.handler.use("p1", "extra-round", "round-1");
+  await shop.ready();
+  assert.equal(key.textContent, "Play for 5¢");
+  await pay();
+  document.dispatchEvent(new win.Event("visibilitychange") as unknown as Event);
+  await settle();
+  assert.equal(key.textContent, "1 round ready");
+  // With none ready on the server either, a press buys (the read first, then the order).
+  await g.handler.use("p1", "extra-round", "round-2");
+  await shop.ready();
+  g.calls.length = 0;
+  key.click();
+  await settle();
+  assert.deepEqual(g.calls, ["GET /api/plays", "POST /api/orders"]);
+  assert.equal(shop.isOpen, true, "the play's sheet");
+  assert.deepEqual(started, ["extra-round"]);
+});
+
+test("a life while the creator does not sell one: its key hides after ready(); buyPlay shows the server's words and Back closes; a ready one still shows", async () => {
+  const g = playGame({ legal: { adultsOnly: false } });
+  const el = root();
+  const shop = mountShop(el, g.opts);
+  mounted.push(shop);
+  const key = shop.playKey("extra-life", () => {})!;
+  assert.equal(key.textContent, "Play for 2¢");
+  await shop.ready();
+  assert.equal(key.hidden, true, "not offered");
+  shop.buyPlay("extra-life");
+  await settle();
+  assert.equal(el.querySelector(".n133s-message .n133s-status")!.textContent, "This game does not sell a life now.");
+  assert.equal(g.store.orders.size, 0);
+  (el.querySelector(".n133s-message .n133s-btn") as HTMLButtonElement).click();
+  assert.equal(shop.isOpen, false, "Back goes back to the game");
+  // A life paid before (a credit) stays usable, so its key shows.
+  g.legal.sellLives = true;
+  const o = await reserveOrder(g.store, { player: "p1", lookId: "extra-life", kind: "play", usd: "0.02", rate: 1, price: priceRaw(0.02, 1)!, visitor: null, now: Date.now() });
+  await g.store.settle(o, { hash: hash64(), payer: "p1", seenMs: Date.now() }, Date.now());
+  g.legal.sellLives = false;
+  await shop.ready();
+  assert.deepEqual([key.hidden, key.textContent], [false, "1 life ready"]);
+});
+
+test("a play with nobody signed in asks the game's sign-in first; a sign-in closed without one closes the sheet and orders nothing", async () => {
+  const g = playGame({ signedIn: false, legal: { adultsOnly: false } });
+  const el = root();
+  const shop = mountShop(el, { ...g.opts, signIn: async () => (g.events.push("signIn"), false) });
+  mounted.push(shop);
+  shop.buyPlay("extra-round");
+  await settle();
+  assert.deepEqual(g.events, ["signIn"]);
+  assert.equal(shop.isOpen, false);
+  assert.deepEqual(g.calls, []);
+  const box = root();
+  const plain = mountShop(box, { ...g.opts, signIn: undefined });
+  mounted.push(plain);
+  plain.buyPlay("extra-round");
+  await settle();
+  assert.equal(box.querySelector(".n133s-message .n133s-status")?.textContent, "Sign in first to buy a round.");
 });

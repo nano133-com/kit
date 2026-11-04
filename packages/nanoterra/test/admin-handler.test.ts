@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ADMIN_LIMITS, ADMIN_SESSION_MS, createAdminHandler, createMemoryStore, freePlayOn, loadGameSettings, type AdminHandler, type AdminSession, type AdminStore } from "../src/admin/index.js";
+import { ADMIN_LIMITS, ADMIN_SESSION_MS, DEFAULT_LEGAL, createAdminHandler, loadLegal, refundText, createMemoryStore, freePlayOn, loadGameSettings, type AdminHandler, type AdminSession, type AdminStore } from "../src/admin/index.js";
 import { createHash, randomBytes } from "node:crypto";
 import { HEAVY_CASE_MS, adminConformance, adminSigninConformance, type ConformanceCase, type ConformanceHost, type SigninHost, type Who } from "../src/admin/conformance.js";
 
@@ -63,6 +63,8 @@ function make(over: Partial<Parameters<typeof createAdminHandler>[0]> = {}) {
       };
     })(),
     check: async () => ({ scanned: true, settled: [], n: ++n }),
+    // The unmatched payments' read (a stand-in: no node), so the conformance suite walks that route too.
+    unmatched: async (_now: number, since: number | null) => ({ read: true, payments: [], since, entries: 0, more: false, waiting: 0 }),
     ...over,
   });
   return { store, handler };
@@ -347,32 +349,32 @@ test("GET game gives the defaults, and says that /admin has set nothing yet", as
   const { handler } = make();
   const res = (await call(handler, "/api/admin/game"))!;
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { character: "nanoterra", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false, freePlay: false } });
+  assert.deepEqual(await res.json(), { character: "nanoterra", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false, freePlay: false }, legal: DEFAULT_LEGAL });
 });
 
 test("a press is saved, read back, and writes only the setting rows", async () => {
   const { handler, store } = make();
   const res = (await call(handler, "/api/admin/game", { method: "POST", body: JSON.stringify({ signin: "none" }) }))!;
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { character: "nanoterra", signin: "none", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: false, signin: true, friends: false, emotes: false, freePlay: false } });
+  assert.deepEqual(await res.json(), { character: "nanoterra", signin: "none", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: false, signin: true, friends: false, emotes: false, freePlay: false }, legal: DEFAULT_LEGAL });
   const res2 = (await call(handler, "/api/admin/game", { method: "POST", body: JSON.stringify({ character: "own", signin: "exchange" }) }))!;
-  assert.deepEqual(await res2.json(), { character: "own", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: true, signin: true, friends: false, emotes: false, freePlay: false } });
+  assert.deepEqual(await res2.json(), { character: "own", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: true, signin: true, friends: false, emotes: false, freePlay: false }, legal: DEFAULT_LEGAL });
   assert.deepEqual([...store.rows.keys()].sort(), ["setting:character", "setting:signin"]);
   // The friends list is its own setting, with three words.
   for (const friends of ["own", "off", "nanoterra"] as const) {
     const res3 = (await call(handler, "/api/admin/game", { method: "POST", body: JSON.stringify({ friends }) }))!;
-    assert.deepEqual(await res3.json(), { character: "own", signin: "exchange", friends, emotes: "on", freePlay: "on", fromAdmin: { character: true, signin: true, friends: true, emotes: false, freePlay: false } });
+    assert.deepEqual(await res3.json(), { character: "own", signin: "exchange", friends, emotes: "on", freePlay: "on", fromAdmin: { character: true, signin: true, friends: true, emotes: false, freePlay: false }, legal: DEFAULT_LEGAL });
   }
   assert.deepEqual([...store.rows.keys()].sort(), ["setting:character", "setting:friends", "setting:signin"]);
   // "Allow Nanoterra emotes" is its own switch: on by default, "off" and "on" saved and read back.
   for (const emotes of ["off", "on"] as const) {
     const res4 = (await call(handler, "/api/admin/game", { method: "POST", body: JSON.stringify({ emotes }) }))!;
-    assert.deepEqual(await res4.json(), { character: "own", signin: "exchange", friends: "nanoterra", emotes, freePlay: "on", fromAdmin: { character: true, signin: true, friends: true, emotes: true, freePlay: false } });
+    assert.deepEqual(await res4.json(), { character: "own", signin: "exchange", friends: "nanoterra", emotes, freePlay: "on", fromAdmin: { character: true, signin: true, friends: true, emotes: true, freePlay: false }, legal: DEFAULT_LEGAL });
   }
   // "Free play" is its own switch: on by default, "off" and "on" saved and read back.
   for (const freePlay of ["off", "on"] as const) {
     const res5 = (await call(handler, "/api/admin/game", { method: "POST", body: JSON.stringify({ freePlay }) }))!;
-    assert.deepEqual(await res5.json(), { character: "own", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay, fromAdmin: { character: true, signin: true, friends: true, emotes: true, freePlay: true } });
+    assert.deepEqual(await res5.json(), { character: "own", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay, fromAdmin: { character: true, signin: true, friends: true, emotes: true, freePlay: true }, legal: DEFAULT_LEGAL });
   }
   assert.deepEqual([...store.rows.keys()].sort(), ["setting:character", "setting:emotes", "setting:freePlay", "setting:friends", "setting:signin"]);
   assert.equal(store.orders.length, 0);
@@ -389,6 +391,41 @@ test("a bad press is refused with its reason and saves nothing", async () => {
   const big = (await call(handler, "/api/admin/game", { method: "POST", body: JSON.stringify({ signin: "none", pad: "x".repeat(ADMIN_LIMITS.gameBodyMax) }) }))!;
   assert.equal(big.status, 413);
   assert.equal(store.writes, 0);
+});
+
+test("the Legal card: its defaults, each press saved and read back (in GameState.legal and loadLegal), the confirmation kept once, and only the setting rows written", async () => {
+  const { handler, store } = make();
+  const legal = async () => (await (await call(handler, "/api/admin/game"))!.json()).legal;
+  assert.deepEqual(await legal(), { adultsOnly: true, sellLives: false, refundDays: 14, refundWords: "Not used? Ask for your money back within {days} days. Write to the game's owner.", lawsConfirmedAt: null });
+  const press = async (body: unknown) => (await call(handler, "/api/admin/game", { method: "POST", body: JSON.stringify(body) }))!;
+  assert.equal((await press({ adultsOnly: "off", sellLives: "on" })).status, 200);
+  assert.equal((await press({ refundDays: 30, refundWords: "Ask me within {days} days." })).status, 200);
+  assert.deepEqual(await legal(), { adultsOnly: false, sellLives: true, refundDays: 30, refundWords: "Ask me within {days} days.", lawsConfirmedAt: null });
+  assert.equal(refundText(await legal()), "Ask me within 30 days.");
+  const confirmed = await (await press({ confirmLaws: true })).json();
+  assert.equal(confirmed.legal.lawsConfirmedAt, NOW);
+  assert.deepEqual(await loadLegal(store), confirmed.legal);
+  // A second confirmation keeps the first time (and writes nothing).
+  const writes = store.writes;
+  assert.equal((await press({ confirmLaws: true })).status, 200);
+  assert.equal(store.writes, writes);
+  assert.equal((await legal()).lawsConfirmedAt, NOW);
+  assert.deepEqual([...store.rows.keys()].sort(), ["setting:adultsOnly", "setting:lawsConfirmedAt", "setting:refundDays", "setting:refundWords", "setting:sellLives"]);
+  // The Game card's settings are untouched by the Legal card's.
+  assert.deepEqual((await (await call(handler, "/api/admin/game"))!.json()).fromAdmin, { character: false, signin: false, friends: false, emotes: false, freePlay: false });
+  // Bad Legal presses: refused with the reason, nothing saved.
+  for (const body of [{ adultsOnly: true }, { sellLives: "yes" }, { refundDays: -1 }, { refundDays: 366 }, { refundDays: 1.5 }, { refundDays: "14" }, { refundWords: "" }, { refundWords: " padded " }, { refundWords: "<b>bold</b>" }, { refundWords: "two\nlines" }, { refundWords: "x".repeat(281) }, { confirmLaws: false }, { confirmLaws: "yes" }, { lawsConfirmedAt: 5 }]) {
+    const res = await press(body);
+    assert.equal(res.status, 400, JSON.stringify(body));
+  }
+  assert.equal(store.writes, writes);
+  // A stored value that is not a known one reads as the default.
+  store.rows.set("setting:refundDays", "999");
+  store.rows.set("setting:refundWords", "<script>");
+  store.rows.set("setting:adultsOnly", "maybe");
+  store.rows.set("setting:lawsConfirmedAt", "soon");
+  assert.deepEqual(await loadLegal(store), { ...DEFAULT_LEGAL, sellLives: true });
+  assert.deepEqual(await loadLegal({ readSettings: async () => { throw new Error("down"); } }), DEFAULT_LEGAL, "a fault in the store gives the careful defaults");
 });
 
 test("a body with no length cannot be read past the limit", async () => {
@@ -443,6 +480,43 @@ test("the summary has the status, the numbers, and names for the looks", async (
   assert.equal(s.orders[0].look, "Mint Cap");
   assert.equal(s.orders[1].look, "gone");
   assert.deepEqual(s.players, [{ player: OTHER, looks: [{ id: "mint-cap", name: "Mint Cap", at: NOW - 40 }] }]);
+});
+
+test("the summary with plays: every play of plays.json with its name and numbers (zeros when none sold), play orders named and marked, the ready credits, what to send back", async () => {
+  const DAY = 86_400_000;
+  const PLAYS = [
+    { id: "extra-round", name: "Extra round", priceUsd: 0.05, use: "round" },
+    { id: "level-2", name: "Level 2", priceUsd: 0.1, use: "level", useWithinDays: 7 },
+    { id: "extra-life", name: "Extra life", priceUsd: 0.02, use: "life" },
+  ];
+  const { handler, store } = make({ plays: PLAYS, lookName: (id) => ({ "mint-cap": "Mint Cap" })[id] });
+  const row = (id: string, lookId: string, over: Record<string, unknown> = {}) => ({ id, player: OTHER, lookId, kind: "play", usd: "0.05", amountRaw: RAW_04, status: "paid", createdAt: NOW - 100, expiresAt: NOW + 100, paidAt: NOW - 50, payer: OTHER, hash: `H${id}`, ...over });
+  store.orders.push(row("a", "extra-round"), row("b", "level-2"), row("c", "gone-play"), { ...row("d", "mint-cap"), kind: undefined } as never, row("e", "gone-play", { paidAt: NOW - 40 }));
+  store.credits.push(
+    { orderId: "a", player: OTHER, playId: "extra-round", grantedAt: NOW - DAY, expiresAt: NOW + 29 * DAY, usedAt: null },
+    { orderId: "b", player: OTHER, playId: "level-2", grantedAt: NOW - 8 * DAY, expiresAt: NOW - DAY, usedAt: null },
+    { orderId: "c", player: OTHER, playId: "gone-play", grantedAt: NOW - DAY, expiresAt: NOW + 29 * DAY, usedAt: NOW },
+    { orderId: "e", player: OTHER, playId: "gone-play", grantedAt: NOW - DAY, expiresAt: NOW + 29 * DAY, usedAt: null },
+  );
+  const s = await (await call(handler, "/api/admin/summary"))!.json();
+  assert.deepEqual(s.plays, [
+    { playId: "extra-round", sold: 1, used: 0, ready: 1, late: 0, notUsedInTime: 0, name: "Extra round" },
+    { playId: "level-2", sold: 1, used: 0, ready: 0, late: 0, notUsedInTime: 1, name: "Level 2" },
+    { playId: "extra-life", sold: 0, used: 0, ready: 0, late: 0, notUsedInTime: 0, name: "Extra life" },
+    { playId: "gone-play", sold: 2, used: 1, ready: 0, late: 0, notUsedInTime: 1, name: "gone-play" },
+  ]);
+  assert.deepEqual(s.orders.map((o: { id: string; look: string; kind?: string }) => [o.id, o.look, o.kind ?? "look"]).sort(), [["a", "Extra round", "play"], ["b", "Level 2", "play"], ["c", "gone-play", "play"], ["d", "Mint Cap", "look"], ["e", "gone-play", "play"]]);
+  assert.deepEqual(s.players, [{ player: OTHER, looks: [], ready: [{ id: "extra-round", name: "Extra round", ready: 1 }] }]);
+  assert.deepEqual(
+    s.sendBack.map((x: { orderId: string; name: string; why: string; payer: string }) => [x.orderId, x.name, x.why, x.payer]),
+    [["b", "Level 2", "not_used_in_time", OTHER], ["e", "gone-play", "no_play", OTHER]],
+    "each credit's own end is used; an unused credit of a play that left plays.json cannot be used: it goes back",
+  );
+  assert.deepEqual(s.totals.sendBack, { count: 2, xno: "0.08", usd: "0.10" });
+  // A game with no plays: no play rows, and "To send back" is the late payments.
+  const none = await (await call(make().handler, "/api/admin/summary"))!.json();
+  assert.deepEqual([none.plays, none.sendBack, none.totals.sendBack], [[], [], none.totals.paidLate]);
+  assert.throws(() => make({ plays: [{ id: "x", name: "X", priceUsd: 0.05, use: "round", prize: 1 }] }), /nothing else/);
 });
 
 test("the status hook gets the store's numbers, so a warning can depend on them", async () => {
@@ -509,17 +583,17 @@ test("a session that is the owner's but too old, with a shorter limit set by the
 test("the base path must be a path", () => {
   for (const basePath of ["", "admin", "/", "/api/admin/"]) assert.throws(() => make({ basePath }), /basePath/);
   const other = make({ basePath: "/_admin" });
-  assert.deepEqual(other.handler.routes.map((r) => `${r.method} ${r.path}`), ["GET /_admin/summary", "GET /_admin/game", "POST /_admin/game", "POST /_admin/check"]);
+  assert.deepEqual(other.handler.routes.map((r) => `${r.method} ${r.path}`), ["GET /_admin/summary", "GET /_admin/game", "POST /_admin/game", "POST /_admin/check", "POST /_admin/unmatched"]);
 });
 
 test("loadGameSettings: the stored words, the defaults for a missing or odd word, and the defaults when the store fails", async () => {
   const store = createMemoryStore();
-  assert.deepEqual(await loadGameSettings(store, DEFAULTS), { character: "nanoterra", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false, freePlay: false } });
+  assert.deepEqual(await loadGameSettings(store, DEFAULTS), { character: "nanoterra", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false, freePlay: false }, legal: DEFAULT_LEGAL });
   store.rows.set("setting:character", "own");
   store.rows.set("setting:signin", "ticket"); // not a word a press can set: ignored
-  assert.deepEqual(await loadGameSettings(store, DEFAULTS), { character: "own", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: true, signin: false, friends: false, emotes: false, freePlay: false } });
+  assert.deepEqual(await loadGameSettings(store, DEFAULTS), { character: "own", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: true, signin: false, friends: false, emotes: false, freePlay: false }, legal: DEFAULT_LEGAL });
   const broken = { readSettings: async () => { throw new Error("down"); } };
-  assert.deepEqual(await loadGameSettings(broken, { character: "own", signin: "none" }), { character: "own", signin: "none", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false, freePlay: false } });
+  assert.deepEqual(await loadGameSettings(broken, { character: "own", signin: "none" }), { character: "own", signin: "none", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false, freePlay: false }, legal: DEFAULT_LEGAL });
   // The game's own word for the friends list is its default; a stored word wins; an odd stored word is ignored.
   assert.equal((await loadGameSettings(createMemoryStore(), { ...DEFAULTS, friends: "off" })).friends, "off");
   store.rows.set("setting:friends", "own");
