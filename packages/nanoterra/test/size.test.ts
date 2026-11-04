@@ -23,8 +23,9 @@ const PATHS: [string, string[], number, boolean][] = [
   ["@nano133/nanoterra/emotes", ["emotes/index.js"], 2_500, false],
   ["@nano133/nanoterra/emotes/wheel", ["emotes/panel/index.js"], 6_500, false],
   ["@nano133/nanoterra/emotes/player", ["emotes/player.js"], 3_500, true],
-  ["@nano133/nanoterra/shop", ["shop/index.js"], 10_500, false],
-  ["@nano133/nanoterra/shop/worker", ["shop/worker.js"], 12_300, false],
+  // Since 0.15.0 the shop sells plays too (checkPlays, the credits, the plays' routes; the Worker's D1 store with the plays' statements).
+  ["@nano133/nanoterra/shop", ["shop/index.js"], 11_400, false],
+  ["@nano133/nanoterra/shop/worker", ["shop/worker.js"], 13_100, false],
   ["@nano133/nanoterra/shop/panel", ["shop/panel/index.js"], 11_000, false],
   // The admin's sign-in: the server part without @nano133/signin (an optional peer, outside the bundle), the stores, and the panel with its QR code.
   // Since 0.12.0 each holds the owner's passkeys too (the routes, the link's store methods, the Passkey tile and the Owner passkeys card; the passkey code itself stays outside).

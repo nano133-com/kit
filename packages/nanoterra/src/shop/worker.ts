@@ -3,7 +3,8 @@
 //
 //   import { createShop } from "@nano133/nanoterra/shop/worker";
 //   import looks from "../../looks.json";
-//   const shop = createShop(env, { catalogue: looks, player: async (req) => (await sessionOf(env.DB, req))?.address ?? null });
+//   import plays from "../../plays.json";                 // optional: rounds or levels a player buys and uses once
+//   const shop = createShop(env, { catalogue: looks, plays, player: async (req) => (await sessionOf(env.DB, req))?.address ?? null });
 //   const answer = await shop.handle(request);            // null when it is not a shop route
 //   ...
 //   async scheduled(_e, env, ctx) { ctx.waitUntil(createShop(env, opts).scan()); }   // the */10 cron
@@ -11,7 +12,8 @@
 // The settings (the starter's names): RECEIVE_ADDRESS (the creator's address; the example or a wrong checksum keeps test mode), TEST_MODE ("on" keeps
 // test mode with a real address), NODE_API_KEY (secret, optional: Nanswap Nodes first), NANO_NODES (optional: the game's own nodes), TURNSTILE_SITE_KEY
 // and the secret TURNSTILE_SECRET (both, or no person check). "none", "skip", "off" and "-" mean "not set". The store is D1 on the starter's tables
-// (`env.DB`; the migration is "@nano133/nanoterra/shop/d1.sql"). The player's sign-in is the game's own (`player`).
+// (`env.DB`; the migration is "@nano133/nanoterra/shop/d1.sql"; a game with plays applies "@nano133/nanoterra/shop/d1-plays.sql" too, before it
+// deploys). The player's sign-in is the game's own (`player`).
 
 import type { D1Like } from "../admin/adapters/d1.js";
 import { createD1Shop, d1Limit, visitorKey, type ShopTables } from "./adapters/d1.js";
@@ -30,7 +32,7 @@ export type ShopEnv = {
   TURNSTILE_SECRET?: string;
 };
 
-export type ShopOptions = Pick<ShopHandlerOptions, "catalogue" | "player" | "base" | "now" | "onError" | "rate" | "rpc"> & {
+export type ShopOptions = Pick<ShopHandlerOptions, "catalogue" | "plays" | "player" | "base" | "playsBase" | "now" | "onError" | "rate" | "rpc"> & {
   /** The D1 table names (default: the starter's). */
   tables?: ShopTables;
   /** The `fetch` for Turnstile's check (a test gives its own). */
@@ -71,7 +73,8 @@ export type Shop = ShopHandler & {
 };
 
 export function createShop(env: ShopEnv, options: ShopOptions): Shop {
-  const store = createD1Shop(env.DB, { tables: options.tables });
+  // A game that gives plays has the plays' migration; one with none keeps its tables as they are.
+  const store = createD1Shop(env.DB, { tables: options.tables, plays: Array.isArray(options.plays) && options.plays.length > 0 });
   const nodes = nodesFor(env);
   const turnstile = turnstileOn(env);
   const handler = createShopHandler({
