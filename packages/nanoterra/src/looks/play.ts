@@ -97,3 +97,9 @@ export function checkPlays(rawInput: unknown, looks: unknown = []): (Play & { us
   if (first) throw new Error(first.message);
   return (raw as Play[]).map((p) => ({ id: p.id, name: p.name, priceUsd: p.priceUsd, use: p.use, useWithinDays: p.useWithinDays ?? PLAY_WAIT_DAYS }));
 }
+
+/**
+ * The listing file's word for paid rounds (`"paidRounds": true` or `false`, beside `"freePlay"`): true when the game's plays (plays.json) hold at least
+ * one play. Give it the checked plays (`checkPlays`). A listing file without the word says that the game sells no paid rounds.
+ */
+export const paidRoundsOn = (plays: readonly Play[] | null | undefined): boolean => Array.isArray(plays) && plays.length > 0;

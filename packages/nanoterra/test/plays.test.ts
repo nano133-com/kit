@@ -2,7 +2,8 @@
 // tests: each refused field fails, a use outside the closed list fails, and a play never takes a look's id.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PLAY_FIELDS, PLAY_ONE_USE, PLAY_REFUSED_FIELDS, PLAY_USES, PLAY_WAIT_DAYS, checkPlays, playProblems } from "../src/looks/index.js";
+import { PLAY_FIELDS, PLAY_ONE_USE, PLAY_REFUSED_FIELDS, PLAY_USES, PLAY_WAIT_DAYS, checkPlays, paidRoundsOn, playProblems } from "../src/looks/index.js";
+import { paidRoundsOn as shopPaidRoundsOn } from "../src/shop/index.js";
 import { LOOKS } from "./shop-helpers.js";
 
 const GOOD = { id: "extra-round", name: "Extra round", priceUsd: 0.05, use: "round" };
@@ -67,4 +68,13 @@ test("not a list, or a play that is not an object, fails; a getter cannot pass t
   const tricky = { ...GOOD, get priceUsd() { return n++ === 0 ? 0.05 : 0; } };
   const [play] = checkPlays([tricky]);
   assert.equal(play.priceUsd, 0.05, "one snapshot is checked and copied");
+});
+
+test("paidRoundsOn: the listing file's word is true only when plays.json holds a play (no file, or an empty one: no paid rounds)", () => {
+  assert.equal(paidRoundsOn(checkPlays([GOOD], LOOKS)), true);
+  assert.equal(paidRoundsOn(checkPlays([], LOOKS)), false);
+  assert.equal(paidRoundsOn([]), false);
+  assert.equal(paidRoundsOn(null), false);
+  assert.equal(paidRoundsOn(undefined), false);
+  assert.equal(shopPaidRoundsOn, paidRoundsOn, "the shop path gives the same helper");
 });

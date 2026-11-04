@@ -28,7 +28,7 @@ export type { UnmatchedOptions, UnmatchedPayment, UnmatchedResult } from "./unma
 export { FORGOTTEN, kindOf } from "./store.js";
 export type { Credit, ForgetResult, KeptRate, OrderKind, OrderStatus, Payment, ReadyCredits, Settled, ShopOrder, ShopStore, UseResult } from "./store.js";
 export { DAY_MS, MAX_READY_PER_PLAY, USE_REF_PATTERN, checkRef, creditEnd, useDaysOf } from "./plays.js";
-export { PLAY_USES, checkPlays } from "../looks/play.js";
+export { PLAY_USES, checkPlays, paidRoundsOn } from "../looks/play.js";
 export type { Play, PlayUse } from "../looks/play.js";
 export { createMemoryShop } from "./memory.js";
 export type { MemoryShop } from "./memory.js";
