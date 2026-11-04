@@ -727,7 +727,7 @@ flat picture stays. `createLookPreview({ size?, body?, record?, background?, key
 changes a look, a price or an order, and a test proves that editing the Shelf sends no request. A change of looks is a change of your repository. The **Game** card writes only the
 five settings. The stylesheet is scoped under `.n133-admin`, so it cannot leak into your page; to theme it set `--n133-ink`, `--n133-ink-soft`, `--n133-paper`, `--n133-line`,
 `--n133-gem`, `--n133-gem-dark`, `--n133-sea`, `--n133-radius`, `--n133-font`, `--n133-ground` (the wells inside a card), `--n133-warn`, `--n133-bad` or `--n133-shadow` on the
-element that holds it. The keys, inputs, switches, swatches and price steps are 44 px or more; the tabs, filter keys and copy keys 40 px. The layout follows the panel's own
+element that holds it. Every key, tab, filter key, copy key, input, switch, swatch and price step is 44 px high or more (`test/panel-css.test.ts`), and a card the page scrolls to stops under the sticky tabs (`--tabs-room`). The layout follows the panel's own
 width (a container query), not the window's: on a phone two cards a row and the five tabs as icons over their words; three cards a row and the orders as a table from
 760 px; four cards from 1000 px. The panel can be up to 1200 px wide: the page that holds it sets the width (the starter's admin page is 900 px).
 

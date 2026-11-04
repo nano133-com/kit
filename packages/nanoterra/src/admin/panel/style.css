@@ -10,6 +10,8 @@
 
 .n133-admin {
   --font: var(--n133-font, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+  /* The sticky tab bar's height (64 px on a phone, 58 px wider) and a little more: what a heading the page scrolls to keeps above it. */
+  --tabs-room: 76px;
   --radius: var(--n133-radius, 18px);
   --ink: var(--n133-ink, #16202e);
   --ink-soft: var(--n133-ink-soft, #4a5568);
@@ -193,8 +195,9 @@
   color: var(--bad);
 }
 
+/* Smaller words and padding, never a smaller target: every key of the admin is at least 44 px high (a finger on a phone). */
 .n133-admin .btn-small {
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 12px;
   font-size: 14px;
 }
@@ -706,7 +709,7 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-height: 42px;
+  min-height: 44px;
   padding: 0 12px;
   border: 0;
   border-radius: 11px;
@@ -743,7 +746,11 @@
   grid-template-columns: minmax(0, 1fr);
   gap: var(--gap);
   min-width: 0;
-  scroll-margin-top: 72px;
+}
+
+/* A tab's panel and a card the page scrolls to (the Overview's "To send back", a look opened in the Shelf) stop under the sticky tabs, not behind them. */
+.n133-admin :is(.tabpanel, .admin-card, .shelf-editing) {
+  scroll-margin-top: var(--tabs-room);
 }
 
 /* ---- Filter keys (a segmented row) and the tool row above a list ---- */
@@ -773,7 +780,7 @@
   flex: none;
   align-items: center;
   gap: 6px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 12px;
   border: 0;
   border-radius: 10px;
@@ -1066,7 +1073,7 @@
 }
 
 .n133-admin .start-steps .link-key {
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 6px;
 }
 
@@ -1826,7 +1833,7 @@
 .n133-admin .foot-more summary {
   display: inline-flex;
   align-items: center;
-  min-height: 40px;
+  min-height: 44px;
   color: var(--sea);
   font-weight: 700;
   cursor: pointer;

@@ -96,3 +96,32 @@ test("the admin's Orders: the name keeps its width and wraps, the payer line wra
   for (const col of prop(table, "grid-template-columns")!.split(/\s+(?![^(]*\))/)) assert.ok(/^minmax\(0, [\d.]+fr\)$|^\d+px$/.test(col), col);
   assert.ok(!ADMIN.some((r) => /\.order-(look|when)\b/.test(r.selector) && /nowrap|ellipsis/.test(r.body)), "no name or \"when\" rule keeps one line");
 });
+
+test("the admin's tap targets: every key, tab, segment, switch and summary is at least 44 px high, in every layout", () => {
+  const TARGET = /(?:^|[.\s])(?:btn|btn-small|seg-btn|tabbar-tab|link-key|copy-key|theme-choice|theme-summary|switch|ladder-step|swatch-btn|hat-choice|colour|input|shelf-add-tile)(?![\w-])|^summary\b|\ssummary\b/;
+  const small: string[] = [];
+  for (const r of ADMIN) {
+    for (const one of r.selector.split(/\s*,\s*/)) {
+      // The last part of the selector is what the rule sizes: ".switch .switch-knob" sizes the knob inside the 44 px switch, not the switch.
+      const last = one.split(/\s+|>|\+|~/).filter(Boolean).pop() ?? "";
+      if (!TARGET.test(` ${last.replace(/:[\w-]+(\([^)]*\))?/g, "")}`)) continue;
+      for (const name of ["min-height", "height"]) {
+        const v = prop(r, name);
+        const px = v && /^(\d+(?:\.\d+)?)px$/.exec(v);
+        if (px && Number(px[1]) < 44) small.push(`${r.at} ${one} { ${name}: ${v} }`.trim());
+      }
+    }
+  }
+  assert.deepEqual(small, [], "a tap target under 44 px");
+  for (const sel of [".n133-admin .btn", ".n133-admin .btn-small", ".n133-admin .seg-btn", ".n133-admin .tabbar-tab"]) assert.equal(prop(find(ADMIN, "", sel), "min-height"), "44px", sel);
+});
+
+test("the admin's sticky tabs never cover a heading the page scrolls to: the tab panels and the cards keep a margin as high as the tabs, and a little more", () => {
+  const room = prop(find(ADMIN, "", ".n133-admin"), "--tabs-room");
+  assert.ok(room, "the room for the tabs is one value");
+  // The tab bar: 44 px keys + 6 px padding each side + 1 px border each side = 58 px; on a narrow panel 54 px + 4 px each side + 2 = 64 px.
+  assert.ok(Number(/^(\d+)px$/.exec(room!)![1]) >= 64 + 8, `${room} is the tabs' height (64 px on a phone) and a little more`);
+  const rule = ADMIN.find((r) => r.at === "" && /\.tabpanel/.test(r.selector) && /\.admin-card/.test(r.selector) && prop(r, "scroll-margin-top") === "var(--tabs-room)");
+  assert.ok(rule, "the tab panels and the cards the Overview scrolls to (\"To send back\") keep the room");
+  assert.equal(prop(find(ADMIN, "", ".n133-admin .tabbar"), "position"), "sticky");
+});
