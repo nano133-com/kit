@@ -13,8 +13,10 @@ import { createMemoryShop, priceRaw, reserveOrder, ShopBusy, xnoText } from "../
 import { PLAYS_SQL, SHOP_SQL, d1Over, fakeFirestore, hash64, noSqlite, sqlite, testAddress } from "./shop-helpers.js";
 
 const counts: Record<string, number> = {};
-const run = (name: string, cases: ShopConformanceCase[]) => {
-  counts[name] = cases.length;
+/** The runs with no plays' cases (a store that sells looks only), counted apart. */
+const looksOnly: Record<string, number> = {};
+const run = (name: string, cases: ShopConformanceCase[], tally = counts) => {
+  tally[name] = cases.length;
   for (const c of cases) test(`${name}: ${c.name}`, { timeout: SHOP_CASE_TIMEOUT_MS }, c.run);
 };
 
@@ -24,7 +26,7 @@ const STARTER = readFileSync(new URL("./fixtures/starter-0001_init.sql", import.
 
 run("shop memory", shopStoreConformance(async () => {
   const store = createMemoryShop();
-  return { store, dump: async () => JSON.stringify([[...store.orders.values()], [...store.ownedRows.values()]]) };
+  return { store, dump: async () => JSON.stringify([[...store.orders.values()], [...store.ownedRows.values()], [...store.creditRows.values()]]) };
 }));
 
 // ---- D1 ----
@@ -40,8 +42,10 @@ function d1Harness(schema?: string, plays = false) {
 
 if (noSqlite) test("shop D1 adapter on SQLite", { skip: noSqlite }, () => {});
 else {
-  run("shop D1", shopStoreConformance(async () => d1Harness()));
-  run("shop D1 on the starter's own tables", shopStoreConformance(async () => d1Harness(STARTER)));
+  run("shop D1", shopStoreConformance(async () => d1Harness(undefined, true)));
+  run("shop D1 on the starter's own tables and the plays' migration", shopStoreConformance(async () => d1Harness(STARTER, true)));
+  // A game that sells looks only switches with no migration: the money rules of the looks hold on the starter's tables as they are.
+  run("shop D1 on the starter's own tables, looks only", shopStoreConformance(async () => d1Harness(STARTER), { plays: false }), looksOnly);
 
   test("shop D1: every statement reads or writes only orders, owned and meta (the keys rate and scan), and binds its values", async () => {
     const h = d1Harness(STARTER);
@@ -310,5 +314,7 @@ test("shop Firestore: the admin's Firestore store reads the shop's orders, owned
 
 test("the conformance suite is the same on every store", () => {
   const values = Object.values(counts);
-  assert.ok(values.length >= 2 && values.every((v) => v === values[0] && v >= 17), JSON.stringify(counts));
+  assert.ok(values.length >= 2 && values.every((v) => v === values[0] && v >= 26), JSON.stringify(counts));
+  // The plays add nine cases; a looks-only store runs the rest.
+  for (const v of Object.values(looksOnly)) assert.equal(v, values[0] - 9, JSON.stringify(looksOnly));
 });
