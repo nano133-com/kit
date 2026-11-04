@@ -24,6 +24,7 @@
 //
 // A play is used at the START of a round, never at the buy: a round that could not start costs nothing. The use's answer carries only `used` and `again`:
 // nothing about the round (no number, no level, no bonus). A game whose server starts its rounds calls `use(player, playId, ref)` from its own route.
+// "again" never expires: the same ref answers it for good, so the game's server keeps its own map of ref to round and never starts a round twice.
 //
 // The player is the game's own signed-in player (`player(request)`): a visitor who is not signed in gets 401, and another player's order looks like no
 // order at all (404), and another player's credit like none. A POST must come from the game's own page. The server decides every price: the browser
@@ -143,7 +144,10 @@ export type ShopHandler = {
   payView(order: ShopOrder, now?: number): PayView;
   /** How many credits of each play wait for this player's use (every play of plays.json, 0 when none). */
   ready(player: string, now?: number): Promise<ReadyCredits[]>;
-  /** Uses one credit of this play for the round `ref`, once (for a game's own round route; the player is the signed-in one). */
+  /**
+   * Uses one credit of this play for the round `ref`, once (for a game's own round route; the player is the signed-in one). A ref answers "again" for
+   * good, also days later: a game server that starts its rounds keeps its own map of ref to round, and starts the round of a ref only once.
+   */
   use(player: string, playId: unknown, ref: unknown, now?: number): Promise<UseAnswer>;
   /** Why an order of this play is refused now (the Legal card), or null: it can be made. */
   refusal(player: string, playId: unknown): Promise<PlayRefusal | null>;
