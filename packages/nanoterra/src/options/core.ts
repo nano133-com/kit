@@ -13,6 +13,9 @@
 //   - Two key bindings never share a key: setting one to a key that another has gives the other this one's old key (a swap).
 //   - A refused storage (some private windows, a full disk) works in memory for the life of the page.
 
+import { keyLabel } from "./keyLabel.js";
+export { keyLabel };
+
 export type Tab = "basic" | "advanced";
 export type DeviceClass = "phone" | "tablet" | "desktop";
 export const DEVICE_CLASSES: readonly DeviceClass[] = ["phone", "tablet", "desktop"];
@@ -173,19 +176,6 @@ export function snapToRange(def: Pick<RangeDef, "min" | "max" | "step">, v: numb
   const steps = Math.round((Math.min(def.max, Math.max(def.min, v)) - def.min) / def.step);
   const out = Number((def.min + steps * def.step).toFixed(places));
   return out > def.max ? Number((out - def.step).toFixed(places)) : out;
-}
-
-/** The words for a `KeyboardEvent.code` on a key cap: "KeyE" is "E", "Digit1" is "1", "ArrowUp" is "↑", "ShiftLeft" is "Shift". */
-export function keyLabel(code: string): string {
-  if (/^Key[A-Z]$/.test(code)) return code.slice(3);
-  if (/^Digit\d$/.test(code)) return code.slice(5);
-  if (/^Numpad\d$/.test(code)) return `Num ${code.slice(6)}`;
-  const named: Record<string, string> = {
-    ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→", Escape: "Esc", Backquote: "`", Minus: "-", Equal: "=", BracketLeft: "[", BracketRight: "]",
-    Semicolon: ";", Quote: "'", Comma: ",", Period: ".", Slash: "/", Backslash: "\\", ShiftLeft: "Shift", ShiftRight: "Right Shift", ControlLeft: "Ctrl",
-    ControlRight: "Right Ctrl", AltLeft: "Alt", AltRight: "Right Alt", MetaLeft: "Cmd", MetaRight: "Right Cmd", Enter: "Enter", Space: "Space", Backspace: "Backspace", CapsLock: "Caps Lock",
-  };
-  return named[code] ?? code;
 }
 
 const HELP_KEY_RE = /\{key:([A-Za-z0-9_.-]+)(?:\|([A-Za-z0-9]+))?\}/g;

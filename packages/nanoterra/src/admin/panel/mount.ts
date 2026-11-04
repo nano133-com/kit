@@ -107,6 +107,9 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
     }
   })();
   const rounds = plays.length ? roundsView(plays, options.looks) : null;
+  /** The game sells plays (its plays.json has one), or its store has plays' orders (a play that left the file): only then the Legal card shows. A game
+   *  with no play sees nothing of the plays in Settings. */
+  const sellsPlays = (s: AdminSummary) => plays.length > 0 || (s.plays ?? []).length > 0;
   let dash: Dashboard | null = null;
 
   /** The card, made once. A fault in reading the game switches must not hide the orders: the card is left out and the rest still shows. */
@@ -303,7 +306,7 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
         orders.update(s);
         players.update(s);
         // The Game card is the same element at every redraw: moving it keeps its state.
-        settings.replaceChildren(...[game, legal?.el ?? null, signinsCard(s, api, () => void load(), options.loginsNote), ...(options.cards ?? []).map((c) => c.el), about(s)].filter((p): p is HTMLElement => p !== null));
+        settings.replaceChildren(...[game, sellsPlays(s) ? (legal?.el ?? null) : null, signinsCard(s, api, () => void load(), options.loginsNote), ...(options.cards ?? []).map((c) => c.el), about(s)].filter((p): p is HTMLElement => p !== null));
       },
     };
   }

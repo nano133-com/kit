@@ -192,6 +192,7 @@ import "@nano133/nanoterra/emotes/style.css";
 - With an options menu (step 10): add `EMOTE_OPTIONS` to the store and pass the store as `options` to `mountEmotes` and `playRemote`.
 - A game with water calls `emotes.stop()` (or `stopEmote(character)`) when a character goes in: the kit's pose does not swim.
 - The key in a HUD box of the game's own that has a `z-index` or a `transform`: pass `layerIn: document.body`, or the game's top bar can cover the wheel.
+  Give `layerClass` a class of the game's own and write the game's wheel rules under it, so they hold with `layerIn`.
 
 **Check:** the network tab shows no `clips` chunk and no `icons` picture before the wheel first opens. On a phone held upright: a tap on Emotes opens the wheel in
 the middle; a hold on the key and a slide onto a place plays it; Edit refuses a ninth with "Your wheel is full. Take one off first."; the wheel holds after a

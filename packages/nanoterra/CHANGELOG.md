@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- `/admin/panel`: the Legal card shows only for a game with plays (`mountAdmin({ plays })` has one, or the store has a play's orders). A game that sells
+  no play sees nothing new in Settings (Echo Island, 2026-11-04).
+- `/friends/panel` and `/options/panel`: `--n133-scrim`, one colour for the dim of both panels (the options' dark theme reads `--n133-dark-scrim` first).
+  Defaults as before: `rgb(16 24 40 / 0.4)`, and black at 0.4 in the options' dark theme.
+- `/emotes/wheel`: the key cap says the key as the Keys settings do (`keyLabel` of `/options`: "↑" for ArrowUp, "Num 1" for Numpad1); `emoteKeyLabel` is now
+  that function. `keyLabel: (code) => words` lets a game give its own words. `keyLabel` has its own file, so the wheel still loads no other options code.
+- `/emotes/wheel`: the fit to the longest name reads each place's and tile's own padding and edges (it took a 1 px edge), so a game's 3 px tile edge no
+  longer cuts the name.
+- `/emotes/wheel`: `layerClass` puts a game's class names on the holder of the open wheel (with `layerIn` the wheel's own holder, else the key's holder).
+- Sizes (gzip, size test): `/emotes/wheel` 7.1 kB (ceiling 7.2 kB, was 7.0 kB).
+
 ## 0.15.0 (2026-11-04)
 
 - **The options panel is one page (Banano's UI pass, 2026-11-03; Wes: the less UI and text, the better).** No Basic and Advanced tabs: the Basic rows come

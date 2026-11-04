@@ -47,6 +47,9 @@ export type EmotesMountOptions = {
    * change. Only with `keys` on; a touch screen with no keyboard shows no cap (the stylesheet). Default false (the word alone).
    */
   keyCap?: boolean;
+  /** The key cap's words for a key code. Default: the options' `keyLabel` (the words the Keys settings show: "↑", "Num 1"). A game with its own key
+   *  names passes them here. */
+  keyLabel?: (code: string) => string;
   /** Asked before B opens or closes the wheel: false when the game uses the key now (a dialog of its own, B bound to an action). */
   keyAllowed?: (e: KeyboardEvent) => boolean;
   /** The wheel opened. Load the clips here the first time: `loadEmotes` of "@nano133/nanoterra/emotes/player". */
@@ -67,6 +70,11 @@ export type EmotesMountOptions = {
    * need `element` around it.
    */
   layerIn?: HTMLElement;
+  /**
+   * Class names for the element that holds the open wheel (space between two): with `layerIn` the wheel's own holder there, else the key's holder. A
+   * game's rules for its wheel name this class (".my-emotes .n133e-wheel"), so they keep working when `layerIn` moves the wheel out of `element`.
+   */
+  layerClass?: string;
 };
 
 export type MountedEmotes = {
@@ -162,6 +170,16 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
   const labelOf = (id: string) => byId.get(id)?.label ?? id;
 
   const cap = keys && options.keyCap === true ? h("kbd", { class: "n133e-cap", "aria-hidden": "true" }) : null;
+  /** The cap's words: the game's own `keyLabel`, else the options' words; a fault or an empty answer in the game's gives the options' words. */
+  const capWords = (code: string): string => {
+    try {
+      const w = options.keyLabel?.(code);
+      if (typeof w === "string" && w) return w;
+    } catch {
+      // the kit's words below
+    }
+    return emoteKeyLabel(code);
+  };
   const key = h("button", { class: "n133e-key", type: "button", "aria-expanded": "false", "aria-haspopup": "dialog", "aria-controls": `n133e-wheel-${n}` }, icon("smile", 20), h("span", {}, "Emotes"), cap);
   const hubName = h("span", { class: "n133e-hub-name", "aria-live": "polite" });
   const editKey = h("button", { class: "n133e-edit", type: "button", "aria-pressed": "false" }, "Edit");
@@ -189,6 +207,7 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
   // With `layerIn` the wheel has its own .n133-emotes (display: contents) there, so the kit's rules and the theme still reach it.
   const portal = options.layerIn ? h("div", { class: "n133-emotes n133e-portal" }, layer) : null;
   const wrap = h("div", { class: "n133-emotes" }, key, portal ? null : layer);
+  for (const c of (typeof options.layerClass === "string" ? options.layerClass : "").split(/\s+/)) if (c) (portal ?? wrap).classList.add(c);
   const both = portal ? [wrap, portal] : [wrap];
   root.append(wrap);
   if (portal) options.layerIn!.append(portal);
@@ -227,7 +246,7 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
     key.hidden = !o.show;
     openCode = o.key;
     if (keys) key.setAttribute("aria-keyshortcuts", openCode.replace(/^(Key|Digit)/, ""));
-    if (cap) cap.textContent = emoteKeyLabel(openCode);
+    if (cap) cap.textContent = capWords(openCode);
     for (const el of both) el.toggleAttribute("data-calm", o.calm);
   };
   drawShow();
@@ -276,8 +295,8 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
           );
         }),
       );
-      // A name has the tile's width less its 2 px sides and 1 px edges.
-      if (!layer.hidden) fit(grid.firstElementChild, "n133e-tile-name", "--n133e-tile-fit", (w) => w + 6);
+      // A name has the tile's width less its padding and its edges (read from the tile: a game's 3 px edge too).
+      if (!layer.hidden) fit(grid.firstElementChild, "n133e-tile-name", "--n133e-tile-fit", (w, sides) => w + sides);
     }
     drawLit();
   }
@@ -289,7 +308,15 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
    * there), up to a cap in the stylesheet: each name is measured once in a place (and in a tile), and the size goes on the layer as --n133e-fit
    * (a place) and --n133e-tile-fit (a tile). With no layout (a test's fake page) nothing is measured and the floors of the stylesheet hold.
    */
-  function fit(host: Element | null | undefined, cls: string, prop: string, size: (w: number) => number) {
+  /** The width a box's padding and edges take, left and right (its computed style; 0 where it cannot be read). */
+  function sidesOf(el: Element): number {
+    if (typeof getComputedStyle !== "function") return 0;
+    const cs = getComputedStyle(el);
+    const px = (v: string) => (Number.isFinite(parseFloat(v)) ? parseFloat(v) : 0);
+    return px(cs.paddingLeft) + px(cs.paddingRight) + px(cs.borderLeftWidth) + px(cs.borderRightWidth);
+  }
+
+  function fit(host: Element | null | undefined, cls: string, prop: string, size: (w: number, sides: number) => number) {
     if (!host) return;
     const probe = h("span", { class: cls, "aria-hidden": "true" });
     probe.style.cssText = "position:absolute;visibility:hidden;max-width:none;width:auto;white-space:nowrap;pointer-events:none";
@@ -301,7 +328,7 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
       w = Math.max(w, probe.offsetWidth + 1);
     }
     probe.remove();
-    if (w > 0) layer.style.setProperty(prop, `${Math.ceil(size(w))}px`);
+    if (w > 0) layer.style.setProperty(prop, `${Math.ceil(size(w, sidesOf(host)))}px`);
   }
 
   function tap(id: string) {
@@ -341,8 +368,8 @@ export function mountEmotes(root: HTMLElement, options: EmotesMountOptions): Mou
     drawSlots();
     layer.hidden = false;
     layer.dataset.open = "true";
-    // A place's name has 96% of the place.
-    fit(slotKeys[0], "n133e-name", "--n133e-fit", (w) => w / 0.96 + 2);
+    // A place's name has 96% of the place inside its padding and edges (read from the place).
+    fit(slotKeys[0], "n133e-name", "--n133e-fit", (w, sides) => w / 0.96 + sides);
     key.setAttribute("aria-expanded", "true");
     options.onOpen?.();
     if (focusFirst) slotKeys[Math.max(0, wheel.slots.findIndex((x) => x !== null))].focus();

@@ -964,6 +964,7 @@ friends.setWhere("Level 2");       // when the player moves; null for no place
 
 The key is 44 px, with a badge (the requests, or else the friends online). The panel is a sheet from the bottom on a phone held upright and from the right on a wide or sideways screen,
 over a scrim (since 0.15.0); Escape, its close key and a press on the scrim close it. Theme it with the same `--n133-*` properties as the admin panel, and `--n133-friends-z` for its z-index (default 1000).
+`--n133-scrim` (a colour, since 0.15.1; default `rgb(16 24 40 / 0.4)`) is the dim over the game; the options panel reads it too, so one value sets both.
 
 ### The nano133 window (contract v1 with the site)
 
@@ -1155,7 +1156,9 @@ level). The panel holds the focus while it is open. Every key, switch, choice an
 **Light and dark.** The panel follows `data-n133-theme="light" | "dark"` on the page's `<html>` when the page sets it (the admin panel does), else the device's
 `prefers-color-scheme`. Every colour is a variable: `--n133-ink`, `--n133-ink-soft`, `--n133-paper`, `--n133-ground` (a choice's well and a key cap),
 `--n133-line`, `--n133-gem`, `--n133-gem-dark`, `--n133-on-gem` set the light theme, and each has a `--n133-dark-*` twin; `--n133-radius`, `--n133-font` and
-`--n133-options-z` (default 1100, above the friends panel) too. The stylesheet is scoped under `.n133-options`.
+`--n133-options-z` (default 1100, above the friends panel) too. `--n133-scrim` (a colour, since 0.15.1) is the dim over the game while the panel is
+open, the same property as the friends panel's; its dark twin is `--n133-dark-scrim` (defaults: `rgb(16 24 40 / 0.4)`, and `rgb(0 0 0 / 0.4)` in the
+dark theme). The stylesheet is scoped under `.n133-options`.
 
 **Less motion in your CSS.** `reflectOptions(store, keys, target?)` keeps each key's value on `<html>` (or `target`) as `data-n133-opt-<key in kebab case>`, and
 returns the call that stops it:
@@ -1239,9 +1242,14 @@ screen's short side) and 92 px a tile.
 - `layerIn: document.body` puts the open wheel and its dim page in that element, not beside the key. Use it when the key sits in a box of yours with its own
   `z-index` or `transform` (a HUD slot): inside such a box the wheel stays under whatever covers the box, a top bar for one. The key stays where it is; the wheel
   takes your `--n133-*` values from the key's holder each time it opens. Your own rules for the wheel must not need the holder around it then.
+- `layerClass: "my-emotes"` (since 0.15.1) puts your class names on the element that holds the open wheel: with `layerIn` the wheel's own holder there,
+  else the key's holder. Write your rules for the wheel under that class (`.my-emotes .n133e-wheel`), and they work with `layerIn` or without it.
 - With the options store, the common **Less motion** (`reducedMotion`) on opens the wheel with no pop-in, as the device's `prefers-reduced-motion` does.
 - `keyCap: true` shows the wheel's key as a key cap beside the word ("Emotes [G]"): the player's own `keys.emotes`, and it follows a change. Only with `keys` on;
-  a touch screen with no keyboard shows no cap.
+  a touch screen with no keyboard shows no cap. The cap says the key as the options' Keys settings do (`keyLabel`: "↑", "Num 1", since 0.15.1).
+  `keyLabel: (code) => words` gives your own words; an empty answer or a fault gives the kit's.
+- The places and Edit's tiles grow to the longest name. The measure reads each box's own padding and edges, so a tile with a 3 px edge of yours stays
+  whole (since 0.15.1).
 - Theme it with the same `--n133-*` properties as the admin panel (and their `--n133-dark-*` twins), and `--n133-emotes-z` for its z-index (default 1000).
   The **Emotes key alone** has its own, so it can look like your other keys while the wheel stays as it is: `--n133e-key-edge` (the edge's width, 1px),
   `--n133e-key-edge-color` (`--n133-line`'s colour), `--n133e-key-radius` (999px), `--n133e-key-shadow` (none), `--n133e-key-font` (`--n133-font`) and
@@ -1865,7 +1873,9 @@ async function startPaidRound(playId: string) {
 
 #### The Legal card (the admin's Settings tab)
 
-The creator decides the rules of paid rounds in /admin, in a **Legal** card after the Game card (no sixth tab). A press saves at once
+The creator decides the rules of paid rounds in /admin, in a **Legal** card after the Game card (no sixth tab). The card shows only for a game with
+plays: `mountAdmin({ plays })` has one, or the store has a play's orders (a play that left `plays.json`). A game that sells no play sees no Legal
+card (since 0.15.1). A press saves at once
 (the admin's `POST /api/admin/game`, the same press as the Game card's), and the shop reads the card at each order of a play.
 
 | Setting | Default | What the kit does |

@@ -3,7 +3,8 @@
    sheet on the right. In "nanoterra" mode the nano133 window stays in the page while the panel is closed (it holds the live connection): the
    closed panel is hidden and moved off the screen, never display: none.
    To theme it, set the --n133-* custom properties on the element that holds the key (or a parent): --n133-ink, --n133-ink-soft, --n133-paper,
-   --n133-line, --n133-gem, --n133-gem-dark, --n133-radius, --n133-font and --n133-friends-z (the panel's z-index, default 1000). */
+   --n133-line, --n133-gem, --n133-gem-dark, --n133-radius, --n133-font, --n133-scrim (the dim over the game while the panel is open, a colour; the
+   options panel reads it too) and --n133-friends-z (the panel's z-index, default 1000). */
 
 .n133-friends {
   --font: var(--n133-font, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
@@ -63,7 +64,7 @@
   position: fixed;
   z-index: var(--n133-friends-z, 1000);
   inset: 0;
-  background: rgb(16 24 40 / 0.4);
+  background: var(--n133-scrim, rgb(16 24 40 / 0.4));
 }
 
 .n133-friends .n133f-scrim[data-open="false"] {

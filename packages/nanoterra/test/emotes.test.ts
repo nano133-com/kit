@@ -488,5 +488,88 @@ test("the wheel's sizes: places 76 px or more and tiles 78 px or more on every s
   // The fit is measured in the layout (offsetWidth, not a box the pop-in scales), and a fake page with no layout keeps the floors.
   const src = await readFile(new URL("../src/emotes/panel/mount.ts", import.meta.url), "utf8");
   assert.match(src, /probe\.offsetWidth/);
-  assert.match(src, /"--n133e-fit", \(w\) => w \/ 0\.96 \+ 2\)/);
+  assert.match(src, /"--n133e-fit", \(w, sides\) => w \/ 0\.96 \+ sides\)/);
+  assert.match(src, /"--n133e-tile-fit", \(w, sides\) => w \+ sides\)/);
+});
+
+test("the key cap says the key as the Keys settings do (↑, Num 1), and a game's own keyLabel wins; a fault in it gives the kit's words", async () => {
+  const win = new Window({ url: "https://game.example" });
+  Object.assign(globalThis, { document: win.document, window: win, HTMLElement: win.HTMLElement, Node: win.Node, Event: win.Event, KeyboardEvent: win.KeyboardEvent });
+  const { mountEmotes } = await import("../src/emotes/panel/index.js");
+  const { keyLabel } = await import("../src/options/index.js");
+  const { emoteKeyLabel } = await import("../src/emotes/index.js");
+  for (const code of ["KeyG", "Digit5", "Numpad1", "ArrowUp", "ArrowLeft", "Backquote", "ShiftLeft", "Space", "F5"]) assert.equal(emoteKeyLabel(code), keyLabel(code), code);
+  const root = win.document.createElement("div") as unknown as HTMLElement;
+  win.document.body.append(root as never);
+  const cap = () => root.querySelector(".n133e-cap")!.textContent;
+  const store = createOptions({ game: "g", storage: null, defs: [...EMOTE_OPTION_DEFS.map((d) => ({ ...d, key: `emotes.${d.key}`, group: "Emotes" })), keyBinding("emotes", "Emotes wheel", "ArrowUp")] });
+  const m = mountEmotes(root, { game: "g", onPlay() {}, storage: null, options: store, keyCap: true });
+  assert.equal(cap(), "↑", "not ArrowUp");
+  store.set("keys.emotes", "Numpad1");
+  assert.equal(cap(), "Num 1", "not 1");
+  m.destroy();
+  const own = mountEmotes(root, { game: "g", onPlay() {}, storage: null, options: store, keyCap: true, keyLabel: (code) => (code === "Numpad1" ? "Pad 1" : "") });
+  assert.equal(cap(), "Pad 1", "the game's words");
+  store.set("keys.emotes", "ArrowUp");
+  assert.equal(cap(), "↑", "an empty answer gives the kit's words");
+  own.destroy();
+  const broken = mountEmotes(root, { game: "g", onPlay() {}, storage: null, options: store, keyCap: true, keyLabel: () => { throw new Error("no"); } });
+  assert.equal(cap(), "↑", "a fault in the game's keyLabel gives the kit's words");
+  broken.destroy();
+});
+
+test("the wheel's fit reads each box's own padding and edges: a game's 3 px tile edge makes the tile 4 px wider than the kit's 1 px", async () => {
+  const win = new Window({ url: "https://game.example" });
+  const was = (globalThis as { getComputedStyle?: unknown }).getComputedStyle;
+  // happy-dom has no layout: a name is 75 px wide, and the boxes' sides come from a stand-in computed style.
+  let tileEdge = "1px";
+  const sides = (el: Element) =>
+    el.classList.contains("n133e-tile") ? { paddingLeft: "2px", paddingRight: "2px", borderLeftWidth: tileEdge, borderRightWidth: tileEdge }
+    : el.classList.contains("n133e-slot") ? { paddingLeft: "0px", paddingRight: "0px", borderLeftWidth: "1px", borderRightWidth: "1px" }
+    : {};
+  Object.assign(globalThis, { document: win.document, window: win, HTMLElement: win.HTMLElement, Node: win.Node, Event: win.Event, KeyboardEvent: win.KeyboardEvent, getComputedStyle: (el: Element) => ({ getPropertyValue: () => "", ...sides(el) }) });
+  const proto = win.HTMLElement.prototype as unknown as object;
+  const before = Object.getOwnPropertyDescriptor(proto, "offsetWidth");
+  Object.defineProperty(proto, "offsetWidth", { configurable: true, get(this: Element) { return this.classList.contains("n133e-name") || this.classList.contains("n133e-tile-name") ? 75 : 0; } });
+  try {
+    const { mountEmotes } = await import("../src/emotes/panel/index.js");
+    const root = win.document.createElement("div") as unknown as HTMLElement;
+    win.document.body.append(root as never);
+    const fitOf = (prop: string) => (root.querySelector(".n133e-layer") as HTMLElement).style.getPropertyValue(prop);
+    for (const [edge, tile] of [["1px", "82px"], ["3px", "86px"]]) {
+      tileEdge = edge;
+      const m = mountEmotes(root, { game: "g", onPlay() {}, storage: null });
+      m.open();
+      // A place: (75 + 1) / 0.96 and its 1 px edges, 82 px.
+      assert.equal(fitOf("--n133e-fit"), "82px");
+      (root.querySelector(".n133e-edit") as HTMLButtonElement).click();
+      // A tile: 76 + 2 + 2 of padding + its two edges.
+      assert.equal(fitOf("--n133e-tile-fit"), tile, `a ${edge} edge`);
+      m.destroy();
+    }
+  } finally {
+    if (before) Object.defineProperty(proto, "offsetWidth", before);
+    else delete (proto as { offsetWidth?: unknown }).offsetWidth;
+    Object.assign(globalThis, { getComputedStyle: was });
+  }
+});
+
+test("layerClass names the holder of the open wheel: its own holder with layerIn, else the key's holder", async () => {
+  const win = new Window({ url: "https://game.example" });
+  Object.assign(globalThis, { document: win.document, window: win, HTMLElement: win.HTMLElement, Node: win.Node, Event: win.Event, KeyboardEvent: win.KeyboardEvent, getComputedStyle: () => ({ getPropertyValue: () => "" }) });
+  const { mountEmotes } = await import("../src/emotes/panel/index.js");
+  const slot = win.document.createElement("div") as unknown as HTMLElement;
+  win.document.body.append(slot as never);
+  const out = mountEmotes(slot, { game: "g", onPlay() {}, storage: null, layerIn: win.document.body as unknown as HTMLElement, layerClass: " echo-emotes  echo-hud-layer " });
+  const holder = (win.document.querySelector(".n133e-layer") as unknown as HTMLElement).parentElement!;
+  assert.ok(holder.classList.contains("n133e-portal") && holder.classList.contains("echo-emotes") && holder.classList.contains("echo-hud-layer"));
+  assert.equal(slot.querySelector(".echo-emotes"), null, "the key's holder in the slot has no such class");
+  out.destroy();
+  const inside = mountEmotes(slot, { game: "g", onPlay() {}, storage: null, layerClass: "echo-emotes" });
+  const wrap = slot.querySelector(".n133-emotes") as HTMLElement;
+  assert.ok(wrap.classList.contains("echo-emotes") && wrap.contains(slot.querySelector(".n133e-layer")), "with no layerIn the key's holder holds the wheel, and gets the class");
+  inside.destroy();
+  const none = mountEmotes(slot, { game: "g", onPlay() {}, storage: null });
+  assert.equal((slot.querySelector(".n133-emotes") as HTMLElement).className, "n133-emotes", "no class by default");
+  none.destroy();
 });

@@ -403,3 +403,16 @@ test("the Game card has a three-way friends choice: a radio group, saved at once
   assert.equal(keys[2].getAttribute("aria-checked"), "true");
   card.remove();
 });
+
+test("one dim for both panels: the friends scrim and the options scrim read --n133-scrim (the options' dark theme --n133-dark-scrim first), with today's dims as the defaults", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const friends = await readFile(new URL("../src/friends/panel/style.css", import.meta.url), "utf8");
+  const options = await readFile(new URL("../src/options/panel/style.css", import.meta.url), "utf8");
+  assert.match(friends, /\.n133-friends \.n133f-scrim \{[^}]*background: var\(--n133-scrim, rgb\(16 24 40 \/ 0\.4\)\);/);
+  assert.match(options, /\.n133-options \.n133o-scrim \{[^}]*background: var\(--scrim\);/);
+  assert.match(options, /--scrim: var\(--n133-scrim, rgb\(16 24 40 \/ 0\.4\)\);/, "light: the game's dim, else today's");
+  // Both dark blocks (the page's word and the device's setting) take the dark twin first, then the one dim, then today's black.
+  assert.equal([...options.matchAll(/--scrim: var\(--n133-dark-scrim, var\(--n133-scrim, rgb\(0 0 0 \/ 0\.4\)\)\);/g)].length, 2);
+  // A game's value must win whichever stylesheet loads last: the kit never declares --n133-scrim itself.
+  for (const css of [friends, options]) assert.equal(/--n133-(dark-)?scrim\s*:/.test(css), false);
+});

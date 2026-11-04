@@ -10,6 +10,7 @@
 // Only the options module's TYPES are imported (from its store's own file): this path loads none of its code.
 
 import type { KeyDef, OptionsStore, ToggleDef } from "../options/core.js";
+import { keyLabel } from "../options/keyLabel.js";
 
 /**
  * The help line of "Show the Emotes key": it names the wheel's key as the player has it ("G still opens the wheel on a keyboard" in a game whose key is
@@ -35,14 +36,9 @@ export type EmoteOptionsStore = Pick<OptionsStore, "get"> & Partial<Pick<Options
 /** `calm`: the options' "Less motion" (the common "reducedMotion" setting) is on, so the wheel opens with no pop-in, as with the device's own setting. */
 export type EmoteSettings = { show: boolean; others: boolean; key: string; calm: boolean };
 
-/** A key's words on the Emotes key's cap: "KeyG" is "G", "Digit5" is "5", a few named keys by their sign; any other code as it is. (The options' own
- *  `keyLabel` says more, but this path loads no options code.) */
-export function emoteKeyLabel(code: string): string {
-  if (/^Key[A-Z]$/.test(code)) return code.slice(3);
-  if (/^(Digit|Numpad)\d$/.test(code)) return code.slice(-1);
-  const named: Record<string, string> = { Backquote: "`", Minus: "-", Equal: "=", BracketLeft: "[", BracketRight: "]", Semicolon: ";", Quote: "'", Comma: ",", Period: ".", Slash: "/", Backslash: "\\", Space: "Space", Tab: "Tab" };
-  return named[code] ?? code;
-}
+/** A key's words on the Emotes key's cap: the options' own `keyLabel` ("KeyG" is "G", "ArrowUp" is "↑", "Numpad1" is "Num 1"), the same words as the
+ *  Keys settings show. (Its own small file: this path loads none of the options' other code.) */
+export const emoteKeyLabel: (code: string) => string = keyLabel;
 
 /** The settings from a store: a store that is missing or a key it does not have (it throws) reads on, and B (and `calm` off). */
 export function readEmoteOptions(store: EmoteOptionsStore | null | undefined): EmoteSettings {

@@ -94,8 +94,8 @@ test("the owner sees every card: the two switches, the numbers, the Shelf, the o
   assert.ok(root.classList.contains("n133-admin"));
   const switches = [...root.querySelectorAll(".game-card .switch")];
   assert.deepEqual(switches.map((s) => s.getAttribute("aria-checked")), ["true", "true", "true", "true"]);
-  // The Legal card follows the Game card: 18 and up on, a life or a continue off (the kit's defaults).
-  assert.deepEqual([...root.querySelectorAll(".legal-card .switch")].map((s) => s.getAttribute("aria-checked")), ["true", "false"]);
+  // A game with no play has no Legal card (0.15.1): nothing of the plays shows in its Settings.
+  assert.equal(root.querySelector(".legal-card"), null);
   assert.ok(text(root).includes("Send this amount back by hand"), "a late payment says what to do");
   // The theme: drawn on the panel and on the page's <html> while mounted; the top bar has its key.
   assert.match(root.getAttribute("data-theme") ?? "", /^(light|dark)$/);
@@ -755,7 +755,7 @@ const DAY = 86_400_000;
 const RAW_005 = (5n * 10n ** 28n).toString(); // 0.05 XNO
 
 /** A game that sells plays: a paid round with a credit ready, one past its wait, one of a deleted player, and a paid look. */
-function playsSetup(testMode = true) {
+function playsSetup(testMode = true, plays: unknown = PLAYS) {
   const play = (id: string, over: Record<string, unknown> = {}) => ({ id, player: OTHER, lookId: "extra-round", kind: "play", usd: "0.05", amountRaw: RAW_005, status: "paid", createdAt: NOW - 100, expiresAt: NOW + 100, paidAt: NOW - 50, payer: OTHER, hash: `H${id}`, ...over });
   const store = createMemoryStore({
     orders: [
@@ -770,8 +770,22 @@ function playsSetup(testMode = true) {
       { orderId: "p2", player: OTHER, playId: "extra-round", grantedAt: NOW - 40 * DAY, expiresAt: NOW - 10 * DAY, usedAt: null },
     ],
   });
-  return setup({ store, plays: PLAYS, status: () => ({ address: OWNER, testMode, warnings: [] }) });
+  return setup({ store, plays, status: () => ({ address: OWNER, testMode, warnings: [] }) });
 }
+
+test("the Legal card shows only for a game with plays: none with no play, one with plays.json's plays, and one while the store has plays' orders", async () => {
+  const none = setup();
+  await none.mounted.ready;
+  assert.equal(none.root.querySelector(".legal-card"), null, "no play: no Legal card");
+  assert.equal(panelOf(none.root, "settings").querySelector(".game-card") !== null, true, "the Game card still shows");
+  const sells = playsSetup();
+  await sells.mounted.ready;
+  assert.deepEqual([...sells.root.querySelectorAll(".legal-card .switch")].map((s) => s.getAttribute("aria-checked")), ["true", "false"], "with plays: the card and its defaults");
+  // A game that took its last play out of plays.json still has paid rounds to answer for: the card stays.
+  const left = playsSetup(true, []);
+  await left.mounted.ready;
+  assert.notEqual(left.root.querySelector(".legal-card"), null, "the store's play orders keep the card");
+});
 
 test("the Legal card: its defaults, the switches saved at once, the plays the life switch affects, the refund words with a preview, the one confirmation", async () => {
   const { root, mounted, store, calls } = playsSetup();

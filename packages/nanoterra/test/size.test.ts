@@ -22,7 +22,8 @@ const PATHS: [string, string[], number, boolean][] = [
   ["@nano133/nanoterra/character", ["character/index.js"], 28_000, true],
   ["@nano133/nanoterra/emotes", ["emotes/index.js"], 2_500, false],
   // The wheel: 6.8 kB since layerIn (the wheel in document.body, with the theme copied), the options' "Less motion" and the places that fit the longest name.
-  ["@nano133/nanoterra/emotes/wheel", ["emotes/panel/index.js"], 7_000, false],
+  // 0.15.1: 7.1 kB, the options' keyLabel for the key cap (the Keys settings' words), the tiles' measured edges and layerClass.
+  ["@nano133/nanoterra/emotes/wheel", ["emotes/panel/index.js"], 7_200, false],
   ["@nano133/nanoterra/emotes/player", ["emotes/player.js"], 3_500, true],
   // Since 0.15.0 the shop sells plays too (checkPlays, the credits, the plays' routes; the Worker's D1 store with the plays' statements), with the creator's
   // Legal card (the age step, a life or a continue, the refund words, the owner's confirmation).
