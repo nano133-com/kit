@@ -26,9 +26,9 @@ else {
   let n = 0;
 
   for (const c of shopStoreConformance(async () => {
-    // Each case gets its own seven collections: a new, empty store.
+    // Each case gets its own eight collections: a new, empty store.
     const k = `s${process.pid}_${n++}`;
-    const names = { orders: `${k}_orders`, owned: `${k}_owned`, meta: `${k}_meta`, amounts: `${k}_amounts`, hashes: `${k}_hashes`, credits: `${k}_credits`, uses: `${k}_uses` };
+    const names = { orders: `${k}_orders`, owned: `${k}_owned`, meta: `${k}_meta`, amounts: `${k}_amounts`, hashes: `${k}_hashes`, credits: `${k}_credits`, uses: `${k}_uses`, adults: `${k}_adults` };
     const store = createFirestoreShop(db as unknown as FirestoreShopLike, names);
     const dump = async () => {
       const parts = await Promise.all(Object.values(names).map(async (name) => (await db.collection(name).get()).docs.map((d: { id: string; data(): unknown }) => [d.id, d.data()])));

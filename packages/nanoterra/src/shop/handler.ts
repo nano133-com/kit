@@ -2,12 +2,21 @@
 // starter's Worker, so its page keeps working:
 //
 //   POST {base}               { lookId, turnstile? }  a new order for a look: 201 and the pay view (or 200 and the same open order again)
-//                             { playId, turnstile? }  the same for a play (a round or a level, used once): exactly one of the two ids
+//                             { playId, turnstile? }  the same for a play (a round, a level, a life or a continue, used once): exactly one of the two ids
 //   GET  {base}/{id}          the pay view of the player's own order
 //   POST {base}/{id}/check    scans for payments first (at most one scan for the whole game every 4 s), then the pay view
-//   GET  {playsBase}          { plays: [{ playId, ready }] }: how many paid credits of each play wait for the player's use
+//   GET  {playsBase}          { plays: [{ playId, ready, forSale }] }: how many paid credits of each play wait for the player's use, and whether an order
+//                             of it can be made now (the creator's Legal card)
 //   POST {playsBase}/use      { playId, ref }: the round's start uses one credit, once for each ref: 200 { used: true, again }, 402 none is ready,
 //                             409 the ref used another play, 400 a bad ref (1 to 64 letters, digits, ":", "_" or "-")
+//   POST {playsBase}/adult    { adult: true }: the player says "I am 18 or older" (the Legal card's "Paid rounds for 18 and up only"): 200 { adult: true },
+//                             kept for the player until "Delete my data"
+//
+// The creator's Legal card (the admin's settings: `legal`, from loadLegal) rules every order of a play, and writes nothing when it refuses one: 403 with
+// `reason` "owner" outside test mode until the owner confirmed "You are responsible for the laws where you sell."; 403 `reason` "not_for_sale" for a
+// life or a continue while "Sell an extra life or a continue" is off (credits already paid stay usable); 403 `needs` "age" while "Paid rounds for 18 and
+// up only" is on and the player has not said yes. A play's order answer (201, or 200 for the same order) adds `refund` { days, text }: the creator's
+// words, shown before any step of the pay sheet. Looks are not affected.
 //
 // `base` is "/api/orders" (the starter's), `playsBase` "/api/plays". The pay view is the order ({ id, lookId, usd, amount, status, createdAt, expiresAt })
 // with `xno` (the amount as XNO text), `test`, `prices` (the feeds' names) and, ONLY outside test mode, `address` and `uri` (the nano: link with the exact
@@ -26,6 +35,7 @@
 import { fail, json, memoryLimiter, readLimited, sameOrigin } from "../admin/http.js";
 import { checkLooks, usdDecimals, type Look } from "../looks/look.js";
 import { checkPlays, type Play } from "../looks/play.js";
+import { DEFAULT_LEGAL, LIFE_USES, refundText, type LegalState } from "../admin/legal.js";
 import { payeeOf } from "./address.js";
 import { nanoUri, priceRaw, xnoText } from "./amount.js";
 import { PUBLIC_NODES, type Fetch, type NanoNode, type RpcOptions } from "./nodes.js";
@@ -42,6 +52,8 @@ export type PayView = {
   /** Only on a play's order: "play", and the play's id (the same as `lookId`). */
   kind?: "play";
   playId?: string;
+  /** Only on the answer that makes (or gives again) a play's order: the creator's refund rule, the words with the days filled in. */
+  refund?: { days: number; text: string };
   usd: string;
   amount: string;
   status: OrderStatus;
@@ -63,6 +75,12 @@ export type ShopHandlerOptions = {
    * file throws here, before any sale. A D1 store sells plays only with the plays' migration and `{ plays: true }` (createShop does it).
    */
   plays?: unknown;
+  /**
+   * The creator's Legal card (the admin's settings), read at each order of a play and each read of the plays: `() => loadLegal(adminStore)` from
+   * "@nano133/nanoterra/admin". None, or a fault: the careful defaults (DEFAULT_LEGAL: 18 and up, no life or continue, no owner's confirmation, so no
+   * play order outside test mode). Never read for a look.
+   */
+  legal?: () => Promise<LegalState> | LegalState;
   /** The creator's Nano address: payments go straight there. Null, the example address or one with a wrong checksum keeps test mode on. */
   payee: string | null | undefined;
   /** True keeps test mode on with a real address (the starter's TEST_MODE). */
@@ -96,6 +114,8 @@ export const SHOP_LIMITS = {
   order: { limit: 10, windowMs: 10 * 60_000 },
   /** Uses of one player (a round start each). */
   use: { limit: 60, windowMs: 60_000 },
+  /** "I am 18 or older" of one player. */
+  adult: { limit: 10, windowMs: 10 * 60_000 },
   /** The biggest body of a POST. */
   bodyMax: 8192,
 } as const;
@@ -121,11 +141,16 @@ export type ShopHandler = {
   ready(player: string, now?: number): Promise<ReadyCredits[]>;
   /** Uses one credit of this play for the round `ref`, once (for a game's own round route; the player is the signed-in one). */
   use(player: string, playId: unknown, ref: unknown, now?: number): Promise<UseAnswer>;
+  /** Why an order of this play is refused now (the Legal card), or null: it can be made. */
+  refusal(player: string, playId: unknown): Promise<PlayRefusal | null>;
   /** The payee the shop uses (checked), or null. */
   readonly payee: string | null;
   /** Whether pay screens are in test mode. */
   readonly testMode: boolean;
 };
+
+/** Why the Legal card refuses an order of a play: the status, the words, and `reason` or `needs` for the page. */
+export type PlayRefusal = { status: 403; error: string; reason?: "owner" | "not_for_sale"; needs?: "age" };
 
 const sharedLimit = memoryLimiter();
 
@@ -165,6 +190,28 @@ export function createShopHandler(options: ShopHandlerOptions): ShopHandler {
 
   const scan = (at = now()) => scanPayments(store, { address: payee, nodes, at, rpc: options.rpc });
 
+  /** The Legal card now: the game's own (the admin's settings), or the careful defaults. */
+  async function legalNow(): Promise<LegalState> {
+    if (!options.legal) return DEFAULT_LEGAL;
+    try {
+      return await options.legal();
+    } catch (e) {
+      report(e);
+      return DEFAULT_LEGAL;
+    }
+  }
+  /** What the Legal card says of a play apart from the player: null, or the refusal. */
+  const shut = (play: Play, legal: LegalState): PlayRefusal | null =>
+    !testMode && legal.lawsConfirmedAt === null
+      ? { status: 403, error: "The owner has not turned paid rounds on yet.", reason: "owner" }
+      : LIFE_USES.includes(play.use) && !legal.sellLives
+        ? { status: 403, error: `This game does not sell a ${play.use} now.`, reason: "not_for_sale" }
+        : null;
+  async function refusalOf(player: string, play: Play, legal: LegalState): Promise<PlayRefusal | null> {
+    return shut(play, legal) ?? (legal.adultsOnly && (await store.adult(player)) === null ? { status: 403, error: "Paid rounds are for players 18 and up.", needs: "age" } : null);
+  }
+  const refundOf = (legal: LegalState) => ({ days: legal.refundDays, text: refundText(legal) });
+
   async function readBody(req: Request): Promise<Record<string, unknown> | null> {
     const text = await readLimited(req, SHOP_LIMITS.bodyMax);
     if (text === null) return null;
@@ -190,6 +237,12 @@ export function createShopHandler(options: ShopHandlerOptions): ShopHandler {
     return plays.map((p) => ({ playId: p.id, ready: byWindow.get(creditWindow(p, at))!.find((r) => r.playId === p.id)?.ready ?? 0 }));
   }
 
+  async function playsList(player: string, at: number) {
+    const list = await ready(player, at);
+    const legal = plays.length ? await legalNow() : DEFAULT_LEGAL;
+    return list.map((r) => ({ ...r, forSale: shut(playById(r.playId)!, legal) === null }));
+  }
+
   async function use(player: string, playId: unknown, ref: unknown, at = now()): Promise<UseAnswer> {
     const play = playById(playId);
     if (!play) return { used: false, why: "no-play" };
@@ -207,9 +260,14 @@ export function createShopHandler(options: ShopHandlerOptions): ShopHandler {
     if (body.lookId !== undefined && body.playId !== undefined) return fail(400, "Send a lookId or a playId, not both.");
     // What is sold, and at what price: the server's, from the id alone.
     let item: { id: string; priceUsd: number; play: Play | null };
+    let legal: LegalState | null = null;
     if (body.playId !== undefined) {
       const play = playById(body.playId);
       if (!play) return fail(400, "That play does not exist.");
+      // The creator's Legal card, before anything is counted or written: a refused order writes nothing.
+      legal = await legalNow();
+      const no = await refusalOf(player, play, legal);
+      if (no) return fail(no.status, no.error, no.reason ? { reason: no.reason } : { needs: no.needs });
       item = { id: play.id, priceUsd: play.priceUsd, play };
     } else {
       const look = lookById(body.lookId);
@@ -226,7 +284,8 @@ export function createShopHandler(options: ShopHandlerOptions): ShopHandler {
     } else if (await store.owns(player, item.id)) return fail(409, "You already own this look.");
     // One waiting order per look or play: the same one comes back, with the same amount.
     const same = await store.openOrder(player, item.id, at + 60_000);
-    if (same) return json(payView(same, at));
+    const refund = legal ? { refund: refundOf(legal) } : {};
+    if (same) return json({ ...payView(same, at), ...refund });
     if ((await store.countOpen(player, at)) >= MAX_OPEN_PER_PLAYER) return fail(429, "You have orders waiting. Pay one or wait until it ends.");
     const rate = await usdPerXno(store, fetchRate, at, feeds);
     if (!rate) return fail(503, "Prices are not available now. Try again later.");
@@ -234,7 +293,7 @@ export function createShopHandler(options: ShopHandlerOptions): ShopHandler {
     if (!price) return fail(503, "Prices are not available now. Try again later.");
     try {
       const order = await reserveOrder(store, { player, lookId: item.id, kind: item.play ? "play" : "look", usd: usdDecimals(item.priceUsd), rate: rate.usd, price, visitor, now: at });
-      return json(payView(order, at), 201);
+      return json({ ...payView(order, at), ...refund }, 201);
     } catch (e) {
       if (e instanceof ShopBusy) return fail(503, "Many players are paying this price right now. Try again in a minute.");
       throw e;
@@ -254,11 +313,20 @@ export function createShopHandler(options: ShopHandlerOptions): ShopHandler {
     return fail(402, `No ${playById(body.playId)!.use} is ready. Buy one first.`);
   }
 
+  async function sayAdult(req: Request, player: string, at: number): Promise<Response> {
+    if (!plays.length) return fail(400, "This game sells no rounds.");
+    if (!(await limit(`adult|${player}`, SHOP_LIMITS.adult.limit, SHOP_LIMITS.adult.windowMs, at))) return fail(429, "Too many tries. Wait a few minutes.");
+    const body = await readBody(req);
+    if (!body || body.adult !== true) return fail(400, 'Send { "adult": true }.');
+    await store.keepAdult(player, at);
+    return json({ adult: true });
+  }
+
   async function handle(req: Request): Promise<Response | null> {
     const path = new URL(req.url).pathname;
     const one = path.startsWith(`${base}/`) ? /^([0-9a-f]{24})(\/check)?$/.exec(path.slice(base.length + 1)) : null;
     const isNew = path === base && req.method === "POST";
-    const playsRoute = path === playsBase ? "list" : path === `${playsBase}/use` ? "use" : null;
+    const playsRoute = path === playsBase ? "list" : path === `${playsBase}/use` ? "use" : path === `${playsBase}/adult` ? "adult" : null;
     if (!isNew && !one && !playsRoute) return null;
     try {
       // Every call that changes something must come from the game's own pages.
@@ -273,8 +341,9 @@ export function createShopHandler(options: ShopHandlerOptions): ShopHandler {
       if (typeof player !== "string" || !player) return fail(401, "Sign in first.");
       const at = now();
       if (isNew) return await createOrder(req, player, at);
-      if (playsRoute === "list") return req.method === "GET" ? json({ plays: await ready(player, at) }) : fail(405, "Not allowed.");
+      if (playsRoute === "list") return req.method === "GET" ? json({ plays: await playsList(player, at) }) : fail(405, "Not allowed.");
       if (playsRoute === "use") return req.method === "POST" ? await usePlay(req, player, at) : fail(405, "Not allowed.");
+      if (playsRoute === "adult") return req.method === "POST" ? await sayAdult(req, player, at) : fail(405, "Not allowed.");
       const [, id, check] = one!;
       if (check && req.method === "POST") {
         const r = await scan(at);
@@ -290,5 +359,10 @@ export function createShopHandler(options: ShopHandlerOptions): ShopHandler {
     }
   }
 
-  return { base, playsBase, handle, scan, owned: (player) => store.owned(player), payView, ready, use, payee, testMode };
+  async function refusal(player: string, playId: unknown): Promise<PlayRefusal | null> {
+    const play = playById(playId);
+    return play ? refusalOf(player, play, await legalNow()) : null;
+  }
+
+  return { base, playsBase, handle, scan, owned: (player) => store.owned(player), payView, ready, use, refusal, payee, testMode };
 }

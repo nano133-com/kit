@@ -8,8 +8,8 @@
 // It reads and writes ONLY those three tables (in `meta`, only the keys "rate" and "scan"). The table names can be changed (`tables`), but the admin's
 // D1 store ("@nano133/nanoterra/admin/d1") reads the starter's names: keep them unless the game has its own admin store.
 //
-// The plays (a round or a level, bought and used once) need one more migration, "@nano133/nanoterra/shop/d1-plays.sql" (the orders' `kind` and the
-// table `credits`), and `{ plays: true }`. Without it the store sells looks only, on the tables as they are: an order of a play throws before it is written.
+// The plays (a round, a level, a life or a continue, bought and used once) need one more migration, "@nano133/nanoterra/shop/d1-plays.sql" (the orders'
+// `kind`, the table `credits` and the table `play_adults`: the players' "18 or older" yes), and `{ plays: true }`. Without it the store sells looks only, on the tables as they are: an order of a play throws before it is written.
 //
 // The money rules are in the statements themselves: `amount_lock` and `hash` are UNIQUE (no two held orders ask for one amount, one payment pays one
 // order), the payment and the grant (a look, or a play's credit) are ONE batch (a D1 transaction), the scan's claim is one upsert that only one caller in
@@ -23,8 +23,8 @@ import { FORGOTTEN, kindOf, type Credit, type ForgetResult, type UseResult, type
 
 export type { D1Like, D1StatementLike } from "../../admin/adapters/d1.js";
 
-/** The table names. The defaults are the game starter's, and "credits" (d1-plays.sql). (`hits` is for `d1Limit` only.) */
-export type ShopTables = { orders?: string; owned?: string; meta?: string; hits?: string; credits?: string };
+/** The table names. The defaults are the game starter's, and "credits" and "play_adults" (d1-plays.sql). (`hits` is for `d1Limit` only.) */
+export type ShopTables = { orders?: string; owned?: string; meta?: string; hits?: string; credits?: string; adults?: string };
 
 type CreditRow = { order_id: string; player: string; play_id: string; granted_at: number; used_at: number | null; use_ref: string | null };
 
@@ -139,6 +139,7 @@ export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore
     owned: tableName(options.tables?.owned, "owned"),
     meta: tableName(options.tables?.meta, "meta"),
     credits: tableName(options.tables?.credits, "credits"),
+    adults: tableName(options.tables?.adults, "play_adults"),
   };
   const plays = options.plays === true;
   const COLS = `id, player, look_id, usd, rate, amount, amount_lock, status, created_at, expires_at, hold_until, hash, payer, paid_at, visitor${plays ? ", kind" : ""}`;
@@ -304,6 +305,17 @@ export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore
       return last ? { status: "again", credit: creditOf(last) } : { status: "none" };
     },
 
+    async adult(player) {
+      if (!plays) return null;
+      const r = await db.prepare(`SELECT at FROM ${T.adults} WHERE player = ?`).bind(player).first<{ at: number }>();
+      return r ? Number(r.at) : null;
+    },
+
+    async keepAdult(player, now) {
+      if (!plays) throw new Error("this D1 shop store sells no plays: apply @nano133/nanoterra/shop/d1-plays.sql and pass { plays: true }");
+      await db.prepare(`INSERT OR IGNORE INTO ${T.adults} (player, at) VALUES (?, ?)`).bind(player, now).run();
+    },
+
     async forget(player, now): Promise<ForgetResult> {
       await tidy(now);
       const w = await waiting(player);
@@ -318,14 +330,14 @@ export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore
         // A paid order keeps no payer; a paid-late one keeps it: the creator sends that payment back by hand. (Before the credits go: it reads them.)
         db.prepare(`UPDATE ${T.orders} SET payer = ?2 WHERE payer = ?1 AND status = 'paid'${unusedPlay} AND ${gate}`).bind(player, FORGOTTEN),
         db.prepare(`UPDATE ${T.orders} SET player = ?2, visitor = NULL WHERE player = ?1 AND hash IS NOT NULL AND ${gate}`).bind(player, FORGOTTEN),
-        ...(plays ? [db.prepare(`DELETE FROM ${T.credits} WHERE player = ?1 AND ${gate}`).bind(player)] : []),
+        ...(plays ? [db.prepare(`DELETE FROM ${T.credits} WHERE player = ?1 AND ${gate}`).bind(player), db.prepare(`DELETE FROM ${T.adults} WHERE player = ?1 AND ${gate}`).bind(player)] : []),
       ]);
-      const [owned, orders, , kept, credits = 0] = done.map(changes);
-      if (owned + orders + kept + credits === 0) {
+      const [owned, orders, , kept, credits = 0, adults = 0] = done.map(changes);
+      if (owned + orders + kept + credits + adults === 0) {
         const again = await waiting(player);
         if (Number(again?.n ?? 0) > 0) return { deleted: 0, kept: 0, waitUntil: Number(again!.until) };
       }
-      return { deleted: owned + orders + credits, kept, waitUntil: null };
+      return { deleted: owned + orders + credits + adults, kept, waitUntil: null };
     },
   };
 }

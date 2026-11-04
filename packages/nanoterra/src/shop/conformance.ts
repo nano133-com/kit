@@ -348,6 +348,21 @@ export function shopStoreConformance(make: () => Promise<ShopHarness>, options: 
     check(b.status === "used" && b.credit.player === BOB, `BOB's own ref "round-1" uses BOB's own credit: ${JSON.stringify(b)}`);
   });
 
+  add("the \"18 or older\" yes is kept for its player only, once (the first time, also many at once); forget deletes it and leaves another player's", async ({ store, dump }) => {
+    check((await store.adult(ANN)) === null && (await store.adult(BOB)) === null, "a new store has no yes");
+    await store.keepAdult(ANN, T0);
+    await store.keepAdult(ANN, T0 + 5);
+    check((await store.adult(ANN)) === T0, `the first yes keeps its time: ${await store.adult(ANN)}`);
+    check((await store.adult(BOB)) === null, "ANN's yes is not BOB's");
+    await Promise.all(Array.from({ length: 10 }, (_, i) => store.keepAdult(BOB, T0 + 10 + i)));
+    const bob = await store.adult(BOB);
+    check(bob !== null && bob >= T0 + 10 && bob <= T0 + 19, `ten at once keep one yes: ${bob}`);
+    const r = await store.forget(ANN, T0 + 100);
+    check(r.waitUntil === null && r.deleted === 1 && r.kept === 0, `forget deletes the yes: ${JSON.stringify(r)}`);
+    check((await store.adult(ANN)) === null && (await store.adult(BOB)) === bob, "ANN's yes went, BOB's stays");
+    check(!(await dump()).includes(ANN), "the player's id is left nowhere");
+  });
+
   add("forget deletes the player's credits; a paid play whose credit was not used keeps its payer (the creator sends it back)", async ({ store, dump }) => {
     const used = await credit(store, ANN, T0);
     check((await store.useCredit(ANN, PLAY, "round-1", T0 + 100, 0)).status === "used", "one credit used");

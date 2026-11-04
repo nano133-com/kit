@@ -17,10 +17,11 @@ test("a good plays.json: each play comes back clean, with its wait filled in", (
   assert.deepEqual(playProblems([GOOD], LOOKS), []);
 });
 
-test("the closed list of uses is round and level only", () => {
-  assert.deepEqual([...PLAY_USES], ["round", "level"]);
-  for (const use of ["life", "continue", "pack", "Round", "", undefined, 1]) {
-    assert.throws(() => checkPlays([{ ...GOOD, use }]), /"use" must be one of round, level/, String(use));
+test("the closed list of uses is round, level, life and continue (the shop sells a life or a continue only while the Legal card says so)", () => {
+  assert.deepEqual([...PLAY_USES], ["round", "level", "life", "continue"]);
+  for (const use of PLAY_USES) assert.equal(checkPlays([{ ...GOOD, use }])[0].use, use);
+  for (const use of ["pack", "spin", "Round", "Life", "lives", "", undefined, 1]) {
+    assert.throws(() => checkPlays([{ ...GOOD, use }]), /"use" must be one of round, level, life, continue/, String(use));
   }
 });
 

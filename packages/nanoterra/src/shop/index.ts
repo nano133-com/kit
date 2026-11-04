@@ -30,5 +30,5 @@ export type { Play, PlayUse } from "../looks/play.js";
 export { createMemoryShop } from "./memory.js";
 export type { MemoryShop } from "./memory.js";
 export { SHOP_LIMITS, createShopHandler } from "./handler.js";
-export type { PayView, ShopHandler, ShopHandlerOptions, UseAnswer } from "./handler.js";
+export type { PayView, PlayRefusal, ShopHandler, ShopHandlerOptions, UseAnswer } from "./handler.js";
 export { SHOP_CSP, TURNSTILE_ORIGIN, mergeCsp } from "./security.js";

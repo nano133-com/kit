@@ -1,10 +1,10 @@
 // The shop store for a game on Firestore (the Admin SDK). The package has no Firebase dependency: the adapter uses the small interface below, which the
-// Admin SDK's `Firestore` fits. It reads and writes ONLY its seven collections.
+// Admin SDK's `Firestore` fits. It reads and writes ONLY its eight collections.
 //
 //   import { createFirestoreShop } from "@nano133/nanoterra/shop/firestore";
 //   const store = createFirestoreShop(getFirestore());
 //
-// The data model (the seven collection names can be changed; the first three are the ones the admin's Firestore store reads):
+// The data model (the eight collection names can be changed; the first three are the ones the admin's Firestore store reads):
 //   orders/{id}               { player, lookId, kind, usd, rate, amount, amountLock, status, createdAt, expiresAt, holdUntil, hash, payer, paidAt, visitor }
 //                             (kind "look" or "play": a missing kind reads as "look"; a play order's lookId is the play's id)
 //   owned/{player__lookId}    { player, lookId, orderId, grantedAt }       (the player's id with encodeURIComponent: a Nano address stays as it is)
@@ -13,6 +13,7 @@
 //   shop_hashes/{hash}        { orderId }              one payment pays one order: a document for each recorded payment
 //   credits/{orderId}         { player, playId, orderId, grantedAt, usedAt, useRef }   one credit per paid play order (usedAt null until a round uses it)
 //   shop_uses/{player__ref}   { player, orderId, at }  one ref of a player uses one credit: a document for each use, made in the use's transaction
+//   play_adults/{player}      { player, at }           the player said "I am 18 or older" (the admin's Legal card), once: "Delete my data" deletes it
 // Every write that a rule depends on is a transaction that reads what it checks. Indexes: the single-field indexes Firestore makes by itself are enough
 // (the queries are equalities, and one `<` on shop_amounts.holdUntil).
 //
@@ -54,7 +55,7 @@ export interface FirestoreShopLike {
   batch(): ShopBatch;
 }
 
-export type ShopCollections = { orders?: string; owned?: string; meta?: string; amounts?: string; hashes?: string; credits?: string; uses?: string };
+export type ShopCollections = { orders?: string; owned?: string; meta?: string; amounts?: string; hashes?: string; credits?: string; uses?: string; adults?: string };
 
 /** The most documents one query reads: a small game's orders of one player, or its held amounts. */
 export const FIRESTORE_SHOP_SCAN = 2000;
@@ -126,6 +127,7 @@ export function createFirestoreShop(db: FirestoreShopLike, collections: ShopColl
     hashes: collections.hashes ?? "shop_hashes",
     credits: collections.credits ?? "credits",
     uses: collections.uses ?? "shop_uses",
+    adults: collections.adults ?? "play_adults",
   };
   const col = (name: keyof typeof C) => db.collection(C[name]);
   const ownedId = (player: string, lookId: string) => `${encodeURIComponent(player)}__${lookId}`;
@@ -360,6 +362,20 @@ export function createFirestoreShop(db: FirestoreShopLike, collections: ShopColl
       return (await usedBefore()) ?? { status: "none" };
     },
 
+    async adult(player) {
+      const snap = await col("adults").doc(encodeURIComponent(player)).get();
+      const d = snap.exists ? snap.data() : undefined;
+      return d && d.player === player && typeof d.at === "number" ? d.at : null;
+    },
+
+    async keepAdult(player, now) {
+      const ref = col("adults").doc(encodeURIComponent(player));
+      // Read, then write only when absent, in one transaction: the first yes keeps its time.
+      await db.runTransaction(async (tx) => {
+        if (!(await tx.get(ref)).exists) tx.set(ref, { player, at: now });
+      });
+    },
+
     async forget(player, now): Promise<ForgetResult> {
       await tidy(now);
       const mine = (await ordersOf(player).get()).docs.map((d) => ({ ref: d.ref, o: orderOf(d.id, d.data()) })).filter((x) => x.o.player === player);
@@ -381,6 +397,8 @@ export function createFirestoreShop(db: FirestoreShopLike, collections: ShopColl
       let kept = 0;
       for (const d of [...owned, ...credits]) (writes.push((b) => b.delete(d.ref)), deleted++);
       for (const d of uses) writes.push((b) => b.delete(d.ref));
+      const adult = col("adults").doc(encodeURIComponent(player));
+      if ((await adult.get()).exists) (writes.push((b) => b.delete(adult)), deleted++);
       for (const { ref, o } of mine) {
         if (o.hash === null) (writes.push((b) => b.delete(ref)), deleted++);
         else (writes.push((b) => b.set(ref, { player: FORGOTTEN, visitor: null }, { merge: true })), kept++);

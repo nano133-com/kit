@@ -12,7 +12,8 @@
 import { adminAccess, type AdminAccess, type AdminSession } from "./guard.js";
 import { fail, foreignOrigin, json, memoryLimiter, readLimited, sameOrigin } from "./http.js";
 import { ADMIN_LOGINS_SHOWN, type AdminLogin, type AdminOrder, type AdminPlayer, type AdminStatus, type AdminStore, type AdminSummary, type StoreSummary } from "./store.js";
-import { mergeLegal, type LegalState } from "./legal.js";
+import type { LegalState } from "./legal.js";
+import { mergeLegal } from "./legalRules.js";
 import { mergeSettings, parsePatch, type GameSettings, type GameState } from "./switches.js";
 
 export type AdminRoute = { method: "GET" | "POST"; path: string };

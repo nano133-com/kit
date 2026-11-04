@@ -9,7 +9,8 @@
 // only for statuses and for the words "reason" and "error"; it never reads a cookie.
 
 import type { AdminRoute } from "./handler.js";
-import { DEFAULT_LEGAL, mergeLegal } from "./legal.js";
+import { DEFAULT_LEGAL } from "./legal.js";
+import { mergeLegal } from "./legalRules.js";
 import { SETTING_KEYS, type AdminStore, type SettingName, type StoredSettings } from "./store.js";
 import { ORDERS_SHOWN, type OrderRow } from "./summary.js";
 

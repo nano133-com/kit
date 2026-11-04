@@ -26,7 +26,7 @@ const STARTER = readFileSync(new URL("./fixtures/starter-0001_init.sql", import.
 
 run("shop memory", shopStoreConformance(async () => {
   const store = createMemoryShop();
-  return { store, dump: async () => JSON.stringify([[...store.orders.values()], [...store.ownedRows.values()], [...store.creditRows.values()]]) };
+  return { store, dump: async () => JSON.stringify([[...store.orders.values()], [...store.ownedRows.values()], [...store.creditRows.values()], [...store.adultRows]]) };
 }));
 
 // ---- D1 ----
@@ -36,7 +36,7 @@ function d1Harness(schema?: string, plays = false) {
   const db = sqlite(plays ? `${schema ?? SHOP_SQL}\n${PLAYS_SQL}` : schema);
   const log: { sql: string; args: unknown[] }[] = [];
   const store = createD1Shop(d1Over(db, log), { plays });
-  const dump = async () => ["orders", "owned", "meta", ...(plays ? ["credits"] : [])].map((t) => JSON.stringify(db.prepare(`SELECT * FROM ${t} ORDER BY 1`).all())).join("|");
+  const dump = async () => ["orders", "owned", "meta", ...(plays ? ["credits", "play_adults"] : [])].map((t) => JSON.stringify(db.prepare(`SELECT * FROM ${t} ORDER BY 1`).all())).join("|");
   return { db, log, store, dump };
 }
 
@@ -115,14 +115,17 @@ else {
     assert.equal((await h.store.useCredit(player, "extra-round", "round:1", T + 2000, 0)).status, "used");
     assert.equal((await h.store.useCredit(player, "extra-round", "round:1", T + 3000, 0)).status, "again");
     assert.equal((await h.store.useCredit(player, "extra-round", "round:2", T + 3000, 0)).status, "none");
+    await h.store.keepAdult(player, T + 4000);
+    assert.equal(await h.store.adult(player), T + 4000);
     await h.store.forget(player, T + 10_000_000);
     for (const { sql, args } of h.log) {
       const tables = [...sql.matchAll(/\b(?:FROM|INTO|(?<!DO )UPDATE|JOIN)\s+(\w+)/gi)].map((m) => m[1]);
-      for (const t of tables) assert.ok(["orders", "owned", "meta", "credits"].includes(t), `${t} in: ${sql}`);
+      for (const t of tables) assert.ok(["orders", "owned", "meta", "credits", "play_adults"].includes(t), `${t} in: ${sql}`);
       assert.ok(!sql.includes(player) && !sql.includes("v-hash") && !sql.includes("round:1"), "values are bound, not written into the SQL");
       assert.ok(args.every((a) => typeof a !== "object" || a === null), "every value is plain");
     }
     assert.equal((h.db.prepare("SELECT COUNT(*) AS n FROM credits").get() as { n: number }).n, 0, "forget deleted the credit");
+    assert.equal((h.db.prepare("SELECT COUNT(*) AS n FROM play_adults").get() as { n: number }).n, 0, "forget deleted the yes");
   });
 
   test("shop D1: a store with no plays refuses a play order before it writes it; the starter's rows read as looks after the plays' migration", async () => {
@@ -234,18 +237,20 @@ test("shop Firestore: a transaction that loses every attempt (ABORTED) is a take
   }
 });
 
-test("shop Firestore: plays write the credits and shop_uses collections too, and those can be renamed", async () => {
-  const h = firestoreHarness({ orders: "o", owned: "w", meta: "m", amounts: "a", hashes: "x", credits: "c", uses: "u" });
+test("shop Firestore: plays write the credits, shop_uses and play_adults collections too, and those can be renamed", async () => {
+  const h = firestoreHarness({ orders: "o", owned: "w", meta: "m", amounts: "a", hashes: "x", credits: "c", uses: "u", adults: "y" });
   const T = 1_800_000_000_000;
   const o = await reserveOrder(h.store, { player: "p1", lookId: "extra-round", kind: "play", usd: "0.05", rate: 1, price: priceRaw(0.05, 1)!, visitor: null, now: T });
   assert.equal(await h.store.settle(o, { hash: hash64(), payer: "p1", seenMs: T + 1 }, T + 1), "paid");
   assert.deepEqual(await h.store.credits("p1", 0), [{ playId: "extra-round", ready: 1 }]);
   assert.equal((await h.store.useCredit("p1", "extra-round", "r:1", T + 2, 0)).status, "used");
   assert.deepEqual([...h.col("u").keys()], ["p1__r:1"]);
+  await h.store.keepAdult("p1", T + 3);
+  assert.deepEqual([...h.col("y").keys()], ["p1"]);
   await h.store.forget("p1", T + 10_000_000);
-  assert.deepEqual([...new Set(h.writes)].sort(), ["a", "c", "o", "u", "x"]);
-  assert.equal(h.col("c").size + h.col("u").size, 0, "the credit and the use went");
-  assert.equal(h.cols.has("credits") || h.cols.has("shop_uses"), false);
+  assert.deepEqual([...new Set(h.writes)].sort(), ["a", "c", "o", "u", "x", "y"]);
+  assert.equal(h.col("c").size + h.col("u").size + h.col("y").size, 0, "the credit, the use and the yes went");
+  assert.equal(h.cols.has("credits") || h.cols.has("shop_uses") || h.cols.has("play_adults"), false);
 });
 
 test("shop Firestore: a use whose transaction loses every attempt (ABORTED) goes on to the next credit, and any other error throws", async () => {
@@ -315,6 +320,6 @@ test("shop Firestore: the admin's Firestore store reads the shop's orders, owned
 test("the conformance suite is the same on every store", () => {
   const values = Object.values(counts);
   assert.ok(values.length >= 2 && values.every((v) => v === values[0] && v >= 26), JSON.stringify(counts));
-  // The plays add nine cases; a looks-only store runs the rest.
-  for (const v of Object.values(looksOnly)) assert.equal(v, values[0] - 9, JSON.stringify(looksOnly));
+  // The plays add ten cases (nine, and the "18 or older" yes); a looks-only store runs the rest.
+  for (const v of Object.values(looksOnly)) assert.equal(v, values[0] - 10, JSON.stringify(looksOnly));
 });

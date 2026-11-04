@@ -3,7 +3,7 @@
 
 export type OrderStatus = "open" | "paid" | "expired" | "paid_late";
 
-/** What an order sells: a look (the player owns it for good) or a play (one credit, used once: a round or a level). */
+/** What an order sells: a look (the player owns it for good) or a play (one credit, used once: a round, a level, a life or a continue). */
 export type OrderKind = "look" | "play";
 
 /** One order: a player asked to buy a look or a play. Amounts are raw, as text; times are ms since 1970. */
@@ -79,7 +79,7 @@ export type KeptRate = { usd: number; sources: string[]; at: number };
 
 /**
  * What `forget` did. `waitUntil`: the player has an order whose amount is still held (a payment may still come for it), so NOTHING was deleted; try again
- * after that time. Else `deleted` rows went (owned looks, credits, and orders that were never paid), and `kept` paid orders stay as the creator's sales
+ * after that time. Else `deleted` rows went (owned looks, credits, the "18 or older" yes, and orders that were never paid), and `kept` paid orders stay as the creator's sales
  * record, with the player (and the payer of a paid order) replaced by FORGOTTEN. A paid play order whose credit was not used keeps its payer, as a late
  * payment does: its credit went, so the creator sends that payment back by hand.
  */
@@ -89,8 +89,8 @@ export type ForgetResult = { deleted: number; kept: number; waitUntil: number | 
 export const FORGOTTEN = "deleted";
 
 /**
- * The shop's database. An adapter writes ONLY orders, owned looks, credits, the kept price and the scan's claim (and their locks). Each call is ONE step: a
- * transaction, a batch, or a statement that holds its own check.
+ * The shop's database. An adapter writes ONLY orders, owned looks, credits, the players' "18 or older" yes, the kept price and the scan's claim (and their
+ * locks). Each call is ONE step: a transaction, a batch, or a statement that holds its own check.
  */
 export interface ShopStore {
   /** Marks the open orders past `expiresAt` "expired", and frees the amounts whose `holdUntil` is past (the amount lock goes, the order stays). */
@@ -134,6 +134,13 @@ export interface ShopStore {
    * credit (whatever play it was), and never uses a second one, also when many calls with one ref come at once.
    */
   useCredit(player: string, playId: string, ref: string, now: number, notBefore: number): Promise<UseResult>;
-  /** "Delete my data" for the shop (see ForgetResult). */
+  /**
+   * When this player said "I am 18 or older" (the Legal card's "Paid rounds for 18 and up only"), or null. One yes per player, kept until "Delete my
+   * data". A store that sells no plays answers null.
+   */
+  adult(player: string): Promise<number | null>;
+  /** Keeps this player's yes, once: a second call keeps the first time and does not fail. Any other failure throws (a store that sells no plays throws). */
+  keepAdult(player: string, now: number): Promise<void>;
+  /** "Delete my data" for the shop (see ForgetResult). It deletes the player's yes too. */
   forget(player: string, now: number): Promise<ForgetResult>;
 }

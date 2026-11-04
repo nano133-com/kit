@@ -3,8 +3,9 @@
 //
 //   import { createShop } from "@nano133/nanoterra/shop/worker";
 //   import looks from "../../looks.json";
-//   import plays from "../../plays.json";                 // optional: rounds or levels a player buys and uses once
-//   const shop = createShop(env, { catalogue: looks, plays, player: async (req) => (await sessionOf(env.DB, req))?.address ?? null });
+//   import plays from "../../plays.json";                 // optional: rounds, levels, lives or continues a player buys and uses once
+//   const shop = createShop(env, { catalogue: looks, plays, legal: () => loadLegal(createD1Store(env.DB)), player: async (req) => (await sessionOf(env.DB, req))?.address ?? null });
+//                                                         // legal: the admin's Legal card ("@nano133/nanoterra/admin" and "/admin/d1")
 //   const answer = await shop.handle(request);            // null when it is not a shop route
 //   ...
 //   async scheduled(_e, env, ctx) { ctx.waitUntil(createShop(env, opts).scan()); }   // the */10 cron
@@ -32,7 +33,7 @@ export type ShopEnv = {
   TURNSTILE_SECRET?: string;
 };
 
-export type ShopOptions = Pick<ShopHandlerOptions, "catalogue" | "plays" | "player" | "base" | "playsBase" | "now" | "onError" | "rate" | "rpc"> & {
+export type ShopOptions = Pick<ShopHandlerOptions, "catalogue" | "plays" | "legal" | "player" | "base" | "playsBase" | "now" | "onError" | "rate" | "rpc"> & {
   /** The D1 table names (default: the starter's). */
   tables?: ShopTables;
   /** The `fetch` for Turnstile's check (a test gives its own). */

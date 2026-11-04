@@ -2,7 +2,8 @@
 // draws the card from `SWITCHES` and `FRIENDS_CHOICES`. A switch changes ONLY these five settings; never a look, a price or an order.
 // The "Legal" card's five settings (./legal.ts) go through the same press and the same store: `LEGAL_WORDS` are its words.
 
-import { mergeLegal, parseLegalKey, type LegalPatch, type LegalState } from "./legal.js";
+import type { LegalPatch, LegalState } from "./legal.js";
+import { mergeLegal, parseLegalKey } from "./legalRules.js";
 import type { StoredSettings } from "./store.js";
 
 /** Which character the player is: Nanoterra's island character (the one the player has there) or the game's own. */

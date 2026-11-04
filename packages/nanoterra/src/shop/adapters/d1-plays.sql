@@ -1,4 +1,4 @@
--- The plays of "@nano133/nanoterra/shop/d1" (plays.json: a round or a level that a player buys and uses once). A game that sells plays adds this file as
+-- The plays of "@nano133/nanoterra/shop/d1" (plays.json: a round, a level, a life or a continue that a player buys and uses once). A game that sells plays adds this file as
 -- its next migration (for example migrations/0012_plays.sql), AFTER the shop's tables (d1.sql, or the starter's own 0001_init.sql), applies it BEFORE it
 -- deploys the Worker that sells plays, and passes `{ plays: true }` to createD1Shop (createShop does it when the game gives plays). A game that sells only
 -- looks needs none of it. Run it once (ALTER TABLE has no IF NOT EXISTS; `wrangler d1 migrations apply` runs each file once). Times are ms since 1970.
@@ -18,3 +18,9 @@ CREATE TABLE IF NOT EXISTS credits (
 CREATE INDEX IF NOT EXISTS credits_ready ON credits (player, play_id, used_at, granted_at);
 -- One ref of a player uses one credit, ever (NULLs never collide).
 CREATE UNIQUE INDEX IF NOT EXISTS credits_use ON credits (player, use_ref);
+
+-- The players who said "I am 18 or older" (the admin's Legal card: "Paid rounds for 18 and up only"), once each. "Delete my data" deletes the row.
+CREATE TABLE IF NOT EXISTS play_adults (
+  player TEXT PRIMARY KEY,
+  at INTEGER NOT NULL                -- when the player said yes
+);

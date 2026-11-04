@@ -1,4 +1,4 @@
-// The play: one thing a player buys and uses ONCE (plays.json, beside looks.json): a round or a level. A player never owns a play: a paid order gives one
+// The play: one thing a player buys and uses ONCE (plays.json, beside looks.json): a round, a level, a life or a continue. A player never owns a play: a paid order gives one
 // credit, and the game's round start uses it (the shop's `useCredit`). The rule is pay to play only: a play buys one use of the game, and nothing else. It
 // never pays out money or a prize, it is never random and it never changes the odds. So `checkPlays` is stricter than `checkLooks`: a field it does not
 // know is a mistake (never dropped), the uses are a closed list, and the fields of a prize, a draw or a reward have their own message.
@@ -7,8 +7,12 @@
 
 import { ID_PATTERN, NAME_MAX, PRICE_MAX_USD, priceStepOk, type Problem } from "./look.js";
 
-/** What a play buys: the closed list. A round, or a level. (A life and a continue change the result of a round: they wait for the lawyer's answer.) */
-export const PLAY_USES = ["round", "level"] as const;
+/**
+ * What a play buys: the closed list. A round, a level, a life or a continue. A life and a continue change the result of the round they are bought in: the
+ * shop sells them only while the creator's Legal card says so ("Sell an extra life or a continue", off by default), and a round that used one posts no
+ * score and earns nothing (the game's rule: the kit cannot see the round).
+ */
+export const PLAY_USES = ["round", "level", "life", "continue"] as const;
 export type PlayUse = (typeof PLAY_USES)[number];
 
 /** How long a credit waits for its use, by default: 30 days. After that it cannot be used (the creator sends that payment back by hand). */

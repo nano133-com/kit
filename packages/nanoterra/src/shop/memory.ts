@@ -12,12 +12,15 @@ export type MemoryShop = ShopStore & {
   readonly ownedRows: Map<string, { player: string; lookId: string; orderId: string; grantedAt: number }>;
   /** The order's id -> its credit (a paid play). */
   readonly creditRows: Map<string, Credit>;
+  /** The player -> when they said "I am 18 or older". */
+  readonly adultRows: Map<string, number>;
 };
 
 export function createMemoryShop(): MemoryShop {
   const orders = new Map<string, ShopOrder>();
   const ownedRows = new Map<string, { player: string; lookId: string; orderId: string; grantedAt: number }>();
   const creditRows = new Map<string, Credit>();
+  const adults = new Map<string, number>();
   let rate: KeptRate | null = null;
   let scanAt: number | null = null;
   const copy = (o: ShopOrder): ShopOrder => ({ ...o });
@@ -36,6 +39,7 @@ export function createMemoryShop(): MemoryShop {
     orders,
     ownedRows,
     creditRows,
+    adultRows: adults,
     tidy,
     async heldAmounts(amounts) {
       return new Set(amounts.filter((a) => holder(a)));
@@ -96,6 +100,12 @@ export function createMemoryShop(): MemoryShop {
       Object.assign(next, { usedAt: now, useRef: ref });
       return { status: "used", credit: { ...next } };
     },
+    async adult(player) {
+      return adults.get(player) ?? null;
+    },
+    async keepAdult(player, now) {
+      if (!adults.has(player)) adults.set(player, now);
+    },
     async claimScan(now, gapMs) {
       if (scanAt !== null && scanAt > now - gapMs) return false;
       scanAt = now;
@@ -119,6 +129,7 @@ export function createMemoryShop(): MemoryShop {
       for (const o of orders.values()) if (o.payer === player && o.status === "paid" && !unusedPlay(o)) o.payer = FORGOTTEN;
       for (const [k, r] of ownedRows) if (r.player === player) (ownedRows.delete(k), deleted++);
       for (const [k, c] of creditRows) if (c.player === player) (creditRows.delete(k), deleted++);
+      if (adults.delete(player)) deleted++;
       for (const o of mine) {
         if (o.hash === null) (orders.delete(o.id), deleted++);
         else (Object.assign(o, { player: FORGOTTEN, visitor: null }), kept++);
