@@ -39,6 +39,25 @@
 - **"Unmatched payments"** (the Overview tab; `POST {base}/unmatched`, 6 a minute; `findUnmatched` in `/shop`, `shop.unmatched` on a Worker): the
   receives on the game's address that no order recorded, from the newest 200 entries since the oldest listed order. It only reads, and a read that
   fails lists nothing. The creator checks each one and sends it back by hand.
+- **What a game's own tests see change** (no code of the game must change, but a test that pins these does):
+  - `GameState` (the admin's `GET /api/admin/game` and every press's answer) gains `legal` (`LegalState`): a test that builds a GameState by hand
+    adds `legal: DEFAULT_LEGAL`.
+  - The admin's press body may be 2048 bytes (`ADMIN_LIMITS.gameBodyMax`, was 512): a test that expects a 413 between 513 and 2048 bytes gets 200 or 400.
+  - The admin conformance's `snapshot` leaves out ten settings (`SETTING_KEYS`), not five: a game store's own snapshot must leave out the five new
+    keys too, `setting:adultsOnly`, `setting:sellLives`, `setting:refundDays`, `setting:refundWords` and `setting:lawsConfirmedAt`, or the
+    conformance sees them as rows changed by mistake. `seed` takes `credits`, and `plays: true` runs the plays' case. The host conformance has a
+    case for each `POST …/unmatched` route the host lists.
+  - The admin summary gains `plays`, `sendBack` and `totals.sendBack` (a deep-equal of a summary sees them).
+  - The Worker's D1 limits keep `limitKey`'s salted hash in `hits`: a test that reads a `hits` row by `order|<visitor>` finds none.
+  - `SHOP_LIMITS` gains `use` and `adult`. The Worker's status warns "No NODE_API_KEY" only when the public nodes are asked: with `NANO_NODES` set
+    and no key, the warnings are one fewer.
+  - The panel's Play key: a press with no round ready reads `GET {playsBase}` before it orders (a test awaits the press, and sees that GET first).
+  - `roundsView` (`/admin/panel`) gains `setSellLives(on)`.
+- **Fixes from the phone check (2026-11-04):** on a phone on its side the pay sheet's refund words have their own row above the QR code (they fell
+  under it, cut by the sheet); the Play key reads the credits again before it buys and when the page comes back into view, so a credit paid
+  meanwhile starts the round, never a second order; the admin's Orders keep the name's width and wrap a long payer line (the price never runs over
+  it); every admin key, tab, filter key and summary is at least 44 px high; "To send back" stops under the sticky tabs, not behind them; the Rounds
+  draft offers a life or a continue only while the Legal card sells them; "No NODE_API_KEY" is no longer said for the game's own `NANO_NODES`.
 - Sizes (gzip, size test): `/looks` 4.0 kB (ceiling 4.1 kB), `/shop` 12.7 kB (12.9 kB), `/shop/worker` 14.3 kB (14.5 kB), `/shop/panel` 11.2 kB (11.6 kB).
 
 ## 0.14.1 (2026-11-03)
