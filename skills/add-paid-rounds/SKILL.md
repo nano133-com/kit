@@ -21,7 +21,7 @@ neither, say so and stop.
    card), tickets or anything random, and say why in plain words.
 3. Write `plays.json` beside `looks.json` (`id`, `name`, `priceUsd`, `use`, optional `useWithinDays`; no
    other field; never a look's id) and check it with `checkPlays`. Tell the owner that a price under
-   about 5¢ has few free amounts and can be busy.
+   about 5¢ has few free amounts and can be busy: an order nobody pays holds its amount 75 minutes.
 4. D1: add `@nano133/nanoterra/shop/d1-plays.sql` as the next migration, and apply it BEFORE the Worker
    that sells plays. Firestore needs none.
 5. The server: `createShop(env, { catalogue: looks, plays, legal: () => loadLegal(adminStore), player })`,

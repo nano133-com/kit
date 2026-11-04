@@ -46,7 +46,7 @@
   left the file is still a play. `{ plays: true }` skips the read. The D1 limits keep a salted hash of their keys in `hits` (`limitKey`), never a
   player's id. Firestore: `credits`, `shop_uses` and `play_adults`.
 - **A play's order holds its amount as a look's does:** 15 minutes, then an hour after the order ends (`PLAY_LATE_HOLD_MS`, equal to `LATE_HOLD_MS`;
-  Wes, 2026-11-04: "15+60 for plays too").
+  Wes, 2026-11-04: "15+60 for plays too"). An order nobody pays holds its amount 75 minutes, so a price under about 5¢ can be busy (README, "Plays").
 - **The Legal card in /admin** (the Settings tab, after the Game card): "Paid rounds for 18 and up only" (on), "Sell an extra life or a continue" (off),
   the refund rule (14 days and the creator's words, shown before any pay step) and the owner's one confirmation, "You are responsible for the laws where
   you sell." Outside test mode no play is sold until the owner confirms. Five more settings in `SETTING_KEYS`; `loadLegal(store)`, `DEFAULT_LEGAL`,

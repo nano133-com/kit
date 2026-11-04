@@ -1809,9 +1809,10 @@ for each round, and start the round only after the answer says `used`.
   change of `plays.json` never moves the end of a credit already paid. An unused credit past its end cannot be used, and the admin lists it.
 - A credit of a play that left `plays.json` cannot be used either: the admin lists it to send back ("No longer sold").
 - **WARNING: a very small price has few free amounts.** The kit has no minimum price, but a price can ask for only a tenth more than itself, in
-  steps of 0.0001 XNO (at most 100 amounts). At $1 a XNO, a 1¢ play has 11 amounts and a 5¢ play 51, and each order of a play holds one for up to
-  30 minutes. When every amount of a price is held, the next player gets 503 "Many players are paying this price right now. Try again in a
-  minute." **A price under about 5¢ can be busy.** Test it with your expected number of players.
+  steps of 0.0001 XNO (at most 100 amounts). At $1 a XNO, a 1¢ play has 11 amounts and a 5¢ play 51. A paid order frees its amount at once, but
+  an order nobody pays holds its amount **75 minutes** (15, then the late hour). So at 1¢, 11 players who open the pay sheet and leave it make the
+  price busy for 75 minutes. When every amount of a price is held, the next player gets 503 "Many players are paying this price right now. Try
+  again in a minute." **A price under about 5¢ can be busy.** Test it with your expected number of players, and count the ones who leave the sheet.
 
 #### The stores
 

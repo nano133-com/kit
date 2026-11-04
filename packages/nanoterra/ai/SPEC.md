@@ -305,7 +305,7 @@ README parts "Plays: charge for a round" and "Pay to play: the rules" first.
    mode off." Give no legal advice.
 2. **`plays.json`** beside `looks.json`: `[{ "id": "extra-round", "name": "Extra round", "priceUsd": 0.05, "use": "round" }]`. `use` is `"round"`,
    `"level"`, `"life"` or `"continue"`; `useWithinDays` is optional (1 to 365, default 30). Never give a play another field, and never the id of a
-   look. Check it with `checkPlays(raw, looks)` from `@nano133/nanoterra/looks`. A price under about 5¢ has few free amounts and can be busy.
+   look. Check it with `checkPlays(raw, looks)` from `@nano133/nanoterra/looks`. A price under about 5¢ has few free amounts and can be busy (an order nobody pays holds its amount 75 minutes).
 3. **The migration first (D1).** Add `@nano133/nanoterra/shop/d1-plays.sql` as the game's next migration, after the shop's tables, and apply it
    BEFORE the Worker that sells plays is deployed. Firestore needs no migration.
 4. **The server.** `createShop(env, { catalogue: looks, plays, legal: () => loadLegal(adminStore), player })` (or `createShopHandler` with the same
