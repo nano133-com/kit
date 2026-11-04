@@ -12,7 +12,8 @@
 //   shop_amounts/{amount}     { orderId, holdUntil }   the reservation: a document for each held amount, so two orders cannot hold one (a transaction makes it)
 //   shop_hashes/{hash}        { orderId }              one payment pays one order: a document for each recorded payment
 //   credits/{orderId}         { player, playId, orderId, grantedAt, usedAt, useRef }   one credit per paid play order (usedAt null until a round uses it)
-//   shop_uses/{player__ref}   { player, orderId, at }  one ref of a player uses one credit: a document for each use, made in the use's transaction
+//   shop_uses/{player|ref}    { player, orderId, at }  one ref of a player uses one credit: a document for each use, made in the use's transaction (the
+//                             player's id with encodeURIComponent, which writes "|" as %7C, and a ref never holds "|": two players' ids never meet)
 //   play_adults/{player}      { player, at }           the player said "I am 18 or older" (the admin's Legal card), once: "Delete my data" deletes it
 // Every write that a rule depends on is a transaction that reads what it checks. Indexes: the single-field indexes Firestore makes by itself are enough
 // (the queries are equalities, and one `<` on shop_amounts.holdUntil).
@@ -131,7 +132,9 @@ export function createFirestoreShop(db: FirestoreShopLike, collections: ShopColl
   };
   const col = (name: keyof typeof C) => db.collection(C[name]);
   const ownedId = (player: string, lookId: string) => `${encodeURIComponent(player)}__${lookId}`;
-  const useId = (player: string, ref: string) => `${encodeURIComponent(player)}__${ref}`;
+  // "|" is in neither part (encodeURIComponent writes it as %7C; USE_REF_PATTERN has no "|"), so ("user_", "1x") and ("user", "_1x") are two documents.
+  // The use's reads still check the document's player: one that is not this player's is no use of theirs.
+  const useId = (player: string, ref: string) => `${encodeURIComponent(player)}|${ref}`;
   const creditsOf = (player: string) => col("credits").where("player", "==", player).where("usedAt", "==", null).limit(FIRESTORE_SHOP_SCAN);
   const ordersOf = (player: string) => col("orders").where("player", "==", player).limit(FIRESTORE_SHOP_SCAN);
 
@@ -312,11 +315,11 @@ export function createFirestoreShop(db: FirestoreShopLike, collections: ShopColl
       /** The credit this ref used, or null. */
       const usedBefore = async (): Promise<UseResult | null> => {
         const use = await useRef.get();
-        const orderId = use.exists ? text(use.data()?.orderId) : "";
+        const orderId = use.exists && use.data()?.player === player ? text(use.data()?.orderId) : "";
         if (!orderId) return null;
         const snap = await col("credits").doc(orderId).get();
         const d = snap.exists ? snap.data() : undefined;
-        return d ? { status: "again", credit: creditOf(orderId, d) } : null;
+        return d && d.player === player ? { status: "again", credit: creditOf(orderId, d) } : null;
       };
       for (let round = 0; round < 3; round++) {
         const was = await usedBefore();
@@ -333,10 +336,12 @@ export function createFirestoreShop(db: FirestoreShopLike, collections: ShopColl
               const use = await tx.get(useRef);
               const snap = await tx.get(creditRef);
               if (use.exists) {
+                // Another player's use document never answers for this player (and is never written over): no credit is used.
+                if (use.data()?.player !== player) return { status: "none" };
                 const orderId = text(use.data()?.orderId);
                 const was = orderId ? await tx.get(col("credits").doc(orderId)) : null;
                 const d = was?.exists ? was.data() : undefined;
-                return d ? { status: "again", credit: creditOf(orderId, d) } : { status: "none" };
+                return d && d.player === player ? { status: "again", credit: creditOf(orderId, d) } : { status: "none" };
               }
               const d = snap.exists ? snap.data() : undefined;
               const fresh = d ? creditOf(c.orderId, d) : null;

@@ -274,13 +274,30 @@ test("shop Firestore: plays write the credits, shop_uses and play_adults collect
   assert.equal(await h.store.settle(o, { hash: hash64(), payer: "p1", seenMs: T + 1 }, T + 1), "paid");
   assert.deepEqual(await h.store.credits("p1", 0), [{ playId: "extra-round", ready: 1 }]);
   assert.equal((await h.store.useCredit("p1", "extra-round", "r:1", T + 2, 0)).status, "used");
-  assert.deepEqual([...h.col("u").keys()], ["p1__r:1"]);
+  assert.deepEqual([...h.col("u").keys()], ["p1|r:1"]);
   await h.store.keepAdult("p1", T + 3);
   assert.deepEqual([...h.col("y").keys()], ["p1"]);
   await h.store.forget("p1", T + 10_000_000);
   assert.deepEqual([...new Set(h.writes)].sort(), ["a", "c", "o", "u", "x", "y"]);
   assert.equal(h.col("c").size + h.col("u").size + h.col("y").size, 0, "the credit, the use and the yes went");
   assert.equal(h.cols.has("credits") || h.cols.has("shop_uses") || h.cols.has("play_adults"), false);
+});
+
+test("shop Firestore: a use document that names another player is never this player's use (no \"again\", never written over)", async () => {
+  const h = firestoreHarness();
+  const T = 1_800_000_000_000;
+  const o = await reserveOrder(h.store, { player: "p1", lookId: "extra-round", kind: "play", usd: "0.05", rate: 1, price: priceRaw(0.05, 1)!, visitor: null, now: T });
+  await h.store.settle(o, { hash: hash64(), payer: "p1", seenMs: T + 1 }, T + 1);
+  const q = await reserveOrder(h.store, { player: "p2", lookId: "extra-round", kind: "play", usd: "0.05", rate: 1, price: priceRaw(0.05, 1)!, visitor: null, now: T });
+  await h.store.settle(q, { hash: hash64(), payer: "p2", seenMs: T + 1 }, T + 1);
+  assert.equal((await h.store.useCredit("p2", "extra-round", "r1", T + 2, 0)).status, "used");
+  // A document at p1's id that holds p2's use (an old id scheme, or a fault): it is not p1's.
+  const p2use = h.col("shop_uses").get("p2|r1")!;
+  h.col("shop_uses").set("p1|r1", { data: { ...p2use.data }, v: 1_000_000 });
+  const r = await h.store.useCredit("p1", "extra-round", "r1", T + 3, 0);
+  assert.equal(r.status, "none", JSON.stringify(r));
+  assert.equal(h.col("shop_uses").get("p1|r1")!.data.player, "p2", "the document is not written over");
+  assert.deepEqual(await h.store.credits("p1", 0), [{ playId: "extra-round", ready: 1 }], "p1's credit was not used");
 });
 
 test("shop Firestore: a use whose transaction loses every attempt (ABORTED) goes on to the next credit, and any other error throws", async () => {
@@ -361,6 +378,6 @@ test("shop Firestore: the admin's Firestore store reads the shop's orders, owned
 test("the conformance suite is the same on every store", () => {
   const values = Object.values(counts);
   assert.ok(values.length >= 2 && values.every((v) => v === values[0] && v >= 26), JSON.stringify(counts));
-  // The plays add ten cases (nine, and the "18 or older" yes); a looks-only store runs the rest.
-  for (const v of Object.values(looksOnly)) assert.equal(v, values[0] - 10, JSON.stringify(looksOnly));
+  // The plays add eleven cases (nine, the "18 or older" yes and the refs of two players whose ids run together); a looks-only store runs the rest.
+  for (const v of Object.values(looksOnly)) assert.equal(v, values[0] - 11, JSON.stringify(looksOnly));
 });

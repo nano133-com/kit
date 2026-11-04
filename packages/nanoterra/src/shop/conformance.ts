@@ -348,6 +348,22 @@ export function shopStoreConformance(make: () => Promise<ShopHarness>, options: 
     check(b.status === "used" && b.credit.player === BOB, `BOB's own ref "round-1" uses BOB's own credit: ${JSON.stringify(b)}`);
   });
 
+  add("a player's ref is never another player's, also when the two ids run together (\"x_\" + \"1r\" and \"x\" + \"_1r\")", async ({ store }) => {
+    const left = `${id("eve")}_`;
+    const right = id("eve");
+    const l = await credit(store, left, T0);
+    const r = await credit(store, right, T0 + 100);
+    const a = await store.useCredit(left, PLAY, "1r", T0 + 200, 0);
+    check(a.status === "used" && a.credit.orderId === l.id && a.credit.player === left, `the first player uses their own credit: ${JSON.stringify(a)}`);
+    const b = await store.useCredit(right, PLAY, "_1r", T0 + 300, 0);
+    check(b.status === "used" && b.credit.orderId === r.id && b.credit.player === right, `the second player's ref is new and uses their own credit (not "again" with the first's): ${JSON.stringify(b)}`);
+    check((await ready(store, left)) === "[]" && (await ready(store, right)) === "[]", "each credit is used once");
+    const a2 = await store.useCredit(left, PLAY, "1r", T0 + 400, 0);
+    const b2 = await store.useCredit(right, PLAY, "_1r", T0 + 400, 0);
+    check(a2.status === "again" && a2.credit.orderId === l.id && b2.status === "again" && b2.credit.orderId === r.id, `each ref answers with its own player's credit: ${JSON.stringify([a2, b2])}`);
+    check((await store.useCredit(right, PLAY, "1r", T0 + 500, 0)).status === "none" && (await store.useCredit(left, PLAY, "_1r", T0 + 500, 0)).status === "none", "the other player's refs are new for each, and no credit is left");
+  });
+
   add("the \"18 or older\" yes is kept for its player only, once (the first time, also many at once); forget deletes it and leaves another player's", async ({ store, dump }) => {
     check((await store.adult(ANN)) === null && (await store.adult(BOB)) === null, "a new store has no yes");
     await store.keepAdult(ANN, T0);
