@@ -7,6 +7,8 @@
 ALTER TABLE orders ADD COLUMN kind TEXT NOT NULL DEFAULT 'look';
 -- A play's order: the days its credit may wait for a use (the play's useWithinDays when the order was made). NULL for a look.
 ALTER TABLE orders ADD COLUMN use_days INTEGER;
+-- A paid play's order: when its player's "Delete my data" deleted its credit UNUSED (the order keeps its payer: the payment goes back by hand). NULL else.
+ALTER TABLE orders ADD COLUMN forgot_unused INTEGER;
 
 -- One credit per paid play order: the order's id is the key, so a second settle of one order writes nothing.
 CREATE TABLE IF NOT EXISTS credits (

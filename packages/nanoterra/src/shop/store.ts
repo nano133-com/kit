@@ -46,6 +46,11 @@ export type ShopOrder = {
   paidAt: number | null;
   /** A keyed hash of the buyer's IP address, for limits (never the address), or null. */
   visitor: string | null;
+  /**
+   * A paid play's order only: when its player's "Delete my data" deleted its credit while the credit was still UNUSED (the order then keeps its payer:
+   * the creator sends that payment back by hand). Missing or null otherwise; the admin lists a deleted player's play to send back only with it.
+   */
+  forgotUnused?: number | null;
 };
 
 /** The kind of an order: "look" unless it says "play". */
@@ -86,9 +91,14 @@ export type KeptRate = { usd: number; sources: string[]; at: number };
 
 /**
  * What `forget` did. `waitUntil`: the player has an order whose amount is still held (a payment may still come for it), so NOTHING was deleted; try again
- * after that time. Else `deleted` rows went (owned looks, credits, the "18 or older" yes, and orders that were never paid), and `kept` paid orders stay as the creator's sales
- * record, with the player (and the payer of a paid order) replaced by FORGOTTEN. A paid play order whose credit was not used keeps its payer, as a late
- * payment does: its credit went, so the creator sends that payment back by hand.
+ * after that time. Else `deleted` rows went (owned looks, credits, the "18 or older" yes, and orders that were never paid), and `kept` paid orders stay as
+ * the creator's sales record, with the player replaced by FORGOTTEN, and in the same step:
+ *  - an order the player paid (`payer` is the player) keeps no payer, unless it is a play whose credit is unused (or was unused when its own player
+ *    deleted their data): that payment may still go back;
+ *  - the player's own paid play whose credit is UNUSED keeps its payer (whoever paid) and gets `forgotUnused`: its credit went, so the creator sends
+ *    that payment back by hand, as a late payment's;
+ *  - the player's own paid play whose credit was USED keeps no payer (whoever paid): the round was played, nothing goes back.
+ * A paid look of the player keeps the payer of another wallet, and a late payment keeps its payer.
  */
 export type ForgetResult = { deleted: number; kept: number; waitUntil: number | null };
 

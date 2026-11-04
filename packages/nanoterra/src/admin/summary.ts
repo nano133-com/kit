@@ -22,6 +22,8 @@ export type OrderRow = {
   paidAt: number | null;
   payer: string | null;
   hash: string | null;
+  /** A paid play of a player who used "Delete my data" while its credit was unused: when (the shop's forget writes it). */
+  forgotUnused?: number | null;
 };
 
 export const ORDERS_SHOWN = 500;
@@ -86,7 +88,7 @@ export type CreditRow = { orderId: string; player: string; playId: string; grant
  * player, "deleted" too) and every credit. A credit is ready while it is unused, before its own end and of a play in plays.json (`isPlay`; every play
  * when it is not given); an unused one past its end is not used in time, and one of a play no longer in plays.json cannot be used ("no_play"): its
  * order's payer and amount are listed to send back. A paid play of a deleted player whose credit is gone and whose order carries forget's mark that
- * it was unused was not used either: it is listed too. Pure.
+ * it was unused (`forgotUnused`) was not used either: it is listed too; one with no mark was used, and is not. Pure.
  */
 export function playsSummary(playOrders: readonly OrderRow[], credits: readonly CreditRow[], now: number, options: SummaryOptions = {}): { plays: PlayStats[]; sendBack: (SendBack & { amountRaw: string })[]; ready: Map<string, { id: string; ready: number }[]> } {
   const stats = new Map<string, PlayStats>();
@@ -116,7 +118,8 @@ export function playsSummary(playOrders: readonly OrderRow[], credits: readonly 
       if (o) back(o, c.playId, known ? "not_used_in_time" : "no_play");
     }
   }
-  for (const o of playOrders) if (o.status === "paid" && o.player === FORGOTTEN && !withCredit.has(o.id)) back(o, o.lookId, "deleted_player");
+  // Only with forget's mark: a deleted player's play whose credit was used (or is not known to be unused) is not sent back.
+  for (const o of playOrders) if (o.status === "paid" && o.player === FORGOTTEN && !withCredit.has(o.id) && typeof o.forgotUnused === "number") back(o, o.lookId, "deleted_player");
   sendBack.sort((a, b) => (a.paidAt ?? 0) - (b.paidAt ?? 0) || (a.orderId < b.orderId ? -1 : 1));
   const byPlayer = new Map([...ready].map(([p, m]) => [p, [...m].sort(([a], [b]) => (a < b ? -1 : 1)).map(([id, n]) => ({ id, ready: n }))]));
   return { plays: [...stats.values()].sort((a, b) => (a.playId < b.playId ? -1 : 1)), sendBack, ready: byPlayer };

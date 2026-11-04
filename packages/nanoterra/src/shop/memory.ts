@@ -26,8 +26,8 @@ export function createMemoryShop(): MemoryShop {
   const copy = (o: ShopOrder): ShopOrder => ({ ...o });
   const holder = (amount: string) => [...orders.values()].find((o) => o.amountLock === amount);
   const ownKey = (player: string, lookId: string) => `${player}\u0000${lookId}`;
-  /** A play order whose credit is not known to be used (unused, or gone with an earlier "Delete my data"): its payment may go back. */
-  const unusedPlay = (o: ShopOrder) => kindOf(o) === "play" && (creditRows.get(o.id)?.usedAt ?? null) === null;
+  /** A play order whose credit is unused, or was unused when its own player deleted their data (`forgotUnused`): its payment may go back. */
+  const unusedPlay = (o: ShopOrder) => kindOf(o) === "play" && ((typeof o.forgotUnused === "number") || (creditRows.has(o.id) && creditRows.get(o.id)!.usedAt === null));
   const tidy = async (now: number) => {
     for (const o of orders.values()) {
       if (o.status === "open" && o.expiresAt < now) o.status = "expired";
@@ -124,8 +124,13 @@ export function createMemoryShop(): MemoryShop {
       if (waiting.length) return { deleted: 0, kept: 0, waitUntil: Math.max(...waiting.map((o) => o.holdUntil)) };
       let deleted = 0;
       let kept = 0;
-      // A paid order keeps no payer; a paid-late one keeps it: the creator sends that payment back by hand. So does a paid play whose credit was not used
-      // (read before its credit goes).
+      // The player's own paid plays (read before their credits go): an unused credit's order keeps its payer and the mark, a used one's keeps none.
+      for (const o of mine) {
+        if (kindOf(o) !== "play" || o.status !== "paid") continue;
+        if (unusedPlay(o)) o.forgotUnused = now;
+        else if (o.payer !== null) o.payer = FORGOTTEN;
+      }
+      // An order the player paid keeps no payer; a paid-late one keeps it (the creator sends that payment back by hand), and so does an unused play.
       for (const o of orders.values()) if (o.payer === player && o.status === "paid" && !unusedPlay(o)) o.payer = FORGOTTEN;
       for (const [k, r] of ownedRows) if (r.player === player) (ownedRows.delete(k), deleted++);
       for (const [k, c] of creditRows) if (c.player === player) (creditRows.delete(k), deleted++);

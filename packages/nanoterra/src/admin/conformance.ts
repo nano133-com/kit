@@ -511,8 +511,9 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
         play("r2", { player: B, payer: B }),
         play("o1", { paidAt: NOW - 40 * DAY }),
         play("l1", { status: "paid_late" }),
-        play("d1", { player: "deleted", payer: B }),
+        play("d1", { player: "deleted", payer: B, forgotUnused: NOW - 100 }),
         play("d2", { player: "deleted", payer: "deleted" }),
+        play("d3", { player: "deleted", payer: B }),
         play("v1", { lookId: "level-2", usd: "0.10", amountRaw: rawOf(0.1) }),
         play("n1", { lookId: "gone-play" }),
         order("k1", {}),
@@ -532,7 +533,7 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
     check(
       plays ===
         JSON.stringify([
-          { playId: "extra-round", sold: 6, used: 1, ready: 2, late: 1, notUsedInTime: 1 },
+          { playId: "extra-round", sold: 7, used: 1, ready: 2, late: 1, notUsedInTime: 1 },
           { playId: "gone-play", sold: 1, used: 0, ready: 0, late: 0, notUsedInTime: 1 },
           { playId: "level-2", sold: 1, used: 0, ready: 0, late: 0, notUsedInTime: 1 },
         ]),
@@ -547,13 +548,13 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
           ["n1", "no_play", A, "0.05", "0.05", "gone-play"],
           ["v1", "not_used_in_time", A, "0.1", "0.10", "level-2"],
         ]),
-      `to send back, oldest payment first, with the payer and the amount (a deleted player's used credit is not listed): ${JSON.stringify(back)}`,
+      `to send back, oldest payment first, with the payer and the amount (a deleted player's play is listed only with forget's mark that its credit was unused): ${JSON.stringify(back)}`,
     );
     check(JSON.stringify(s.totals.sendBack) === JSON.stringify({ count: 5, xno: "0.3", usd: "0.30" }), `"To send back" holds the late payment and the four plays: ${JSON.stringify(s.totals.sendBack)}`);
     check(JSON.stringify(s.players) === JSON.stringify([{ player: A, looks: [], ready: [{ id: "extra-round", ready: 1 }] }, { player: B, looks: [], ready: [{ id: "extra-round", ready: 1 }] }]), `each player's ready credits: ${JSON.stringify(s.players)}`);
     const all = await h.store.summary(NOW);
     check(JSON.stringify(all.plays?.find((p) => p.playId === "gone-play")) === JSON.stringify({ playId: "gone-play", sold: 1, used: 0, ready: 1, late: 0, notUsedInTime: 0 }), "with no isPlay, a credit of any play is ready in its time");
-    check(s.orders.filter((o) => o.kind === "play").length === 9 && s.orders.find((o) => o.id === "k1")?.kind === undefined, "a play's order says so; a look's does not");
+    check(s.orders.filter((o) => o.kind === "play").length === 10 && s.orders.find((o) => o.id === "k1")?.kind === undefined, "a play's order says so; a look's does not");
     const before = await h.snapshot();
     check(before.includes("o1") && before.includes(String(NOW - 40 * DAY)), "the snapshot must hold the credits");
     await h.store.saveSettings({ freePlay: "off", adultsOnly: "off", sellLives: "on", refundDays: 3, refundWords: "Ask me.", confirmLaws: true }, NOW + 1);

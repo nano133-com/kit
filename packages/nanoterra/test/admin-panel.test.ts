@@ -761,7 +761,7 @@ function playsSetup(testMode = true) {
     orders: [
       play("p1"),
       play("p2", { paidAt: NOW - 40 * DAY, createdAt: NOW - 40 * DAY }),
-      play("p3", { player: "deleted", payer: OWNER }),
+      play("p3", { player: "deleted", payer: OWNER, forgotUnused: NOW - 10 }),
       { id: "o1", player: OTHER, lookId: "mint-cap", usd: "0.25", amountRaw: RAW_02, status: "paid", createdAt: NOW - 200, expiresAt: NOW + 100, paidAt: NOW - 150, payer: OTHER, hash: "H1" },
     ],
     owned: [{ player: OTHER, lookId: "mint-cap", at: NOW - 40 }],

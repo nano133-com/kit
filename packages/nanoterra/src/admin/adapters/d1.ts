@@ -25,7 +25,7 @@ export interface D1Like {
 /** The meta keys of the settings (the Game card's five and the Legal card's five). */
 export const D1_KEYS = SETTING_KEYS;
 
-type Row = { id: string; player: string; look_id: string; kind?: string; usd: string; amount: string; status: string; created_at: number; expires_at: number; paid_at: number | null; payer: string | null; hash: string | null };
+type Row = { id: string; player: string; look_id: string; kind?: string; forgot_unused?: number | null; usd: string; amount: string; status: string; created_at: number; expires_at: number; paid_at: number | null; payer: string | null; hash: string | null };
 
 /**
  * The admin store for D1. With `plays: true` (the game applied the shop's d1-plays.sql) the summary reads the play orders and the table `credits` too: the
@@ -37,8 +37,22 @@ type Row = { id: string; player: string; look_id: string; kind?: string; usd: st
 export function createD1Store(db: D1Like, options: { logins?: boolean; plays?: boolean } = {}): AdminStore {
   // With the shop's plays (d1-plays.sql: the orders' kind and the table credits), the summary reads the plays' numbers too. Without it, the tables as they are.
   const plays = options.plays === true;
-  const COLS = `id, player, look_id, usd, amount, status, created_at, expires_at, paid_at, payer, hash${plays ? ", kind" : ""}`;
-  const toRow = (o: Row): OrderRow => ({ id: o.id, player: o.player, lookId: o.look_id, kind: o.kind, usd: o.usd, amountRaw: o.amount, status: o.status, createdAt: o.created_at, expiresAt: o.expires_at, paidAt: o.paid_at, payer: o.payer, hash: o.hash });
+  const COLS = `id, player, look_id, usd, amount, status, created_at, expires_at, paid_at, payer, hash${plays ? ", kind, forgot_unused" : ""}`;
+  const toRow = (o: Row): OrderRow => ({
+    id: o.id,
+    player: o.player,
+    lookId: o.look_id,
+    kind: o.kind,
+    usd: o.usd,
+    amountRaw: o.amount,
+    status: o.status,
+    createdAt: o.created_at,
+    expiresAt: o.expires_at,
+    paidAt: o.paid_at,
+    payer: o.payer,
+    hash: o.hash,
+    ...(o.forgot_unused !== null && o.forgot_unused !== undefined ? { forgotUnused: Number(o.forgot_unused) } : {}),
+  });
   const store: AdminStore = {
     async readSettings() {
       const keys = Object.values(D1_KEYS);

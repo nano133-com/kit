@@ -48,6 +48,7 @@ type Row = {
   /** Only with the plays' migration (d1-plays.sql). */
   kind?: string;
   use_days?: number | null;
+  forgot_unused?: number | null;
   usd: string;
   rate: number;
   amount: string;
@@ -70,6 +71,7 @@ const orderOf = (r: Row): ShopOrder => ({
   lookId: r.look_id,
   kind: r.kind === "play" ? "play" : "look",
   ...(r.kind === "play" && r.use_days !== null && r.use_days !== undefined ? { useDays: Number(r.use_days) } : {}),
+  ...(r.forgot_unused !== null && r.forgot_unused !== undefined ? { forgotUnused: Number(r.forgot_unused) } : {}),
   usd: r.usd,
   rate: Number(r.rate),
   amount: r.amount,
@@ -161,7 +163,7 @@ export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore
     return known;
   }
   const BASE_COLS = "id, player, look_id, usd, rate, amount, amount_lock, status, created_at, expires_at, hold_until, hash, payer, paid_at, visitor";
-  const cols = async () => `${BASE_COLS}${(await hasPlays()) ? ", kind, use_days" : ""}`;
+  const cols = async () => `${BASE_COLS}${(await hasPlays()) ? ", kind, use_days, forgot_unused" : ""}`;
   const CREDIT_COLS = "order_id, player, play_id, granted_at, expires_at, used_at, use_ref";
   const NO_PLAYS = "this D1 shop store sells no plays: apply @nano133/nanoterra/shop/d1-plays.sql";
 
@@ -352,17 +354,29 @@ export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore
       const plays = await hasPlays(true);
       // One batch, and each statement holds the money gate again: an order made meanwhile stops every one of them.
       const gate = `NOT EXISTS (SELECT 1 FROM ${T.orders} WHERE player = ?1 AND amount_lock IS NOT NULL)`;
-      // A paid play whose credit is not known to be used (unused, or gone with an earlier "Delete my data") keeps its payer: its payment may go back.
-      const unusedPlay = plays ? ` AND NOT (kind = 'play' AND NOT EXISTS (SELECT 1 FROM ${T.credits} c WHERE c.order_id = ${T.orders}.id AND c.used_at IS NOT NULL))` : "";
+      // An order's credit is unused (read before the credits go).
+      const unusedCredit = `EXISTS (SELECT 1 FROM ${T.credits} c WHERE c.order_id = ${T.orders}.id AND c.used_at IS NULL)`;
+      // A play whose payment may go back: its credit is unused, or was unused when its own player deleted their data (forgot_unused).
+      const unusedPlay = plays ? ` AND NOT (kind = 'play' AND (forgot_unused IS NOT NULL OR ${unusedCredit}))` : "";
       const done = await db.batch([
         db.prepare(`DELETE FROM ${T.owned} WHERE player = ?1 AND ${gate}`).bind(player),
         db.prepare(`DELETE FROM ${T.orders} WHERE player = ?1 AND hash IS NULL AND amount_lock IS NULL AND ${gate}`).bind(player),
-        // A paid order keeps no payer; a paid-late one keeps it: the creator sends that payment back by hand. (Before the credits go: it reads them.)
+        ...(plays
+          ? [
+              // The player's own paid plays: an unused credit's order keeps its payer and gets the mark; a used one's keeps no payer, whoever paid.
+              db.prepare(`UPDATE ${T.orders} SET forgot_unused = ?2 WHERE player = ?1 AND kind = 'play' AND status = 'paid' AND ${unusedCredit} AND ${gate}`).bind(player, now),
+              db.prepare(`UPDATE ${T.orders} SET payer = ?2 WHERE player = ?1 AND kind = 'play' AND status = 'paid' AND forgot_unused IS NULL AND payer IS NOT NULL AND ${gate}`).bind(player, FORGOTTEN),
+            ]
+          : []),
+        // An order the player paid keeps no payer; a paid-late one keeps it (the creator sends that payment back by hand), and so does an unused play.
         db.prepare(`UPDATE ${T.orders} SET payer = ?2 WHERE payer = ?1 AND status = 'paid'${unusedPlay} AND ${gate}`).bind(player, FORGOTTEN),
         db.prepare(`UPDATE ${T.orders} SET player = ?2, visitor = NULL WHERE player = ?1 AND hash IS NOT NULL AND ${gate}`).bind(player, FORGOTTEN),
         ...(plays ? [db.prepare(`DELETE FROM ${T.credits} WHERE player = ?1 AND ${gate}`).bind(player), db.prepare(`DELETE FROM ${T.adults} WHERE player = ?1 AND ${gate}`).bind(player)] : []),
       ]);
-      const [owned, orders, , kept, credits = 0, adults = 0] = done.map(changes);
+      const counts = done.map(changes);
+      // The marks and the payer changes are not counted (the kept orders are).
+      const [owned, orders] = counts;
+      const [kept, credits = 0, adults = 0] = counts.slice(plays ? 5 : 3);
       if (owned + orders + kept + credits + adults === 0) {
         const again = await waiting(player);
         if (Number(again?.n ?? 0) > 0) return { deleted: 0, kept: 0, waitUntil: Number(again!.until) };

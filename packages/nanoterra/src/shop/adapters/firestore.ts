@@ -91,6 +91,7 @@ function orderOf(id: string, d: Record<string, unknown>): ShopOrder {
     payer: orNull(d.payer),
     paidAt: typeof d.paidAt === "number" ? d.paidAt : null,
     visitor: orNull(d.visitor),
+    ...(typeof d.forgotUnused === "number" ? { forgotUnused: d.forgotUnused } : {}),
   };
 }
 
@@ -122,6 +123,7 @@ const dataOf = (o: ShopOrder): Record<string, unknown> => ({
   payer: o.payer,
   paidAt: o.paidAt,
   visitor: o.visitor,
+  ...(typeof o.forgotUnused === "number" ? { forgotUnused: o.forgotUnused } : {}),
 });
 
 export function createFirestoreShop(db: FirestoreShopLike, collections: ShopCollections = {}): ShopStore {
@@ -386,6 +388,11 @@ export function createFirestoreShop(db: FirestoreShopLike, collections: ShopColl
       });
     },
 
+    // NOT one step (Firestore has no transaction over a query of this size): the reads come first, then the writes in batches of 400. What can happen
+    // between them: an order the player makes meanwhile is not seen, so it stays with the player's id (as on the looks' path: the money gate was read
+    // first, and a new order needs the player signed in); a payment of an order already read is not possible (no amount of the player's was held);
+    // a credit USED meanwhile is still read as unused, so its order keeps its payer and the mark, and the admin lists a round just played to send
+    // back. The D1 store and the memory store do it all in one step.
     async forget(player, now): Promise<ForgetResult> {
       await tidy(now);
       const mine = (await ordersOf(player).get()).docs.map((d) => ({ ref: d.ref, o: orderOf(d.id, d.data()) })).filter((x) => x.o.player === player);
@@ -395,13 +402,18 @@ export function createFirestoreShop(db: FirestoreShopLike, collections: ShopColl
       const credits = (await col("credits").where("player", "==", player).limit(FIRESTORE_SHOP_SCAN).get()).docs.filter((d) => d.data().player === player);
       const uses = (await col("uses").where("player", "==", player).limit(FIRESTORE_SHOP_SCAN).get()).docs.filter((d) => d.data().player === player);
       const paid = (await col("orders").where("payer", "==", player).limit(FIRESTORE_SHOP_SCAN).get()).docs.filter((d) => d.data().status === "paid");
-      // A paid play whose credit is not known to be used (unused, or gone with an earlier "Delete my data") keeps its payer: its payment may go back.
-      const usedPlay = async (d: (typeof paid)[number]) => {
-        if (kindOf(orderOf(d.id, d.data())) !== "play") return true;
-        const c = await col("credits").doc(d.id).get();
-        return c.exists && typeof c.data()?.usedAt === "number";
+      // A play whose payment may go back: its credit is unused, or was unused when its own player deleted their data (forgotUnused).
+      const unusedPlay = async (id: string, o: ShopOrder) => {
+        if (kindOf(o) !== "play") return false;
+        if (typeof o.forgotUnused === "number") return true;
+        const c = await col("credits").doc(id).get();
+        const d = c.exists ? c.data() : undefined;
+        return Boolean(d) && d!.usedAt === null;
       };
-      const paidBy = (await Promise.all(paid.map(async (d) => ((await usedPlay(d)) ? [d] : [])))).flat();
+      const paidBy = (await Promise.all(paid.map(async (d) => ((await unusedPlay(d.id, orderOf(d.id, d.data()))) ? [] : [d])))).flat();
+      // The player's own paid plays: an unused credit's order keeps its payer and gets the mark; a used one's keeps no payer, whoever paid.
+      const ownPlays = new Map<string, Record<string, unknown>>();
+      for (const { o } of mine) if (kindOf(o) === "play" && o.status === "paid") ownPlays.set(o.id, (await unusedPlay(o.id, o)) ? { forgotUnused: now } : { payer: FORGOTTEN });
       const writes: ((b: ShopBatch) => void)[] = [];
       let deleted = 0;
       let kept = 0;
@@ -411,9 +423,9 @@ export function createFirestoreShop(db: FirestoreShopLike, collections: ShopColl
       if ((await adult.get()).exists) (writes.push((b) => b.delete(adult)), deleted++);
       for (const { ref, o } of mine) {
         if (o.hash === null) (writes.push((b) => b.delete(ref)), deleted++);
-        else (writes.push((b) => b.set(ref, { player: FORGOTTEN, visitor: null }, { merge: true })), kept++);
+        else (writes.push((b) => b.set(ref, { player: FORGOTTEN, visitor: null, ...ownPlays.get(o.id) }, { merge: true })), kept++);
       }
-      // A paid order keeps no payer; a paid-late one keeps it: the creator sends that payment back by hand (and so does an unused play, above).
+      // An order the player paid keeps no payer; a paid-late one keeps it (the creator sends that payment back by hand), and so does an unused play.
       for (const d of paidBy) writes.push((b) => b.set(d.ref, { payer: FORGOTTEN }, { merge: true }));
       await commitAll(writes);
       return { deleted, kept, waitUntil: null };

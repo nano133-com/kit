@@ -199,8 +199,9 @@ else {
       const r = await after.forget("p1", o.holdUntil + 1);
       assert.deepEqual(r, { deleted: 3, kept: 2, waitUntil: null }, "forget deletes the two credits and the yes");
       assert.equal((db.prepare("SELECT COUNT(*) AS n FROM credits").get() as { n: number }).n + (db.prepare("SELECT COUNT(*) AS n FROM play_adults").get() as { n: number }).n, 0);
-      const rows = db.prepare("SELECT id, player, payer FROM orders ORDER BY created_at").all() as { id: string; player: string; payer: string }[];
-      assert.deepEqual(rows.map((x) => x.player), ["deleted", "deleted"]);
+      const rows = db.prepare("SELECT id, player, payer, forgot_unused FROM orders ORDER BY created_at").all() as { id: string; player: string; payer: string; forgot_unused: number | null }[];
+      // The first order's credit was used (the oldest goes first): no payer; the second's was not: its payer and the mark stay.
+      assert.deepEqual(rows.map((x) => [x.player, x.payer, x.forgot_unused]), [["deleted", "deleted", null], ["deleted", "nano_other_wallet", o.holdUntil + 1]]);
     }
   });
 
@@ -416,6 +417,7 @@ test("shop Firestore: the admin's Firestore store reads the shop's orders, owned
 test("the conformance suite is the same on every store", () => {
   const values = Object.values(counts);
   assert.ok(values.length >= 2 && values.every((v) => v === values[0] && v >= 26), JSON.stringify(counts));
-  // The plays add eleven cases (nine, the "18 or older" yes and the refs of two players whose ids run together); a looks-only store runs the rest.
-  for (const v of Object.values(looksOnly)) assert.equal(v, values[0] - 11, JSON.stringify(looksOnly));
+  // The plays add twelve cases (nine, the "18 or older" yes, the refs of two players whose ids run together and forget of a player who paid another's
+  // play); a looks-only store runs the rest.
+  for (const v of Object.values(looksOnly)) assert.equal(v, values[0] - 12, JSON.stringify(looksOnly));
 });

@@ -80,7 +80,7 @@ export function createFirestoreStore(db: FirestoreLike, collections: { meta?: st
       ]);
       const rows: OrderRow[] = orderDocs.docs.map((d) => {
         const o = d.data();
-        return { id: d.id, player: text(o.player), lookId: text(o.lookId), kind: text(o.kind, "look"), usd: text(o.usd, "0"), amountRaw: text(o.amount, "0"), status: text(o.status, "open"), createdAt: num(o.createdAt), expiresAt: num(o.expiresAt), paidAt: typeof o.paidAt === "number" ? o.paidAt : null, payer: orNull(o.payer), hash: orNull(o.hash) };
+        return { id: d.id, player: text(o.player), lookId: text(o.lookId), kind: text(o.kind, "look"), usd: text(o.usd, "0"), amountRaw: text(o.amount, "0"), status: text(o.status, "open"), createdAt: num(o.createdAt), expiresAt: num(o.expiresAt), paidAt: typeof o.paidAt === "number" ? o.paidAt : null, payer: orNull(o.payer), hash: orNull(o.hash), ...(typeof o.forgotUnused === "number" ? { forgotUnused: o.forgotUnused } : {}) };
       });
       const list = ownedDocs.docs.map((d) => ({ player: text(d.data().player), lookId: text(d.data().lookId), at: num(d.data().grantedAt) }));
       const paid: CreditRow[] = creditDocs.docs.map((d) => {

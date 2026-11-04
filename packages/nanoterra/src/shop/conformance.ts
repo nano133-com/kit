@@ -388,10 +388,17 @@ export function shopStoreConformance(make: () => Promise<ShopHarness>, options: 
     check(!(await dump()).includes(ANN), "the player's id is left nowhere");
   });
 
-  add("forget deletes the player's credits; a paid play whose credit was not used keeps its payer (the creator sends it back)", async ({ store, dump }) => {
+  add("forget deletes the player's credits, in one step with the payers: an unused credit's order keeps its payer (whoever paid) and the mark, a used one's keeps none", async ({ store, dump }) => {
     const used = await credit(store, ANN, T0);
     check((await store.useCredit(ANN, PLAY, "round-1", T0 + 100)).status === "used", "one credit used");
+    // Two more paid from another wallet (BOB's) for ANN: one used, one not.
+    const usedByBob = await playOrder(store, ANN, T0 + 110);
+    check((await pay(store, usedByBob, T0 + 111, T0 + 111, hash(), BOB)) === "paid", "paid by BOB");
+    const r2 = await store.useCredit(ANN, PLAY, "round-2", T0 + 120);
+    check(r2.status === "used" && r2.credit.orderId === usedByBob.id, "BOB's credit for ANN is used");
     const unused = await credit(store, ANN, T0 + 200);
+    const unusedByBob = await playOrder(store, ANN, T0 + 230);
+    check((await pay(store, unusedByBob, T0 + 231, T0 + 231, hash(), BOB)) === "paid", "paid by BOB");
     const late = await playOrder(store, ANN, T0 + 300);
     await pay(store, late, late.expiresAt + CLOCK_SLACK_MS + 10);
     const look = await order(store, ANN, T0 + 400, PRICE, "look-a");
@@ -399,13 +406,17 @@ export function shopStoreConformance(make: () => Promise<ShopHarness>, options: 
     const bobs = await credit(store, BOB, T0 + 600);
     const at = late.holdUntil + 1;
     const r = await store.forget(ANN, at);
-    check(r.waitUntil === null && r.deleted === 3 && r.kept === 4, `forget: ${JSON.stringify(r)} (deleted: one owned look and two credits; kept: four paid orders)`);
+    check(r.waitUntil === null && r.deleted === 5 && r.kept === 6, `forget: ${JSON.stringify(r)} (deleted: one owned look and four credits; kept: six paid orders)`);
     check((await ready(store, ANN)) === "[]" && (await store.useCredit(ANN, PLAY, "round-9", at)).status === "none", "the player's credits are gone");
     const u = await store.order(used.id);
-    check(u?.player === FORGOTTEN && u.payer === FORGOTTEN && u.visitor === null && u.status === "paid", `a used credit's order is a sale like a look's: ${JSON.stringify(u)}`);
+    check(u?.player === FORGOTTEN && u.payer === FORGOTTEN && u.visitor === null && u.status === "paid" && (u.forgotUnused ?? null) === null, `a used credit's order is a sale like a look's: ${JSON.stringify(u)}`);
     const n = await store.order(unused.id);
-    check(n?.player === FORGOTTEN && n.payer === ANN && n.status === "paid" && n.kind === "play" && n.amount === unused.amount && n.hash !== null, `an unused credit's order keeps its payer and amount: ${JSON.stringify(n)}`);
-    check((await store.order(late.id))?.payer === ANN, "a late payment keeps its payer");
+    check(n?.player === FORGOTTEN && n.payer === ANN && n.status === "paid" && n.kind === "play" && n.amount === unused.amount && n.hash !== null && n.forgotUnused === at, `an unused credit's order keeps its payer, its amount and the mark: ${JSON.stringify(n)}`);
+    const ub = await store.order(usedByBob.id);
+    check(ub?.payer === FORGOTTEN && (ub.forgotUnused ?? null) === null, `a used credit paid from another wallet keeps no payer (the round was played): ${JSON.stringify(ub)}`);
+    const nb = await store.order(unusedByBob.id);
+    check(nb?.payer === BOB && nb.forgotUnused === at, `an unused credit paid from another wallet keeps that payer and the mark: ${JSON.stringify(nb)}`);
+    check((await store.order(late.id))?.payer === ANN && ((await store.order(late.id))?.forgotUnused ?? null) === null, "a late payment keeps its payer, with no mark");
     check((await store.order(look.id))?.payer === FORGOTTEN, "a paid look keeps no payer");
     check((await ready(store, BOB)).includes('"ready":1') && (await store.order(bobs.id))?.player === BOB, "another player's credit stays");
     const text = await dump();
@@ -413,6 +424,28 @@ export function shopStoreConformance(make: () => Promise<ShopHarness>, options: 
     check(left === 2, `the player's id is left ${left} times in the store (only the unused credit's payer and the late payer may stay): ${text.slice(0, 400)}`);
     const again = await store.forget(ANN, at + 1);
     check(again.deleted === 0 && again.kept === 0 && again.waitUntil === null, `a second forget: ${JSON.stringify(again)}`);
+    // Then BOB deletes their data: the payment of ANN's unused credit may still go back to BOB's wallet, so it keeps its payer; BOB's own credit goes.
+    const b = await store.forget(BOB, at + 2);
+    check(b.waitUntil === null && b.deleted === 1 && b.kept === 1, `BOB's forget: ${JSON.stringify(b)}`);
+    check((await store.order(unusedByBob.id))?.payer === BOB && (await store.order(usedByBob.id))?.payer === FORGOTTEN, "an unused play BOB paid keeps BOB as its payer");
+  });
+
+  add("forget of a player who paid another player's play: a used credit's order keeps no payer, an unused one's keeps it until that credit's player deletes their data too", async ({ store }) => {
+    const usedGift = await playOrder(store, BOB, T0);
+    await pay(store, usedGift, T0 + 1, T0 + 1, hash(), ANN);
+    check((await store.useCredit(BOB, PLAY, "round-1", T0 + 10)).status === "used", "BOB plays the gift");
+    const gift = await playOrder(store, BOB, T0 + 20);
+    await pay(store, gift, T0 + 21, T0 + 21, hash(), ANN);
+    const at = gift.holdUntil + 1;
+    const a = await store.forget(ANN, at);
+    check(a.waitUntil === null && a.kept === 0, `ANN's forget: ${JSON.stringify(a)}`);
+    check((await store.order(usedGift.id))?.payer === FORGOTTEN, "a played gift keeps no payer");
+    check((await store.order(gift.id))?.payer === ANN && (await store.order(gift.id))?.player === BOB, "an unused gift keeps ANN as its payer: it may go back");
+    const b = await store.forget(BOB, at + 1);
+    check(b.waitUntil === null && b.kept === 2, `BOB's forget: ${JSON.stringify(b)}`);
+    const g = await store.order(gift.id);
+    check(g?.player === FORGOTTEN && g.payer === ANN && g.forgotUnused === at + 1, `the unused gift keeps its payer and gets the mark: ${JSON.stringify(g)}`);
+    check((await store.order(usedGift.id))?.payer === FORGOTTEN && ((await store.order(usedGift.id))?.forgotUnused ?? null) === null, "the played gift has no mark");
   });
 
   return cases;

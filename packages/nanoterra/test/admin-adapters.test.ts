@@ -129,7 +129,7 @@ function d1Harness(withLogins = true, plays = false): StoreHarness & { log: { sq
     async seed(d) {
       for (const o of d.orders ?? []) {
         db.prepare("INSERT INTO orders (id, player, look_id, usd, amount, status, created_at, expires_at, paid_at, payer, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(o.id, o.player, o.lookId, o.usd, o.amountRaw, o.status, o.createdAt, o.expiresAt, o.paidAt, o.payer, o.hash);
-        if (plays && o.kind === "play") db.prepare("UPDATE orders SET kind = 'play' WHERE id = ?").run(o.id);
+        if (plays && o.kind === "play") db.prepare("UPDATE orders SET kind = 'play', forgot_unused = ? WHERE id = ?").run(o.forgotUnused ?? null, o.id);
       }
       for (const c of d.credits ?? []) db.prepare("INSERT INTO credits (order_id, player, play_id, granted_at, expires_at, used_at) VALUES (?, ?, ?, ?, ?, ?)").run(c.orderId, c.player, c.playId, c.grantedAt, c.expiresAt, c.usedAt);
       for (const o of d.owned ?? []) db.prepare("INSERT OR REPLACE INTO owned (player, look_id, granted_at) VALUES (?, ?, ?)").run(o.player, o.lookId, o.at);
@@ -254,7 +254,7 @@ function firestoreHarness() {
     store: createFirestoreStore(f.db),
     plays: true,
     async seed(d) {
-      for (const o of d.orders ?? []) f.col("orders").set(o.id, { player: o.player, lookId: o.lookId, ...(o.kind ? { kind: o.kind } : {}), usd: o.usd, amount: o.amountRaw, status: o.status, createdAt: o.createdAt, expiresAt: o.expiresAt, paidAt: o.paidAt, payer: o.payer, hash: o.hash });
+      for (const o of d.orders ?? []) f.col("orders").set(o.id, { player: o.player, lookId: o.lookId, ...(o.kind ? { kind: o.kind } : {}), ...(typeof o.forgotUnused === "number" ? { forgotUnused: o.forgotUnused } : {}), usd: o.usd, amount: o.amountRaw, status: o.status, createdAt: o.createdAt, expiresAt: o.expiresAt, paidAt: o.paidAt, payer: o.payer, hash: o.hash });
       for (const c of d.credits ?? []) f.col("credits").set(c.orderId, { player: c.player, playId: c.playId, orderId: c.orderId, grantedAt: c.grantedAt, expiresAt: c.expiresAt, usedAt: c.usedAt, useRef: null });
       for (const o of d.owned ?? []) f.col("owned").set(`${o.player}__${o.lookId}`, { player: o.player, lookId: o.lookId, orderId: "", grantedAt: o.at });
       if (d.rate) f.col("meta").set("rate", { value: d.rate.value, at: d.rate.at });
