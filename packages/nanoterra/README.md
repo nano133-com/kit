@@ -1767,7 +1767,8 @@ async function startPaidRound(playId: string) {
 
 - `playKey(playId, start)`: a Play key for the game to place. "Play for 5¢" while no credit is ready (a press buys one); "1 round ready" while
   one is (a press calls your `start`). It hides while the play is not for sale and none is ready. 48 px high, 16 px text. Null for an id that
-  is not a play.
+  is not a play. A press with no round ready reads `GET {playsBase}` again before it buys, and the page's return to view (`visibilitychange`)
+  reads it too: a credit paid meanwhile (the scan's cron, another tab) starts the round, never a second order.
 - `buyPlay(playId)`: the same pay sheet as a look's, on the next frame: the price before any step, the exact amount, the QR code, "TEST MODE: DO
   NOT PAY" with the wallet key off. Its line says "1 round. Used once." **The creator's refund words stand before any step**, above the QR code,
   the address and the wallet key. Paid: "Paid. Your round is ready." and `onCredit`. A refusal shows the server's words, and Back closes the sheet.
