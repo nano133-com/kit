@@ -26,7 +26,8 @@ const PATHS: [string, string[], number, boolean][] = [
   // Since 0.15.0 the shop sells plays too (checkPlays, the credits, the plays' routes; the Worker's D1 store with the plays' statements), with the creator's
   // Legal card (the age step, a life or a continue, the refund words, the owner's confirmation).
   ["@nano133/nanoterra/shop", ["shop/index.js"], 11_900, false],
-  ["@nano133/nanoterra/shop/worker", ["shop/worker.js"], 13_300, false],
+  // The plays' security fixes (the schema read, each credit's own end, forget's mark, the open orders in the cap, the hashed limit keys): 13430 B.
+  ["@nano133/nanoterra/shop/worker", ["shop/worker.js"], 13_600, false],
   // Since 0.15.0 the panel sells plays too (buyPlay, the "18 or older" step, the Play key, ready()).
   ["@nano133/nanoterra/shop/panel", ["shop/panel/index.js"], 11_600, false],
   // The admin's sign-in: the server part without @nano133/signin (an optional peer, outside the bundle), the stores, and the panel with its QR code.
