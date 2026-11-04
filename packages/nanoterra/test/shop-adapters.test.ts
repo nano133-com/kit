@@ -10,7 +10,7 @@ import { createD1Shop, d1Limit, visitorKey } from "../src/shop/adapters/d1.js";
 import { createFirestoreShop } from "../src/shop/adapters/firestore.js";
 import { SHOP_CASE_TIMEOUT_MS, shopStoreConformance, type ShopConformanceCase } from "../src/shop/conformance.js";
 import { createMemoryShop, priceRaw, reserveOrder, ShopBusy, xnoText } from "../src/shop/index.js";
-import { d1Over, fakeFirestore, hash64, noSqlite, sqlite, testAddress } from "./shop-helpers.js";
+import { PLAYS_SQL, SHOP_SQL, d1Over, fakeFirestore, hash64, noSqlite, sqlite, testAddress } from "./shop-helpers.js";
 
 const counts: Record<string, number> = {};
 const run = (name: string, cases: ShopConformanceCase[]) => {
@@ -29,11 +29,12 @@ run("shop memory", shopStoreConformance(async () => {
 
 // ---- D1 ----
 
-function d1Harness(schema?: string) {
-  const db = sqlite(schema);
+/** A D1 shop on SQLite: `schema` (default the package's d1.sql), and with `plays` the plays' migration after it and `{ plays: true }`. */
+function d1Harness(schema?: string, plays = false) {
+  const db = sqlite(plays ? `${schema ?? SHOP_SQL}\n${PLAYS_SQL}` : schema);
   const log: { sql: string; args: unknown[] }[] = [];
-  const store = createD1Shop(d1Over(db, log));
-  const dump = async () => ["orders", "owned", "meta"].map((t) => JSON.stringify(db.prepare(`SELECT * FROM ${t} ORDER BY 1`).all())).join("|");
+  const store = createD1Shop(d1Over(db, log), { plays });
+  const dump = async () => ["orders", "owned", "meta", ...(plays ? ["credits"] : [])].map((t) => JSON.stringify(db.prepare(`SELECT * FROM ${t} ORDER BY 1`).all())).join("|");
   return { db, log, store, dump };
 }
 
@@ -96,6 +97,58 @@ else {
     const o = await reserveOrder(store, { player: "p1", lookId: "red-coat", usd: "0.25", rate: 1, price: priceRaw(0.25, 1)!, visitor: null, now: 1 });
     assert.equal((await store.order(o.id))?.player, "p1");
     assert.throws(() => createD1Shop(d1Over(db), { tables: { orders: "orders; DROP TABLE x" } }), /plain/);
+  });
+
+  test("shop D1 with plays: every statement reads or writes only orders, owned, meta and credits, and binds its values", async () => {
+    const h = d1Harness(STARTER, true);
+    const T = 1_800_000_000_000;
+    const player = testAddress();
+    const o = await reserveOrder(h.store, { player, lookId: "extra-round", kind: "play", usd: "0.05", rate: 1, price: priceRaw(0.05, 1)!, visitor: "v-hash", now: T });
+    assert.equal(o.kind, "play");
+    assert.equal(await h.store.settle(o, { hash: hash64(), payer: player, seenMs: T + 1000 }, T + 1000), "paid");
+    assert.deepEqual(await h.store.credits(player, 0), [{ playId: "extra-round", ready: 1 }]);
+    assert.deepEqual(await h.store.owned(player), [], "a play is never owned");
+    assert.equal((await h.store.useCredit(player, "extra-round", "round:1", T + 2000, 0)).status, "used");
+    assert.equal((await h.store.useCredit(player, "extra-round", "round:1", T + 3000, 0)).status, "again");
+    assert.equal((await h.store.useCredit(player, "extra-round", "round:2", T + 3000, 0)).status, "none");
+    await h.store.forget(player, T + 10_000_000);
+    for (const { sql, args } of h.log) {
+      const tables = [...sql.matchAll(/\b(?:FROM|INTO|(?<!DO )UPDATE|JOIN)\s+(\w+)/gi)].map((m) => m[1]);
+      for (const t of tables) assert.ok(["orders", "owned", "meta", "credits"].includes(t), `${t} in: ${sql}`);
+      assert.ok(!sql.includes(player) && !sql.includes("v-hash") && !sql.includes("round:1"), "values are bound, not written into the SQL");
+      assert.ok(args.every((a) => typeof a !== "object" || a === null), "every value is plain");
+    }
+    assert.equal((h.db.prepare("SELECT COUNT(*) AS n FROM credits").get() as { n: number }).n, 0, "forget deleted the credit");
+  });
+
+  test("shop D1: a store with no plays refuses a play order before it writes it; the starter's rows read as looks after the plays' migration", async () => {
+    const T = 1_800_000_000_000;
+    const play = { player: "p1", lookId: "extra-round", kind: "play" as const, usd: "0.05", rate: 1, price: priceRaw(0.05, 1)!, visitor: null, now: T };
+    // The tables with no migration: looks work, a play order throws and nothing is written.
+    const plain = d1Harness(STARTER);
+    await assert.rejects(reserveOrder(plain.store, play), /d1-plays\.sql/);
+    assert.equal((plain.db.prepare("SELECT COUNT(*) AS n FROM orders").get() as { n: number }).n, 0);
+    assert.deepEqual(await plain.store.credits("p1", 0), []);
+    assert.deepEqual(await plain.store.useCredit("p1", "extra-round", "r1", T, 0), { status: "none" });
+    await assert.rejects(plain.store.useCredit("p1", "extra-round", "bad ref", T, 0), /ref/);
+    // The starter's database with an order made before the migration: it reads as a look, and a paid look order still gives the look.
+    const db = sqlite(STARTER);
+    const before = await reserveOrder(createD1Shop(d1Over(db)), { ...play, lookId: "red-coat", kind: undefined });
+    db.exec(PLAYS_SQL);
+    const store = createD1Shop(d1Over(db), { plays: true });
+    assert.equal((await store.order(before.id))?.kind, "look");
+    assert.equal(await store.settle(before, { hash: hash64(), payer: "p1", seenMs: T + 1 }, T + 1), "paid");
+    assert.deepEqual([await store.owned("p1"), await store.credits("p1", 0)], [["red-coat"], []]);
+  });
+
+  test("shop D1 with plays: the credits table can be renamed too", async () => {
+    const db = sqlite(`${SHOP_SQL_RENAMED}\n${PLAYS_SQL.replace(/\borders\b/g, "shop_orders").replace(/\bcredits\b/g, "shop_credits")}`);
+    const store = createD1Shop(d1Over(db), { plays: true, tables: { orders: "shop_orders", owned: "shop_owned", meta: "shop_meta", credits: "shop_credits" } });
+    const o = await reserveOrder(store, { player: "p1", lookId: "extra-round", kind: "play", usd: "0.05", rate: 1, price: priceRaw(0.05, 1)!, visitor: null, now: 1 });
+    await store.settle(o, { hash: hash64(), payer: "p1", seenMs: 2 }, 2);
+    assert.deepEqual(await store.credits("p1", 0), [{ playId: "extra-round", ready: 1 }]);
+    assert.equal((db.prepare("SELECT COUNT(*) AS n FROM shop_credits").get() as { n: number }).n, 1);
+    assert.throws(() => createD1Shop(d1Over(db), { tables: { credits: "credits--" } }), /plain/);
   });
 
   test("shop D1: d1Limit counts for the whole game in `hits`, and visitorKey hashes the IP with the game's salt (never the IP)", async () => {

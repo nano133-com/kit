@@ -52,6 +52,7 @@
     "./shop/conformance": { "types": "./dist/shop/conformance.d.ts", "import": "./dist/shop/conformance.js" },
     "./shop/d1": { "types": "./dist/shop/adapters/d1.d.ts", "import": "./dist/shop/adapters/d1.js" },
     "./shop/d1.sql": "./src/shop/adapters/d1.sql",
+    "./shop/d1-plays.sql": "./src/shop/adapters/d1-plays.sql",
     "./shop/firestore": { "types": "./dist/shop/adapters/firestore.d.ts", "import": "./dist/shop/adapters/firestore.js" },
     "./shop/worker": { "types": "./dist/shop/worker.d.ts", "import": "./dist/shop/worker.js" },
     "./shop/panel": { "types": "./dist/shop/panel/index.d.ts", "import": "./dist/shop/panel/index.js" },

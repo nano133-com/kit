@@ -8,19 +8,34 @@
 // It reads and writes ONLY those three tables (in `meta`, only the keys "rate" and "scan"). The table names can be changed (`tables`), but the admin's
 // D1 store ("@nano133/nanoterra/admin/d1") reads the starter's names: keep them unless the game has its own admin store.
 //
+// The plays (a round or a level, bought and used once) need one more migration, "@nano133/nanoterra/shop/d1-plays.sql" (the orders' `kind` and the
+// table `credits`), and `{ plays: true }`. Without it the store sells looks only, on the tables as they are: an order of a play throws before it is written.
+//
 // The money rules are in the statements themselves: `amount_lock` and `hash` are UNIQUE (no two held orders ask for one amount, one payment pays one
-// order), the payment and the grant are ONE batch (a D1 transaction), and the scan's claim is one upsert that only one caller in a gap can win.
+// order), the payment and the grant (a look, or a play's credit) are ONE batch (a D1 transaction), the scan's claim is one upsert that only one caller in
+// a gap can win, and a use is one UPDATE that holds its own check (`used_at IS NULL`), with (player, use_ref) UNIQUE: one ref uses one credit.
 
 import type { D1Like } from "../../admin/adapters/d1.js";
 import { parseRate } from "../../admin/summary.js";
 import { paidStatus } from "../orders.js";
 import { checkRef } from "../plays.js";
-import { FORGOTTEN, kindOf, type ForgetResult, type UseResult, type OrderStatus, type Settled, type ShopOrder, type ShopStore } from "../store.js";
+import { FORGOTTEN, kindOf, type Credit, type ForgetResult, type UseResult, type OrderStatus, type Settled, type ShopOrder, type ShopStore } from "../store.js";
 
 export type { D1Like, D1StatementLike } from "../../admin/adapters/d1.js";
 
-/** The table names. The defaults are the game starter's. (`hits` is for `d1Limit` only.) */
-export type ShopTables = { orders?: string; owned?: string; meta?: string; hits?: string };
+/** The table names. The defaults are the game starter's, and "credits" (d1-plays.sql). (`hits` is for `d1Limit` only.) */
+export type ShopTables = { orders?: string; owned?: string; meta?: string; hits?: string; credits?: string };
+
+type CreditRow = { order_id: string; player: string; play_id: string; granted_at: number; used_at: number | null; use_ref: string | null };
+
+const creditOf = (r: CreditRow): Credit => ({
+  orderId: r.order_id,
+  player: r.player,
+  playId: r.play_id,
+  grantedAt: Number(r.granted_at),
+  usedAt: r.used_at === null || r.used_at === undefined ? null : Number(r.used_at),
+  useRef: r.use_ref ?? null,
+});
 
 type Row = {
   id: string;
@@ -112,9 +127,22 @@ export async function visitorKey(db: D1Like, req: Request, tables: Pick<ShopTabl
   return (await sha256Hex(`${row!.value}|${visitorIp(req)}`)).slice(0, 32);
 }
 
-export function createD1Shop(db: D1Like, options: { tables?: ShopTables } = {}): ShopStore {
-  const T = { orders: tableName(options.tables?.orders, "orders"), owned: tableName(options.tables?.owned, "owned"), meta: tableName(options.tables?.meta, "meta") };
-  const COLS = "id, player, look_id, usd, rate, amount, amount_lock, status, created_at, expires_at, hold_until, hash, payer, paid_at, visitor";
+export type D1ShopOptions = {
+  tables?: ShopTables;
+  /** True when the database has the plays' migration (d1-plays.sql): the store then sells plays too. Default false: looks only, no migration. */
+  plays?: boolean;
+};
+
+export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore {
+  const T = {
+    orders: tableName(options.tables?.orders, "orders"),
+    owned: tableName(options.tables?.owned, "owned"),
+    meta: tableName(options.tables?.meta, "meta"),
+    credits: tableName(options.tables?.credits, "credits"),
+  };
+  const plays = options.plays === true;
+  const COLS = `id, player, look_id, usd, rate, amount, amount_lock, status, created_at, expires_at, hold_until, hash, payer, paid_at, visitor${plays ? ", kind" : ""}`;
+  const CREDIT_COLS = "order_id, player, play_id, granted_at, used_at, use_ref";
 
   async function inChunks(sql: (marks: string) => string, values: readonly string[], col: string): Promise<Set<string>> {
     const out = new Set<string>();
@@ -142,12 +170,14 @@ export function createD1Shop(db: D1Like, options: { tables?: ShopTables } = {}):
     heldAmounts: (amounts) => inChunks((m) => `SELECT amount_lock FROM ${T.orders} WHERE amount_lock IN (${m})`, amounts, "amount_lock"),
 
     async insert(o) {
-      if (kindOf(o) === "play") throw new Error("this shop store sells no plays yet");
+      // A play order on tables with no credits would take a payment and give nothing: it is refused before anything is written.
+      if (!plays && kindOf(o) === "play") throw new Error("this D1 shop store sells no plays: apply @nano133/nanoterra/shop/d1-plays.sql and pass { plays: true }");
       try {
-        await db
-          .prepare(`INSERT INTO ${T.orders} (id, player, look_id, usd, rate, amount, amount_lock, status, created_at, expires_at, hold_until, visitor) VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)`)
-          .bind(o.id, o.player, o.lookId, o.usd, o.rate, o.amount, o.amount, o.createdAt, o.expiresAt, o.holdUntil, o.visitor)
-          .run();
+        const values = [o.id, o.player, o.lookId, o.usd, o.rate, o.amount, o.amount, o.createdAt, o.expiresAt, o.holdUntil, o.visitor];
+        await (plays
+          ? db.prepare(`INSERT INTO ${T.orders} (id, player, look_id, usd, rate, amount, amount_lock, status, created_at, expires_at, hold_until, visitor, kind) VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?)`).bind(...values, kindOf(o))
+          : db.prepare(`INSERT INTO ${T.orders} (id, player, look_id, usd, rate, amount, amount_lock, status, created_at, expires_at, hold_until, visitor) VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)`).bind(...values)
+        ).run();
         return true;
       } catch (e) {
         // Another order took this amount since the read. Any other failure stops.
@@ -191,13 +221,22 @@ export function createD1Shop(db: D1Like, options: { tables?: ShopTables } = {}):
     async settle(order, pay, now): Promise<Settled> {
       const status = paidStatus(order, pay.seenMs);
       try {
+        // The payment, and in the same batch the grant: a look (one owned row per player and look) or a play's credit (one per order). Each grant reads
+        // the order's row as the batch's first statement left it, so a payment that changed nothing grants nothing.
         const [update] = await db.batch([
           db
             .prepare(`UPDATE ${T.orders} SET status = ?, hash = ?, payer = ?, paid_at = ?, amount_lock = NULL WHERE id = ? AND status IN ('open', 'expired') AND amount_lock IS NOT NULL`)
             .bind(status, pay.hash, pay.payer, pay.seenMs, order.id),
           db
-            .prepare(`INSERT OR IGNORE INTO ${T.owned} (player, look_id, order_id, granted_at) SELECT player, look_id, id, ? FROM ${T.orders} WHERE id = ? AND status = 'paid' AND hash = ?`)
+            .prepare(`INSERT OR IGNORE INTO ${T.owned} (player, look_id, order_id, granted_at) SELECT player, look_id, id, ? FROM ${T.orders} WHERE id = ? AND status = 'paid' AND hash = ?${plays ? " AND kind = 'look'" : ""}`)
             .bind(now, order.id, pay.hash),
+          ...(plays
+            ? [
+                db
+                  .prepare(`INSERT OR IGNORE INTO ${T.credits} (order_id, player, play_id, granted_at) SELECT id, player, look_id, ? FROM ${T.orders} WHERE id = ? AND status = 'paid' AND hash = ? AND kind = 'play'`)
+                  .bind(now, order.id, pay.hash),
+              ]
+            : []),
         ]);
         return changes(update) === 1 ? status : "taken";
       } catch (e) {
@@ -226,14 +265,43 @@ export function createD1Shop(db: D1Like, options: { tables?: ShopTables } = {}):
         .run();
     },
 
-    // No plays yet in this adapter: no play order is ever written, so no credit exists.
-    async credits() {
-      return [];
+    async credits(player, notBefore) {
+      if (!plays) return [];
+      const rows = await db
+        .prepare(`SELECT play_id, COUNT(*) AS n FROM ${T.credits} WHERE player = ? AND used_at IS NULL AND granted_at >= ? GROUP BY play_id ORDER BY play_id`)
+        .bind(player, notBefore)
+        .all<{ play_id: string; n: number }>();
+      return rows.results.map((r) => ({ playId: r.play_id, ready: Number(r.n) }));
     },
 
-    async useCredit(_player, _playId, ref): Promise<UseResult> {
+    async useCredit(player, playId, ref, now, notBefore): Promise<UseResult> {
       checkRef(ref);
-      return { status: "none" };
+      // Looks only: no play order was ever written, so no credit exists.
+      if (!plays) return { status: "none" };
+      const byRef = () => db.prepare(`SELECT ${CREDIT_COLS} FROM ${T.credits} WHERE player = ? AND use_ref = ?`).bind(player, ref).first<CreditRow>();
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const was = await byRef();
+        if (was) return { status: "again", credit: creditOf(was) };
+        try {
+          // ONE statement: it picks the oldest unused credit and takes it only while it is still unused, so two calls never take one credit.
+          const row = await db
+            .prepare(
+              `UPDATE ${T.credits} SET used_at = ?, use_ref = ? WHERE order_id = (SELECT order_id FROM ${T.credits} WHERE player = ? AND play_id = ? AND used_at IS NULL AND granted_at >= ? ORDER BY granted_at, order_id LIMIT 1) AND used_at IS NULL RETURNING ${CREDIT_COLS}`,
+            )
+            .bind(now, ref, player, playId, notBefore)
+            .first<CreditRow>();
+          if (row) return { status: "used", credit: creditOf(row) };
+        } catch (e) {
+          // The same ref used a credit meanwhile (UNIQUE (player, use_ref)): read it back as "again".
+          if (isUnique(e)) continue;
+          throw e;
+        }
+        // Nothing changed: no credit is ready, unless the same ref won meanwhile.
+        const again = await byRef();
+        return again ? { status: "again", credit: creditOf(again) } : { status: "none" };
+      }
+      const last = await byRef();
+      return last ? { status: "again", credit: creditOf(last) } : { status: "none" };
     },
 
     async forget(player, now): Promise<ForgetResult> {
@@ -242,19 +310,22 @@ export function createD1Shop(db: D1Like, options: { tables?: ShopTables } = {}):
       if (Number(w?.n ?? 0) > 0) return { deleted: 0, kept: 0, waitUntil: Number(w!.until) };
       // One batch, and each statement holds the money gate again: an order made meanwhile stops every one of them.
       const gate = `NOT EXISTS (SELECT 1 FROM ${T.orders} WHERE player = ?1 AND amount_lock IS NOT NULL)`;
+      // A paid play whose credit is not known to be used (unused, or gone with an earlier "Delete my data") keeps its payer: its payment may go back.
+      const unusedPlay = plays ? ` AND NOT (kind = 'play' AND NOT EXISTS (SELECT 1 FROM ${T.credits} c WHERE c.order_id = ${T.orders}.id AND c.used_at IS NOT NULL))` : "";
       const done = await db.batch([
         db.prepare(`DELETE FROM ${T.owned} WHERE player = ?1 AND ${gate}`).bind(player),
         db.prepare(`DELETE FROM ${T.orders} WHERE player = ?1 AND hash IS NULL AND amount_lock IS NULL AND ${gate}`).bind(player),
-        // A paid order keeps no payer; a paid-late one keeps it: the creator sends that payment back by hand.
-        db.prepare(`UPDATE ${T.orders} SET payer = ?2 WHERE payer = ?1 AND status = 'paid' AND ${gate}`).bind(player, FORGOTTEN),
+        // A paid order keeps no payer; a paid-late one keeps it: the creator sends that payment back by hand. (Before the credits go: it reads them.)
+        db.prepare(`UPDATE ${T.orders} SET payer = ?2 WHERE payer = ?1 AND status = 'paid'${unusedPlay} AND ${gate}`).bind(player, FORGOTTEN),
         db.prepare(`UPDATE ${T.orders} SET player = ?2, visitor = NULL WHERE player = ?1 AND hash IS NOT NULL AND ${gate}`).bind(player, FORGOTTEN),
+        ...(plays ? [db.prepare(`DELETE FROM ${T.credits} WHERE player = ?1 AND ${gate}`).bind(player)] : []),
       ]);
-      const [owned, orders, , kept] = done.map(changes);
-      if (owned + orders + kept === 0) {
+      const [owned, orders, , kept, credits = 0] = done.map(changes);
+      if (owned + orders + kept + credits === 0) {
         const again = await waiting(player);
         if (Number(again?.n ?? 0) > 0) return { deleted: 0, kept: 0, waitUntil: Number(again!.until) };
       }
-      return { deleted: owned + orders, kept, waitUntil: null };
+      return { deleted: owned + orders + credits, kept, waitUntil: null };
     },
   };
 }
