@@ -5,13 +5,20 @@
 
 import type { Look } from "../../looks/look.js";
 import { slugId } from "../../looks/json.js";
+import { LIFE_USES } from "../legal.js";
+import { LEGAL_WORDS } from "../switches.js";
 import { PLAY_ONE_USE, PLAY_USES, PLAY_WAIT_DAYS, PLAY_WAIT_DAYS_MAX, playProblems, type Play } from "../../looks/play.js";
 import { priceText } from "../../looks/ladder.js";
 import type { AdminSummary, PlayStats } from "../store.js";
 import { copy, h, plural } from "./dom.js";
 import { icon } from "./icons.js";
 
-export type RoundsView = { el: HTMLElement; update(s: AdminSummary): void };
+export type RoundsView = {
+  el: HTMLElement;
+  update(s: AdminSummary): void;
+  /** The Legal card's "Sell an extra life or a continue" (off until the game's settings are read): while it is off, the draft offers no life or continue. */
+  setSellLives(on: boolean): void;
+};
 
 /** A play as plays.json writes it: `useWithinDays` only when it is not the default. */
 const fileOf = (p: Play): Play => ({ id: p.id, name: p.name, priceUsd: p.priceUsd, use: p.use, ...(p.useWithinDays !== undefined && p.useWithinDays !== PLAY_WAIT_DAYS ? { useWithinDays: p.useWithinDays } : {}) });
@@ -56,6 +63,7 @@ export function roundsView(plays: readonly Play[], looks: readonly Look[]): Roun
   let draft: Play[] = PLAYS.map((p) => ({ ...p }));
   let stats: PlayStats[] = [];
   let editing = false;
+  let sellLives = false;
   const el = h("section", { class: "admin-card rounds", "aria-labelledby": "rounds-title" });
   const statOf = (id: string) => stats.find((s) => s.playId === id) ?? none(id);
   /** The plays that players paid for: their ids must stay. */
@@ -123,8 +131,11 @@ export function roundsView(plays: readonly Play[], looks: readonly Look[]): Roun
       });
       const price = h("input", { class: "input input-num", type: "number", min: 0.0001, step: 0.0001, value: String(p.priceUsd), inputmode: "decimal", "aria-label": `Price of ${p.name} in US dollars` });
       price.addEventListener("change", () => ((p.priceUsd = Number(price.value)), redraw()));
-      const use = h("select", { class: "input", "aria-label": `What ${p.name} buys` }, ...PLAY_USES.map((u) => h("option", { value: u, ...(u === p.use ? { selected: true } : {}) }, u)));
+      // A life or a continue is offered only while the Legal card sells them; a play that has one keeps it in view, with a note.
+      const uses = PLAY_USES.filter((u) => sellLives || !LIFE_USES.includes(u) || u === p.use);
+      const use = h("select", { class: "input", "aria-label": `What ${p.name} buys` }, ...uses.map((u) => h("option", { value: u, ...(u === p.use ? { selected: true } : {}) }, u)));
       use.addEventListener("change", () => ((p.use = use.value as Play["use"]), redraw()));
+      const notSold = !sellLives && LIFE_USES.includes(p.use) ? h("p", { class: "fine round-not-sold" }, `Not sold while "${LEGAL_WORDS.switches.sellLives.title}" is off (Settings, Legal).`) : null;
       const wait = h("input", { class: "input input-num", type: "number", min: 1, max: PLAY_WAIT_DAYS_MAX, step: 1, value: String(p.useWithinDays ?? PLAY_WAIT_DAYS), inputmode: "numeric", "aria-label": `Days a credit of ${p.name} waits` });
       wait.addEventListener("change", () => ((p.useWithinDays = Number(wait.value)), redraw()));
       const remove = h("button", { class: "btn btn-small btn-quiet", type: "button", onclick: () => ((draft = draft.filter((x) => x !== p)), redraw()) }, "Remove");
@@ -135,6 +146,7 @@ export function roundsView(plays: readonly Play[], looks: readonly Look[]): Roun
         field("Name", name),
         field("Price in US dollars", price),
         field("What it buys", use),
+        notSold,
         field("Days a credit waits", wait),
         remove,
       );
@@ -176,6 +188,11 @@ export function roundsView(plays: readonly Play[], looks: readonly Look[]): Roun
     el,
     update(s) {
       stats = s.plays;
+      redraw();
+    },
+    setSellLives(on) {
+      if (on === sellLives) return;
+      sellLives = on;
       redraw();
     },
   };

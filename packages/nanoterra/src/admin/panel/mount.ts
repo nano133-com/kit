@@ -117,7 +117,9 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
       const heard = (state: GameState) => {
         gameState = state;
         dash?.setGame(state);
+        rounds?.setSellLives(state.legal?.sellLives === true);
       };
+      rounds?.setSellLives(gameState.legal?.sellLives === true);
       game = gameCard(api, gameState, options.defaultsFile, heard);
       // The Legal card reads the same settings: made once, as the Game card is.
       legal = legalCard(api, gameState, plays, heard);

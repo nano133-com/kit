@@ -1801,8 +1801,9 @@ card's five (`SETTING_KEYS`); `loadLegal(store)` reads them alone, and a fault g
 `mountAdmin(el, { ...options, plays })` with the same `plays.json`:
 
 - **Cosmetics:** a "Looks / Rounds" switch at the top. Rounds is a card for each play: its name, price, use and wait; sold, used, ready, not used
-  in time and paid late. Edit opens a draft like the Shelf's, which makes `plays.json` text and a message for an AI to copy. **The admin never
-  writes a play or a price**: a change of plays is a change of your repository.
+  in time and paid late. Edit opens a draft like the Shelf's, which makes `plays.json` text and a message for an AI to copy. The draft offers a
+  life or a continue as a use only while the Legal card's "Sell an extra life or a continue" is on; a play that has one keeps it, with a note that
+  it is not sold while the switch is off. **The admin never writes a play or a price**: a change of plays is a change of your repository.
 - **Orders:** a play's order shows its name and a "Round" mark. **Players:** each player's ready rounds.
 - **Overview, "To send back":** every payment to send back by hand, with its payer, its amount and why: a late payment ("Paid after the order
   ended"), a credit not used in time, a credit of a play no longer sold, and the unused credit of a player who used "Delete my data". The number

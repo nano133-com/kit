@@ -866,6 +866,37 @@ test("Cosmetics: \"Looks / Rounds\" only when the game sells plays; a card for e
   assert.equal(calls.length, before, "the Rounds draft makes no call");
 });
 
+test("Cosmetics, Rounds draft: a life or a continue is offered only while the Legal card sells them; a play that has one keeps it, with a note", async () => {
+  const { root, mounted } = playsSetup();
+  await mounted.ready;
+  const panel = panelOf(root, "cosmetics");
+  (panel.querySelector('.cosmetics-kind .seg-btn[data-kind="rounds"]') as HTMLButtonElement).click();
+  const rounds = panel.querySelector(".rounds") as HTMLElement;
+  buttonWith(rounds, "Edit").click();
+  const uses = (id: string) => [...rounds.querySelectorAll(`[data-play="${id}"] select option`)].map((o) => (o as HTMLOptionElement).value);
+  const note = (id: string) => rounds.querySelector(`[data-play="${id}"] .round-not-sold`);
+  // The switch is off (the kit's default): a round offers a round or a level only; the life play keeps its "life", with the note.
+  assert.deepEqual(uses("extra-round"), ["round", "level"]);
+  assert.deepEqual(uses("extra-life"), ["round", "level", "life"]);
+  assert.equal((rounds.querySelector('[data-play="extra-life"] option[selected]') as HTMLOptionElement).value, "life", "its own use stays chosen");
+  assert.equal(text(note("extra-life")!), 'Not sold while "Sell an extra life or a continue" is off (Settings, Legal).');
+  assert.equal(note("extra-round"), null);
+  buttonWith(rounds, "Add a round").click();
+  assert.deepEqual(uses("extra-round-2"), ["round", "level"], "a new round too");
+  // The Legal card turns it on: every use is offered, and the note goes.
+  const lives = panelOf(root, "settings").querySelectorAll(".legal-card .switch")[1] as HTMLButtonElement;
+  lives.click();
+  await tick();
+  assert.equal(lives.getAttribute("aria-checked"), "true");
+  assert.deepEqual(uses("extra-round"), ["round", "level", "life", "continue"]);
+  assert.equal(note("extra-life"), null);
+  assert.ok(rounds.querySelector('[data-play="extra-round-2"]'), "the draft is kept");
+  // Off again: hidden again.
+  lives.click();
+  await tick();
+  assert.deepEqual(uses("extra-round"), ["round", "level"]);
+});
+
 test("plays in the lists: Orders mark a round, the Overview lists what to send back (payer and amount) and the number opens it, the Players tab shows the rounds ready", async () => {
   const { root, mounted } = playsSetup();
   await mounted.ready;
