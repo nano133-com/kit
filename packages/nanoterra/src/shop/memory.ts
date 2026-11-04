@@ -57,8 +57,8 @@ export function createMemoryShop(): MemoryShop {
       const list = [...orders.values()].filter((o) => o.player === player && o.lookId === lookId && o.status === "open" && o.expiresAt > until).sort((a, b) => b.createdAt - a.createdAt);
       return list[0] ? copy(list[0]) : null;
     },
-    async countOpen(player, now) {
-      return [...orders.values()].filter((o) => o.player === player && o.status === "open" && o.expiresAt > now).length;
+    async countOpen(player, now, lookId) {
+      return [...orders.values()].filter((o) => o.player === player && o.status === "open" && o.expiresAt > now && (lookId === undefined || o.lookId === lookId)).length;
     },
     async owns(player, lookId) {
       return ownedRows.has(ownKey(player, lookId));

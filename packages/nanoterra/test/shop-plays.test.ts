@@ -181,6 +181,21 @@ describe("the plays' routes", () => {
     assert.equal((await call(h, "/api/orders", { body: { playId: "extra-round" }, player: "p1" }))!.status, 201);
   });
 
+  test(`the cap of ${MAX_READY_PER_PLAY} counts the play's open orders too: ready credits and orders that may still be paid stay under it`, async () => {
+    const { h, store } = shop({ limit: () => true });
+    for (let i = 0; i < MAX_READY_PER_PLAY - 1; i++) await paidPlay(h, store, "p1");
+    const open = await call(h, "/api/orders", { body: { playId: "extra-round" }, player: "p1" });
+    assert.equal(open!.status, 201, "four ready and none open: one more order");
+    assert.equal((await call(h, "/api/orders", { body: { playId: "extra-round" }, player: "p1" }))!.body.id, open!.body.id, "the same order comes back");
+    // Its last minute: it is no longer offered again, but it may still be paid, so it still counts.
+    clock = open!.body.expiresAt - 30_000;
+    const r = await call(h, "/api/orders", { body: { playId: "extra-round" }, player: "p1" });
+    assert.deepEqual([r!.status, r!.body], [409, { error: "You have 5 rounds ready or waiting for a payment. Play one first." }]);
+    assert.equal((await call(h, "/api/orders", { body: { playId: "level-2" }, player: "p1" }))!.status, 201, "another play is counted apart");
+    clock = open!.body.expiresAt + 1;
+    assert.equal((await call(h, "/api/orders", { body: { playId: "extra-round" }, player: "p1" }))!.status, 201, "once it ended, a new order");
+  });
+
   test("a credit past its wait (useWithinDays, default 30) is not ready and cannot be used", async () => {
     const { h, store } = shop();
     await paidPlay(h, store, "p1");

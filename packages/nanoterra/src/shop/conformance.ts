@@ -185,6 +185,7 @@ export function shopStoreConformance(make: () => Promise<ShopHarness>, options: 
     check((await store.openOrder(CYD, "look-a", T0)) === null, "another player's order is not theirs");
     check((await store.countOpen(ANN, T0 + 100)) === 2 && (await store.countOpen(BOB, T0 + 100)) === 1, "the counts");
     check((await store.countOpen(ANN, a.expiresAt + 11)) === 0, "an order past its time is not counted");
+    check((await store.countOpen(ANN, T0 + 100, "look-a")) === 1 && (await store.countOpen(ANN, T0 + 100, "look-c")) === 0 && (await store.countOpen(BOB, T0 + 100, "look-a")) === 1, "the counts of one look");
   });
 
   add("amounts are kept as exact text, even with 39 digits", async ({ store }) => {

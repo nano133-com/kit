@@ -274,14 +274,18 @@ export function createShopHandler(options: ShopHandlerOptions): ShopHandler {
     const visitor = options.visitor ? await options.visitor(req) : null;
     if (!(await limit(`order|${visitor ?? player}`, SHOP_LIMITS.order.limit, SHOP_LIMITS.order.windowMs, at))) return fail(429, "Too many orders. Wait a few minutes.");
     if (options.personCheck && !(await options.personCheck(body.turnstile, req))) return fail(403, "The person check failed. Try again.");
-    if (item.play) {
-      // The money that waits in credits stays small: a few rounds ready at most.
-      if ((await readyOf(player, item.play, at)) >= MAX_READY_PER_PLAY) return fail(409, `You have ${MAX_READY_PER_PLAY} ${item.play.use}s ready. Play one first.`);
-    } else if (await store.owns(player, item.id)) return fail(409, "You already own this look.");
+    if (!item.play && (await store.owns(player, item.id))) return fail(409, "You already own this look.");
     // One waiting order per look or play: the same one comes back, with the same amount.
     const same = await store.openOrder(player, item.id, at + 60_000);
     const refund = legal ? { refund: refundOf(legal) } : {};
     if (same) return json({ ...payView(same, at), ...refund });
+    if (item.play) {
+      // The money that waits in credits stays small: the ready credits of the play and its open orders (each may still become one) stay under
+      // MAX_READY_PER_PLAY. Separate reads, not one step (see MAX_READY_PER_PLAY): orders made at the same instant can pass together.
+      const [readyNow, open] = await Promise.all([readyOf(player, item.play, at), store.countOpen(player, at, item.id)]);
+      if (readyNow + open >= MAX_READY_PER_PLAY)
+        return fail(409, readyNow >= MAX_READY_PER_PLAY ? `You have ${MAX_READY_PER_PLAY} ${item.play.use}s ready. Play one first.` : `You have ${MAX_READY_PER_PLAY} ${item.play.use}s ready or waiting for a payment. Play one first.`);
+    }
     if ((await store.countOpen(player, at)) >= MAX_OPEN_PER_PLAYER) return fail(429, "You have orders waiting. Pay one or wait until it ends.");
     const rate = await usdPerXno(store, fetchRate, at, feeds);
     if (!rate) return fail(503, "Prices are not available now. Try again later.");

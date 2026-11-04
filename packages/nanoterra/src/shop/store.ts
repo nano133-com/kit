@@ -122,8 +122,8 @@ export interface ShopStore {
   order(id: string): Promise<ShopOrder | null>;
   /** The newest open order of this player for this look (or play) that still runs at `until`, or null. */
   openOrder(player: string, lookId: string, until: number): Promise<ShopOrder | null>;
-  /** How many open orders this player has that still run at `now`. */
-  countOpen(player: string, now: number): Promise<number>;
+  /** How many open orders this player has that still run at `now` (with `lookId`: only those of that look or play). */
+  countOpen(player: string, now: number, lookId?: string): Promise<number>;
   /** Whether a paid order gave this player this look. */
   owns(player: string, lookId: string): Promise<boolean>;
   /** The ids of every look that paid orders gave this player (free looks are everyone's and are not stored). */

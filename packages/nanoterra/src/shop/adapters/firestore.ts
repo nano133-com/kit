@@ -217,8 +217,10 @@ export function createFirestoreShop(db: FirestoreShopLike, collections: ShopColl
       return list[0] ?? null;
     },
 
-    async countOpen(player, now) {
-      return (await ordersOf(player).where("status", "==", "open").get()).docs.map((d) => orderOf(d.id, d.data())).filter((o) => o.player === player && o.expiresAt > now).length;
+    async countOpen(player, now, lookId) {
+      return (await ordersOf(player).where("status", "==", "open").get()).docs
+        .map((d) => orderOf(d.id, d.data()))
+        .filter((o) => o.player === player && o.expiresAt > now && (lookId === undefined || o.lookId === lookId)).length;
     },
 
     async owns(player, lookId) {

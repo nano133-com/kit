@@ -225,8 +225,12 @@ export function createD1Shop(db: D1Like, options: D1ShopOptions = {}): ShopStore
       return r ? orderOf(r) : null;
     },
 
-    async countOpen(player, now) {
-      const r = await db.prepare(`SELECT COUNT(*) AS n FROM ${T.orders} WHERE player = ? AND status = 'open' AND expires_at > ?`).bind(player, now).first<{ n: number }>();
+    async countOpen(player, now, lookId) {
+      const one = lookId === undefined ? "" : " AND look_id = ?";
+      const r = await db
+        .prepare(`SELECT COUNT(*) AS n FROM ${T.orders} WHERE player = ? AND status = 'open' AND expires_at > ?${one}`)
+        .bind(...(lookId === undefined ? [player, now] : [player, now, lookId]))
+        .first<{ n: number }>();
       return Number(r?.n ?? 0);
     },
 
