@@ -3,13 +3,19 @@
 
 export type OrderStatus = "open" | "paid" | "expired" | "paid_late";
 
-/** One order: a player asked to buy a look. Amounts are raw, as text; times are ms since 1970. */
+/** What an order sells: a look (the player owns it for good) or a play (one credit, used once: a round or a level). */
+export type OrderKind = "look" | "play";
+
+/** One order: a player asked to buy a look or a play. Amounts are raw, as text; times are ms since 1970. */
 export type ShopOrder = {
   /** 24 hex characters. */
   id: string;
   /** The signed-in player who made it (the game's player id: the starter's is the Nano address). Only this player sees the order. */
   player: string;
+  /** The id of what the order sells: a look's id, or a play's id for a play (looks and plays share one id space). */
   lookId: string;
+  /** What the order sells. Missing reads as "look" (an order of a store or a version that knows no plays); a store always gives it back. */
+  kind?: OrderKind;
   /** The price in US dollars when the order was made: "0.25". */
   usd: string;
   /** Dollars per XNO that turned the price into XNO. */
@@ -37,6 +43,31 @@ export type ShopOrder = {
   visitor: string | null;
 };
 
+/** The kind of an order: "look" unless it says "play". */
+export const kindOf = (o: Pick<ShopOrder, "kind">): OrderKind => (o.kind === "play" ? "play" : "look");
+
+/**
+ * One paid play of one player: a paid order of kind "play" gives exactly one credit (keyed by the order's id), and a round start uses it once. A credit
+ * belongs to the ORDER's player (as a look does), and never turns into anything else.
+ */
+export type Credit = {
+  orderId: string;
+  player: string;
+  playId: string;
+  /** When the payment was recorded (the credit's wait counts from here). */
+  grantedAt: number;
+  /** When a round used it, or null while it waits. */
+  usedAt: number | null;
+  /** The round's own id (its `ref`) that used it, or null. One ref of a player uses one credit, ever. */
+  useRef: string | null;
+};
+
+/** What `useCredit` did. "used": this call used the credit. "again": this ref used it before (the same answer again). "none": no credit is ready. */
+export type UseResult = { status: "used"; credit: Credit } | { status: "again"; credit: Credit } | { status: "none" };
+
+/** How many credits of one play wait for their use. */
+export type ReadyCredits = { playId: string; ready: number };
+
 /** What `settle` did. "used": that payment already paid another order. "taken": this order was settled meanwhile (or its amount is no longer held). */
 export type Settled = "paid" | "paid_late" | "used" | "taken";
 
@@ -48,8 +79,9 @@ export type KeptRate = { usd: number; sources: string[]; at: number };
 
 /**
  * What `forget` did. `waitUntil`: the player has an order whose amount is still held (a payment may still come for it), so NOTHING was deleted; try again
- * after that time. Else `deleted` rows went (owned looks, and orders that were never paid), and `kept` paid orders stay as the creator's sales record,
- * with the player (and the payer of a paid order) replaced by FORGOTTEN.
+ * after that time. Else `deleted` rows went (owned looks, credits, and orders that were never paid), and `kept` paid orders stay as the creator's sales
+ * record, with the player (and the payer of a paid order) replaced by FORGOTTEN. A paid play order whose credit was not used keeps its payer, as a late
+ * payment does: its credit went, so the creator sends that payment back by hand.
  */
 export type ForgetResult = { deleted: number; kept: number; waitUntil: number | null };
 
@@ -57,7 +89,7 @@ export type ForgetResult = { deleted: number; kept: number; waitUntil: number | 
 export const FORGOTTEN = "deleted";
 
 /**
- * The shop's database. An adapter writes ONLY orders, owned looks, the kept price and the scan's claim (and their locks). Each call is ONE step: a
+ * The shop's database. An adapter writes ONLY orders, owned looks, credits, the kept price and the scan's claim (and their locks). Each call is ONE step: a
  * transaction, a batch, or a statement that holds its own check.
  */
 export interface ShopStore {
@@ -71,7 +103,7 @@ export interface ShopStore {
    */
   insert(order: ShopOrder): Promise<boolean>;
   order(id: string): Promise<ShopOrder | null>;
-  /** The newest open order of this player for this look that still runs at `until`, or null. */
+  /** The newest open order of this player for this look (or play) that still runs at `until`, or null. */
   openOrder(player: string, lookId: string, until: number): Promise<ShopOrder | null>;
   /** How many open orders this player has that still run at `now`. */
   countOpen(player: string, now: number): Promise<number>;
@@ -85,8 +117,8 @@ export interface ShopStore {
   usedHashes(hashes: readonly string[]): Promise<Set<string>>;
   /**
    * Records a payment for a held order, exactly once, in ONE step: the order becomes "paid" (sent while it was open: `pay.seenMs` at most
-   * CLOCK_SLACK_MS after `expiresAt`) and the look is given to the ORDER's player (once: one owned row per player and look), or "paid_late" (no look);
-   * either way the hash is recorded and the amount freed. "taken" when the order is not open or expired with its amount held (it was settled meanwhile,
+   * CLOCK_SLACK_MS after `expiresAt`) and the look is given to the ORDER's player (once: one owned row per player and look), or for a play ONE credit
+   * (once: one credit per order), or "paid_late" (no look, no credit); either way the hash is recorded and the amount freed. "taken" when the order is not open or expired with its amount held (it was settled meanwhile,
    * or its hold ended), else "used" when the hash paid another order. Either way nothing changes.
    */
   settle(order: ShopOrder, pay: Payment, now: number): Promise<Settled>;
@@ -94,6 +126,14 @@ export interface ShopStore {
   claimScan(now: number, gapMs: number): Promise<boolean>;
   readRate(): Promise<KeptRate | null>;
   saveRate(rate: KeptRate): Promise<void>;
+  /** The player's unused credits of each play granted at or after `notBefore` (the wait), by play id. A play with none is not listed. */
+  credits(player: string, notBefore: number): Promise<ReadyCredits[]>;
+  /**
+   * Uses the oldest unused credit of this player and play granted at or after `notBefore`, exactly once, in ONE step that holds its own check: two calls
+   * can never use one credit. `ref` is the round's own id (USE_REF_PATTERN; any other throws): a ref this player used before answers "again" with that
+   * credit (whatever play it was), and never uses a second one, also when many calls with one ref come at once.
+   */
+  useCredit(player: string, playId: string, ref: string, now: number, notBefore: number): Promise<UseResult>;
   /** "Delete my data" for the shop (see ForgetResult). */
   forget(player: string, now: number): Promise<ForgetResult>;
 }

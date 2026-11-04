@@ -2,7 +2,8 @@
 // goes straight from the player's wallet to the creator's address, and the server only READS the ledger to see that a payment came (a unique, clean
 // amount for each order, matched exactly). The game gives its store, its looks, its address and its signed-in player.
 //
-//   createShopHandler     the routes (POST an order, GET it, POST its check), on Request and Response
+//   createShopHandler     the routes (POST an order of a look or a play, GET it, POST its check; the plays' ready list and their use), on Request
+//                         and Response
 //   scanPayments          one look at the creator's address that settles every held order (the cron's and the admin's check)
 //   createMemoryShop      a store in memory, for tests
 //   the rules             amounts (raw text and BigInt), the reservation, the match, the price, the nodes, the address check, the CSP lists
@@ -21,8 +22,11 @@ export { PRICE_FEEDS, RATE_FRESH_MS, RATE_LAST_GOOD_MS, readFeeds, usdPerXno } f
 export type { PriceFeed, Rate } from "./price.js";
 export { SCAN_GAP_MS, forgetBlocks, scanPayments } from "./scan.js";
 export type { ScanOptions, ScanResult } from "./scan.js";
-export { FORGOTTEN } from "./store.js";
-export type { ForgetResult, KeptRate, OrderStatus, Payment, Settled, ShopOrder, ShopStore } from "./store.js";
+export { FORGOTTEN, kindOf } from "./store.js";
+export type { Credit, ForgetResult, KeptRate, OrderKind, OrderStatus, Payment, ReadyCredits, Settled, ShopOrder, ShopStore, UseResult } from "./store.js";
+export { DAY_MS, MAX_READY_PER_PLAY, USE_REF_PATTERN, checkRef, creditWindow } from "./plays.js";
+export { PLAY_USES, checkPlays } from "../looks/play.js";
+export type { Play, PlayUse } from "../looks/play.js";
 export { createMemoryShop } from "./memory.js";
 export type { MemoryShop } from "./memory.js";
 export { SHOP_LIMITS, createShopHandler } from "./handler.js";

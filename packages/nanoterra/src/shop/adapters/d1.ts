@@ -14,7 +14,8 @@
 import type { D1Like } from "../../admin/adapters/d1.js";
 import { parseRate } from "../../admin/summary.js";
 import { paidStatus } from "../orders.js";
-import { FORGOTTEN, type ForgetResult, type OrderStatus, type Settled, type ShopOrder, type ShopStore } from "../store.js";
+import { checkRef } from "../plays.js";
+import { FORGOTTEN, kindOf, type ForgetResult, type UseResult, type OrderStatus, type Settled, type ShopOrder, type ShopStore } from "../store.js";
 
 export type { D1Like, D1StatementLike } from "../../admin/adapters/d1.js";
 
@@ -25,6 +26,8 @@ type Row = {
   id: string;
   player: string;
   look_id: string;
+  /** Only with the plays' migration (d1-plays.sql). */
+  kind?: string;
   usd: string;
   rate: number;
   amount: string;
@@ -45,6 +48,7 @@ const orderOf = (r: Row): ShopOrder => ({
   id: r.id,
   player: r.player,
   lookId: r.look_id,
+  kind: r.kind === "play" ? "play" : "look",
   usd: r.usd,
   rate: Number(r.rate),
   amount: r.amount,
@@ -138,6 +142,7 @@ export function createD1Shop(db: D1Like, options: { tables?: ShopTables } = {}):
     heldAmounts: (amounts) => inChunks((m) => `SELECT amount_lock FROM ${T.orders} WHERE amount_lock IN (${m})`, amounts, "amount_lock"),
 
     async insert(o) {
+      if (kindOf(o) === "play") throw new Error("this shop store sells no plays yet");
       try {
         await db
           .prepare(`INSERT INTO ${T.orders} (id, player, look_id, usd, rate, amount, amount_lock, status, created_at, expires_at, hold_until, visitor) VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)`)
@@ -219,6 +224,16 @@ export function createD1Shop(db: D1Like, options: { tables?: ShopTables } = {}):
         .prepare(`INSERT INTO ${T.meta} (key, value, at) VALUES ('rate', ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, at = excluded.at`)
         .bind(JSON.stringify({ usd: rate.usd, sources: rate.sources }), rate.at)
         .run();
+    },
+
+    // No plays yet in this adapter: no play order is ever written, so no credit exists.
+    async credits() {
+      return [];
+    },
+
+    async useCredit(_player, _playId, ref): Promise<UseResult> {
+      checkRef(ref);
+      return { status: "none" };
     },
 
     async forget(player, now): Promise<ForgetResult> {

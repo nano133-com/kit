@@ -11,7 +11,7 @@
 
 import { compareRaw, isClean, plusSteps, STEP_RAW } from "./amount.js";
 import { CLOCK_SLACK_MS } from "./match.js";
-import type { OrderStatus, ShopOrder, ShopStore } from "./store.js";
+import type { OrderKind, OrderStatus, ShopOrder, ShopStore } from "./store.js";
 
 export const ORDER_TTL_MS = 15 * 60_000;
 export const LATE_HOLD_MS = 60 * 60_000;
@@ -45,7 +45,8 @@ export function amountsFor(price: string): string[] {
 /** A new order id: 12 random bytes as hex. */
 export const newOrderId = (): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(12)), (x) => x.toString(16).padStart(2, "0")).join("");
 
-export type ReserveInput = { player: string; lookId: string; usd: string; rate: number; price: string; visitor: string | null; now: number; ttlMs?: number };
+/** `lookId` is the id of what is sold: a look's, or a play's with `kind: "play"` (default "look"). */
+export type ReserveInput = { player: string; lookId: string; kind?: OrderKind; usd: string; rate: number; price: string; visitor: string | null; now: number; ttlMs?: number };
 
 /** Makes an order with the smallest free amount at or above `p.price` (a clean amount in raw). Throws ShopBusy when every allowed amount is held. */
 export async function reserveOrder(store: ShopStore, p: ReserveInput): Promise<ShopOrder> {
@@ -59,6 +60,7 @@ export async function reserveOrder(store: ShopStore, p: ReserveInput): Promise<S
       id: newOrderId(),
       player: p.player,
       lookId: p.lookId,
+      kind: p.kind === "play" ? "play" : "look",
       usd: p.usd,
       rate: p.rate,
       amount,

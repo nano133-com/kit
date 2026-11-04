@@ -14,7 +14,8 @@
 // (the queries are equalities, and one `<` on shop_amounts.holdUntil).
 
 import { paidStatus } from "../orders.js";
-import { FORGOTTEN, type ForgetResult, type OrderStatus, type Settled, type ShopOrder, type ShopStore } from "../store.js";
+import { checkRef } from "../plays.js";
+import { FORGOTTEN, kindOf, type ForgetResult, type UseResult, type OrderStatus, type Settled, type ShopOrder, type ShopStore } from "../store.js";
 
 export type ShopDocSnap = { exists: boolean; data(): Record<string, unknown> | undefined };
 export interface ShopDocRef {
@@ -66,6 +67,7 @@ function orderOf(id: string, d: Record<string, unknown>): ShopOrder {
     id,
     player: text(d.player),
     lookId: text(d.lookId),
+    kind: d.kind === "play" ? "play" : "look",
     usd: text(d.usd, "0"),
     rate: num(d.rate),
     amount: text(d.amount, "0"),
@@ -84,6 +86,7 @@ function orderOf(id: string, d: Record<string, unknown>): ShopOrder {
 const dataOf = (o: ShopOrder): Record<string, unknown> => ({
   player: o.player,
   lookId: o.lookId,
+  kind: kindOf(o),
   usd: o.usd,
   rate: o.rate,
   amount: o.amount,
@@ -152,6 +155,7 @@ export function createFirestoreShop(db: FirestoreShopLike, collections: ShopColl
     },
 
     async insert(o) {
+      if (kindOf(o) === "play") throw new Error("this shop store sells no plays yet");
       const lockRef = col("amounts").doc(o.amount);
       const orderRef = col("orders").doc(o.id);
       try {
@@ -267,6 +271,16 @@ export function createFirestoreShop(db: FirestoreShopLike, collections: ShopColl
       const batch = db.batch();
       batch.set(col("meta").doc("rate"), { value: JSON.stringify({ usd: rate.usd, sources: rate.sources }), at: rate.at });
       await batch.commit();
+    },
+
+    // No plays yet in this adapter: no play order is ever written, so no credit exists.
+    async credits() {
+      return [];
+    },
+
+    async useCredit(_player, _playId, ref): Promise<UseResult> {
+      checkRef(ref);
+      return { status: "none" };
     },
 
     async forget(player, now): Promise<ForgetResult> {

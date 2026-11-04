@@ -69,14 +69,14 @@ else {
     const h = d1Harness(STARTER);
     const player = testAddress();
     const T = 1_800_000_000_000;
-    // Rows exactly as the starter's orders.ts writes them (reserve, then settle).
+    // Rows exactly as the starter's orders.ts writes them (reserve, then settle). They have no kind: each reads as a look.
     h.db.prepare("INSERT INTO orders (id, player, look_id, usd, rate, amount, amount_lock, status, created_at, expires_at, hold_until, visitor) VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)")
       .run("a".repeat(24), player, "red-coat", "0.25", 1.02, "2500000000000000000000000000000", "2500000000000000000000000000000", T, T + 900_000, T + 4_500_000, "vk");
     h.db.prepare("INSERT INTO orders (id, player, look_id, usd, rate, amount, amount_lock, status, created_at, expires_at, hold_until, hash, payer, paid_at, visitor) VALUES (?, ?, ?, ?, ?, ?, NULL, 'paid', ?, ?, ?, ?, ?, ?, ?)")
       .run("b".repeat(24), player, "blue-cap", "0.25", 1, "2501000000000000000000000000000", T - 9_000_000, T - 8_100_000, T - 4_500_000, "C".repeat(64), player, T - 8_500_000, "vk");
     h.db.prepare("INSERT INTO owned (player, look_id, order_id, granted_at) VALUES (?, ?, ?, ?)").run(player, "blue-cap", "b".repeat(24), T - 8_400_000);
     const open = await h.store.order("a".repeat(24));
-    assert.deepEqual(open, { id: "a".repeat(24), player, lookId: "red-coat", usd: "0.25", rate: 1.02, amount: "2500000000000000000000000000000", amountLock: "2500000000000000000000000000000", status: "open", createdAt: T, expiresAt: T + 900_000, holdUntil: T + 4_500_000, hash: null, payer: null, paidAt: null, visitor: "vk" });
+    assert.deepEqual(open, { id: "a".repeat(24), player, lookId: "red-coat", kind: "look", usd: "0.25", rate: 1.02, amount: "2500000000000000000000000000000", amountLock: "2500000000000000000000000000000", status: "open", createdAt: T, expiresAt: T + 900_000, holdUntil: T + 4_500_000, hash: null, payer: null, paidAt: null, visitor: "vk" });
     assert.deepEqual(await h.store.owned(player), ["blue-cap"]);
     assert.equal(await h.store.owns(player, "blue-cap"), true);
     assert.deepEqual((await h.store.usedHashes(["C".repeat(64)])).size, 1);
