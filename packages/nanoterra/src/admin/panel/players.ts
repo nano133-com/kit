@@ -1,5 +1,5 @@
-// The Players tab of /admin: each player who owns a look that a paid order gave them, with the looks as chips, and a search (an address or a look). It shows
-// only what the summary gives: the player's address and their looks.
+// The Players tab of /admin: each player who owns a look that a paid order gave them, or who has paid rounds ready (credits), with the looks and the ready
+// rounds as chips, and a search (an address, a look or a round). It shows only what the summary gives: the player's address, their looks, their credits.
 
 import type { AdminPlayer, AdminSummary } from "../store.js";
 import { copyKey, h, plural, shortAddress } from "./dom.js";
@@ -9,7 +9,7 @@ import { icon } from "./icons.js";
 export function playerMatches(p: AdminPlayer, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  return p.player.toLowerCase().includes(q) || p.looks.some((l) => l.name.toLowerCase().includes(q) || l.id.toLowerCase().includes(q));
+  return p.player.toLowerCase().includes(q) || [...p.looks, ...(p.ready ?? [])].some((l) => l.name.toLowerCase().includes(q) || l.id.toLowerCase().includes(q));
 }
 
 /** A colour for a player's round mark, from their address: the same address always has the same colour. */
@@ -30,12 +30,20 @@ export function playersView(colourOf: (lookId: string) => string | null): { el: 
   const sub = h("p", { class: "fine card-sub" });
   const list = h("div", { class: "players" });
   const tools = h("div", { class: "toolbar" }, h("label", { class: "search" }, icon("search", 18), search));
-  const el = h("section", { class: "admin-card players-card" }, h("div", { class: "card-head" }, h("div", { class: "card-title" }, h("h2", {}, "Players who own a look"), sub)), tools, list);
+  const heading = h("h2", {}, "Players who own a look");
+  const el = h("section", { class: "admin-card players-card" }, h("div", { class: "card-head" }, h("div", { class: "card-title" }, heading, sub)), tools, list);
 
   function draw() {
     if (!s) return;
     const owned = s.players.reduce((n, p) => n + p.looks.length, 0);
-    sub.textContent = s.players.length ? `${plural(s.players.length, "player")} own ${plural(owned, "look")} that a paid order gave them.` : "A player shows here when a paid order gives them a look.";
+    const ready = s.players.reduce((n, p) => n + (p.ready ?? []).reduce((m, r) => m + r.ready, 0), 0);
+    const rounds = (s.plays ?? []).length > 0;
+    heading.textContent = rounds ? "Players" : "Players who own a look";
+    sub.textContent = s.players.length
+      ? `${plural(s.players.length, "player")} own ${plural(owned, "look")} that a paid order gave them${rounds ? `, and have ${plural(ready, "paid round")} ready` : ""}.`
+      : rounds
+        ? "A player shows here when a paid order gives them a look or a round."
+        : "A player shows here when a paid order gives them a look.";
     tools.hidden = s.players.length < 2;
     const rows = s.players.filter((p) => playerMatches(p, query));
     list.replaceChildren(
@@ -60,12 +68,13 @@ export function playersView(colourOf: (lookId: string) => string | null): { el: 
                 return h("li", { class: "look-chip" }, dot, l.name);
               }),
             ),
+            p.ready?.length ? h("ul", { class: "look-chips ready-chips", "aria-label": "Paid rounds ready" }, ...p.ready.map((r) => h("li", { class: "look-chip ready-chip" }, h("span", { class: "mark mark-round" }, `${r.ready} ready`), r.name))) : null,
           ),
           h("span", { class: "player-count" }, plural(p.looks.length, "look")),
         );
       }),
     );
-    if (!s.players.length) list.append(h("p", { class: "empty" }, "Nobody owns a paid look yet."));
+    if (!s.players.length) list.append(h("p", { class: "empty" }, rounds ? "Nobody owns a paid look or has a round ready yet." : "Nobody owns a paid look yet."));
     else if (!rows.length) list.append(h("p", { class: "empty" }, "No player matches your search."));
   }
 

@@ -16,7 +16,7 @@
 // a gap can win, and a use is one UPDATE that holds its own check (`used_at IS NULL`), with (player, use_ref) UNIQUE: one ref uses one credit.
 
 import type { D1Like } from "../../admin/adapters/d1.js";
-import { parseRate } from "../../admin/summary.js";
+import { parseRate } from "../../admin/rate.js";
 import { paidStatus } from "../orders.js";
 import { checkRef } from "../plays.js";
 import { FORGOTTEN, kindOf, type Credit, type ForgetResult, type UseResult, type OrderStatus, type Settled, type ShopOrder, type ShopStore } from "../store.js";

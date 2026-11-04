@@ -37,7 +37,7 @@ export function orderRow(o: AdminOrder, colourOf: (lookId: string) => string | n
   const row = h(
     "article",
     { class: `order order-${o.status}${compact ? " is-compact" : ""}` },
-    h("div", { class: "order-look" }, dot, h("strong", {}, o.look)),
+    h("div", { class: "order-look" }, dot, h("strong", {}, o.look), o.kind === "play" ? h("span", { class: "mark mark-round" }, "Round") : null),
     h("div", { class: "order-status" }, badge(o.status)),
     h("div", { class: "order-amount" }, h("strong", {}, `${o.xno} XNO`), h("span", { class: "fine" }, `$${o.usd}`)),
     h("div", { class: "order-player" }, h("span", { class: "fine cell-label" }, "Player "), h("code", { title: o.player }, shortAddress(o.player)), compact ? null : copyKey(o.player, "Copy the player's address", icon("copy", 14))),

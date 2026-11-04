@@ -6,6 +6,8 @@ import { FORGOTTEN } from "../shop/store.js";
 import { isRawText, usdDecimals, xnoText } from "./amount.js";
 import type { AdminOrder, Money, PlayStats, SendBack, StoreSummary, SummaryOptions } from "./store.js";
 
+export { parseRate } from "./rate.js";
+
 /** An order as an adapter reads it: the amount is the raw amount (digits), the times are ms. */
 export type OrderRow = {
   id: string;
@@ -157,18 +159,4 @@ export function summarize(rows: readonly OrderRow[], owned: readonly { player: s
     rate,
   };
   return addPlays(base, late, rows.filter((o) => o.kind === "play" && (o.status === "paid" || o.status === "paid_late")), credits, now, options);
-}
-
-/** The `rate` row of the meta table: JSON { usd, sources } kept with the time. Anything that is not that is no rate. */
-export function parseRate(value: unknown, at: unknown): StoreSummary["rate"] {
-  if (typeof value !== "string" || typeof at !== "number") return null;
-  try {
-    const v: unknown = JSON.parse(value);
-    if (!v || typeof v !== "object") return null;
-    const { usd, sources } = v as { usd?: unknown; sources?: unknown };
-    if (typeof usd !== "number" || !Number.isFinite(usd) || !Array.isArray(sources) || !sources.every((s) => typeof s === "string")) return null;
-    return { usd, sources: sources as string[], at };
-  } catch {
-    return null;
-  }
 }

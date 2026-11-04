@@ -6,6 +6,7 @@
 // made once; a new read of the summary fills them again and keeps the chosen tab, the Shelf's draft, a search and the Game card.
 
 import type { Look } from "../../looks/look.js";
+import { checkPlays, type Play } from "../../looks/play.js";
 import type { AdminSummary } from "../store.js";
 import type { GameState } from "../switches.js";
 import { PASSKEY_PREVIEW_NOTE, previewHost } from "../../player-signin/host.js";
@@ -13,6 +14,8 @@ import { ApiError, createApi, type Api } from "./api.js";
 import type { AdminCard } from "./card.js";
 import { copyKey, h, plural, shortAddress } from "./dom.js";
 import { gameCard } from "./gameCard.js";
+import { legalCard, type LegalCard } from "./legalCard.js";
+import { roundsView } from "./rounds.js";
 import { icon, type IconName } from "./icons.js";
 import { ordersView, type OrderFilter } from "./orders.js";
 import { overviewView } from "./overview.js";
@@ -25,6 +28,11 @@ import { createTheme, themeKey, type ThemeControl } from "./theme.js";
 export type MountOptions = {
   /** The game's looks now (its looks.json). The Shelf starts from them. */
   looks: readonly Look[];
+  /**
+   * The game's plays now (its plays.json), or none. With plays, the Cosmetics tab has a "Looks / Rounds" switch (a card for each play and a draft that
+   * makes plays.json text to copy), and the Legal card names the plays its life switch holds back. A file that checkPlays refuses shows no plays.
+   */
+  plays?: unknown;
   /** Draws the wallet sign-in of the game into `into` and calls `done` when the owner has signed in. Only a wallet signature opens the admin: use the game's admin scope. */
   signIn: (into: HTMLElement, done: () => void) => void;
   /** Signs out of the ADMIN login only (the game's own login, another person's perhaps, stays). */
@@ -88,7 +96,16 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
   let shelf: ReturnType<typeof shelfView> | null = null;
   /** The "Game" card keeps its own state for the life of the page (a payment check redraws the rest, not this). */
   let game: HTMLElement | null = null;
+  let legal: LegalCard | null = null;
   let gameState: GameState | null = null;
+  const plays: Play[] = (() => {
+    try {
+      return options.plays === undefined || options.plays === null ? [] : checkPlays(options.plays, options.looks);
+    } catch {
+      return [];
+    }
+  })();
+  const rounds = plays.length ? roundsView(plays, options.looks) : null;
   let dash: Dashboard | null = null;
 
   /** The card, made once. A fault in reading the game switches must not hide the orders: the card is left out and the rest still shows. */
@@ -96,12 +113,16 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
     if (game) return game;
     try {
       gameState = await api.get<GameState>("/game");
-      game = gameCard(api, gameState, options.defaultsFile, (state) => {
+      const heard = (state: GameState) => {
         gameState = state;
         dash?.setGame(state);
-      });
+      };
+      game = gameCard(api, gameState, options.defaultsFile, heard);
+      // The Legal card reads the same settings: made once, as the Game card is.
+      legal = legalCard(api, gameState, plays, heard);
     } catch {
       game = null;
+      legal = null;
       gameState = null;
     }
     return game;
@@ -187,7 +208,25 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
       if (filter) orders.setFilter(filter);
       tabs.select(tab);
     };
-    const overview = overviewView(options.looks, colourOf, go);
+    const overview = overviewView(options.looks, colourOf, go, new Set(plays.map((p) => p.id)));
+    // The Cosmetics tab: the Shelf, and with plays a "Looks / Rounds" switch at its top (no sixth tab).
+    let kind: "looks" | "rounds" = "looks";
+    const kindKeys = rounds
+      ? (["looks", "rounds"] as const).map((k) => {
+          const b = h("button", { class: "seg-btn", type: "button", "aria-pressed": "false", "data-kind": k, onclick: () => ((kind = k), drawKind()) }, k === "looks" ? "Looks" : "Rounds");
+          return b;
+        })
+      : [];
+    const kindBar = rounds ? h("div", { class: "seg cosmetics-kind", role: "group", "aria-label": "Show looks or rounds" }, ...kindKeys) : null;
+    const drawKind = () => {
+      for (const b of kindKeys) {
+        const on = b.dataset.kind === kind;
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+        b.classList.toggle("is-on", on);
+      }
+      if (shelf) shelf.el.hidden = kind !== "looks";
+      if (rounds) rounds.el.hidden = kind !== "rounds";
+    };
     const orders = ordersView(api, colourOf, (s) => render(s));
     const players = playersView(colourOf);
     tabs.panels.overview.append(overview.el);
@@ -237,25 +276,28 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
         banner.replaceChildren(h("div", { class: "banner-icon", "aria-hidden": "true" }, icon("alert", 20)), h("div", {}, h("h2", {}, "Check these"), h("ul", {}, ...notes.map((w) => h("li", {}, w)))));
 
         const ownedLooks = s.players.reduce((n, p) => n + p.looks.length, 0);
-        const late = s.totals.paidLate.count;
+        const back = s.totals.sendBack.count;
         kpis.replaceChildren(
           kpi("earned", "coin", "Earned", `${s.totals.paid.xno} XNO`, `$${s.totals.paid.usd} · ${plural(s.totals.paid.count, "order")}`, () => go("orders", "paid")),
           kpi("open", "clock", "Open now", String(s.counts.open), `${s.counts.expired} expired`, () => go("orders", "open")),
-          kpi("late", "back", "To send back", `${s.totals.paidLate.xno} XNO`, late ? `$${s.totals.paidLate.usd} · ${plural(late, "order")}` : "Nothing to send back", () => go("orders", "paid_late"), late > 0),
+          kpi("late", "back", "To send back", `${s.totals.sendBack.xno} XNO`, back ? `$${s.totals.sendBack.usd} · ${plural(back, "payment")}` : "Nothing to send back", () => (s.sendBack.length ? (go("overview"), overview.showSendBack()) : go("orders", "paid_late")), back > 0),
           kpi("players", "players", "Players", String(s.players.length), `${plural(ownedLooks, "look")} owned`, () => go("players")),
         );
 
-        tabs.setCount("cosmetics", options.looks.length);
+        tabs.setCount("cosmetics", options.looks.length + plays.length);
         tabs.setCount("orders", s.orders.length);
         tabs.setCount("players", s.players.length);
         overview.update(s);
         overview.setGame(gameState);
         const shelfEl = shelfCard(s);
-        if (shelfEl.parentNode !== tabs.panels.cosmetics) tabs.panels.cosmetics.replaceChildren(shelfEl);
+        rounds?.update(s);
+        if (shelfEl.parentNode !== tabs.panels.cosmetics) tabs.panels.cosmetics.replaceChildren(...[kindBar, shelfEl, rounds?.el ?? null].filter((n): n is HTMLElement => n !== null));
+        drawKind();
+        legal?.setTestMode(s.testMode);
         orders.update(s);
         players.update(s);
         // The Game card is the same element at every redraw: moving it keeps its state.
-        settings.replaceChildren(...[game, signinsCard(s, api, () => void load(), options.loginsNote), ...(options.cards ?? []).map((c) => c.el), about(s)].filter((p): p is HTMLElement => p !== null));
+        settings.replaceChildren(...[game, legal?.el ?? null, signinsCard(s, api, () => void load(), options.loginsNote), ...(options.cards ?? []).map((c) => c.el), about(s)].filter((p): p is HTMLElement => p !== null));
       },
     };
   }

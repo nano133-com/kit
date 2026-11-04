@@ -30,7 +30,7 @@ before(async () => {
   ({ mountAdmin } = await import("../src/admin/panel/index.js"));
 });
 
-function setup(over: { kind?: string | null; owner?: string | null; store?: ReturnType<typeof createMemoryStore>; check?: boolean; looks?: Look[] } = {}) {
+function setup(over: { kind?: string | null; owner?: string | null; store?: ReturnType<typeof createMemoryStore>; check?: boolean; looks?: Look[]; plays?: unknown; status?: Parameters<typeof createAdminHandler>[0]["status"] } = {}) {
   const looks = over.looks ?? LOOKS;
   const store = over.store ?? createMemoryStore({
     orders: [
@@ -48,6 +48,8 @@ function setup(over: { kind?: string | null; owner?: string | null; store?: Retu
     now: () => NOW,
     limit: () => true,
     lookName: (id) => looks.find((l) => l.id === id)?.name,
+    ...(over.plays ? { plays: over.plays } : {}),
+    ...(over.status ? { status: over.status } : {}),
     ...(over.check === false ? {} : { check: async () => ({ scanned: true, settled: [] }) }),
   });
   const calls: { method: string; path: string }[] = [];
@@ -72,6 +74,7 @@ function setup(over: { kind?: string | null; owner?: string | null; store?: Retu
     },
     signIn: (into, done) => signIns.push({ into, done }),
     defaultsFile: "game.config.json",
+    ...(over.plays ? { plays: over.plays } : {}),
   };
   const mounted = mountAdmin(root, options);
   return { store, root, mounted, calls, signOuts, signIns, setKind: (k: string | null) => (kind = k) };
@@ -89,8 +92,10 @@ test("the owner sees every card: the two switches, the numbers, the Shelf, the o
   for (const part of ["Overview", "Cosmetics", "Settings", "Game", SWITCHES.character.title, SWITCHES.signin.title, SWITCHES.emotes.title, SWITCHES.freePlay.title, "Earned", "To send back", "Open now", "Shelf", "Mint Cap", "Orders", "All (2)", "Paid late (1)", "Players who own a look", "Signed in as", "Sign out"]) assert.ok(all.includes(part), part);
   assert.ok(all.includes("They start from game.config.json"));
   assert.ok(root.classList.contains("n133-admin"));
-  const switches = [...root.querySelectorAll(".switch")];
+  const switches = [...root.querySelectorAll(".game-card .switch")];
   assert.deepEqual(switches.map((s) => s.getAttribute("aria-checked")), ["true", "true", "true", "true"]);
+  // The Legal card follows the Game card: 18 and up on, a life or a continue off (the kit's defaults).
+  assert.deepEqual([...root.querySelectorAll(".legal-card .switch")].map((s) => s.getAttribute("aria-checked")), ["true", "false"]);
   assert.ok(text(root).includes("Send this amount back by hand"), "a late payment says what to do");
   // The theme: drawn on the panel and on the page's <html> while mounted; the top bar has its key.
   assert.match(root.getAttribute("data-theme") ?? "", /^(light|dark)$/);
@@ -738,4 +743,151 @@ test("wear: an item shows its slot and has no body or hat; its slot may change w
   assert.ok(text(root).includes('"wear": "charm"'), "looks.json has the new slot on the item's line");
   openLook(root, "Classic");
   assert.ok(text(cardOf(root, "Classic")).includes("Body colour"), "an outfit keeps its body colour and hat");
+});
+
+// ---- plays: the Legal card, "Looks / Rounds", the Round mark, "To send back", the players' ready rounds ----
+
+const PLAYS = [
+  { id: "extra-round", name: "Extra round", priceUsd: 0.05, use: "round" },
+  { id: "extra-life", name: "Extra life", priceUsd: 0.02, use: "life" },
+];
+const DAY = 86_400_000;
+const RAW_005 = (5n * 10n ** 28n).toString(); // 0.05 XNO
+
+/** A game that sells plays: a paid round with a credit ready, one past its wait, one of a deleted player, and a paid look. */
+function playsSetup(testMode = true) {
+  const play = (id: string, over: Record<string, unknown> = {}) => ({ id, player: OTHER, lookId: "extra-round", kind: "play", usd: "0.05", amountRaw: RAW_005, status: "paid", createdAt: NOW - 100, expiresAt: NOW + 100, paidAt: NOW - 50, payer: OTHER, hash: `H${id}`, ...over });
+  const store = createMemoryStore({
+    orders: [
+      play("p1"),
+      play("p2", { paidAt: NOW - 40 * DAY, createdAt: NOW - 40 * DAY }),
+      play("p3", { player: "deleted", payer: OWNER }),
+      { id: "o1", player: OTHER, lookId: "mint-cap", usd: "0.25", amountRaw: RAW_02, status: "paid", createdAt: NOW - 200, expiresAt: NOW + 100, paidAt: NOW - 150, payer: OTHER, hash: "H1" },
+    ],
+    owned: [{ player: OTHER, lookId: "mint-cap", at: NOW - 40 }],
+    credits: [
+      { orderId: "p1", player: OTHER, playId: "extra-round", grantedAt: NOW - DAY, usedAt: null },
+      { orderId: "p2", player: OTHER, playId: "extra-round", grantedAt: NOW - 40 * DAY, usedAt: null },
+    ],
+  });
+  return setup({ store, plays: PLAYS, status: () => ({ address: OWNER, testMode, warnings: [] }) });
+}
+
+test("the Legal card: its defaults, the switches saved at once, the plays the life switch affects, the refund words with a preview, the one confirmation", async () => {
+  const { root, mounted, store, calls } = playsSetup();
+  await mounted.ready;
+  const card = panelOf(root, "settings").querySelector(".legal-card") as HTMLElement;
+  assert.ok(card, "the Legal card is in the Settings tab");
+  assert.equal(root.querySelectorAll('[role="tab"]').length, 5, "no sixth tab");
+  assert.ok(text(card).includes("Paid rounds for 18 and up only") && text(card).includes("Sell an extra life or a continue"));
+  assert.ok(text(card).includes("This switch affects: Extra life."), text(card));
+  for (const fixed of ["No cash prize", "No prize of value", "Nothing random is bought", "No credit is converted or moved"]) assert.ok(text(card).includes(fixed), fixed);
+  const [adults, lives] = [...card.querySelectorAll(".switch")] as HTMLButtonElement[];
+  assert.deepEqual([adults.getAttribute("aria-checked"), lives.getAttribute("aria-checked")], ["true", "false"]);
+  lives.click();
+  await tick();
+  assert.equal(lives.getAttribute("aria-checked"), "true");
+  assert.equal(store.rows.get("setting:sellLives"), "on");
+  // The refund rule: the preview fills in the days; Save sends only what changed.
+  const days = card.querySelector("#legal-refund-days") as HTMLInputElement;
+  const words = card.querySelector("#legal-refund-words") as HTMLTextAreaElement;
+  assert.deepEqual([days.value, words.value], ["14", "Not used? Ask for your money back within {days} days. Write to the game's owner."]);
+  assert.equal(text(card.querySelector(".legal-preview")!), "Not used? Ask for your money back within 14 days. Write to the game's owner.");
+  days.value = "7";
+  words.value = "Ask me within {days} days.";
+  words.dispatchEvent(new win.Event("input") as unknown as Event);
+  assert.equal(text(card.querySelector(".legal-preview")!), "Ask me within 7 days.");
+  adults.click(); // a switch press keeps what is being typed
+  await tick();
+  assert.equal(words.value, "Ask me within {days} days.");
+  buttonWith(card, "Save the refund rule").click();
+  await tick();
+  assert.deepEqual([store.rows.get("setting:refundDays"), store.rows.get("setting:refundWords"), store.rows.get("setting:adultsOnly")], ["7", "Ask me within {days} days.", "off"]);
+  // A bad text: the server's words, nothing saved.
+  words.value = "<b>bold</b>";
+  buttonWith(card, "Save the refund rule").click();
+  await tick();
+  assert.match(text(card), /no "<" or ">"/);
+  assert.equal(store.rows.get("setting:refundWords"), "Ask me within {days} days.");
+  // The confirmation: once, then the date.
+  assert.ok(text(card).includes("You are responsible for the laws where you sell."));
+  buttonWith(card, "I confirm").click();
+  await tick();
+  assert.equal(store.rows.get("setting:lawsConfirmedAt"), String(NOW));
+  assert.ok(text(card).includes("Confirmed on"), text(card));
+  assert.equal(buttonWith(card, "I confirm"), undefined);
+  assert.ok(calls.every((c) => c.method === "GET" || c.path === "/api/admin/game"), "the card writes only through the settings press");
+});
+
+test("the Legal card: a live game with plays and no confirmation says that no player can buy a round now", async () => {
+  const { root, mounted } = playsSetup(false);
+  await mounted.ready;
+  const box = root.querySelector(".legal-confirm") as HTMLElement;
+  assert.ok(box.classList.contains("is-alert"));
+  assert.ok(text(box).includes("Your game is live and no player can buy a round now."), text(box));
+});
+
+test("Cosmetics: \"Looks / Rounds\" only when the game sells plays; a card for each play with its numbers; Edit makes plays.json text and sends nothing", async () => {
+  const none = setup();
+  await none.mounted.ready;
+  assert.equal(panelOf(none.root, "cosmetics").querySelector(".cosmetics-kind"), null, "a game with no plays has no switch");
+  const { root, mounted, calls } = playsSetup();
+  await mounted.ready;
+  const panel = panelOf(root, "cosmetics");
+  const keys = [...panel.querySelectorAll(".cosmetics-kind .seg-btn")] as HTMLButtonElement[];
+  assert.deepEqual(keys.map((k) => text(k)), ["Looks", "Rounds"]);
+  assert.equal((panel.querySelector(".shelf") as HTMLElement).hidden, false);
+  keys[1].click();
+  assert.equal((panel.querySelector(".shelf") as HTMLElement).hidden, true);
+  const rounds = panel.querySelector(".rounds") as HTMLElement;
+  assert.equal(rounds.hidden, false);
+  const card = rounds.querySelector('[data-play="extra-round"]')!;
+  assert.ok(text(card).includes("Extra round") && text(card).includes("5¢") && text(card).includes("one round, used once"), text(card));
+  const numbers = Object.fromEntries([...card.querySelectorAll(".round-numbers li")].map((li) => [text(li.querySelector("span")!), text(li.querySelector("strong")!)]));
+  assert.deepEqual(numbers, { Sold: "3", Used: "0", Ready: "1", "Not used in time": "1", "Paid late": "0" });
+  assert.ok(rounds.querySelector('[data-play="extra-life"]'), "a play with no sale has its card too");
+  // The draft: change a price, copy; no call to the server.
+  const before = calls.length;
+  buttonWith(rounds, "Edit").click();
+  assert.equal((buttonWith(rounds, "Copy plays.json") as HTMLButtonElement).disabled, true, "no change yet");
+  const price = rounds.querySelector('[data-play="extra-life"] input[type="number"]') as HTMLInputElement;
+  price.value = "0.03";
+  price.dispatchEvent(new win.Event("change") as unknown as Event);
+  assert.equal((buttonWith(rounds, "Copy plays.json") as HTMLButtonElement).disabled, false);
+  const file = text(rounds.querySelector("details pre")!);
+  assert.deepEqual(JSON.parse(file), [PLAYS[0], { ...PLAYS[1], priceUsd: 0.03 }]);
+  // Removing a play that has a credit waiting is a problem: the copy keys wait.
+  [...rounds.querySelectorAll('[data-play="extra-round"] button')].find((b) => text(b) === "Remove")!.dispatchEvent(new win.Event("click") as unknown as Event);
+  assert.ok(text(rounds).includes("Extra round: 1 paid credit waits for a round"), text(rounds));
+  assert.equal((buttonWith(rounds, "Copy plays.json") as HTMLButtonElement).disabled, true);
+  buttonWith(rounds, "Start over").click();
+  buttonWith(rounds, "Add a round").click();
+  assert.ok(rounds.querySelector('[data-play="extra-round-2"]'), "a new round gets a free id");
+  assert.equal(calls.length, before, "the Rounds draft makes no call");
+});
+
+test("plays in the lists: Orders mark a round, the Overview lists what to send back (payer and amount) and the number opens it, the Players tab shows the rounds ready", async () => {
+  const { root, mounted } = playsSetup();
+  await mounted.ready;
+  const orders = panelOf(root, "orders");
+  const marked = [...orders.querySelectorAll(".order")].filter((o) => o.querySelector(".mark-round"));
+  assert.equal(marked.length, 3);
+  assert.ok(text(marked[0]).includes("Extra round"));
+  const overview = panelOf(root, "overview");
+  const back = overview.querySelector(".send-back-card") as HTMLElement;
+  assert.equal(back.hidden, false);
+  const rows = [...back.querySelectorAll("li")].map((li) => text(li));
+  assert.equal(rows.length, 2);
+  assert.ok(rows.some((r) => r.includes("0.05 XNO") && r.includes("Not used in time") && r.includes("nano_3bbbb…bbbbbb")), rows.join(" | "));
+  assert.ok(rows.some((r) => r.includes("The player deleted their data") && r.includes("nano_1aaaa…aaaaaa")), rows.join(" | "));
+  const tile = root.querySelector(".kpi-late") as HTMLButtonElement;
+  assert.ok(text(tile).includes("0.1 XNO") && text(tile).includes("2 payments"), text(tile));
+  tabOf(root, "Orders").click();
+  tile.click();
+  assert.equal(overview.hidden, false, "the number opens the list to send back");
+  const best = text(overview.querySelector(".best-card")!);
+  assert.ok(best.includes("Extra round") && best.includes("Round"), best);
+  const players = panelOf(root, "players");
+  assert.ok(text(players).includes("Players"));
+  assert.deepEqual([...players.querySelectorAll(".ready-chip")].map((c) => text(c)), ["1 readyExtra round"]);
 });

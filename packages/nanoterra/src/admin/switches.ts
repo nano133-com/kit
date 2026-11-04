@@ -157,3 +157,40 @@ export function pressOf(id: SwitchId, s: GameSettings): GamePatch {
   if (id === "freePlay") return { freePlay: freePlayOn(s) ? "off" : "on" };
   return { signin: signinOn(s.signin) ? "none" : "exchange" };
 }
+
+/**
+ * The words of the "Legal" card (the Settings tab; ./panel/legalCard.ts): its two switches, the refund rule, the owner's one confirmation and what the kit
+ * holds fixed. The rules and their defaults are in ./legal.ts.
+ */
+export const LEGAL_WORDS = {
+  title: "Legal",
+  intro: "Your rules for paid rounds (plays.json). A press saves at once, and your game's shop reads them at each order of a round.",
+  noPlays: "Your game sells no rounds now: these rules apply when it does.",
+  switches: {
+    adultsOnly: {
+      title: "Paid rounds for 18 and up only",
+      on: "On: before a player's first paid round, the game asks “I am 18 or older” once and keeps the answer for that player.",
+      off: "Off: any player can buy a round, with no question about age. Check the laws where you sell.",
+    },
+    sellLives: {
+      title: "Sell an extra life or a continue",
+      on: "On: plays whose use is a life or a continue are on sale. A round that used one must post no score and earn nothing: your game does that.",
+      off: "Off: a life or a continue is not on sale, and the game does not offer it. A credit that a player already paid for stays usable.",
+    },
+  },
+  affects: "This switch affects:",
+  affectsNone: "None of your plays is a life or a continue now.",
+  refundTitle: "The refund rule and the words shown before the player pays",
+  refundNote:
+    "The pay screen of a round shows your words before any step. {days} stands for the days. The game holds no key: you send a refund by hand. The Overview tab lists the payments to send back.",
+  daysLabel: "Days to ask for a refund",
+  wordsLabel: "The words players read (plain text, one line)",
+  previewLabel: "Players read:",
+  confirm: "You are responsible for the laws where you sell.",
+  confirmNote: "Confirm this once. Outside test mode, no player can buy a round until you do. Looks are not affected.",
+  confirmLive: "Your game is live and no player can buy a round now. Confirm this once to open paid rounds.",
+  confirmKey: "I confirm",
+  confirmedOn: (date: string) => `Confirmed on ${date}:`,
+  fixedTitle: "Fixed in the kit, never a switch",
+  fixed: ["No cash prize", "No prize of value", "Nothing random is bought", "No credit is converted or moved"],
+} as const;

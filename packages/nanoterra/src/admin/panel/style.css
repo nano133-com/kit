@@ -1850,34 +1850,34 @@
   min-height: 44px;
 }
 
-.n133-admin .game-card .switch-row {
+.n133-admin :is(.game-card, .legal-card) .switch-row {
   display: grid;
   gap: 6px;
   padding: 14px 0 0;
   border-top: 1px solid var(--line);
 }
 
-.n133-admin .game-card .switch-head {
+.n133-admin :is(.game-card, .legal-card) .switch-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.n133-admin .game-card .switch-title {
+.n133-admin :is(.game-card, .legal-card) .switch-title {
   flex: 1 1 14rem;
   min-width: 0;
   font: 700 16px/1.3 var(--font);
 }
 
-.n133-admin .game-card .switch-note {
+.n133-admin :is(.game-card, .legal-card) .switch-note {
   max-width: 62ch;
   color: var(--ink-soft);
   font-size: 14px;
   line-height: 1.45;
 }
 
-.n133-admin .game-card .switch-review {
+.n133-admin :is(.game-card, .legal-card) .switch-review {
   padding-top: 12px;
   border-top: 1px solid var(--line);
 }
@@ -2266,4 +2266,134 @@
     margin-left: 0;
   }
 
+}
+
+/* ---- The "Legal" card (legalCard.ts): its switches share the Game card's rows; the refund rule, the owner's confirmation, the rules the kit holds ---- */
+
+.n133-admin .legal-confirm {
+  margin-top: 4px;
+}
+
+.n133-admin .legal-confirm.is-alert {
+  outline: 2px solid var(--alarm-ink);
+}
+
+.n133-admin .legal-confirm.is-done p {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.n133-admin .legal-field {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.n133-admin textarea.input.legal-words {
+  min-height: 88px;
+  padding: 10px 12px;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.n133-admin .legal-preview-box {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--ground);
+}
+
+.n133-admin .legal-preview {
+  margin: 0;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+
+.n133-admin .legal-fixed-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}
+
+.n133-admin .legal-fixed-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---- The Cosmetics tab's "Looks / Rounds" switch and the Rounds screen (rounds.ts) ---- */
+
+.n133-admin .cosmetics-kind {
+  margin-bottom: 12px;
+}
+
+.n133-admin .cosmetics-kind .seg-btn {
+  min-height: 44px;
+  padding: 0 18px;
+}
+
+.n133-admin .rounds-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.n133-admin .round-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+}
+
+.n133-admin .round-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.n133-admin .round-name {
+  font-size: 16px;
+}
+
+.n133-admin .round-price {
+  margin: 0;
+}
+
+.n133-admin .round-numbers li.is-alert strong {
+  color: var(--alarm-ink);
+}
+
+.n133-admin .round-field {
+  display: grid;
+  gap: 4px;
+}
+
+.n133-admin .mark-round {
+  margin-left: 6px;
+  background: var(--info-bg);
+  color: var(--info-ink);
+}
+
+/* ---- The Overview's "To send back" card ---- */
+
+.n133-admin .send-back-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.n133-admin .ready-chips {
+  margin-top: 6px;
 }
