@@ -31,3 +31,4 @@ Follow step 13 of the package's `ai/SPEC.md` (https://nano133.com/build/nanoterr
 
 Never show a pay screen that pays an address nobody holds the key for without the stamp. A look
 only changes how the character looks: nothing random, no score. Finish with the SPEC's step 13 check.
+To charge for a round (a play bought and used once), use the skill `add-paid-rounds` after this one.

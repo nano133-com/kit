@@ -14,7 +14,7 @@ themselves. This package gives your game these things:
 - **An options menu** (`/options`, since 0.8.0): the game's settings as data, with defaults for each device, kept in the player's browser, and a ready Options key and panel (Basic and Advanced); common settings to opt into, and a section another module adds.
 - **The player's sign-in** (`/player-signin`, since 0.9.0): a passkey (Face ID, Touch ID or the device PIN) or a wallet app (Berry Wallet, NanChat, Nautilus), the sessions and a ready sign-in sheet, for a game with a server. It needs `@nano133/signin` (an optional peer).
 - **Emotes** (`/emotes`, since 0.8.0): Nano Island's eleven emotes on the player's character (the Wave, Cheer, Clap, Dance and seven more, made in Blender), and the emote wheel of eight that the player picks, which also plays a game's own animations.
-- **A shop** (`/shop`, since 0.9.0): sells looks for Nano (XNO) straight to the creator's address, with no key on the server: the routes, the payment check, D1 and Firestore stores, and the Looks and pay sheets (QR code, test mode stamp).
+- **A shop** (`/shop`, since 0.9.0): sells looks for Nano (XNO) straight to the creator's address, with no key on the server: the routes, the payment check, D1 and Firestore stores, and the Looks and pay sheets (QR code, test mode stamp). Since 0.15.0 it also sells **plays**, one-time purchases (a round, a level, a life or a continue), pay to play only, with the creator's Legal card in /admin.
 
 It replaces `@nano133/character` 0.1.0, `@nano133/ticket` 0.1.0 and `@nano133/looks` 0.1.0
 (see "Moving from the three old packages"). The signature checks, checkout and late returns stay in their own packages
@@ -66,7 +66,7 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra` | the types `Look` and `LookRecord`, and nothing that runs | no | 0 |
 | `@nano133/nanoterra/character/record` | the character's **record**: pack, unpack, check, `fromLegacy`, `toLegacy`, `diceRecord`, the lists | no | 4.4 kB (all), 1.9 kB (pack, unpack and the two legacy calls) |
 | `@nano133/nanoterra/ticket` | read and check a sign-in ticket | no | 4.7 kB (all), 3.1 kB (`readTicket` alone) |
-| `@nano133/nanoterra/looks` | the looks ladder | no | 1.9 kB (all), 0.9 kB (`checkLooks` alone) |
+| `@nano133/nanoterra/looks` | the looks ladder, and the plays' check (`checkPlays`, `paidRoundsOn`; since 0.15.0) | no | 1.9 kB (all), 0.9 kB (`checkLooks` alone); 4.0 kB (all) with the plays |
 | `@nano133/nanoterra/character` | the builder and `createCharacter` (it includes the record), with the three sockets | yes | 21.8 kB (all, with the sockets and `createLookPreview` of 0.3.0; 20.4 kB on 0.2.0), 17.8 kB (`createCharacter` alone, measured on 0.2.0) |
 | `@nano133/nanoterra/model` | the 3D model check: a `.glb` against the island's limits or a cosmetic's (since 0.3.0) | no | 8.8 kB |
 | `@nano133/nanoterra/input` | let go of held keys and sticks when the player leaves the page, and pause: `releaseWhenLost`, `pauseWhenLeft`, `swallowsKeyup` (since 0.3.1); the camera's distance on one curve: `createZoom`, `listenZoom` (since 0.13.0) | no | 0.5 kB, 1.0 kB more with the zoom |
@@ -91,14 +91,13 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/player-signin/d1`, `/player-signin/firestore` | the store for D1 (with the migration `/player-signin/d1.sql`) or Firestore (a small interface, no Firebase dependency) (since 0.9.0) | no | 1.2 kB, 1.3 kB |
 | `@nano133/nanoterra/player-signin/panel` | the sign-in sheet, and its stylesheet `@nano133/nanoterra/player-signin/style.css` (since 0.9.0) | no | 8.7 kB with `@nano133/signin/passkey` + 8.1 kB of CSS (minified); the purse's signing code loads at a passkey sign-in, a chunk of its own: 39.8 kB gzip |
 | `@nano133/nanoterra/player-signin/conformance` | the store's rules as test cases, for a store a game writes itself (since 0.9.0) | no | n/a |
-
-| `@nano133/nanoterra/shop` | the shop's rules and routes, the payment scan, a memory store, the CSP lists (server code; since 0.9.0) | no | 9.1 kB (all), 7.1 kB (`createShopHandler` alone) |
-| `@nano133/nanoterra/shop/d1`, `/shop/firestore` | the shop's store on D1 (the starter's tables, `/shop/d1.sql`) or Firestore: `createD1Shop`, `createFirestoreShop` (since 0.9.0) | no | 2.4 kB, 2.2 kB |
-| `@nano133/nanoterra/shop/worker` | the shop for a Worker with D1, from the starter's settings: `createShop` (since 0.9.0) | no | 10.0 kB (with the D1 store and Turnstile) |
-| `@nano133/nanoterra/shop/panel` | the Looks key, the looks sheet and the pay sheet with its own QR code: `mountShop`, and its stylesheet `@nano133/nanoterra/shop/style.css` (since 0.9.0) | no | 10.0 kB + 2.5 kB of CSS (gzip; 8.5 kB minified) |
+| `@nano133/nanoterra/shop` | the shop's rules and routes, the payment scan, a memory store, the CSP lists (server code; since 0.9.0); the plays and `findUnmatched` (since 0.15.0) | no | 9.1 kB (all), 7.1 kB (`createShopHandler` alone); 12.7 kB (all) with the plays |
+| `@nano133/nanoterra/shop/d1`, `/shop/firestore` | the shop's store on D1 (the starter's tables, `/shop/d1.sql`; the plays' migration `/shop/d1-plays.sql`, since 0.15.0) or Firestore: `createD1Shop`, `createFirestoreShop` (since 0.9.0) | no | 2.4 kB, 2.2 kB |
+| `@nano133/nanoterra/shop/worker` | the shop for a Worker with D1, from the starter's settings: `createShop` (since 0.9.0) | no | 10.0 kB (with the D1 store and Turnstile); 14.3 kB with the plays |
+| `@nano133/nanoterra/shop/panel` | the Looks key, the looks sheet and the pay sheet with its own QR code: `mountShop`, and its stylesheet `@nano133/nanoterra/shop/style.css` (since 0.9.0); the Play key and the "18 or older" step (since 0.15.0) | no | 10.0 kB + 2.5 kB of CSS (gzip; 8.5 kB minified); 11.2 kB with the plays |
 | `@nano133/nanoterra/shop/conformance` | the shop's money rules as test cases, for a store a game writes itself (since 0.9.0) | no | n/a |
 
-Measured 2026-10-26 (the friends paths 2026-10-30, the options, the emotes, the player sign-in and the shop paths 2026-11-01): `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
+Measured 2026-10-26 (the friends paths 2026-10-30, the options, the emotes, the player sign-in and the shop paths 2026-11-01; "with the plays" 2026-11-03, by the size test): `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
 All four paths together: 23.6 kB. A test of the package proves that the record, the ticket, the looks and the small part import no package at all.
 
 ## The character
@@ -542,6 +541,8 @@ const admin = createAdminHandler({
   status: (now, summary) => ({ address: ownerAddress, testMode, warnings }),   // what only your game knows (the store's numbers come too, for a warning like "2 payments came late")
   lookName: (id) => looks.find((l) => l.id === id)?.name,
   check: (now) => checkPayments(now),      // optional: the payment check
+  plays,                                   // optional (since 0.15.0): plays.json, for the plays' numbers (see "Plays: charge for a round")
+  unmatched: shop.unmatched,               // optional (since 0.15.0): the "Unmatched payments" card (the Worker shop's, or findUnmatched)
 });
 
 const answer = await admin.handle(request);   // null when the request is not for /api/admin
@@ -561,8 +562,8 @@ neither header (curl) and the browser's own address bar (`Sec-Fetch-Site: none`)
 
 **The handler** sends every request under the base path (`/api/admin` by default) through the guard first, before the route is looked up: a visitor who is not the owner
 gets 401 or 403 for any path, so nothing about the routes leaks. A POST must come from the game's own page (`Origin`, else `Sec-Fetch-Site: same-origin`). It sets no CORS
-header, always sends `Cache-Control: no-store`, reads at most 512 bytes of a press, and limits presses to 30 a minute. A fault in your store gives a plain 500 that shows
-nothing of the fault (`onError` hears it). The only writes are the five settings (and, when the game turns on the sign-in list, the deletion of the admin sessions), **never a look, a price or an order**: a change of looks stays a change of your repository.
+header, always sends `Cache-Control: no-store`, reads at most 2048 bytes of a press (512 before 0.15.0), and limits presses to 30 a minute. A fault in your store gives a plain 500 that shows
+nothing of the fault (`onError` hears it). The only writes are the settings, the Game card's five and (since 0.15.0) the Legal card's five (and, when the game turns on the sign-in list, the deletion of the admin sessions), **never a look, a play, a price, an order or a credit**: a change of looks or plays stays a change of your repository.
 
 **Your own routes read the switches** with `loadGameSettings(store, defaults)` (for the listing file's `signin` and `freePlay` words, the character, the friends list and the emotes): the stored word, else your default,
 and your defaults when the store fails.
@@ -624,17 +625,17 @@ the package's own sign-in, `/admin-signin`, passes it): only a wallet signature 
 
 ### The store (an adapter for your database)
 
-`createAdminHandler` needs a store: three calls, `readSettings()`, `saveSettings(patch, now)` and `summary(now)`. Two adapters come with the package, and **both write only the five settings** (the D1 store also deletes the admin sessions, but only when the game turns on the sign-in list: see below)
+`createAdminHandler` needs a store: three calls, `readSettings()`, `saveSettings(patch, now)` and `summary(now, options?)`. Two adapters come with the package, and **both write only the settings** (the Game card's five, and since 0.15.0 the Legal card's five: `SETTING_KEYS`) (the D1 store also deletes the admin sessions, but only when the game turns on the sign-in list: see below)
 (`setting:character`, `setting:signin`, `setting:friends`, `setting:emotes` and `setting:freePlay`); every other call they make is a read. Both must pass the same **store contract**, `adminStoreConformance(make)` in
 `@nano133/nanoterra/admin/conformance`: the settings are kept and accumulate, saving changes no order, no owned look and no other row, an open order past its expiry counts as expired,
 the money is totalled right, the newest 500 orders come first, and a bad rate row is ignored. A game with another database writes its own store and runs the same contract.
 
 ```ts
 import { createD1Store } from "@nano133/nanoterra/admin/d1";            // the game starter's tables: meta, orders, owned (migrations/0001_init.sql)
-const store = createD1Store(env.DB);                                      // Cloudflare's D1Database fits
+const store = createD1Store(env.DB);                                      // Cloudflare's D1Database fits; { plays: true } reads the plays too (the shop's d1-plays.sql)
 
 import { createFirestoreStore } from "@nano133/nanoterra/admin/firestore";   // Firestore (the Admin SDK's `Firestore` fits the small interface)
-const store = createFirestoreStore(db);                                   // meta/{key}, orders/{id}, owned/{player__lookId}; the three names can be changed
+const store = createFirestoreStore(db);                                   // meta/{key}, orders/{id}, owned/{player__lookId}, credits/{orderId}; the four names can be changed
 ```
 
 The D1 adapter uses the starter's own queries (the counts and the totals over all orders; the list is the newest 500). The Firestore adapter reads the newest 5000 orders and every owned look,
@@ -684,16 +685,16 @@ mountAdmin(document.getElementById("admin")!, {
 
 The panel draws, from the top: a bar with who is signed in (the short address and a copy key), Live or Test mode, the bot check and Sign out; what is still off (the
 status warnings, one banner); four numbers (Earned, Open now, To send back, Players: a press opens the list behind each); then five tabs. **Overview**: the best-selling
-looks with their share of the money, the last five orders, the switches as On or Off (and the friends list's choice) and the shelf in numbers (a game with no order yet gets three first steps).
-**Cosmetics**: the **Shelf** (below). **Orders**: a filter by status with its count, a search (a look, an address or a block), "Check payments now" when the game gave a
+looks (and rounds) with their share of the money, "To send back" and "Unmatched payments" (see "Plays: charge for a round"), the last five orders, the switches as On or Off (and the friends list's choice) and the shelf in numbers (a game with no order yet gets three first steps).
+**Cosmetics**: the **Shelf** (below), and with plays a "Looks / Rounds" switch. **Orders**: a filter by status with its count, a search (a look, an address or a block), "Check payments now" when the game gave a
 check, "Paid late" with the address to send the money back to, 20 orders at a time; a card each on a phone, a table on a wide panel. **Players**: each player who owns a
-look, with their looks. **Settings**: the **Game** card (the character and sign-in switches, the friends list's three-way choice, "Allow Nanoterra emotes" and "Free play"), the Sign-ins card and the facts (the address, the mode, the nodes, the last price). The tabs are
+look, with their looks. **Settings**: the **Game** card (the character and sign-in switches, the friends list's three-way choice, "Allow Nanoterra emotes" and "Free play"), the **Legal** card (since 0.15.0: the rules of paid rounds), the Sign-ins card and the facts (the address, the mode, the nodes, the last price). The tabs are
 real tabs (the arrow keys, Home and End work); every tab is made once, so a draft, a search and a switch keep their state, and the panel never writes the page's address.
 A visitor who is signed out gets the game's sign-in; a wrong wallet, a Nanoterra sign-in and a missing owner address each get their own screen and see no data (a sign-out
 takes the drawn data off the page). Options: `api` (the handler's base path), `noAddressHelp`, `lookPicture(look)` (your own picture of a look for the Shelf), `repoHelp`,
 `loginsNote`, `playerPasskeys` (the game offers its players a passkey: on `*.workers.dev` the banner says that passkeys turn on with the game's own
 domain), `cards` (since 0.12.0: cards of the game's own for Settings, after Sign-ins, `{ el, refresh? }`; `refresh()` runs at each sign-in; the owner's passkeys
-card is one) and `fetch`.
+card is one) `plays` (since 0.15.0: plays.json) and `fetch`.
 
 **The Shelf** shows the looks your game sells now in a grid of cards: a big picture on a soft tint of the look's colour, the price with its step on the ladder ("25¢ ·
 statement"), what it has sold and its share of the sales, its slots as chips; filters (All, For sale, Free, Not sold yet) and a sort (Best selling, price, name, the
@@ -1391,7 +1392,7 @@ mountPlayerSignin(document.body, {
 
 ## The shop (`/shop`; since 0.9.0)
 
-A shop that sells **looks** for Nano (XNO), the way the [game starter](https://github.com/nano133-com/nano-game-starter) sells them. A game
+A shop that sells **looks** (and since 0.15.0 **plays**, see below) for Nano (XNO), the way the [game starter](https://github.com/nano133-com/nano-game-starter) sells them. A game
 installs it instead of copying the starter's shop.
 
 **The money model.** The money goes **straight from the player's wallet to the creator's address**. The server holds **no key** and sends
@@ -1403,7 +1404,7 @@ one puts a key on the server.)
 | Path | What |
 |---|---|
 | `@nano133/nanoterra/shop` | the rules (amounts in raw text and BigInt, the reservation, the match, the price, the nodes, the address checksum), the routes (`createShopHandler`), the payment scan (`scanPayments`), a memory store, the CSP lists. No DOM, no database, no package. |
-| `@nano133/nanoterra/shop/d1`, `/shop/d1.sql` | the store on Cloudflare D1, on the starter's own tables (`createD1Shop`), and `d1Limit` and `visitorKey` |
+| `@nano133/nanoterra/shop/d1`, `/shop/d1.sql`, `/shop/d1-plays.sql` | the store on Cloudflare D1, on the starter's own tables (`createD1Shop`), the plays' migration, and `d1Limit`, `visitorKey` and `limitKey` |
 | `@nano133/nanoterra/shop/firestore` | the store on Firestore (a small interface, no Firebase dependency): `createFirestoreShop` |
 | `@nano133/nanoterra/shop/worker` | the shop for a Worker with D1, set up from the starter's settings: `createShop(env, { catalogue, player })` |
 | `@nano133/nanoterra/shop/panel`, `/shop/style.css` | the Looks key, the looks sheet and the pay sheet (QR code, test stamp), in plain DOM: `mountShop` |
@@ -1464,7 +1465,7 @@ The starter's paths and JSON, so the starter's page keeps working. `base` is `"/
 
 ### The money rules (every store keeps them: `shopStoreConformance` proves it)
 
-- An order holds its amount from its start to **an hour after** it ends (15 minutes): **no two held orders ever hold the same amount**, even
+- An order holds its amount from its start to **an hour after** it ends (15 minutes; a play's order: 15 minutes after, see "Plays"): **no two held orders ever hold the same amount**, even
   when they are made at the same instant. A late payment is then still recognised, and never counts for a newer order.
 - Amounts are text and BigInt, never floats. Prices round **up** (the creator never gets less than the price). At most a tenth of the price
   more (and at most 100 amounts); then the player is asked to try again in a minute.
@@ -1502,7 +1503,7 @@ for (const c of shopStoreConformance(async () => ({ store: newEmptyStore(), dump
 **"Delete my data":** `store.forget(player, now)`. While an order of the player may still be paid (its amount is held) it deletes nothing and
 answers `waitUntil` (try again then). Else the owned looks and the orders that were never paid go; a paid order stays as the creator's sales
 record with the player (and its payer) replaced by `"deleted"`, and its payment's hash kept (so it never counts again); a **late** payment keeps
-its payer, because the creator must send it back.
+its payer, because the creator must send it back. (The plays' credits: see "Plays: charge for a round".)
 
 ### The panel
 
@@ -1603,12 +1604,269 @@ counter** as they are, and the page needs no change for the server part.
    stays while the sign-in sheet draws its QR code (or use `qrSvg` from `@nano133/nanoterra/shop/panel`).
 6. Keep the starter's route tests (`admin.test.ts` "test mode" and "never shows one player's order to another"): they pass unchanged.
 
+### Plays: charge for a round (since 0.15.0)
+
+A **play** is one thing a player buys and uses **once**: a round, a level, a life or a continue. A player never owns a play. A paid order of a
+play gives the player ONE **credit**, and the game's round start uses it. A play goes through the same path as a look: the same orders, the
+same amount reservation, the same payment scan and the same test mode. Only the grant differs.
+
+**The rule is pay to play only.** A play buys one use of the game and nothing else. Read "Pay to play: the rules" below before you sell one.
+
+#### `plays.json`
+
+A file beside `looks.json`, checked with `checkPlays` (from `@nano133/nanoterra/looks`, and `/shop`). No DOM, no network.
+
+```json
+[
+  { "id": "extra-round", "name": "Extra round", "priceUsd": 0.05, "use": "round" },
+  { "id": "level-2", "name": "Level 2", "priceUsd": 0.1, "use": "level", "useWithinDays": 7 }
+]
+```
+
+| Field | Rule |
+|---|---|
+| `id` | 1 to 40 lowercase letters, digits or dashes. Never the id of a look (plays and looks share one id space: an order keeps either id). Never change it after a sale. |
+| `name` | what the player reads, 1 to 40 characters |
+| `priceUsd` | above 0, at most 1000, at most 4 decimals (the looks' rule). A free play is not a play. |
+| `use` | one of `"round"`, `"level"`, `"life"`, `"continue"` (`PLAY_USES`, a closed list). The shop sells a `"life"` or a `"continue"` only while the Legal card's "Sell an extra life or a continue" is on. |
+| `useWithinDays` | optional: how long a credit waits for its use, a whole number from 1 to 365. Default 30 (`PLAY_WAIT_DAYS`). |
+
+`checkPlays` is stricter than `checkLooks`. **A field it does not know is a mistake**, never dropped. The fields of a prize, a draw or a reward
+(`prize`, `reward`, `odds`, `chance`, `random`, `tickets`, `tokens`, `cash`, `bonus`, in any case or form) are refused with the words "a play buys
+one use of the game, nothing else". `playProblems(raw, looks)` gives every mistake; `checkPlays(raw, looks)` throws with the first. An empty list
+is good: the game sells no play.
+
+**The listing file.** `paidRoundsOn(plays)` is `true` when the game's plays hold at least one play. Put it in your listing file beside free play:
+
+```ts
+import { checkPlays, paidRoundsOn } from "@nano133/nanoterra/looks";
+const plays = checkPlays(rawPlaysJson, looks);
+const listing = { nanoGame: 1, /* name, line, play, art, creator, ... */ signin: settings.signin, freePlay: freePlayOn(settings), paidRounds: paidRoundsOn(plays) };
+```
+
+A listing file without `paidRounds` says that the game sells no paid rounds. Nanoterra's listing reads the word: that part is nano133.com's, not the
+kit's. Like the other words, a change of a listed game's file waits for Nanoterra's review.
+
+#### The server: plays.json, the Legal card and the admin
+
+```ts
+import { createShop } from "@nano133/nanoterra/shop/worker";
+import { createAdminHandler, loadLegal } from "@nano133/nanoterra/admin";
+import { createD1Store } from "@nano133/nanoterra/admin/d1";
+import looks from "../../looks.json";
+import plays from "../../plays.json";
+
+const adminStore = createD1Store(env.DB, { plays: true });   // the admin reads the play orders and the credits (needs d1-plays.sql)
+const shop = createShop(env, {
+  catalogue: looks,
+  plays,                                                     // checked with checkPlays: a bad file throws here, before any sale
+  legal: () => loadLegal(adminStore),                        // the creator's Legal card, read at each order of a play
+  player: async () => session?.address ?? null,
+});
+const admin = createAdminHandler({
+  store: adminStore, defaults, owner, session,               // as in "The admin"
+  plays,                                                     // names the play orders and lists every play
+  check: (at) => shop.scan(at),
+  unmatched: shop.unmatched,                                 // optional: the "Unmatched payments" card
+});
+```
+
+On another server, give `createShopHandler` the same `plays` and `legal`. Without `legal` (or when it fails: `onError` hears it) the shop uses
+the careful defaults, `DEFAULT_LEGAL`: 18 and up, no life or continue, and no owner's confirmation, so **no play order outside test mode**.
+`legal` is never read for a look.
+
+#### The routes and the answers
+
+`playsBase` is `"/api/plays"` (an option of the handler and the panel). Every route needs the PLAYER's sign-in (401 without it, never the
+admin's login), and every POST must come from the game's own page.
+
+| Route | Answer |
+|---|---|
+| `POST {base}` `{ playId, turnstile? }` | a new order of a play (exactly one of `lookId` and `playId`): 201 and the pay view, with `kind: "play"`, `playId` and `refund: { days, text }` (the creator's words with the days filled in); 200 and the same open order again. Test mode: still no `address` and no `uri`. |
+| `GET {playsBase}` | `{ plays: [{ playId, ready, forSale }] }`: the signed-in player's own ready credits of every play, and whether an order of it can be made now |
+| `POST {playsBase}/use` `{ playId, ref }` | the round's start uses one credit: 200 `{ used: true, again: false }`; 200 `{ used: true, again: true }` for a ref this player used before; 402 "No round is ready. Buy one first."; 409 the ref used another play; 400 no such play, or a bad ref (1 to 64 letters, digits, `:`, `_` or `-`); 429 after 60 uses a minute for one player |
+| `POST {playsBase}/adult` `{ adult: true }` | the player says "I am 18 or older": 200 `{ adult: true }`, kept for the player until "Delete my data"; 429 after 10 in 10 minutes |
+
+The refusals of a play's order, before anything is counted or written (no order, no held amount, no limit used):
+
+- 403 `{ reason: "owner" }`: outside test mode, the owner has not confirmed "You are responsible for the laws where you sell." yet.
+- 403 `{ reason: "not_for_sale" }`: a life or a continue while "Sell an extra life or a continue" is off. Credits paid before stay usable.
+- 403 `{ needs: "age" }`: "Paid rounds for 18 and up only" is on and the player has not said yes. The panel then shows the "18 or older" step.
+- 409: the player has 5 ready credits of the play, or ready credits and open orders of it that make 5 (`MAX_READY_PER_PLAY`). This keeps the
+  money that waits in credits small. The check is not one step: orders made at the same instant can pass it together.
+- The other refusals are a look's (400, 429, 503).
+
+**The answer of a use carries only `used` and `again`**: nothing about the round (no number, no level, no bonus). The kit never tells the game
+to change a rule.
+
+#### The round's start uses the credit
+
+**A credit is used at the START of a round, never at the buy.** A round that could not start costs nothing. Make a new `ref` (the round's own id)
+for each round, and start the round only after the answer says `used`.
+
+- **A ref answers `"again"` for good**, also days later and after the credit's end. The same ref never uses a second credit, also when many calls
+  with it come at once. So a game server that starts its own rounds keeps its own map of ref to round, and starts the round of a ref only once.
+- A game whose server starts its rounds calls the handler from its own round route: `shop.use(player, playId, ref)` gives `{ used: true, again }`
+  or `{ used: false, why }` (`"none"`, `"other-play"`, `"no-play"`, `"bad-ref"`). `shop.ready(player)` gives `[{ playId, ready }]` for every play,
+  and `shop.refusal(player, playId)` says why an order would be refused now (or null).
+- **A paid round must not pause**: its deadline must not move. Keep `releaseWhenLost` and leave `pauseWhenLeft` out (see "Leaving the page").
+- **The kit guards the money, not the round.** A round that runs in the browser can be cheated: a player who changes the page can play without a
+  credit. A round that must be trusted (a board score, a reward) needs a server that replays it, as nano133.com's arcade does.
+
+#### The money rules of a play (every store keeps them: `shopStoreConformance` proves it)
+
+- A `"paid"` play order gives **one credit**, keyed by the order, in the SAME step as the payment. A second settle writes nothing. The credit
+  belongs to **the order's player**, whoever paid. A `"paid_late"` order gives no credit, as a late look gives no look.
+- Looks and plays share the reservation: a look's order and a play's order never hold one amount.
+- **A play's order holds its amount 15 minutes, then 15 minutes more** (`PLAY_LATE_HOLD_MS`; a look's: 15 minutes, then 60). Plays are cheap and
+  bought often, so their amounts come free sooner. A payment later than that is not this order's: a newer order of the same amount may take
+  it, or it shows in "Unmatched payments" (below).
+- A use takes the player's oldest ready credit of the play, **exactly once**, in ONE step. Twenty uses with twenty refs and three credits use
+  exactly three.
+- **Each credit keeps its own end**, fixed when it is paid: the time the payment is recorded plus the play's `useWithinDays` when the order was made. A later
+  change of `plays.json` never moves the end of a credit already paid. An unused credit past its end cannot be used, and the admin lists it.
+- A credit of a play that left `plays.json` cannot be used either: the admin lists it to send back ("No longer sold").
+- **WARNING: a very small price has few free amounts.** The kit has no minimum price, but a price can ask for only a tenth more than itself, in
+  steps of 0.0001 XNO (at most 100 amounts). At $1 a XNO, a 1¢ play has 11 amounts and a 5¢ play 51, and each order of a play holds one for up to
+  30 minutes. When every amount of a price is held, the next player gets 503 "Many players are paying this price right now. Try again in a
+  minute." **A price under about 5¢ can be busy.** Test it with your expected number of players.
+
+#### The stores
+
+- **D1:** add `@nano133/nanoterra/shop/d1-plays.sql` as the game's next migration (for example `migrations/0012_plays.sql`), after the shop's
+  tables. **Apply it BEFORE you deploy the Worker that sells plays** (`wrangler d1 migrations apply`, which runs each file once: its `ALTER TABLE`
+  has no `IF NOT EXISTS`). It adds the orders' `kind`, `use_days` and `forgot_unused`, and the tables `credits` and `play_adults`. Every order made
+  before reads as a look. `createD1Shop` reads the schema (the orders' `kind` column) to know that the migration is there, never `plays.json`:
+  without it the store sells looks only, and a play order throws before it is written. `createShop` passes `plays: true` when `plays.json` has a
+  play. The admin's D1 store needs `createD1Store(db, { plays: true })` to read the plays. A game that sells only looks needs none of it.
+- **Firestore:** no migration. `credits/{orderId}` (one credit per paid play order), `shop_uses/{player|ref}` (one ref of a player uses one
+  credit) and `play_adults/{player}` (the "18 or older" yes). The names can be changed: `createFirestoreShop(db, { credits, uses, adults })`, and
+  `createFirestoreStore(db, { credits })` for the admin. The indexes Firestore makes by itself are enough.
+- **Your own database:** the `ShopStore` adds `credits(player, now)`, `useCredit(player, playId, ref, now)`, `adult(player)` and
+  `keepAdult(player, now)`. `shopStoreConformance(make)` runs the plays' cases too; `shopStoreConformance(make, { plays: false })` leaves them out
+  for a store that sells looks only.
+
+#### The panel
+
+```ts
+const shop = mountShop(el, {
+  ...options,                                    // as for the looks
+  plays,                                         // plays.json (the server still decides every price)
+  onCredit: (playId, play) => showReady(play),   // a paid order gave one credit
+});
+hud.append(shop.playKey("extra-round", (playId) => startPaidRound(playId))!);
+await shop.ready();                              // the credits and what is for sale, once a player is signed in
+
+async function startPaidRound(playId: string) {
+  const ref = crypto.randomUUID();               // the round's own id: a new one for each round
+  const res = await fetch("/api/plays/use", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ playId, ref }) });
+  if (res.ok) startRound(ref);                   // { used: true, again }: start the round of this ref once
+  await shop.ready();                            // the key reads the credits again
+}
+```
+
+- `playKey(playId, start)`: a Play key for the game to place. "Play for 5¢" while no credit is ready (a press buys one); "1 round ready" while
+  one is (a press calls your `start`). It hides while the play is not for sale and none is ready. 48 px high, 16 px text. Null for an id that
+  is not a play.
+- `buyPlay(playId)`: the same pay sheet as a look's, on the next frame: the price before any step, the exact amount, the QR code, "TEST MODE: DO
+  NOT PAY" with the wallet key off. Its line says "1 round. Used once." **The creator's refund words stand before any step**, above the QR code,
+  the address and the wallet key. Paid: "Paid. Your round is ready." and `onCredit`. A refusal shows the server's words, and Back closes the sheet.
+- **The "18 or older" step.** When the order answers `needs: "age"`, the sheet shows "Paid rounds are for players 18 and up." with "I am 18 or
+  older" and "Not now". Yes posts `{playsBase}/adult` and orders again; Not now closes the sheet and orders nothing. The server keeps the yes, so a
+  player sees the step once.
+- `ready()`: `GET {playsBase}`, and the Play keys drawn again. Call it after a round used a credit.
+- The words (`SHOP_WORDS`): `playFor`, `playReady`, `playTitle`, `playLine`, `playPaid`, `playLate`, `playSignIn`, `ageLine`, `ageYes`, `ageNo`;
+  `playPrice` and `useWord` make the price and the use word. A play's sheets keep at most 30 of the kit's words (the creator's refund words are
+  counted apart) and no sentence over 10 (`test/panel-words.test.ts`).
+
+#### The Legal card (the admin's Settings tab)
+
+The creator decides the rules of paid rounds in /admin, in a **Legal** card after the Game card (no sixth tab). A press saves at once
+(the admin's `POST /api/admin/game`, the same press as the Game card's), and the shop reads the card at each order of a play.
+
+| Setting | Default | What the kit does |
+|---|---|---|
+| Paid rounds for 18 and up only (`adultsOnly`) | **On** | before a player's first paid play: the "I am 18 or older" step, kept for the player |
+| Sell an extra life or a continue (`sellLives`) | **Off** | an order of a play whose use is `"life"` or `"continue"` is refused (403 `not_for_sale`); credits already paid stay usable |
+| The refund rule (`refundDays`, `refundWords`) | 14 days, "Not used? Ask for your money back within {days} days. Write to the game's owner." | the pay sheet of a play shows the words before any step (`{days}` stands for the days; 0 to 365 days; 1 to 280 characters of plain text on one line, never `<` or `>`) |
+| The owner's confirmation (`confirmLaws: true`) | none | "You are responsible for the laws where you sell." Pressed once; the store keeps the time of the first press. **Until then a live game sells no plays** (403 `owner`); test mode is not affected, and looks are never affected. |
+
+The card also lists what the kit holds fixed, with no switch: no cash prize, no prize of value, nothing random is bought, no credit is converted
+or moved. A setting that allowed them would make the kit a tool for gambling games. The store keeps the five Legal settings beside the Game
+card's five (`SETTING_KEYS`); `loadLegal(store)` reads them alone, and a fault gives the defaults.
+
+#### The admin: Rounds, To send back, Unmatched payments
+
+`mountAdmin(el, { ...options, plays })` with the same `plays.json`:
+
+- **Cosmetics:** a "Looks / Rounds" switch at the top. Rounds is a card for each play: its name, price, use and wait; sold, used, ready, not used
+  in time and paid late. Edit opens a draft like the Shelf's, which makes `plays.json` text and a message for an AI to copy. **The admin never
+  writes a play or a price**: a change of plays is a change of your repository.
+- **Orders:** a play's order shows its name and a "Round" mark. **Players:** each player's ready rounds.
+- **Overview, "To send back":** every payment to send back by hand, with its payer, its amount and why: a late payment ("Paid after the order
+  ended"), a credit not used in time, a credit of a play no longer sold, and the unused credit of a player who used "Delete my data". The number
+  at the top counts them all. With only late payments to send back, the card stays hidden and the number opens the Orders tab's "Paid late".
+- **Overview, "Unmatched payments"** (only with the handler's `unmatched` option: `shop.unmatched` on a Worker, or `findUnmatched` from `/shop`):
+  the receives on the game's address that **no order recorded**. A second payment of an amount after its order was paid, a wrong amount, a
+  payment with no order, or a play's payment after its hold. The card reads nothing until the owner presses "Check the address" (`POST
+  {base}/unmatched`, at most 6 a minute). One read asks the game's own nodes for the newest 200 entries of the address (`UNMATCHED_ENTRIES`),
+  and lists only receives the node saw since the oldest order that the summary lists (the newest 500 orders). It leaves out receives smaller than
+  0.0001 XNO, receives with no time, and receives whose amount an open order still holds (the payment check decides them). "Looks sent back" is a
+  guess: a later send of the same amount went back to that address. **A read that fails lists nothing** ("Could not read your address"), never an
+  empty list that looks true. The address may get other payments too: **check each one before you send it back.**
+
+#### Refunds, late payments and "Delete my data"
+
+**The kit holds no key, so it sends nothing back.** A late payment, a credit not used in time and every refund are by hand: the creator sends
+the amount from their own wallet to the address it came from, and the admin lists each one. (`@nano133/late-returns` sends money back by itself,
+but it needs a wallet key on your server. A game may run it outside the kit, at its own risk; the kit never will.)
+
+"Delete my data" (`store.forget(player, now)`) deletes the player's credits and the "18 or older" yes. A paid play whose credit was **unused**
+keeps its order with its payer, and the admin lists it to send back by hand. A paid play whose credit was used keeps no payer: the round was
+played. While an order of the player may still be paid, `forget` deletes nothing and answers `waitUntil`, as for looks.
+
 ### What the shop does not do
 
 - **Sign a player in.** It takes the game's signed-in player (`player(request)`) and asks the game for a sign-in (`signIn()`); the kit's
   player sign-in (wallets and a passkey) is its own path.
-- **Send money back.** It holds no key: a late payment is listed (`"paid_late"`), and the creator sends it back by hand.
-- **Sell anything random**, or anything that changes a score, a speed or a rule: a look only changes how the character looks.
+- **Send money back.** It holds no key: a late payment, a credit not used in time and a refund are listed in /admin, and the creator sends each
+  one back by hand.
+- **Sell anything random**, or a look that changes a score, a speed or a rule: a look only changes how the character looks. A play buys one use
+  of the game and nothing else (see the rules below).
+- **Check a player's age.** The "I am 18 or older" step keeps the player's own word.
+- **Trust a round.** It guards the money, not the round: a round that runs in the browser can be cheated. A trusted round needs a server replay.
+
+### Pay to play: the rules
+
+**Pay to play only.** A play buys one use of the game: a round, a level, a life or a continue. A round never pays out money or a prize of value.
+Nothing bought is random. Nothing bought changes the odds. Tickets and prizes are never bought. No credit is converted, moved, given to another
+player or sold back.
+
+This part is not legal advice. Some places have laws about paid games. **Ask a lawyer before you turn test mode off.** Each row marked "Lawyer
+sees" is a question for your lawyer.
+
+| Rule | The code enforces | The code cannot | Docs only (your game's part) | Lawyer sees |
+|---|---|---|---|---|
+| A play buys one use of the game | `checkPlays`: `use` is a closed list of four words; a field it does not know fails | what the round gives: that is your game's code | this README and the SPEC | yes |
+| No cash prize | the kit holds no key and sends nothing; a test fails a shop file with key or send code | a game's own payouts | a kit game never pays out money | yes |
+| No prize of value (an item to trade, tickets, tokens, crypto, a gift card) | `checkPlays` refuses `prize`, `reward`, `tickets`, `tokens`, `cash` and `bonus` fields | what your round gives at its end | a round gives nothing of value | yes |
+| Nothing bought is random | a play has no odds, chance or random field; the pay sheet names the one play and its price before any step | the chance inside your round | the round's chance comes only from a public seed, a committed seed or the player's input | yes |
+| Nothing bought changes the odds | the answer of a use carries only `used` and `again`: no number, no difficulty, no bonus | what your game does with a paid life or continue | a paid life or continue keeps the same rules | yes |
+| A paid life or continue counts for nothing | the Legal card: a life or a continue is on sale only while "Sell an extra life or a continue" is on (off by default) | see the round | **a round that used a paid life or continue posts no board score and earns nothing** | yes |
+| Tickets and prizes are never bought; a credit never turns into anything | no route converts, moves, gives or sells back a credit; a credit belongs to the order's player | — | — | yes |
+| A credit has no cash value and is not transferable | the same as the row above | — | your game's terms say it | yes |
+| Age | with "Paid rounds for 18 and up only" on (the default), an order needs the player's "I am 18 or older", kept once | know a player's real age: **the yes is the player's own statement** | nano133.com sells its own paid rounds to players 18 and up only | yes |
+| A kids page never sells a play | — | know which page is for children | never put a Play key on a page for children (nano133.com's kids pages have no money at all) | yes |
+| A round that could not start costs nothing | the use comes at the round's start, never at the buy | — | — | yes |
+| An unused credit goes back | the refund words before any step; the admin lists each payment to send back, with its payer | send money: the kit holds no key | the creator sends each refund by hand | yes |
+| The owner takes on the laws where they sell | outside test mode, no play order until the owner confirms "You are responsible for the laws where you sell." | — | — | yes |
+| The price shows before any step; the server decides it | an order takes an id only; the Play key and the pay sheet show the price | — | — | no |
+| Test mode: "TEST MODE: DO NOT PAY", no address, no QR code | the handler and the pay sheet | — | — | no |
+| A paid round never pauses; its deadline never moves | — | see your round's clock | leave `pauseWhenLeft` out of a paid round | no |
+
+The rows of money, prizes, chance and transfer are fixed in the kit, never a switch: a setting that allowed them would make the kit a tool for
+gambling games, and Nanoterra lists kit games. Your paid game, its prices and its risk are yours, and every payment goes to a wallet that you hold
+the key for.
 
 ## Moving from the three old packages
 
