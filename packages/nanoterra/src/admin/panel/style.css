@@ -1077,9 +1077,11 @@
   gap: 8px;
 }
 
+/* The right column (the status, "Made" and "Paid … from nano_…") is at most half the card: the name and the price keep the left half, and a long
+   payer line wraps in its own half rather than squeezing the name to nothing or running over the price. */
 .n133-admin .order {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) fit-content(50%);
   grid-template-areas: "look status" "amount when" "player player" "extra extra";
   align-items: center;
   gap: 6px 10px;
@@ -1096,15 +1098,16 @@
 .n133-admin .order-look {
   display: flex;
   grid-area: look;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   min-width: 0;
 }
 
+/* A long name wraps (never cut to "Extra r…" or to no width); the Round mark goes under it when the line is full. */
 .n133-admin .order-look strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .n133-admin .order-status {
@@ -1115,9 +1118,14 @@
 .n133-admin .order-amount {
   display: flex;
   grid-area: amount;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 8px;
+  gap: 0 8px;
+  min-width: 0;
   font-variant-numeric: tabular-nums;
+}
+
+.n133-admin .order-amount > * {
   white-space: nowrap;
 }
 
@@ -1134,9 +1142,11 @@
   display: grid;
   grid-area: when;
   justify-items: end;
+  min-width: 0;
   color: var(--ink-soft);
   font-size: 13px;
   text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .n133-admin .order-extra {

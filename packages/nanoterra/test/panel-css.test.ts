@@ -71,3 +71,28 @@ test("the shop's pay sheet: the refund words stand above the pay box in every la
   assert.equal(prop(body, "min-height"), "0");
   assert.equal(prop(find(SHOP, "", ".n133-shop .n133s-refund"), "overflow-wrap"), "anywhere", "a long word breaks, never runs off the side");
 });
+
+const ADMIN = cssRules(readFileSync(new URL("../src/admin/panel/style.css", import.meta.url), "utf8"));
+
+test("the admin's Orders: the name keeps its width and wraps, the payer line wraps in at most half the card, the price never runs over it", () => {
+  const card = find(ADMIN, "", ".n133-admin .order");
+  const [left, right] = prop(card, "grid-template-columns")!.split(/\s+(?![^(]*\))/);
+  assert.equal(left, "minmax(0, 1fr)");
+  assert.match(right, /^fit-content\((?:[1-5]\d|60)%\)$/, "the status and \"when\" column is capped, so it cannot squeeze the name and the price to nothing");
+  const name = find(ADMIN, "", ".n133-admin .order-look strong");
+  assert.equal(prop(name, "white-space"), null, "the name wraps (no nowrap)");
+  assert.equal(prop(name, "text-overflow"), null, "never cut to \"Extra r…\"");
+  assert.equal(prop(name, "overflow-wrap"), "anywhere");
+  assert.equal(prop(find(ADMIN, "", ".n133-admin .order-look"), "flex-wrap"), "wrap", "the Round mark goes under a long name");
+  const when = find(ADMIN, "", ".n133-admin .order-when");
+  assert.equal(prop(when, "overflow-wrap"), "anywhere", "a long nano_ address breaks anywhere");
+  assert.equal(prop(when, "min-width"), "0");
+  const amount = find(ADMIN, "", ".n133-admin .order-amount");
+  assert.equal(prop(amount, "white-space"), null, "the amount's box may wrap, so it stays in its own column");
+  assert.equal(prop(amount, "flex-wrap"), "wrap");
+  assert.equal(prop(find(ADMIN, "", ".n133-admin .order-amount > *"), "white-space"), "nowrap", "\"0.05 XNO\" and \"$0.05\" each stay whole");
+  // The table (a wide panel: an iPad, a phone on its side in a wide panel, a computer): every column can shrink, and no cell is cut on one line.
+  const table = find(ADMIN, "@container n133 (min-width: 760px)", ".n133-admin .order-table-head, .n133-admin .orders:not(.is-compact) .order");
+  for (const col of prop(table, "grid-template-columns")!.split(/\s+(?![^(]*\))/)) assert.ok(/^minmax\(0, [\d.]+fr\)$|^\d+px$/.test(col), col);
+  assert.ok(!ADMIN.some((r) => /\.order-(look|when)\b/.test(r.selector) && /nowrap|ellipsis/.test(r.body)), "no name or \"when\" rule keeps one line");
+});
