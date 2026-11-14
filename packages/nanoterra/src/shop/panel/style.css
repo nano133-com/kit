@@ -455,6 +455,9 @@
   border-radius: 50%;
   background: var(--stage);
   overflow: hidden;
+  /* the game's preview stays in its frame: a position: fixed (or absolute) element in it is clipped too, so it never covers the amount, the address
+     or the QR code */
+  contain: paint;
 }
 
 .n133-shop .n133s-pic > :is(canvas, img, svg) {

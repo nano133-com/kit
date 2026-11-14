@@ -2,18 +2,24 @@
 
 ## 0.16.0 (2026-11-14)
 
+- **Behaviour change: the kit's own Looks list has the offer step (one more press before a purchase); `offer: false` keeps the 0.15 flow.**
 - **The pay sheet, new (Wes, 2026-11-14: design A "Tidy" with the success of design B; the design note "Payment screen designs").** The money logic,
   the routes, the amounts and the timing do not change; a game on 0.15 needs no code change.
   - The item's picture beside its line, a thin time bar, the amount with its own copy key (48 by 48), and a dot that pulses while the sheet waits.
   - The main way to pay goes by the device: a phone or a tablet (a coarse pointer) gets "Open wallet" first and the QR code in the fold "Pay from
     another device"; a computer gets the QR code first, the address in "Enter by hand" and "Open wallet" second. A phone on its side has two columns.
   - **The order ended: the ways to pay go.** On `expired`, `paid_late`, or the clock at the order's `expiresAt`, the wallet key (and its link), the QR
-    code and the copy key leave the sheet; "Check again" stays. (Before, "Open wallet" stayed on after the end and invited a late payment.)
+    code and the copy key leave the sheet, and they never come back for that order (a later "open" answer, from a server whose clock runs behind
+    this device's, keeps the sheet ended; the checks go on, so a payment the server still takes shows as paid). "Check again" stays and starts no
+    second chain of checks. (Before, "Open wallet" stayed on after the end and invited a late payment.)
   - **Paid: the sheet stays on the success until its key.** The item large on its stage, a tick and a burst in the creator's colours; "<name> is yours"
     (a look) or "Your round is ready" (a play); "You are wearing it now." only when the game's `worn(look)` says yes after `onOwned`. The key is the
     game's `next`, else "Keep playing". A screen reader hears "Paid." and the focus goes to the success's title.
-  - **The trust line** "Paid straight to the creator. No network fee." (`TRUST_LINE`): the kit's, never a game's word. Only on a live order whose
-    link pays the order's own address (`trustShown`); never in test mode, never on the offer step.
+  - **The trust line** "Paid straight to the creator. No network fee." (`TRUST_LINE`): the kit's, never a game's word. Only while the sheet offers a
+    way to pay, on a live order whose link pays the order's own address (`trustShown`); never in test mode, never on the offer step, never on "Time
+    ran out", "Paid too late" or the success.
+  - The item's picture frame has `contain: paint`: a game's `preview` element (even `position: fixed`) stays in its frame and never covers the amount,
+    the address or the QR code.
   - **The offer step** (`offer`, default true): Buy in the kit's own list first shows the look large with its price on one key; nothing is ordered and no
     sign-in is asked before it. Never for the game's own `buy(lookId)` or a play.
   - **The creator's part:** `preview(item, size)`, `next(item)`, `celebrate(item, calm)`, `offer`, and the tokens `--n133-display`, `--n133-edge`,

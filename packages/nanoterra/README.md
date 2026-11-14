@@ -1621,7 +1621,8 @@ const shop = mountShop(document.getElementById("shop")!, {
   outfits), so the looks of another slot ("Shirts", "Hats") are not in the page until the test clicks their tab (`.n133s-tab`); or the test
   calls `buy(lookId)`, which needs no tab.
 - Buy in the kit's own list: the offer step first (since 0.16.0; `offer: false` leaves it out): the look large, its line and one key with the price.
-  Nothing is ordered before that key. A game's own Buy (`buy(lookId)`) and a play never have it: the game's shelf showed the item.
+  Nothing is ordered before that key. **A behaviour change in 0.16.0:** a game that moves from 0.15 gets one more press before each purchase in the
+  kit's own Looks list; `offer: false` keeps the 0.15 flow. A game's own Buy (`buy(lookId)`) and a play never have it: the game's shelf showed the item.
 - Then the game's sign-in (`signIn`) when nobody is signed in, the person check, and the pay sheet (see "The pay sheet" below): the item's picture
   and line, the amount with its copy key, "Open wallet", the QR code of the exact `nano:` link (drawn by the package as SVG: no QR library, no outside
   service), the address by hand, the time left (live only), and a check every 5 seconds for 2 minutes ("Check again" after). Paid: `onOwned`, then the
@@ -1690,15 +1691,19 @@ const shop = mountShop(el, {
 - **The amount** has its own copy key (48 by 48). **The time** is a thin bar and its digits; a screen reader reads "Time left 14:50" (`endsIn`).
   **The state** has a dot that pulses while the sheet waits.
 - **The order ended** (the server's `expired` or `paid_late`, or the clock at the order's `expiresAt`): the wallet key, its link, the QR code and the
-  copy key go. A wallet opened after the end would only make a late payment. "Check again" stays: a payment sent in time still counts. A screen
-  reader hears the ended words (the state is a polite live region).
+  copy key go, and they never come back for that order: when this device's clock ends it before the server does, a later "open" answer keeps the
+  sheet ended (the checks go on, so a payment the server still takes shows as paid). A wallet opened after the end would only make a late payment.
+  "Check again" stays: a payment sent in time still counts. A press starts no second chain of checks. A screen reader hears the ended words (the
+  state is a polite live region).
 - **Paid:** `onOwned` (or `onCredit`) runs first, then the success: the item large on its stage, a tick and a burst in the creator's three colours.
   The sheet stays open until the player presses its key (or closes the sheet). A look says "You are wearing it now." only when the game's
   `worn(look)` says yes after `onOwned`. A screen reader hears "Paid." and the focus goes to the success's title. A game whose `onOwned` closes the
   sheet (the 0.15 way) still works: it closes, and `celebrate` does not run.
-- **The trust line** "Paid straight to the creator. No network fee." shows on a live order only, and only when its `nano:` link pays the order's own
-  address (`trustShown`): the link pays the game's `RECEIVE_ADDRESS`, the creator's, with no key on the server and no hop between; Nano has no
-  network fee, and the amount is the price, rounded up. Never in test mode, and never on the offer step (no order yet). Do not write "no account":
+- **The trust line** "Paid straight to the creator. No network fee." shows only while the sheet offers a way to pay, on a live order whose `nano:`
+  link pays the order's own address (`trustShown`): the link pays the game's `RECEIVE_ADDRESS`, the creator's, with no key on the server and no hop
+  between; Nano has no network fee. The amount is the price, rounded up to 0.0001 XNO, plus at most a tenth of that price (never more than
+  0.0099 XNO) to make the amount unique, and that extra goes to the creator too; nothing is added for the network. Never in test mode, never on the
+  offer step (no order yet), and never on "Time ran out", "Paid too late" or the success (no way to pay is offered there). Do not write "no account":
   a player signs in before a purchase.
 - **Reduced motion** (the device's setting, or the options' "Less motion" through `reflectOptions(store, ["reducedMotion"])`): the dot, the bar, the
   pop and the burst stand still; the success is the same picture. **High contrast:** `prefers-contrast: more` darkens the soft words and the lines,

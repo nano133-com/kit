@@ -10,6 +10,7 @@ import type { Look } from "../src/looks/look.js";
 import { LOOKS, hash64, testAddress } from "./shop-helpers.js";
 
 const ORIGIN = "https://game.example";
+const PAY_POLL = 5000; // PAY_TIMING.pollMs
 let panel: typeof import("../src/shop/panel/index.js");
 let win: Window;
 const mounted: { destroy(): void }[] = [];
@@ -388,4 +389,232 @@ test("the focus: back to the game's own key that opened the sheet, when it is st
   shop.close();
   assert.equal(document.activeElement, mine, "the focus came back");
   mine.remove();
+});
+
+// ---- after the review (2026-11-14): K1, K2, K3, K5 ----
+// These run on node's mock timers: the sheet's 1 s clock and its 5 s checks move only when the test moves them, and `now` is the sheet's own clock.
+
+/** Lets the sheet's awaited checks finish (setImmediate is not mocked). */
+const flush = async () => {
+  for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+};
+/** A live order made at `at`, open for 15 minutes, whose link pays its own address. */
+function liveOrder(at: number): PayView {
+  const address = testAddress();
+  return { id: "o1", lookId: "red-coat", usd: "0.25", amount: "1", xno: "0.25", status: "open", createdAt: at, expiresAt: at + 900_000, test: false, address, uri: `nano:${address}?amount=1`, prices: ["Kraken"] };
+}
+/** The sheet shows the order as ended: no wallet key and no link, no QR code, no copy key, no trust line, the ended words, 0:00. */
+function assertEnded(node: HTMLElement, why: string) {
+  assert.equal(node.dataset.state, "ended", why);
+  assert.equal(node.querySelector("a[href^='nano:']"), null, `${why}: no link`);
+  assert.equal(shown(wallet(node)), false, `${why}: no wallet key`);
+  assert.equal(shown(node.querySelector(".n133s-qr")), false, `${why}: no QR code`);
+  assert.equal(shown(node.querySelector(".n133s-copy")), false, `${why}: no copy key`);
+  assert.equal(shown(node.querySelector(".n133s-trust")), false, `${why}: no trust line`);
+  assert.equal(node.querySelector(".n133s-status-text")!.textContent, "This order ended. Paid in time? Wait here: it still counts.", why);
+  assert.equal(node.querySelector(".n133s-clock")!.textContent, "0:00", why);
+}
+const press = (node: HTMLElement) => (node.querySelector(".n133s-again") as HTMLButtonElement).click();
+
+test("K1: this device's clock ends the order before the server does; Check again hears \"open\": the ways to pay never come back, and a payment the server still takes shows as paid", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
+  let now = 1_000_000;
+  const start = liveOrder(now);
+  let answer: PayView = start;
+  let paid = 0;
+  const p = panel.payPanel(start, { lookName: "Red Coat", check: async () => answer, onPaid: () => void paid++, now: () => now, main: "wallet" });
+  stops.push(p.stop);
+  document.body.append(p.node);
+  await flush();
+  assert.ok(shown(wallet(p.node)) && shown(p.node.querySelector(".n133s-trust")), "live: the wallet key and the trust line");
+  now = start.expiresAt + 30_000; // this device's clock runs 30 s ahead of the server's
+  t.mock.timers.tick(1000);
+  await flush();
+  assertEnded(p.node, "the clock ended it");
+  press(p.node);
+  await flush();
+  assertEnded(p.node, "the server said open after the sheet showed the end");
+  // the checks go on, as before: the next answers are "open" too, then "paid" (the server still takes a payment sent in time)
+  for (let i = 0; i < 3; i++) {
+    now += PAY_POLL;
+    t.mock.timers.tick(PAY_POLL);
+    await flush();
+    assertEnded(p.node, `check ${i + 2}`);
+  }
+  answer = { ...start, status: "paid" };
+  now += PAY_POLL;
+  t.mock.timers.tick(PAY_POLL);
+  await flush();
+  assert.equal(p.node.dataset.state, "paid");
+  assert.equal(paid, 1);
+  assert.ok(shown(p.node.querySelector(".n133s-success")));
+  p.stop();
+});
+
+test("K1, the opposite skew: this device's clock runs behind the server's; the server's \"expired\" ends the sheet at once, and nothing brings the ways to pay back", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
+  let now = 1_000_000;
+  const start = liveOrder(now);
+  let answer: PayView = { ...start, status: "expired" };
+  const p = panel.payPanel(start, { lookName: "Red Coat", check: async () => answer, onPaid: () => {}, now: () => now, main: "qr" });
+  stops.push(p.stop);
+  document.body.append(p.node);
+  await flush();
+  // this device still counts 15:00 left; the server's answer wins at once
+  assertEnded(p.node, "the server's first answer");
+  assert.equal(p.node.querySelector(".n133s-bar-fill")!.getAttribute("style")!.includes("--n133s-left: 0"), true, "an empty bar");
+  now += 3000;
+  t.mock.timers.tick(3000);
+  await flush();
+  assertEnded(p.node, "the device's clock goes on: no time comes back");
+  // Check again: an "open" answer (the kit's server never sends it after "expired") still brings no way to pay back
+  answer = start;
+  press(p.node);
+  await flush();
+  assertEnded(p.node, "after the end, never again");
+  p.stop();
+});
+
+test("K2: celebrate and next never run for an order that is not paid: ended (the server's or the clock's), paid too late, no connection", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
+  for (const kind of ["expired", "clock", "paid_late", "offline"] as const) {
+    let now = 1_000_000;
+    const start = liveOrder(now);
+    let moments = 0;
+    let ran = 0;
+    let paid = 0;
+    const check = async (): Promise<PayView> => {
+      if (kind === "offline") throw new Error("no connection");
+      return kind === "clock" ? start : { ...start, status: kind };
+    };
+    const p = panel.payPanel(start, {
+      lookName: "Red Coat",
+      check,
+      onPaid: () => void paid++,
+      now: () => now,
+      celebrate: () => void moments++,
+      next: { label: "Play now", run: () => void ran++ },
+    });
+    stops.push(p.stop);
+    document.body.append(p.node);
+    await flush();
+    if (kind === "clock") now = start.expiresAt;
+    // the whole check (2 minutes), then Check again where it shows, then 2 minutes more
+    for (let round = 0; round < 2; round++) {
+      for (let i = 0; i < 26; i++) {
+        now += PAY_POLL;
+        t.mock.timers.tick(PAY_POLL);
+        await flush();
+      }
+      const again = p.node.querySelector(".n133s-again") as HTMLButtonElement;
+      if (shown(again)) press(p.node);
+      await flush();
+    }
+    assert.equal(moments, 0, `${kind}: no celebrate`);
+    assert.equal(ran, 0, `${kind}: no next`);
+    assert.equal(paid, 0, `${kind}: no onPaid`);
+    assert.equal(p.node.querySelector(".n133s-next"), null, `${kind}: no success key`);
+    assert.equal(shown(p.node.querySelector(".n133s-success")), false, `${kind}: no success`);
+    assert.notEqual(p.node.dataset.state, "paid", kind);
+    p.stop();
+    p.node.remove();
+  }
+});
+
+test("K3: the trust line shows only while the sheet offers a way to pay: not on \"Time ran out\", \"Paid too late\", the success or test mode", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
+  for (const [status, state] of [["expired", "ended"], ["paid_late", "late"], ["paid", "paid"]] as const) {
+    let now = 1_000_000;
+    const start = liveOrder(now);
+    let answer: PayView = start;
+    const p = panel.payPanel(start, { lookName: "Red Coat", check: async () => answer, onPaid: () => {}, now: () => now });
+    stops.push(p.stop);
+    document.body.append(p.node);
+    await flush();
+    assert.ok(shown(p.node.querySelector(".n133s-trust")), `${status}: shown while the order is open`);
+    answer = { ...start, status };
+    now += PAY_POLL;
+    t.mock.timers.tick(PAY_POLL);
+    await flush();
+    assert.equal(p.node.dataset.state, state);
+    assert.equal(shown(p.node.querySelector(".n133s-trust")), false, `${status}: no trust line`);
+    p.stop();
+    p.node.remove();
+  }
+  // no connection: the ways to pay stay, so the line stays
+  let now = 1_000_000;
+  const start = liveOrder(now);
+  const p = panel.payPanel(start, { lookName: "Red Coat", check: async () => Promise.reject(new Error("offline")), onPaid: () => {}, now: () => now });
+  stops.push(p.stop);
+  await flush();
+  assert.equal(p.node.dataset.state, "offline");
+  assert.ok(shown(p.node.querySelector(".n133s-trust")), "offline: the ways to pay stay, and the line with them");
+  p.stop();
+  // test mode: never
+  const testOrder: PayView = { ...start, test: true, address: undefined, uri: undefined };
+  const q = panel.payPanel(testOrder, { lookName: "Red Coat", check: async () => testOrder, onPaid: () => {}, now: () => now });
+  stops.push(q.stop);
+  assert.equal(q.node.querySelector(".n133s-trust"), null);
+  q.stop();
+});
+
+test("K5: Check again while a chain of checks still runs starts no second chain (the request count), also when a check is still on its way", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
+  let now = 1_000_000;
+  const start = liveOrder(now);
+  let calls = 0;
+  const p = panel.payPanel(start, { lookName: "Red Coat", check: async () => (calls++, start), onPaid: () => {}, now: () => now });
+  stops.push(p.stop);
+  document.body.append(p.node);
+  await flush();
+  assert.equal(calls, 1, "the first check");
+  now = start.expiresAt; // the clock ends the order while the next check (5 s) still waits
+  t.mock.timers.tick(1000);
+  await flush();
+  assert.ok(shown(p.node.querySelector(".n133s-again")), "Check again shows at the clock's end");
+  press(p.node);
+  await flush();
+  assert.equal(calls, 2, "the press checks at once");
+  // 20 s, one second at a time (two chains would answer at different seconds)
+  for (let i = 0; i < 20; i++) {
+    now += 1000;
+    t.mock.timers.tick(1000);
+    await flush();
+  }
+  assert.equal(calls, 6, "one check each 5 s: one chain");
+  p.stop();
+
+  // a press while a check is on its way (a slow network): a new chain starts at once; the old check's answer still counts, but schedules nothing.
+  // A check that never answers never stops "Check again".
+  let now2 = 1_000_000;
+  const start2 = liveOrder(now2);
+  let calls2 = 0;
+  const waiting: (() => void)[] = [];
+  const slow = () =>
+    new Promise<PayView>((r) => {
+      calls2++;
+      waiting.push(() => r(start2));
+    });
+  const q = panel.payPanel(start2, { lookName: "Red Coat", check: slow, onPaid: () => {}, now: () => now2 });
+  stops.push(q.stop);
+  document.body.append(q.node);
+  await flush();
+  assert.equal(calls2, 1);
+  now2 = start2.expiresAt;
+  t.mock.timers.tick(1000);
+  await flush();
+  press(q.node); // the first check has no answer yet
+  await flush();
+  assert.equal(calls2, 2, "the press asks at once, though the first check never answered");
+  for (const r of waiting.splice(0)) r(); // both answer now
+  await flush();
+  for (let i = 0; i < 20; i++) {
+    now2 += 1000;
+    t.mock.timers.tick(1000);
+    await flush();
+    for (const r of waiting.splice(0)) r();
+    await flush();
+  }
+  assert.equal(calls2, 6, "then one check each 5 s: the old chain stopped at its answer");
+  q.stop();
 });

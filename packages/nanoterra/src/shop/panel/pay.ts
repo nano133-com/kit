@@ -9,12 +9,14 @@
 // - The main way to pay goes by the device. A phone or a tablet (a coarse pointer) cannot scan its own screen: "Open wallet" leads, and the QR code and
 //   the address wait in the fold "Pay from another device". A computer shows the QR code first, the address in "Enter by hand", and "Open wallet" second.
 // - The amount has its own copy key. The state has a dot that pulses while the sheet waits (still with reduced motion).
-// - When the order ends (the server's `expired` or `paid_late`, or the clock at 0), the ways to pay go: no wallet key, no QR code, no copy key. A wallet
-//   opened after the end would only make a late payment. "Check again" stays: a payment sent in time still counts.
+// - When the order ends (the server's `expired` or `paid_late`, or the clock at 0), the ways to pay go: no wallet key, no QR code, no copy key. They
+//   never come back for that order, even when a later answer says "open" (this device's clock ran ahead of the server's). A wallet opened after the end
+//   would only make a late payment. "Check again" stays: a payment sent in time still counts. It starts no second chain of checks.
 // - Paid: the sheet stays open on the success (the item large, a tick, a burst in the creator's colours; still with reduced motion) until the player
 //   presses the success's key (`next`). A screen reader hears "Paid." and the focus goes to the success's title.
-// - The trust line `TRUST_LINE` ("Paid straight to the creator. No network fee.") is the kit's: a game cannot change or remove it. It shows only on a live
-//   order whose link pays the order's own address (`trustShown`), never in test mode.
+// - The trust line `TRUST_LINE` ("Paid straight to the creator. No network fee.") is the kit's: a game cannot change or remove it. It shows only while
+//   the sheet offers a way to pay, on a live order whose link pays the order's own address (`trustShown`); never in test mode, never on an ended or
+//   late order, never on the success.
 //
 // TEST MODE: the server sends no address and no link, and this sheet shows a large "TEST MODE: DO NOT PAY" stamp where the QR code would be, with the
 // wallet key off. Never change that: a payment to an address that nobody holds the key for is lost for good. The sheet decides it from the ORDER (its
@@ -119,6 +121,10 @@ export function payPanel(start: PayView, options: PayOptions): PayPanel {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let clockTimer: ReturnType<typeof setInterval> | undefined;
   let checkingUntil = 0;
+  /** The chain of checks: "Check again" starts a new one, and a check of an older chain that answers later schedules no next check (one chain at a time). */
+  let chain = 0;
+  /** The sheet has shown this order as ended (the server's answer or the clock): its ways to pay never come back, whatever a later answer says. */
+  let endedShown = false;
   const w = shopWords(options.words);
   const test = isTestOrder(order);
   const main: "wallet" | "qr" | "test" = test ? "test" : (options.main ?? (coarse() ? "wallet" : "qr"));
@@ -216,6 +222,8 @@ export function payPanel(start: PayView, options: PayOptions): PayPanel {
       ? h("div", { class: "n133s-pay-act" }, state, foot, again)
       : h("div", { class: "n133s-pay-act" }, foot, state, again, payArea);
   const success = h("div", { class: "n133s-success n133s-paid", hidden: true });
+  /** The trust line: a claim about a payment, so it shows only while the sheet offers a way to pay (`payable`), and only on a live order (`trustShown`). */
+  const trust = trustShown(order) ? h("p", { class: "n133s-trust" }, icon("lock", 16), h("span", {}, TRUST_LINE)) : null;
   const node = h(
     "div",
     { class: `n133s-pay${test ? " n133s-is-test" : ""}`, "data-main": main, "data-state": test ? "test" : "waiting" },
@@ -227,12 +235,7 @@ export function payPanel(start: PayView, options: PayOptions): PayPanel {
       options.refund ? h("p", { class: "n133s-fine n133s-refund" }, options.refund) : null,
     ),
     h("div", { class: "n133s-pay-body" }, main === "qr" ? h("div", { class: "n133s-pay-qr" }, payArea) : null, h("div", { class: "n133s-pay-words" }, amount, act)),
-    h(
-      "div",
-      { class: "n133s-fine-lines" },
-      trustShown(order) ? h("p", { class: "n133s-trust" }, icon("lock", 16), h("span", {}, TRUST_LINE)) : null,
-      h("p", { class: "n133s-fine n133s-prices" }, priceLine(w, order.prices)),
-    ),
+    h("div", { class: "n133s-fine-lines" }, trust, h("p", { class: "n133s-fine n133s-prices" }, priceLine(w, order.prices))),
     success,
     said,
   );
@@ -249,13 +252,15 @@ export function payPanel(start: PayView, options: PayOptions): PayPanel {
     payArea.hidden = !on;
     foot.hidden = !on;
     if (amountCopy) amountCopy.hidden = !on;
+    if (trust) trust.hidden = !on;
     // the link itself goes too: a key that is hidden by a game's CSS mistake still opens no wallet
     if (on) wallet.setAttribute("href", order.uri!);
     else wallet.removeAttribute("href");
   };
   const setState = (s: State) => {
     node.dataset.state = s;
-    payable(s === "waiting" || s === "still" || s === "offline");
+    if (s === "ended" || s === "late") endedShown = true;
+    payable(!endedShown && (s === "waiting" || s === "still" || s === "offline"));
     // an order that ended has no time left, whatever this device's clock says (the server's answer wins)
     if (s === "ended" || s === "late") {
       clockDigits.textContent = "0:00";
@@ -268,6 +273,7 @@ export function payPanel(start: PayView, options: PayOptions): PayPanel {
   const stop = () => {
     stopped = true;
     if (timer) clearTimeout(timer);
+    timer = undefined;
     if (clockTimer) clearInterval(clockTimer);
     clockTimer = undefined;
   };
@@ -366,26 +372,30 @@ export function payPanel(start: PayView, options: PayOptions): PayPanel {
     return false;
   }
 
-  async function poll() {
-    if (stopped) return;
+  async function poll(gen: number) {
+    if (stopped || gen !== chain) return;
+    timer = undefined;
     try {
       const o = await options.check(order.id);
       if (stopped) return;
       if (show(o)) return;
-      if (o.status === "open") {
-        // the server says the order is open: its ways to pay come back (a clock that ran ahead of the server's)
+      // The server says the order is open. Its ways to pay come back only while the sheet has never shown it as ended and this device's clock agrees
+      // (a no-connection state, say). After the sheet showed the end (this device's clock ran ahead of the server's), they never come back: the sheet
+      // keeps "ended", and the checks go on, so a payment the server still takes shows as paid.
+      if (o.status === "open" && !endedShown && order.expiresAt > now()) {
         if (node.dataset.state !== "waiting") setState("waiting");
         setStatus("wait", w.waiting);
       }
     } catch (e) {
-      if (stopped) return;
-      if (node.dataset.state !== "ended") setState("offline");
+      if (stopped || gen !== chain) return;
+      if (!endedShown) setState("offline");
       setStatus("warn", options.errorText?.(e) ?? w.noConnection);
     }
-    if (stopped) return;
-    if (now() < checkingUntil) timer = setTimeout(poll, PAY_TIMING.pollMs);
+    // an older chain's answer counts (above), but only the newest chain goes on
+    if (stopped || gen !== chain) return;
+    if (now() < checkingUntil) timer = setTimeout(() => void poll(gen), PAY_TIMING.pollMs);
     else {
-      if (node.dataset.state !== "ended") {
+      if (!endedShown) {
         setState("still");
         setStatus("note", w.stillWaiting);
       }
@@ -397,8 +407,12 @@ export function payPanel(start: PayView, options: PayOptions): PayPanel {
     stopped = false;
     again.hidden = true;
     checkingUntil = now() + PAY_TIMING.checkForMs;
-    if (order.expiresAt > now()) clockTimer ??= setInterval(tick, 1000);
-    void poll();
+    if (order.expiresAt > now() && !endedShown) clockTimer ??= setInterval(tick, 1000);
+    // one chain of checks: the next check that waits goes, and a check still on its way ends its chain when it answers (a check that never answers
+    // never stops "Check again")
+    if (timer) clearTimeout(timer);
+    timer = undefined;
+    void poll(++chain);
   }
   again.addEventListener("click", startChecking);
   // Test mode makes no checks: nothing can be paid, so nothing is waited for.

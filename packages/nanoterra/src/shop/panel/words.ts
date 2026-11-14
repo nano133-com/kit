@@ -4,7 +4,7 @@
 //
 // Three things a game cannot change, because a player's money depends on them: the stamp "TEST MODE: DO NOT PAY" (it is not a key), the words
 // "Powered by CoinGecko" while CoinGecko is one of the price feeds (CoinGecko's API terms ask for them: `priceLine` adds them when `prices` leaves
-// them out), and the trust line `TRUST_LINE` (since 0.16.0: a claim about money, shown only on a live order; see ./pay.ts).
+// them out), and the trust line `TRUST_LINE` (since 0.16.0: a claim about money, shown only while a live order can be paid; see ./pay.ts).
 //
 // The defaults are short on purpose (Wes, 2026-11-01: fewer words): the pay sheet shows at most 30 words of its own beside the fixed lines (the trust
 // line and the price line), and no sentence has more than 10.
@@ -143,8 +143,9 @@ export const COINGECKO_CREDIT = "Powered by CoinGecko";
 /**
  * The trust line of a live pay sheet (Wes, 2026-11-14). It is the kit's, never a game's word: it is a claim about money. It is true for every order the
  * kit draws live: the `nano:` link pays the game's own receive address (`RECEIVE_ADDRESS`, the creator's: the server holds no key and no other hop),
- * and Nano has no network fee (the amount is the price, rounded up; nothing is added for the network). The pay sheet shows it only on a live order
- * whose link names the order's own address, never in test mode (./pay.ts `trustShown`).
+ * and Nano has no network fee. The amount is the price, rounded up to 0.0001 XNO, plus at most a tenth of that price (never more than 0.0099 XNO) to
+ * make the amount unique (../orders.ts `amountsFor`), and that extra goes to the creator too; nothing is added for the network. The pay sheet shows it
+ * only while it offers a way to pay, on a live order whose link names the order's own address (./pay.ts `trustShown`); never in test mode.
  */
 export const TRUST_LINE = "Paid straight to the creator. No network fee.";
 

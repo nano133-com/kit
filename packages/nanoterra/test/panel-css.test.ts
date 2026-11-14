@@ -150,3 +150,9 @@ test("the admin's sticky tabs never cover a heading the page scrolls to: the tab
   assert.ok(rule, "the tab panels and the cards the Overview scrolls to (\"To send back\") keep the room");
   assert.equal(prop(find(ADMIN, "", ".n133-admin .tabbar"), "position"), "sticky");
 });
+
+test("K4: the item's picture frame clips all the game's preview, a position: fixed element too (contain: paint), so it never covers the amount, the address or the QR code", () => {
+  const pic = find(SHOP, "", ".n133-shop .n133s-pic");
+  assert.equal(prop(pic, "overflow"), "hidden");
+  assert.match(prop(pic, "contain") ?? "", /\b(paint|content|strict)\b/, "contain: paint makes the frame the box of a fixed child, and clips it");
+});
