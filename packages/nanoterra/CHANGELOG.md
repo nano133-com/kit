@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.0 (2026-11-14)
 
 - **The pay sheet, new (Wes, 2026-11-14: design A "Tidy" with the success of design B; the design note "Payment screen designs").** The money logic,
   the routes, the amounts and the timing do not change; a game on 0.15 needs no code change.
