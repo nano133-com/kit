@@ -48,28 +48,45 @@ const SHOP = cssRules(readFileSync(new URL("../src/shop/panel/style.css", import
 const LANDSCAPE = "@media (orientation: landscape) and (max-height: 520px)";
 const find = (rules: Rule[], at: string, selector: string) => rules.find((r) => r.at === at && r.selector === selector);
 
-test("the shop's pay sheet: the refund words stand above the pay box in every layout, and the sheet's body scrolls", () => {
-  // A phone held up, a tablet and a wide screen: the pay sheet is one column in the DOM's order (the refund words before the QR code: shop-panel.test.ts).
-  const main = find(SHOP, "", ".n133-shop .n133s-pay-main");
-  assert.equal(prop(main, "display"), null, "one column: no grid at the top");
-  for (const at of ["", "@media (min-width: 700px)"]) assert.ok(!SHOP.some((r) => r.at === at && /n133s-pay\b/.test(r.selector) && /grid-template-areas/.test(r.body)), `no grid for the pay sheet at "${at}"`);
-  // A phone on its side: a grid with the refund words' own row first, across both columns, above the QR code ("qr") and the wallet key ("side").
-  const grid = find(SHOP, LANDSCAPE, ".n133-shop .n133s-pay");
+test("the shop's pay sheet: the refund words stand above the amount and every way to pay in every layout, and the sheet's body scrolls", () => {
+  // A phone held up, a tablet and a wide screen: the refund words are in the top part, before the amount and the ways to pay in the DOM's order
+  // (shop-panel.test.ts); only a computer's layout has a grid (the QR code's column beside the words), and it is inside the body, under the top part.
+  for (const at of ["", "@media (min-width: 700px)"]) assert.ok(!SHOP.some((r) => r.at === at && /n133s-pay\b/.test(r.selector) && /grid-template-areas/.test(r.body)), `no grid of areas for the pay sheet at "${at}"`);
+  assert.equal(prop(find(SHOP, "@media (min-width: 700px)", '.n133-shop .n133s-pay[data-main="qr"] .n133s-pay-body'), "display"), "grid");
+  // A phone on its side: two columns; the top part (the item and the refund words) first on the left, then the amount; the ways to pay on the right.
+  const grid = find(SHOP, LANDSCAPE, '.n133-shop .n133s-pay:not([data-state="paid"])');
   assert.equal(prop(grid, "display"), "grid");
   const rows = [...prop(grid, "grid-template-areas")!.matchAll(/"([^"]+)"/g)].map((m) => m[1].split(/\s+/));
-  assert.deepEqual(rows[0], ["refund", "refund"], "the first row is the refund words'");
-  assert.ok(rows.slice(1).some((r) => r.includes("qr")) && rows.slice(1).some((r) => r.includes("side")), "the QR code and the wallet key come after");
+  assert.deepEqual(rows[0], ["bar", "bar"]);
+  assert.deepEqual(rows[1], ["top", "act"], "the refund words' part is the first row of the words");
+  assert.deepEqual(rows[2], ["amount", "act"], "the amount after them");
+  assert.deepEqual(rows[3], ["amount", "fine"], "the fine lines under the ways to pay");
   assert.equal(prop(grid, "grid-template-rows")!.split(/\s+/).length, rows.length, "a row size for each row");
-  assert.equal(prop(find(SHOP, LANDSCAPE, ".n133-shop .n133s-pay-main"), "display"), "contents");
-  assert.equal(prop(find(SHOP, LANDSCAPE, ".n133-shop .n133s-pay .n133s-refund"), "grid-area"), "refund", "the refund words have their place in the grid");
-  // Every child of the grid has an area: none is put in a row after the last by itself.
-  for (const cls of ["n133s-pay-what", "n133s-amount", "n133s-pay-side"]) assert.ok(SHOP.some((r) => r.at === LANDSCAPE && r.selector.endsWith(`.${cls}`) && prop(r, "grid-area")), cls);
-  assert.ok(SHOP.some((r) => r.at === LANDSCAPE && r.selector.includes(".n133s-live-pay") && r.selector.includes(".n133s-test-pay") && prop(r, "grid-area") === "qr"));
+  assert.equal(prop(find(SHOP, LANDSCAPE, '.n133-shop .n133s-pay:not([data-state="paid"]) :is(.n133s-pay-body, .n133s-pay-words)'), "display"), "contents");
+  for (const [cls, area] of [["n133s-pay-top", "top"], ["n133s-amount", "amount"], ["n133s-pay-act", "act"], ["n133s-fine-lines", "fine"], ["n133s-bar", "bar"]])
+    assert.equal(prop(find(SHOP, LANDSCAPE, `.n133-shop .n133s-pay .${cls}`), "grid-area"), area, cls);
   // The body scrolls, so a long text is never cut by the sheet's edge.
   const body = find(SHOP, "", ".n133-shop .n133s-body");
   assert.equal(prop(body, "overflow"), "auto");
   assert.equal(prop(body, "min-height"), "0");
-  assert.equal(prop(find(SHOP, "", ".n133-shop .n133s-refund"), "overflow-wrap"), "anywhere", "a long word breaks, never runs off the side");
+  assert.equal(prop(find(SHOP, "", ".n133-shop .n133s-refund, .n133-shop .n133s-pay .n133s-refund"), "overflow-wrap"), "anywhere", "a long word breaks, never runs off the side");
+});
+
+test("the shop's pay sheet: the ended order hides every way to pay; reduced motion (the device's and the options') stops every animation; a key is 48 px", () => {
+  const ended = SHOP.find((r) => r.at === "" && r.selector.includes('[data-state="ended"]') && r.selector.includes('[data-state="late"]') && prop(r, "display") === "none");
+  assert.ok(ended, "one rule hides the ways to pay of an ended order");
+  for (const part of [".n133s-foot", ".n133s-by-hand", ".n133s-live-pay", ".n133s-copy"]) assert.ok(ended!.selector.includes(part), part);
+  const animated = new Set(SHOP.filter((r) => prop(r, "animation")).map((r) => (r.selector.match(/\.n133s-[\w-]+(?:\s+i)?$/) ?? [""])[0]));
+  const calmDevice = SHOP.find((r) => r.at === "@media (prefers-reduced-motion: reduce)" && prop(r, "animation") === "none");
+  const calmOption = SHOP.find((r) => r.at === "" && r.selector.startsWith(':root[data-n133-opt-reduced-motion="true"]') && prop(r, "animation") === "none");
+  for (const a of animated) {
+    if (!a) continue;
+    assert.ok(calmDevice!.selector.includes(a.replace(/\s+i$/, " i")), `the device's reduced motion stops ${a}`);
+    assert.ok(calmOption!.selector.includes(a.replace(/\s+i$/, " i")), `Less motion stops ${a}`);
+  }
+  for (const sel of [".n133-shop .n133s-btn", ".n133-shop .n133s-by-hand summary"]) assert.equal(prop(find(SHOP, "", sel), "min-height"), "48px", sel);
+  assert.equal(prop(find(SHOP, "", ".n133-shop .n133s-copy"), "width"), "48px");
+  assert.ok(SHOP.some((r) => r.at === "@media (forced-colors: active)"), "a forced-colors (high contrast) rule set");
 });
 
 const ADMIN = cssRules(readFileSync(new URL("../src/admin/panel/style.css", import.meta.url), "utf8"));

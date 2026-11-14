@@ -18,21 +18,28 @@
 // `onCredit(playId, play)` hears that a paid order gave a credit. When the creator's Legal card asks for it, the "18 or older" step comes first, once for
 // each player (the server keeps the yes). `playKey(playId, start)` is a Play key for the game to place ("Play for 5¢", or "1 round ready": a press calls
 // the game's `start`); `ready()` reads the player's credits and whether each play is for sale (a key hides while its play is not, and none is ready).
+//
+// The creator's part of the pay sheet (since 0.16.0; Wes, 2026-11-14), and nothing more: `preview(item, size)` (the item's picture), `next(item)` (the
+// success's key), `celebrate(item, calm)` (the game's own moment, a sound), `offer` (the offer step of the kit's own list) and the CSS tokens of
+// style.css. Everything about money is the kit's: the amount, the address, the QR code, the time, the price line, the test stamp and the trust line.
 
 import { ApiError, createApi } from "../../admin/panel/api.js";
 import { h, releaseFocus } from "../../admin/panel/dom.js";
 import { icon } from "../../admin/panel/icons.js";
-import { checkLooks, wearOf, type Look } from "../../looks/look.js";
+import { checkLooks, usdText, wearOf, type Look } from "../../looks/look.js";
 import type { PayView } from "../handler.js";
 import type { PlayUse } from "../../looks/play.js";
-import { looksView, slotsOf, type SlotWords } from "./looks.js";
-import { payPanel } from "./pay.js";
+import { looksView, slotsOf, swatchOf, type SlotWords } from "./looks.js";
+import { itemPicture, payPanel, type PayNext } from "./pay.js";
 import { playPrice, shopWords, type ShopWords } from "./words.js";
 
 /** A play as the panel shows it (plays.json; the server checks the file and decides every price). */
 export type PlayItem = { id: string; name: string; priceUsd: number; use: PlayUse | string };
 /** One play of the player now: how many credits wait for a round, and whether an order of it can be made (the creator's Legal card). */
 export type PlayReady = { playId: string; ready: number; forSale: boolean };
+
+/** What the pay sheet sells: a look or a play (the creator's hooks get it). */
+export type ShopItem = { kind: "look"; look: Look } | { kind: "play"; play: PlayItem };
 
 /** The plays of plays.json that have the four fields the panel shows. (The server's checkPlays is the check: a bad file never sells.) */
 const playsOf = (raw: unknown): PlayItem[] =>
@@ -92,6 +99,25 @@ export type ShopMountOptions = {
   playsBase?: string;
   /** A paid play order gave the player one credit of this play. The game's round start uses it (POST {playsBase}/use, with the round's own id). */
   onCredit?: (playId: string, play: PlayItem) => void;
+
+  // ---- the creator's part of the pay sheet (since 0.16.0) ----
+  /**
+   * The item's picture at a size in CSS px (64 beside its line, 128 on the success, 176 on the offer): the look on the player's own character, a round's
+   * day. Null (or no hook): `picture(look)`, else the kit's swatch; a play: its first letter.
+   */
+  preview?: (item: ShopItem, size: number) => HTMLElement | null;
+  /**
+   * The success's key: `{ label, run }`. The sheet closes, then `run` runs (a round: start it). Null (or no hook): "Keep playing" (`words.keepPlaying`),
+   * which closes the sheet. The sheet stays on the success until the player presses it (or closes the sheet).
+   */
+  next?: (item: ShopItem) => PayNext | null;
+  /** The game's own moment as the success shows (a sound). `calm`: reduced motion is on (the device's, or the options' "Less motion"). The kit's burst is CSS. */
+  celebrate?: (item: ShopItem, calm: boolean) => void;
+  /**
+   * The offer step: Buy in the kit's own list first shows the look large with its price and one key ("Buy $0.25"); nothing is ordered (and no sign-in is
+   * asked) until that key. Default true. It never shows for the game's own Buy (`buy(lookId)`) or a play: the game's own shelf showed the item already.
+   */
+  offer?: boolean;
 };
 
 export type MountedShop = {
@@ -171,12 +197,16 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
     stopPay?.();
     stopPay = null;
   };
+  /** The element that had the focus before the sheet opened: it gets it back when the sheet closes (when it is still there and can take it). */
+  let opener: HTMLElement | null = null;
   const show = (heading: string, content: Node) => {
     stopTimers();
     title.textContent = heading;
     body.replaceChildren(content);
     body.scrollTop = 0;
     if (!isOpen()) {
+      const was = globalThis.document?.activeElement;
+      opener = was instanceof HTMLElement && was !== globalThis.document?.body && !wrap.contains(was) ? was : null;
       if (typeof dialog.showModal === "function") dialog.showModal();
       else dialog.setAttribute("open", "");
       // The first focus is on the title (a screen reader reads it), not on the close key: a ring on Close at every open draws the eye from the looks.
@@ -189,8 +219,17 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
     stopTimers();
     key?.setAttribute("aria-expanded", "false");
     options.onClose?.();
+    const back = opener;
+    opener = null;
     if (options.focusAfterClose === "key" && key) key.focus();
-    else releaseFocus(wrap);
+    else {
+      releaseFocus(wrap);
+      // the focus goes back where it was (a game's Buy key that is still on the page); a key that left, or hides, gets nothing
+      if (back?.isConnected) {
+        back.focus();
+        if (globalThis.document?.activeElement !== back) releaseFocus(wrap);
+      }
+    }
   };
   const close = () => {
     if (!isOpen()) return;
@@ -228,7 +267,7 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
               showLooks();
             }
           : undefined,
-        buy: (l) => void buy(l, false),
+        buy: (l) => void (options.offer === false ? buy(l, false) : showOffer(l)),
         picture: options.picture,
         slots: options.slots,
         words,
@@ -240,6 +279,48 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
         },
       }),
     );
+  }
+
+  /** The item's picture for the pay sheet: the game's `preview`, else its `picture(look)`, else the kit's swatch (a play: none: its first letter). */
+  const previewOf = (item: ShopItem) => (size: number): HTMLElement | null => {
+    const own = options.preview?.(item, size) ?? null;
+    if (own || item.kind === "play") return own;
+    return options.picture?.(item.look) ?? swatchOf(item.look);
+  };
+  /** The success's key: the game's, else "Keep playing". The sheet closes first, then the game's `run`. */
+  const nextOf = (item: ShopItem): PayNext => {
+    let own: PayNext | null = null;
+    try {
+      own = options.next?.(item) ?? null;
+    } catch {
+      own = null;
+    }
+    const label = own?.label || words.keepPlaying;
+    return {
+      label,
+      run: () => {
+        close();
+        own?.run?.();
+      },
+    };
+  };
+
+  /** The offer step (the kit's own list, `offer` not false): the look large, its line, one key with the price. Nothing is ordered before the key. */
+  function showOffer(look: Look) {
+    if (destroyed) return;
+    const item: ShopItem = { kind: "look", look };
+    show(
+      look.name,
+      h(
+        "div",
+        { class: "n133s-offer" },
+        h("div", { class: "n133s-stage" }, itemPicture(look.name, 176, previewOf(item), "n133s-offer-pic")),
+        h("p", { class: "n133s-pay-what" }, words.lookLine(look.name)),
+        h("button", { class: "n133s-btn n133s-buy n133s-wide n133s-offer-key", type: "button", onclick: () => void buy(look, false) }, words.buy(usdText(look.priceUsd))),
+        h("button", { class: "n133s-btn n133s-wide", type: "button", onclick: () => showLooks() }, words.back),
+      ),
+    );
+    title.focus();
   }
 
   const back = (message: string, extra?: HTMLElement | null) =>
@@ -272,11 +353,18 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
       const turnstile = options.personCheck ? await options.personCheck(box) : null;
       const order = await api.post<PayView>("", { lookId: look.id, turnstile });
       if (destroyed) return;
+      const item: ShopItem = { kind: "look", look };
       const pay = payPanel(order, {
         lookName: look.name,
         check: (id) => api.post<PayView>(`/${id}/check`),
         errorText: (e) => (e instanceof ApiError ? words.refusal(e.message, e.status) : null),
         words,
+        preview: previewOf(item),
+        next: nextOf(item),
+        celebrate: (calm) => {
+          if (isOpen()) options.celebrate?.(item, calm);
+        },
+        wearing: () => options.worn(look),
         onPaid: () => {
           bought.add(look.id);
           options.onOwned?.(look.id, look);
@@ -345,6 +433,7 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
       const turnstile = options.personCheck ? await options.personCheck(box) : null;
       const order = await api.post<PayView>("", { playId: play.id, turnstile });
       if (destroyed) return;
+      const item: ShopItem = { kind: "play", play };
       const pay = payPanel(order, {
         lookName: play.name,
         play: { use: play.use },
@@ -352,6 +441,11 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
         check: (id) => api.post<PayView>(`/${id}/check`),
         errorText: (e) => (e instanceof ApiError ? words.refusal(e.message, e.status) : null),
         words,
+        preview: previewOf(item),
+        next: nextOf(item),
+        celebrate: (calm) => {
+          if (isOpen()) options.celebrate?.(item, calm);
+        },
         onPaid: () => {
           const r = credits.get(play.id);
           credits.set(play.id, { playId: play.id, ready: (r?.ready ?? 0) + 1, forSale: r?.forSale ?? true });

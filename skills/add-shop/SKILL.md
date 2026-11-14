@@ -23,11 +23,14 @@ Follow step 13 of the package's `ai/SPEC.md` (https://nano133.com/build/nanoterr
 6. Mount `mountShop(el, { looks, owned, signedIn, signIn, worn, wear, onOwned })` with the
    stylesheet `@nano133/nanoterra/shop/style.css`; `key: false` and `open()` for the game's own key.
    The game's own words go in `words` (`ShopWords`), never in the kit's files; a shop in its own
-   modal `<dialog>` closes it in `signIn` before the sign-in sheet opens.
+   modal `<dialog>` closes it in `signIn` before the sign-in sheet opens. The pay sheet's look is the
+   game's through `preview` (the item's picture), `next` (the success's key), `celebrate` (a sound),
+   `offer` (false with the game's own shelf) and the `--n133-*` tokens; never style the kit's inner
+   class names. `onOwned` leaves the sheet open: the success stays until its key.
 7. Merge `SHOP_CSP` into the game's policy with `mergeCsp`. Never replace the game's policy.
 8. Call `store.forget(player, now)` from "Delete my data".
 9. Test on a phone first (upright and sideways), then a tablet, then a computer, in TEST MODE:
-   the stamp "TEST MODE: DO NOT PAY", no QR code, no address, the wallet key off.
+   the stamp "TEST MODE: DO NOT PAY", no QR code, no address, the wallet key off, no trust line.
 
 Never show a pay screen that pays an address nobody holds the key for without the stamp. A look
 only changes how the character looks: nothing random, no score. Finish with the SPEC's step 13 check.

@@ -106,7 +106,7 @@ test("key: false draws no key; the game opens the sheet with open() and its own 
   assert.equal(shop.isOpen, false);
   shop.buy("red-coat");
   await settle();
-  assert.equal(el.querySelector(".n133s-title")!.textContent, "Buy Red Coat");
+  assert.equal(el.querySelector(".n133s-title")!.textContent, "Red Coat", "since 0.16.0 the title is the look's name");
   shop.destroy();
 });
 
@@ -145,6 +145,9 @@ test("the game's own Buy (buy(id)): a sign-in closed without a sign-in calls onS
   const shop2 = mountShop(el2, { ...g2.opts, signIn, onSignInCancel: (id) => void cancels.push(id) });
   shop2.open();
   (el2.querySelector(".n133s-buy") as HTMLButtonElement).click();
+  await settle();
+  assert.deepEqual(g2.events, [], "the offer step first: no sign-in yet");
+  (el2.querySelector(".n133s-offer-key") as HTMLButtonElement).click();
   await settle();
   assert.ok(shop2.isOpen);
   assert.ok(el2.querySelector(".n133s-looks-view"), "the kit's list again");
@@ -226,16 +229,17 @@ test("live: the QR code of the exact nano: link, the wallet key, the address by 
   assert.equal(pay.querySelector(".n133s-address")!.textContent, payee);
   assert.match(pay.querySelector(".n133s-status")!.textContent!, /Waiting for payment/);
   assert.equal(pay.querySelector(".n133s-exact")!.textContent, "Send exactly");
-  assert.match(pay.querySelector(".n133s-time-left")!.textContent!, /^Ends in \d+:\d\d\.$/);
+  assert.match(pay.querySelector(".n133s-time-left .n133s-clock")!.textContent!, /^\d+:\d\d$/);
+  assert.match(pay.querySelector(".n133s-time-left .n133s-sr")!.textContent!, /^Time left \d+:\d\d$/);
   assert.equal(pay.querySelector(".n133s-prices")!.textContent, "Price: Test feed.", "no CoinGecko among the feeds: no CoinGecko words");
   // The payment arrives (recorded straight in the store; the scan has no node here), and the next check sees it.
   const id = g.calls.length && (await g.store.held())[0];
   assert.ok(id);
   await g.store.settle(id, { hash: hash64(), payer: testAddress(), seenMs: Date.now() }, Date.now());
-  (pay.querySelector(".n133s-pay-side .n133s-btn") as HTMLButtonElement).click(); // "Check again" (hidden, but a click starts a check)
+  (pay.querySelector(".n133s-again") as HTMLButtonElement).click(); // "Check again" (hidden, but a click starts a check)
   await settle();
   assert.deepEqual(g.events, ["owned:blue-cap"]);
-  assert.match(el.querySelector(".n133s-paid")!.textContent!, /Paid\. Thank you!/);
+  assert.equal(el.querySelector(".n133s-success-title")!.textContent, "Blue Cap is yours");
   shop.close();
   shop.open();
   assert.deepEqual(texts(el, ".n133s-look .n133s-btn").slice(0, 3), ["Wearing", "Buy $0.25", "Wear"], "Blue Cap is the player's now");
@@ -363,8 +367,8 @@ test("a play in TEST MODE: the \"18 or older\" step first (Not now closes, nothi
   assert.equal(pay.querySelector(".n133s-amount strong")!.textContent, "0.05 XNO");
   const refund = pay.querySelector(".n133s-refund")!;
   assert.equal(refund.textContent, "Not used? Ask for your money back within 14 days. Write to the game's owner.");
-  const main = [...pay.querySelector(".n133s-pay-main")!.children];
-  assert.ok(main.indexOf(refund) < main.indexOf(pay.querySelector(".n133s-test-pay")!), "the refund words stand before any step");
+  for (const step of [".n133s-amount", ".n133s-test-pay", ".n133s-foot"])
+    assert.ok(refund.compareDocumentPosition(pay.querySelector(step)!) & 4, `the refund words stand before ${step}`);
   // Once per player: the next play goes straight to its pay sheet.
   shop.close();
   shop.buyPlay("extra-round");
@@ -393,10 +397,11 @@ test("a play live: the QR code and the wallet key; paid: onCredit, \"Paid. Your 
   assert.equal(pay.querySelector(".n133s-refund")!.textContent, "Ask me within 7 days.");
   const held = (await g.store.held())[0];
   await g.store.settle(held, { hash: hash64(), payer: testAddress(), seenMs: Date.now() }, Date.now());
-  (pay.querySelector(".n133s-pay-side .n133s-btn") as HTMLButtonElement).click(); // Check again
+  (pay.querySelector(".n133s-again") as HTMLButtonElement).click(); // Check again
   await settle();
   assert.deepEqual(g.events, ["credit:extra-round"]);
-  assert.equal(el.querySelector(".n133s-paid")!.textContent, "Paid. Your round is ready.");
+  assert.equal(el.querySelector(".n133s-success-title")!.textContent, "Your round is ready");
+  assert.equal(el.querySelector(".n133s-success-line"), null, "a play says nothing of wearing");
   assert.equal(key.textContent, "1 round ready");
   key.click();
   assert.deepEqual(started, ["extra-round"], "a press with a round ready starts it (the game's round start uses the credit)");

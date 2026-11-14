@@ -42,7 +42,8 @@ export function slotsOf(looks: readonly Look[]): string[] {
   return looks.some((l) => wearOf(l) === OUTFIT) ? out : out.slice(1);
 }
 
-function swatchOf(look: Look): HTMLElement {
+/** The kit's own picture of a look: its colour (and hat), or an item's first letter. */
+export function swatchOf(look: Look): HTMLElement {
   const swatch = h("span", { class: "n133s-swatch", "aria-hidden": "true" });
   if (isOutfit(look)) {
     swatch.style.background = look.change.body;

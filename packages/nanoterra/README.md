@@ -1620,10 +1620,12 @@ const shop = mountShop(document.getElementById("shop")!, {
   Wearing, or Buy. `picture(look)` gives the game's own picture instead of the swatch. **For a test:** the sheet opens on the first tab (the
   outfits), so the looks of another slot ("Shirts", "Hats") are not in the page until the test clicks their tab (`.n133s-tab`); or the test
   calls `buy(lookId)`, which needs no tab.
-- Buy: the game's sign-in (`signIn`) when nobody is signed in, then the person check, then the pay sheet: the amount, the QR code of the exact
-  `nano:` link (drawn by the package as SVG: no QR library, no outside service), "Open wallet", the address and the amount by hand, the time
-  left (live only), and a check every 5 seconds for 2 minutes ("Check again" after). Paid: "Paid. Thank you!" and `onOwned`. Paid late: no look,
-  and the creator sends it back. Ended: a payment sent in time still counts.
+- Buy in the kit's own list: the offer step first (since 0.16.0; `offer: false` leaves it out): the look large, its line and one key with the price.
+  Nothing is ordered before that key. A game's own Buy (`buy(lookId)`) and a play never have it: the game's shelf showed the item.
+- Then the game's sign-in (`signIn`) when nobody is signed in, the person check, and the pay sheet (see "The pay sheet" below): the item's picture
+  and line, the amount with its copy key, "Open wallet", the QR code of the exact `nano:` link (drawn by the package as SVG: no QR library, no outside
+  service), the address by hand, the time left (live only), and a check every 5 seconds for 2 minutes ("Check again" after). Paid: `onOwned`, then the
+  success, which stays until its key. Paid late: no look, and the creator sends it back. Ended: a payment sent in time still counts.
 - Phone first (since 0.9.3 by default): every text 16 px or more (the price-source line, the time left, "Enter by hand"'s address and labels too), and
   every key, tab, the Looks key, the close key, the fold "Enter by hand" and its copy keys 48 px or more each way. On a phone held upright the sheet
   rises from the bottom; on a wide screen it stands in the middle; on a phone held sideways the QR code (or the stamp) stands alone on the left and
@@ -1657,11 +1659,70 @@ that value:
 mountShop(el, { ...options, words: { sendExactly: "Pay exactly", buyTitle: (look) => `Get ${look}` } });
 ```
 
-The defaults are short: the pay sheet shows at most 30 words (TEST MODE and live) and no sentence has more than 10 (`test/panel-words.test.ts`).
-Two things are not the game's words: the stamp **"TEST MODE: DO NOT PAY"**, and **"Powered by CoinGecko"** while CoinGecko is one of the price feeds
-(its API terms; `priceLine` adds it when the game's `prices` leaves it out). Keep the meaning of the safety lines in any language: live, send the
+The defaults are short: the pay sheet shows at most 30 words of its own (TEST MODE and live) beside the kit's fixed lines (the trust line and the
+price line), and no sentence has more than 10 (`test/panel-words.test.ts`). Three things are not the game's words: the stamp **"TEST MODE: DO NOT
+PAY"**, **"Powered by CoinGecko"** while CoinGecko is one of the price feeds (its API terms; `priceLine` adds it when the game's `prices` leaves it
+out), and the trust line **"Paid straight to the creator. No network fee."** (`TRUST_LINE`, since 0.16.0). Keep the meaning of the safety lines in any language: live, send the
 **exact** amount, and the order ends at the timer; in test mode nothing can be paid and the wallet key is off; a late payment gives no look and
 the creator sends it back.
+
+### The pay sheet (since 0.16.0)
+
+Wes, 2026-11-14: design A ("Tidy") with the success of design B. The amount, the address, the QR code, the time, the price line, the test stamp and the
+trust line are the kit's. A creator gives three hooks, the offer step's switch and CSS tokens, and nothing else:
+
+```ts
+const shop = mountShop(el, {
+  ...options,
+  // the item's picture at a size in CSS px (64 beside its line, 128 on the success, 176 on the offer); null: picture(look), else the kit's swatch
+  preview: (item, size) => (item.kind === "look" ? myLookPicture(item.look, size) : myRoundPicture(item.play, size)),
+  // the success's key: the sheet closes, then run() runs. Null: "Keep playing", which only closes
+  next: (item) => (item.kind === "play" ? { label: "Play now", run: () => startRound(item.play.id) } : null),
+  // the game's own moment as the success shows (a sound); calm: reduced motion (the device's, or the options' "Less motion")
+  celebrate: (item, calm) => { if (!calm) mySounds.chime(); },
+  offer: false,   // a game with its own shelf; the kit's own list has the offer step by default
+});
+```
+
+- **The main way to pay goes by the device.** A phone or a tablet (a coarse pointer) cannot scan its own screen: "Open wallet" leads, and the QR code
+  and the address wait in the fold "Pay from another device". A computer shows the QR code first, the address in "Enter by hand", and "Open wallet"
+  as the second key. A phone on its side has two columns, so most orders fit one screen.
+- **The amount** has its own copy key (48 by 48). **The time** is a thin bar and its digits; a screen reader reads "Time left 14:50" (`endsIn`).
+  **The state** has a dot that pulses while the sheet waits.
+- **The order ended** (the server's `expired` or `paid_late`, or the clock at the order's `expiresAt`): the wallet key, its link, the QR code and the
+  copy key go. A wallet opened after the end would only make a late payment. "Check again" stays: a payment sent in time still counts. A screen
+  reader hears the ended words (the state is a polite live region).
+- **Paid:** `onOwned` (or `onCredit`) runs first, then the success: the item large on its stage, a tick and a burst in the creator's three colours.
+  The sheet stays open until the player presses its key (or closes the sheet). A look says "You are wearing it now." only when the game's
+  `worn(look)` says yes after `onOwned`. A screen reader hears "Paid." and the focus goes to the success's title. A game whose `onOwned` closes the
+  sheet (the 0.15 way) still works: it closes, and `celebrate` does not run.
+- **The trust line** "Paid straight to the creator. No network fee." shows on a live order only, and only when its `nano:` link pays the order's own
+  address (`trustShown`): the link pays the game's `RECEIVE_ADDRESS`, the creator's, with no key on the server and no hop between; Nano has no
+  network fee, and the amount is the price, rounded up. Never in test mode, and never on the offer step (no order yet). Do not write "no account":
+  a player signs in before a purchase.
+- **Reduced motion** (the device's setting, or the options' "Less motion" through `reflectOptions(store, ["reducedMotion"])`): the dot, the bar, the
+  pop and the burst stand still; the success is the same picture. **High contrast:** `prefers-contrast: more` darkens the soft words and the lines,
+  and `forced-colors` gives every key, the sheet, the bar and the dot a system colour. The QR code stays dark on white.
+- **The focus:** the `<dialog>` is modal (the page under it takes no focus); when it closes, the focus goes back to the element that had it before it
+  opened, when that is still on the page and can take it.
+
+**Its look, with no class name of the kit's** (each with a `--n133-dark-*` twin for the colours):
+
+| Token | What | Default |
+|---|---|---|
+| `--n133-display` | the face of the title, the keys, the amount and the success | `--n133-font` |
+| `--n133-edge` | the edge of a key, a border value | `2px solid` the line colour |
+| `--n133-key-radius` | a key's corners | `999px` |
+| `--n133-key-shadow` | the step under a key (a press sets it down) | none |
+| `--n133-sheet-edge`, `--n133-sheet-shadow` | the sheet's edge and shadow | none, a soft shadow |
+| `--n133-head`, `--n133-title-size` | the head's background (a line of `--n133-edge` under it), the title's size | none, `21px` |
+| `--n133-scrim` | the dim behind the sheet (the options and the friends panels read it too) | `rgb(10 20 35 / 0.45)` |
+| `--n133-stage` | the background behind the item on the success and the offer | light sky to mint |
+| `--n133-time` | the time bar and the dot | `--n133-gem-dark` |
+| `--n133-burst-1`, `-2`, `-3` | the success's burst | gold, gem, pink |
+
+A game's display face with one weight (Lilita One) is never made bold by the browser (`font-synthesis: none`). A game's CSS that hides a part of the
+pay sheet hides a part of a payment: do not.
 
 ### The page's Content Security Policy
 

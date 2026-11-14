@@ -248,14 +248,19 @@ import "@nano133/nanoterra/shop/style.css";
 - Mount the panel with `onOwned(lookId)` (the game adds the look and wears it); `key: false` and `open()` when the game has its own Looks key.
   A game with its own looks sheet calls `buy(lookId)` after it closes that sheet, and gives `onSignInCancel` to show the sheet again when the player
   closes the sign-in without signing in.
+- The pay sheet's creator part (since 0.16.0), and nothing more: `preview(item, size)` (the item's picture), `next(item)` (the success's key: the
+  sheet closes, then its `run`), `celebrate(item, calm)` (a sound; nothing when `calm`), `offer` (false for a game with its own shelf) and the
+  `--n133-*` tokens (README "The pay sheet"). Never style the kit's inner class names, and never hide a part of the pay sheet. `onOwned` wears the
+  look and leaves the sheet open: the success stays until the player presses its key.
 - The game's own words or language: `words` on `mountShop` (keys of `ShopWords`, over `SHOP_WORDS`). Keep each safety line's meaning; the stamp
-  "TEST MODE: DO NOT PAY" and "Powered by CoinGecko" are not the game's to change. A shop in a modal `<dialog>` of the game's own closes it in `signIn`
+  "TEST MODE: DO NOT PAY", "Powered by CoinGecko" and the trust line "Paid straight to the creator. No network fee." are not the game's to change.
+  Never write "no account": a player signs in before a purchase. A shop in a modal `<dialog>` of the game's own closes it in `signIn`
   before the sign-in sheet opens, or the sheet stays hidden behind it.
 - Merge `SHOP_CSP` into the game's Content Security Policy with `mergeCsp`; never replace the game's policy.
 - "Delete my data" calls `store.forget(player, now)`; with `waitUntil`, ask the player to try again then.
 - Tests: the shop's money tests are the package's. The game's tests read the game's own looks file and test only the game's own routes and wiring.
 
-**Check:** with `TEST_MODE` on, Buy shows the stamp and no QR code, and the answer of `POST /api/orders` holds no `address` and no `uri`. With the owner's
+**Check:** with `TEST_MODE` on, Buy shows the stamp, no QR code and no trust line, and the answer of `POST /api/orders` holds no `address` and no `uri`. With the owner's
 address and `TEST_MODE` off, the pay sheet shows the QR code and the exact amount; a second player gets the next step (0.0001 XNO more); another player's
 order id answers 404; a payment of one raw too little is not matched. Test with a small real payment only when the owner says so, to the owner's own address.
 

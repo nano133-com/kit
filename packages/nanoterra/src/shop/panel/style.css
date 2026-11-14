@@ -5,6 +5,13 @@
    To theme it, set the --n133-* custom properties on the element that holds the key (or a parent): --n133-ink, --n133-ink-soft, --n133-paper,
    --n133-ground, --n133-line, --n133-gem, --n133-gem-dark, --n133-on-gem, --n133-sun (the Buy key), --n133-warn (the test stamp), --n133-radius,
    --n133-font. Those set the LIGHT theme; the dark one reads the twins with "dark-" in the name (--n133-dark-ink and so on), as the admin panel does.
+   Since 0.16.0 (the pay sheet's design), a game's skin with no class name of the kit's: --n133-display (the face of the title, the amount and the
+   success), --n133-edge (the edge of the keys, a border value: "3px solid #1d1530"), --n133-key-radius, --n133-key-shadow (the step under a key),
+   --n133-sheet-edge and --n133-sheet-shadow (the sheet's edge and shadow), --n133-head (the head's background), --n133-title-size, --n133-scrim (the
+   dim behind the sheet, as the options and friends panels read it), --n133-stage (the background behind
+   the item on the success and the offer), --n133-time (the time bar and the dot), --n133-burst-1, --n133-burst-2, --n133-burst-3 (the success's
+   burst). The colours have "dark-" twins too. These are the creator's; the amount, the address, the QR code, the time's value, the price line, the
+   test stamp and the trust line are the kit's (a game's CSS that hides one of them hides a part of a payment: do not).
    The QR code stays dark on white in both themes: a wallet's camera reads it best that way. */
 
 .n133-shop {
@@ -22,6 +29,20 @@
   --on-sun: var(--n133-on-sun, #3a2a00);
   --warn: var(--n133-warn, #d6223b);
   --paid: var(--n133-paid, #e6fbf5);
+  --display: var(--n133-display, var(--font));
+  --edge: var(--n133-edge, 2px solid var(--line));
+  --key-radius: var(--n133-key-radius, 999px);
+  --key-shadow: var(--n133-key-shadow, none);
+  --sheet-edge: var(--n133-sheet-edge, 0 solid transparent);
+  --sheet-shadow: var(--n133-sheet-shadow, 0 10px 30px rgb(var(--shade) / 0.25));
+  --head: var(--n133-head, transparent);
+  --title-size: var(--n133-title-size, 21px);
+  --scrim: var(--n133-scrim, rgb(10 20 35 / 0.45));
+  --stage: var(--n133-stage, linear-gradient(180deg, #e3f2ff 0%, #dcf6ec 100%));
+  --time: var(--n133-time, var(--gem-dark));
+  --burst-1: var(--n133-burst-1, #ffd23f);
+  --burst-2: var(--n133-burst-2, #20c9a6);
+  --burst-3: var(--n133-burst-3, #ff5d8f);
   --shade: 10 20 35;
   display: inline-block;
   color: var(--ink);
@@ -44,6 +65,12 @@
   --on-sun: var(--n133-dark-on-sun, #3a2a00);
   --warn: var(--n133-dark-warn, #ff5d73);
   --paid: var(--n133-dark-paid, #0f3a31);
+  --edge: var(--n133-dark-edge, 2px solid var(--line));
+  --sheet-edge: var(--n133-dark-sheet-edge, 0 solid transparent);
+  --head: var(--n133-dark-head, transparent);
+  --scrim: var(--n133-dark-scrim, var(--n133-scrim, rgb(0 0 0 / 0.55)));
+  --stage: var(--n133-dark-stage, linear-gradient(180deg, #1d3550 0%, #173f37 100%));
+  --time: var(--n133-dark-time, var(--gem-dark));
   --shade: 0 0 0;
   color-scheme: dark;
 }
@@ -90,11 +117,12 @@
   max-height: min(92dvh, 760px);
   margin: auto auto 0;
   padding: 0;
-  border: 0;
+  border: var(--sheet-edge);
+  border-bottom-width: 0;
   border-radius: var(--radius) var(--radius) 0 0;
   background: var(--paper);
   color: var(--ink);
-  box-shadow: 0 10px 30px rgb(var(--shade) / 0.25);
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -104,13 +132,16 @@
 }
 
 .n133-shop .n133s-sheet::backdrop {
-  background: rgb(10 20 35 / 0.45);
+  background: var(--scrim);
 }
 
 @media (min-width: 700px) {
   .n133-shop .n133s-sheet {
+    width: min(600px, 100%);
     margin: auto;
+    border: var(--sheet-edge);
     border-radius: var(--radius);
+    box-shadow: var(--sheet-shadow);
   }
 }
 
@@ -121,7 +152,9 @@
     max-height: calc(100vh - 12px);
     max-height: calc(100dvh - 12px);
     margin: auto;
+    border: var(--sheet-edge);
     border-radius: var(--radius);
+    box-shadow: var(--sheet-shadow);
   }
 }
 
@@ -131,13 +164,20 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 8px 4px 20px;
+  padding: 8px 8px 8px 20px;
+  border-bottom: var(--edge);
+  background: var(--head);
 }
 
 .n133-shop .n133s-title {
   margin: 0;
   outline: none;
-  font: 750 21px/1.2 var(--font);
+  font: 750 var(--title-size)/1.15 var(--display);
+}
+
+/* A game's display face may have one weight only (Lilita One): it is never made bold by the browser. */
+.n133-shop :is(.n133s-title, .n133s-btn, .n133s-amount strong, .n133s-success-title, .n133s-pic-plain) {
+  font-synthesis: none;
 }
 
 .n133-shop .n133s-close {
@@ -145,17 +185,18 @@
   place-items: center;
   width: 48px;
   height: 48px;
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
+  border: var(--n133-edge, 0 solid transparent);
+  border-radius: var(--n133-key-radius, 12px);
+  background: var(--paper);
   color: var(--ink);
+  box-shadow: var(--key-shadow);
   cursor: pointer;
 }
 
 .n133-shop .n133s-body {
   flex: 1 1 auto;
   min-height: 0;
-  padding: 4px 20px max(16px, env(safe-area-inset-bottom));
+  padding: 14px 20px max(16px, env(safe-area-inset-bottom));
   overflow: auto;
   overscroll-behavior: contain;
   touch-action: pan-y;
@@ -185,18 +226,33 @@
   min-width: 48px;
   min-height: 48px;
   padding: 0 18px;
-  border: 2px solid var(--line);
-  border-radius: 999px;
+  border: var(--edge);
+  border-radius: var(--key-radius);
   background: var(--paper);
   color: var(--ink);
-  font: 700 16px/1 var(--font);
+  box-shadow: var(--key-shadow);
+  font: 700 16px/1 var(--display);
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
   touch-action: manipulation;
+  transition: transform 0.06s ease-out, box-shadow 0.06s ease-out;
+}
+
+/* a press: the key steps down onto its shadow (none with reduced motion) */
+.n133-shop .n133s-btn:not(:disabled):active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .n133-shop .n133s-btn:not(:disabled):active {
+    transform: none;
+  }
 }
 
 .n133-shop .n133s-btn:disabled {
+  box-shadow: none;
   opacity: 0.55;
   cursor: default;
 }
@@ -205,6 +261,7 @@
 .n133-shop .n133s-primary:disabled {
   border-color: var(--line);
   border-style: dashed;
+  box-shadow: none;
   background: var(--ground);
   color: var(--ink-soft);
   opacity: 1;
@@ -341,36 +398,202 @@
   border-radius: 2px;
 }
 
-/* ---- pay ---- */
+/* ---- pay (since 0.16.0: design A "Tidy", with the success of design B; ./pay.ts) ---- */
+
+.n133-shop .n133s-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.n133-shop .n133s-pay p {
+  margin: 0;
+}
+
+/* the time left: a thin bar under the head */
+.n133-shop .n133s-bar {
+  height: 6px;
+  margin: 2px 0 14px;
+  border-radius: 999px;
+  background: var(--ground);
+  overflow: hidden;
+}
+
+.n133-shop .n133s-bar-fill {
+  display: block;
+  width: calc(var(--n133s-left, 1) * 100%);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--time);
+  transition: width 1s linear;
+}
+
+.n133-shop .n133s-pay[data-low="true"] .n133s-bar-fill {
+  background: var(--warn);
+}
+
+/* the item: its picture beside its line */
+.n133-shop .n133s-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.n133-shop .n133s-pic {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--n133s-pic, 64px);
+  height: var(--n133s-pic, 64px);
+  border-radius: 50%;
+  background: var(--stage);
+  overflow: hidden;
+}
+
+.n133-shop .n133s-pic > :is(canvas, img, svg) {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+}
+
+.n133-shop .n133s-pic > .n133s-swatch {
+  width: 62%;
+  height: 62%;
+}
+
+/* the swatch's hat grows with the picture */
+.n133-shop .n133s-pic .n133s-swatch-hat {
+  left: 25%;
+  top: -12%;
+  width: 50%;
+  height: 26%;
+}
+
+.n133-shop .n133s-pic .n133s-hat-tophat {
+  top: -24%;
+  height: 38%;
+}
+
+.n133-shop .n133s-pic-plain {
+  color: var(--ink-soft);
+  font: 800 calc(var(--n133s-pic, 64px) * 0.42) / 1 var(--display);
+}
 
 .n133-shop .n133s-pay-what {
   margin-top: 0;
   color: var(--ink-soft);
 }
 
+/* the amount: "Send exactly" and the dollars above, the XNO large with its own copy key */
 .n133-shop .n133s-amount {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 4px;
+}
+
+.n133-shop .n133s-amount-top {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px;
-  margin: 6px 0 12px;
-}
-
-.n133-shop .n133s-amount strong {
-  font-size: 30px;
-  font-variant-numeric: tabular-nums;
-}
-
-.n133-shop .n133s-amount span {
+  gap: 8px;
   color: var(--ink-soft);
   font-weight: 700;
 }
 
-/* The time left: its digits keep their width while it counts down. */
+.n133-shop .n133s-amount-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.n133-shop .n133s-amount strong {
+  font: 800 32px/1.1 var(--display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.n133-shop .n133s-copy {
+  flex: none;
+  width: 48px;
+  padding: 0;
+}
+
+/* the state: a dot that pulses while the sheet waits; the time's digits beside it */
+.n133-shop .n133s-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0 0;
+}
+
+.n133-shop .n133s-state .n133s-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+  font-weight: 700;
+}
+
+.n133-shop .n133s-dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--time);
+  animation: n133s-pulse 1.6s ease-out infinite;
+}
+
+.n133-shop .n133s-status:not([data-kind="wait"]) .n133s-dot {
+  display: none;
+}
+
+.n133-shop .n133s-status[data-kind="warn"] {
+  color: var(--warn);
+}
+
+@keyframes n133s-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--time) 60%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 12px color-mix(in srgb, var(--time) 0%, transparent);
+  }
+}
+
 .n133-shop .n133s-time-left {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-soft);
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
+.n133-shop .n133s-pay[data-state="ended"] .n133s-time-left,
+.n133-shop .n133s-pay[data-state="late"] .n133s-time-left {
+  color: var(--warn);
+}
+
+/* the wallet key: the main key on a phone or a tablet, the second key on a computer */
+.n133-shop .n133s-wallet {
+  gap: 10px;
+}
+
+.n133-shop .n133s-second {
+  background: var(--paper);
+}
+
+/* the QR code: dark on white in both themes (a wallet's camera reads it best that way) */
 .n133-shop .n133s-qr {
   display: grid;
   place-items: center;
@@ -389,8 +612,14 @@
   height: 100%;
 }
 
+.n133-shop .n133s-other .n133s-qr {
+  width: min(220px, 60vw);
+  margin: 4px auto 8px;
+}
+
 .n133-shop .n133s-test-pay {
   position: relative;
+  margin-top: 12px;
 }
 
 .n133-shop .n133s-qr-blocked {
@@ -429,15 +658,43 @@
   display: block;
 }
 
+.n133-shop .n133s-test-pay > .n133s-fine {
+  text-align: center;
+}
+
+/* a fold: the QR code for another device (a phone or a tablet), or the address to type (a computer) */
 .n133-shop .n133s-by-hand {
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 .n133-shop .n133s-by-hand summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-height: 48px;
-  line-height: 48px;
   font-weight: 700;
+  list-style: none;
   cursor: pointer;
+}
+
+.n133-shop .n133s-by-hand summary::-webkit-details-marker {
+  display: none;
+}
+
+.n133-shop .n133s-by-hand summary::before {
+  content: "";
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-left: 3px;
+  border-right: 3px solid currentColor;
+  border-bottom: 3px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease-out;
+}
+
+.n133-shop .n133s-by-hand[open] summary::before {
+  transform: rotate(45deg);
 }
 
 .n133-shop .n133s-row {
@@ -448,7 +705,7 @@
 }
 
 .n133-shop .n133s-label {
-  width: 64px;
+  width: 40px;
   flex: none;
   color: var(--ink-soft);
 }
@@ -460,22 +717,35 @@
   font-size: 16px;
 }
 
-.n133-shop .n133s-paid {
-  padding: 18px;
-  border-radius: 16px;
-  background: var(--paid);
-  text-align: center;
+/* the fine lines: the trust line (the kit's) and the price line with its sources */
+.n133-shop .n133s-fine-lines {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  color: var(--ink-soft);
 }
 
-.n133-shop .n133s-paid strong {
-  font-size: 22px;
-  color: var(--gem-dark);
+.n133-shop .n133s-trust {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-/* The wallet key stays in view at the foot of the sheet. */
+.n133-shop .n133s-trust svg {
+  flex: none;
+}
+
+/* the order ended (or was paid too late): no way to pay is offered any more; "Check again" stays */
+.n133-shop .n133s-pay:is([data-state="ended"], [data-state="late"]) :is(.n133s-foot, .n133s-by-hand, .n133s-live-pay, .n133s-copy) {
+  display: none;
+}
+
+/* The wallet key stays in view at the foot of the sheet where it comes last (a computer, test mode); where it leads (a phone, a tablet) it stands high
+   in the sheet and needs no sticky foot that could cover the amount. */
 .n133-shop .n133s-foot {
   position: sticky;
   bottom: calc(-1 * max(16px, env(safe-area-inset-bottom)));
+  z-index: 1;
   margin: 8px -20px 0;
   padding: 0 20px max(12px, env(safe-area-inset-bottom));
   background: linear-gradient(to bottom, transparent, var(--paper) 14px);
@@ -485,75 +755,355 @@
   margin-top: 6px;
 }
 
-/* A phone on its side: the QR code (or the stamp) alone on the left, as big as the height allows; the words, the amount and the wallet key on the right.
-   A play's refund words take the whole first row, above the QR code and the wallet key (before any step); the body scrolls when they need more room. */
-@media (orientation: landscape) and (max-height: 520px) {
-  .n133-shop .n133s-pay {
+.n133-shop .n133s-pay:is([data-main="wallet"], [data-main="test"]) .n133s-foot {
+  position: static;
+  margin: 12px 0 0;
+  padding: 0;
+  background: none;
+}
+
+.n133-shop .n133s-pay:is([data-main="wallet"], [data-main="test"]) .n133s-foot .n133s-wide {
+  margin-top: 0;
+}
+
+/* a computer, from 700 px wide: the QR code in its own column, the words beside it */
+@media (min-width: 700px) {
+  .n133-shop .n133s-pay[data-main="qr"] .n133s-pay-body {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-areas: "refund refund" "qr what" "qr amount" "qr side";
+    grid-template-columns: 232px minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+
+  .n133-shop .n133s-pay[data-main="qr"] .n133s-pay-qr .n133s-qr {
+    width: 232px;
+    margin: 0;
+  }
+
+  .n133-shop .n133s-pay[data-main="qr"] .n133s-foot {
+    position: static;
+    margin: 12px 0 0;
+    padding: 0;
+    background: none;
+  }
+}
+
+/* ---- the success: the item large on its stage, a tick, a burst in the creator's colours; with reduced motion the same picture, still ---- */
+
+.n133-shop .n133s-pay[data-state="paid"] > :not(.n133s-success, .n133s-sr) {
+  display: none;
+}
+
+.n133-shop .n133s-success {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.n133-shop .n133s-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: calc(100% + 40px);
+  margin: -4px -20px 4px;
+  padding: 36px 20px 26px;
+  background: var(--stage);
+  overflow: hidden;
+}
+
+.n133-shop .n133s-success-pic {
+  background: rgb(255 255 255 / 0.55);
+  animation: n133s-pop 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.n133-shop .n133s-tick {
+  position: absolute;
+  left: calc(50% + 34px);
+  bottom: 22px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 3px solid var(--paper);
+  border-radius: 50%;
+  background: var(--gem);
+  color: var(--on-gem);
+  animation: n133s-pop 0.4s 0.25s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.n133-shop .n133s-success-title {
+  font: 800 26px/1.15 var(--display);
+  overflow-wrap: anywhere;
+  outline: none;
+}
+
+.n133-shop .n133s-success-line {
+  color: var(--ink-soft);
+}
+
+.n133-shop .n133s-success .n133s-next {
+  margin-top: 8px;
+}
+
+.n133-shop .n133s-burst {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+}
+
+.n133-shop .n133s-burst i {
+  position: absolute;
+  width: 9px;
+  height: 14px;
+  margin: -7px 0 0 -4px;
+  border-radius: 3px;
+  background: var(--burst-1);
+  transform: rotate(calc(var(--i) * 25.7deg + 12deg)) translateY(calc(-1 * var(--reach, 92px))) rotate(20deg);
+  animation: n133s-burst 0.9s cubic-bezier(0.1, 0.8, 0.3, 1) both;
+}
+
+.n133-shop .n133s-burst i:nth-child(3n + 2) {
+  background: var(--burst-2);
+  --reach: 104px;
+}
+
+.n133-shop .n133s-burst i:nth-child(3n) {
+  background: var(--burst-3);
+  --reach: 80px;
+}
+
+@keyframes n133s-burst {
+  from {
+    opacity: 0;
+    transform: rotate(calc(var(--i) * 25.7deg)) translateY(-10px) scale(0.4);
+  }
+  20% {
+    opacity: 1;
+  }
+}
+
+@keyframes n133s-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+/* ---- the offer (the kit's own list, `offer`): the look large on its stage, its line, the price on the one key; nothing is ordered before it ---- */
+
+.n133-shop .n133s-offer {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.n133-shop .n133s-offer .n133s-pay-what {
+  margin: 4px 0;
+}
+
+.n133-shop .n133s-offer-key {
+  min-height: 56px;
+  font-size: 18px;
+}
+
+.n133-shop .n133s-offer .n133s-wide + .n133s-wide {
+  margin-top: 4px;
+}
+
+/* ---- reduced motion: the device's setting, or the options' "Less motion" (reflectOptions on <html>) ---- */
+
+@media (prefers-reduced-motion: reduce) {
+  .n133-shop :is(.n133s-dot, .n133s-burst i, .n133s-success-pic, .n133s-tick) {
+    animation: none;
+  }
+  .n133-shop :is(.n133s-bar-fill, .n133s-by-hand summary::before) {
+    transition: none;
+  }
+}
+
+:root[data-n133-opt-reduced-motion="true"] .n133-shop :is(.n133s-dot, .n133s-burst i, .n133s-success-pic, .n133s-tick) {
+  animation: none;
+}
+
+:root[data-n133-opt-reduced-motion="true"] .n133-shop :is(.n133s-bar-fill, .n133s-by-hand summary::before) {
+  transition: none;
+}
+
+/* ---- high contrast ---- */
+
+@media (prefers-contrast: more) {
+  .n133-shop {
+    --ink-soft: var(--ink);
+    --line: var(--ink);
+  }
+}
+
+@media (forced-colors: active) {
+  .n133-shop :is(.n133s-btn, .n133s-close, .n133s-key, .n133s-tab) {
+    border: 2px solid ButtonText;
+  }
+  .n133-shop .n133s-sheet {
+    border: 2px solid CanvasText;
+  }
+  .n133-shop .n133s-bar {
+    border: 1px solid CanvasText;
+  }
+  .n133-shop :is(.n133s-bar-fill, .n133s-dot) {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+  .n133-shop .n133s-qr {
+    forced-color-adjust: none;
+  }
+  .n133-shop .n133s-tick {
+    border-color: Canvas;
+  }
+}
+
+/* A phone on its side: two columns, so the sheet is one screen for most orders. The item, the refund words and the amount on the left; the wallet key, the
+   state, the fold and the fine lines on the right (a computer's layout: the QR code on the left, the words on the right). A smaller success. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .n133-shop .n133s-pay:not([data-state="paid"]) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "bar bar" "top act" "amount act" "amount fine";
     grid-template-rows: auto auto auto 1fr;
     gap: 0 20px;
     align-items: start;
   }
 
-  .n133-shop .n133s-pay .n133s-refund {
-    grid-area: refund;
-    margin: 0 0 8px;
-  }
-
-  .n133-shop .n133s-pay-main {
+  .n133-shop .n133s-pay:not([data-state="paid"]) :is(.n133s-pay-body, .n133s-pay-words) {
     display: contents;
   }
 
-  .n133-shop .n133s-pay-what {
-    grid-area: what;
+  .n133-shop .n133s-pay .n133s-bar {
+    grid-area: bar;
+    margin-bottom: 10px;
   }
 
-  .n133-shop .n133s-amount {
+  .n133-shop .n133s-pay .n133s-pay-top {
+    grid-area: top;
+  }
+
+  .n133-shop .n133s-pay .n133s-amount {
     grid-area: amount;
-    margin: 0 0 4px;
   }
 
-  .n133-shop :is(.n133s-live-pay, .n133s-test-pay) {
-    grid-area: qr;
-    width: min(250px, calc(100vh - 96px));
-    width: min(250px, calc(100dvh - 96px));
+  .n133-shop .n133s-pay .n133s-pay-act {
+    grid-area: act;
   }
 
-  /* The refund words' row: the QR code gives up their height, so the sheet stays one screen for most words. */
-  .n133-shop .n133s-pay:has(.n133s-refund) :is(.n133s-live-pay, .n133s-test-pay) {
-    width: min(250px, calc(100vh - 160px));
-    width: min(250px, calc(100dvh - 160px));
+  .n133-shop .n133s-pay .n133s-fine-lines {
+    grid-area: fine;
+    margin-top: 8px;
   }
 
-  .n133-shop .n133s-pay-side {
-    grid-area: side;
+  .n133-shop .n133s-pay[data-main="qr"] .n133s-pay-qr {
+    grid-area: act;
   }
 
-  .n133-shop .n133s-qr {
-    width: 100%;
+  .n133-shop .n133s-pay[data-main="qr"] .n133s-pay-act {
+    grid-area: fine;
+  }
+
+  .n133-shop .n133s-pay[data-main="qr"] .n133s-fine-lines {
+    grid-column: 1 / -1;
+    grid-row: 4;
+  }
+
+  .n133-shop .n133s-pay[data-main="qr"] .n133s-qr {
+    width: min(232px, calc(100dvh - 120px));
+    margin: 0;
+  }
+
+  .n133-shop .n133s-item {
+    margin-bottom: 8px;
+  }
+
+  .n133-shop .n133s-pay :is(.n133s-pay-act > .n133s-foot, .n133s-pay-act > .n133s-state:first-child) {
+    margin-top: 0;
+  }
+
+  .n133-shop .n133s-test-pay {
+    margin-top: 8px;
+  }
+
+  .n133-shop .n133s-test-pay .n133s-qr {
+    width: min(160px, calc(100dvh - 240px));
+  }
+
+  .n133-shop .n133s-item-pic {
+    --n133s-pic: 48px !important;
+  }
+
+  .n133-shop .n133s-pay .n133s-wide {
+    margin-top: 6px;
   }
 
   .n133-shop .n133s-stamp {
-    top: 50%;
-    font-size: 22px;
+    top: 45%;
+    font-size: 20px;
   }
 
   .n133-shop .n133s-amount strong {
-    font-size: 24px;
+    font-size: 28px;
   }
 
-  .n133-shop .n133s-pay-side .n133s-fine:first-child {
-    margin-top: 0;
+  .n133-shop .n133s-pay[data-state="paid"] .n133s-success {
+    grid-template-columns: auto minmax(0, 1fr);
+    justify-items: start;
+    align-items: center;
+    gap: 4px 20px;
+    text-align: left;
+  }
+
+  .n133-shop .n133s-pay[data-state="paid"] .n133s-stage {
+    grid-row: span 3;
+    width: auto;
+    margin: 0;
+    padding: 20px;
+    border-radius: var(--radius);
+  }
+
+  .n133-shop .n133s-pay[data-state="paid"] .n133s-tick {
+    left: auto;
+    right: 10px;
+    bottom: 10px;
+  }
+
+  .n133-shop .n133s-offer {
+    grid-template-columns: 200px minmax(0, 1fr);
+    justify-items: stretch;
+    gap: 6px 20px;
+    text-align: left;
+  }
+
+  .n133-shop .n133s-offer .n133s-stage {
+    grid-row: span 4;
+    width: auto;
+    margin: 0;
+    padding: 12px;
+    border-radius: var(--radius);
+  }
+
+  .n133-shop .n133s-offer .n133s-offer-pic {
+    --n133s-pic: 150px !important;
   }
 }
 
 /* ---- a play: the refund words, the "18 or older" step, and the Play key ---- */
 
-/* The refund words stand above the pay box in every layout: after the amount on a phone held up and on a wide screen, the first row on a phone on its side. */
-.n133-shop .n133s-refund {
-  margin: 8px 0 12px;
+/* The refund words stand above the amount and every way to pay, in every layout (under the item's line). */
+.n133-shop .n133s-refund,
+.n133-shop .n133s-pay .n133s-refund {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--ground);
   overflow-wrap: anywhere;
 }
 

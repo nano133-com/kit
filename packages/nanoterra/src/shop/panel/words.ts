@@ -2,11 +2,12 @@
 // "18 or older" step, its pay sheet). A game gives `words` to `mountShop` (or to `looksView` and `payPanel`)
 // with the keys it wants to change, in its own words or language; the rest stay these. A text with a value in it is a function of that value.
 //
-// Two things a game cannot change, because a player's money depends on them: the stamp "TEST MODE: DO NOT PAY" (it is not a key), and the words
+// Three things a game cannot change, because a player's money depends on them: the stamp "TEST MODE: DO NOT PAY" (it is not a key), the words
 // "Powered by CoinGecko" while CoinGecko is one of the price feeds (CoinGecko's API terms ask for them: `priceLine` adds them when `prices` leaves
-// them out).
+// them out), and the trust line `TRUST_LINE` (since 0.16.0: a claim about money, shown only on a live order; see ./pay.ts).
 //
-// The defaults are short on purpose (Wes, 2026-11-01: fewer words): the pay sheet shows at most 30 words, and no sentence has more than 10.
+// The defaults are short on purpose (Wes, 2026-11-01: fewer words): the pay sheet shows at most 30 words of its own beside the fixed lines (the trust
+// line and the price line), and no sentence has more than 10.
 
 import { usdText, type Hat } from "../../looks/look.js";
 
@@ -42,7 +43,7 @@ export type ShopWords = {
   signInFirst: string;
 
   // ---- Buy ----
-  /** The title of Buy and of the pay sheet. */
+  /** The title of Buy and of the pay sheet (since 0.16.0 the look's name alone). */
   buyTitle: (look: string) => string;
   making: string;
   /** An order that did not start, with no words from the server. */
@@ -71,8 +72,12 @@ export type ShopWords = {
   wallet: string;
   /** The QR code's name for a screen reader. */
   qrLabel: (xno: string) => string;
-  /** The fold with the amount and the address to type by hand. */
+  /** The fold with the address to type by hand (a computer: under the QR code). */
   byHand: string;
+  /** The fold with the QR code and the address on a phone or a tablet, where "Open wallet" leads (since 0.16.0). */
+  otherDevice: string;
+  /** The amount's copy key, for a screen reader (since 0.16.0). */
+  copyAmount: string;
   amountLabel: string;
   /** The address's label in the fold. */
   toLabel: string;
@@ -81,14 +86,20 @@ export type ShopWords = {
   copy: string;
   copied: string;
   copyFailed: string;
-  /** The time left (live only): the order ends then. */
+  /** The time left (live only), for a screen reader: the bar and the digits show it (since 0.16.0). */
   endsIn: (time: string) => string;
   waiting: string;
   noConnection: string;
   stillWaiting: string;
   checkAgain: string;
+  /** Said to a screen reader as the payment is seen, before `paidLine` or `playPaid`. */
   paid: string;
+  /** The success's title: the look is the player's. */
   paidLine: (look: string) => string;
+  /** Under the success's title, only when the game's `worn(look)` says yes after `onOwned` (since 0.16.0). */
+  wearingNow: string;
+  /** The success's key when the game gives no `next` (since 0.16.0): it closes the sheet. */
+  keepPlaying: string;
   /** A payment after the order ended: it gives no look, and the creator sends it back. */
   paidLate: string;
   /** The order ended: a payment sent in time still counts. */
@@ -105,7 +116,7 @@ export type ShopWords = {
   playTitle: (play: string) => string;
   /** The line under the title of a play's pay sheet: one use, used once. */
   playLine: (use: string) => string;
-  /** The paid play's words, where the QR code was. */
+  /** The success's title of a paid play. */
   playPaid: (use: string) => string;
   /** A play's payment after the order ended: it gives no credit, and the creator sends it back. */
   playLate: (use: string) => string;
@@ -129,6 +140,14 @@ const spaced = (slot: string) => slot.replace(/-/g, " ");
 /** CoinGecko's words: its API terms ask for them wherever its price shows. */
 export const COINGECKO_CREDIT = "Powered by CoinGecko";
 
+/**
+ * The trust line of a live pay sheet (Wes, 2026-11-14). It is the kit's, never a game's word: it is a claim about money. It is true for every order the
+ * kit draws live: the `nano:` link pays the game's own receive address (`RECEIVE_ADDRESS`, the creator's: the server holds no key and no other hop),
+ * and Nano has no network fee (the amount is the price, rounded up; nothing is added for the network). The pay sheet shows it only on a live order
+ * whose link names the order's own address, never in test mode (./pay.ts `trustShown`).
+ */
+export const TRUST_LINE = "Paid straight to the creator. No network fee.";
+
 export const SHOP_WORDS: ShopWords = {
   title: "Looks",
   close: "Close",
@@ -146,7 +165,7 @@ export const SHOP_WORDS: ShopWords = {
   looksNote: "Looks never change play. Pay in Nano, straight to the creator.",
   signInFirst: "Sign in first to buy a look.",
 
-  buyTitle: (look) => `Buy ${look}`,
+  buyTitle: (look) => look,
   making: "Making your order…",
   orderFailed: "The order did not start. Try again.",
   refusal: (text) => text,
@@ -162,19 +181,23 @@ export const SHOP_WORDS: ShopWords = {
   wallet: "Open wallet",
   qrLabel: (xno) => `QR code to pay ${xno} XNO`,
   byHand: "Enter by hand",
+  otherDevice: "Pay from another device",
+  copyAmount: "Copy amount",
   amountLabel: "Amount",
   toLabel: "To",
   byHandNote: "Another amount does not match.",
   copy: "Copy",
   copied: "Copied",
   copyFailed: "Copy failed",
-  endsIn: (time) => `Ends in ${time}.`,
+  endsIn: (time) => `Time left ${time}`,
   waiting: "Waiting for payment…",
   noConnection: "No connection. Trying again…",
-  stillWaiting: "Still waiting. Already paid? Press Check again.",
+  stillWaiting: "Already paid? Check again.",
   checkAgain: "Check again",
-  paid: "Paid. Thank you!",
-  paidLine: (look) => `${look} is yours.`,
+  paid: "Paid.",
+  paidLine: (look) => `${look} is yours`,
+  wearingNow: "You are wearing it now.",
+  keepPlaying: "Keep playing",
   paidLate: "Paid after the order ended, so no look. The creator sends it back.",
   expired: "This order ended. Paid in time? Wait here: it still counts.",
   prices: (sources) => {
@@ -187,7 +210,7 @@ export const SHOP_WORDS: ShopWords = {
   playReady: (use, n) => `${n} ${useWord(use, n)} ready`,
   playTitle: (play) => play,
   playLine: (use) => `1 ${use}. Used once.`,
-  playPaid: (use) => `Paid. Your ${use} is ready.`,
+  playPaid: (use) => `Your ${use} is ready`,
   playLate: (use) => `Paid after the order ended, so no ${use}. The creator sends it back.`,
   playSignIn: (use) => `Sign in first to buy a ${use}.`,
   ageLine: "Paid rounds are for players 18 and up.",

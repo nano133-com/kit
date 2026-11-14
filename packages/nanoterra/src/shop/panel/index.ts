@@ -6,15 +6,16 @@
 //
 // Every word of the two sheets can be the game's own: `mountShop(el, { ..., words: { sendExactly: "Pay exactly" } })` (ShopWords; SHOP_WORDS are the defaults).
 // A game that sells plays gives `plays` (plays.json) and `onCredit`, and uses `buyPlay(playId)`, `playKey(playId, start)` and `ready()`.
+// The pay sheet's creator part (since 0.16.0): `preview(item, size)`, `next(item)`, `celebrate(item, calm)`, `offer` and the CSS tokens (style.css).
 //
 // The server part is "@nano133/nanoterra/shop" (the handler and the stores): it must not load this one.
 
 export { mountShop } from "./mount.js";
-export type { MountedShop, PlayItem, PlayReady, ShopMountOptions } from "./mount.js";
+export type { MountedShop, PlayItem, PlayReady, ShopItem, ShopMountOptions } from "./mount.js";
 export { looksView, slotsOf } from "./looks.js";
 export type { LooksViewOptions, SlotWords } from "./looks.js";
-export { PAY_TIMING, isTestOrder, payPanel } from "./pay.js";
-export type { PayOptions, PayPanel } from "./pay.js";
+export { PAY_TIMING, calmNow, isTestOrder, itemPicture, payPanel, trustShown } from "./pay.js";
+export type { PayNext, PayOptions, PayPanel } from "./pay.js";
 export { qrModules, qrSvg, qrVersionFor } from "./qr.js";
-export { COINGECKO_CREDIT, SHOP_WORDS, playPrice, priceLine, shopWords, useWord } from "./words.js";
+export { COINGECKO_CREDIT, SHOP_WORDS, TRUST_LINE, playPrice, priceLine, shopWords, useWord } from "./words.js";
 export type { ShopWords } from "./words.js";

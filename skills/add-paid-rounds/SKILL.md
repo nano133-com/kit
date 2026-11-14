@@ -32,6 +32,8 @@ neither, say so and stop.
    `shop.ready()` after the sign-in. `start` makes a NEW round id, posts `{ playId, ref }` to
    `/api/plays/use`, and starts the round only after `{ used: true }`, once for each ref. The credit is
    used at the round's start, never at the buy. Never put a Play key on a page for children.
+   The pay sheet's success stays until its key: give `next: (item) => item.kind === "play" ? { label:
+   "Play now", run: () => start(item.play.id, item.play) } : null` so the key starts the round.
 7. A paid round never pauses (leave `pauseWhenLeft` out of it). A round that used a paid life or
    continue posts no board score and earns nothing. A paid round gives no ticket, prize or reward.
 8. Refunds are by hand: the admin lists them ("To send back", "Unmatched payments"). Never add a key, a

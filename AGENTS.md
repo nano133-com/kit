@@ -107,7 +107,9 @@ with no Three.js), `/looks`, `/friends`, `/options`, `/emotes`, `/player-signin`
   matches a unique, clean amount exactly. Install it; never copy the starter's order, match, sweep, price or node files. Keep test
   mode on until the owner's own address is set AND `TEST_MODE` is off; a pay screen in test mode says "TEST MODE: DO NOT PAY", with
   no QR code, no address and the wallet key off. The server decides every price. `player(req)` is the PLAYER sign-in, never the
-  admin's; the shop draws no sign-in (the panel's `signIn()` hook). A store of the game's own passes `shopStoreConformance`. Merge
+  admin's; the shop draws no sign-in (the panel's `signIn()` hook). The pay sheet's look is the game's only through `preview`, `next`, `celebrate`,
+  `offer` and the `--n133-*` tokens (since 0.16.0); the trust line "Paid straight to the creator. No network fee." is the kit's: never change, hide or
+  copy it, and never write "no account". A store of the game's own passes `shopStoreConformance`. Merge
   `SHOP_CSP` into the game's policy; never replace it. "Delete my data" calls `store.forget(player, now)`.
 - **Plays: charge for a round** (`/shop`, `plays.json`; since 0.15.0; SPEC step 15): a play is a round, a level, a life or a continue that a player
   buys and uses ONCE. Pay to play only: a round never pays out money or a prize of value, nothing bought is random or changes the odds, and no

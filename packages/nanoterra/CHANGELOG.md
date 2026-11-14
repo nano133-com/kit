@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+- **The pay sheet, new (Wes, 2026-11-14: design A "Tidy" with the success of design B; the design note "Payment screen designs").** The money logic,
+  the routes, the amounts and the timing do not change; a game on 0.15 needs no code change.
+  - The item's picture beside its line, a thin time bar, the amount with its own copy key (48 by 48), and a dot that pulses while the sheet waits.
+  - The main way to pay goes by the device: a phone or a tablet (a coarse pointer) gets "Open wallet" first and the QR code in the fold "Pay from
+    another device"; a computer gets the QR code first, the address in "Enter by hand" and "Open wallet" second. A phone on its side has two columns.
+  - **The order ended: the ways to pay go.** On `expired`, `paid_late`, or the clock at the order's `expiresAt`, the wallet key (and its link), the QR
+    code and the copy key leave the sheet; "Check again" stays. (Before, "Open wallet" stayed on after the end and invited a late payment.)
+  - **Paid: the sheet stays on the success until its key.** The item large on its stage, a tick and a burst in the creator's colours; "<name> is yours"
+    (a look) or "Your round is ready" (a play); "You are wearing it now." only when the game's `worn(look)` says yes after `onOwned`. The key is the
+    game's `next`, else "Keep playing". A screen reader hears "Paid." and the focus goes to the success's title.
+  - **The trust line** "Paid straight to the creator. No network fee." (`TRUST_LINE`): the kit's, never a game's word. Only on a live order whose
+    link pays the order's own address (`trustShown`); never in test mode, never on the offer step.
+  - **The offer step** (`offer`, default true): Buy in the kit's own list first shows the look large with its price on one key; nothing is ordered and no
+    sign-in is asked before it. Never for the game's own `buy(lookId)` or a play.
+  - **The creator's part:** `preview(item, size)`, `next(item)`, `celebrate(item, calm)`, `offer`, and the tokens `--n133-display`, `--n133-edge`,
+    `--n133-key-radius`, `--n133-key-shadow`, `--n133-sheet-edge`, `--n133-sheet-shadow`, `--n133-head`, `--n133-title-size`, `--n133-stage`,
+    `--n133-time`, `--n133-burst-1`, `-2`, `-3` (colours with `--n133-dark-*` twins), and the shop's dim now reads `--n133-scrim` (as the options and
+    friends panels do). A game can drop its rules on the kit's inner class names. The head has a line of `--n133-edge` under it.
+  - Reduced motion: the device's setting or the options' "Less motion" (`data-n133-opt-reduced-motion` on <html>); `calmNow()`. High contrast:
+    `prefers-contrast: more` and `forced-colors` rules. The focus goes back to the element that opened the sheet when it is still there.
+  - New exports: `ShopItem`, `PayNext`, `TRUST_LINE`, `trustShown`, `calmNow`, `itemPicture`. `PayOptions` takes `preview`, `next`, `celebrate`,
+    `wearing` and `main` (all optional).
+- **What a game's own tests see change** (no code of the game must change, but a test that pins these does):
+  - `SHOP_WORDS`: `buyTitle` is the name alone (was "Buy <name>"), `endsIn` is "Time left 14:52" for a screen reader (the digits show it),
+    `stillWaiting` "Already paid? Check again.", `paid` "Paid.", `paidLine` "<name> is yours", `playPaid` "Your round is ready". New keys:
+    `otherDevice`, `copyAmount`, `wearingNow`, `keepPlaying`. A game's own value of a key still wins.
+  - The pay sheet's DOM: `.n133s-pay-main` and `.n133s-pay-side` are gone (`.n133s-pay-top`, `.n133s-pay-body`, `.n133s-pay-qr`, `.n133s-pay-words`,
+    `.n133s-pay-act`); "Check again" is `.n133s-again`; the success is `.n133s-success` (also `.n133s-paid`) with `.n133s-success-title`; the amount's
+    dollars are `.n133s-usd`. `.n133s-foot` still holds the wallet key, `.n133s-stamp` the stamp, `.n133s-amount strong` the XNO.
+  - The kit's own list: a Buy press shows the offer step before the sign-in and the order (`offer: false` for the 0.15 flow).
+  - The pay sheet's word count: 22 words of its own live and 23 in test mode, beside the fixed lines (the trust line, 8; the price line, 6).
+- Sizes (gzip, size test): `/shop/panel` 13.1 kB (ceiling 13.3 kB, was 11.6 kB).
+
 ## 0.15.1 (2026-11-04)
 
 - `/admin/panel`: the Legal card shows only for a game with plays (`mountAdmin({ plays })` has one, or the store has a play's orders). A game that sells

@@ -33,7 +33,9 @@ const PATHS: [string, string[], number, boolean][] = [
   ["@nano133/nanoterra/shop", ["shop/index.js"], 12_900, false],
   ["@nano133/nanoterra/shop/worker", ["shop/worker.js"], 14_500, false],
   // Since 0.15.0 the panel sells plays too (buyPlay, the "18 or older" step, the Play key, ready()).
-  ["@nano133/nanoterra/shop/panel", ["shop/panel/index.js"], 11_600, false],
+  // 0.16.0: 13.1 kB, the pay sheet of design A (the item's picture, the main way by the device, the success that stays, the offer step, the trust line,
+  // the ended order without its ways to pay); the design note estimated about +1.4 kB.
+  ["@nano133/nanoterra/shop/panel", ["shop/panel/index.js"], 13_300, false],
   // The admin's sign-in: the server part without @nano133/signin (an optional peer, outside the bundle), the stores, and the panel with its QR code.
   // Since 0.12.0 each holds the owner's passkeys too (the routes, the link's store methods, the Passkey tile and the Owner passkeys card; the passkey code itself stays outside).
   ["@nano133/nanoterra/admin-signin", ["admin-signin/index.js"], 7_300, false],

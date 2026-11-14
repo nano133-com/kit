@@ -1,5 +1,6 @@
-// The words of the shop's sheets and of the player's sign-in sheet (happy-dom): the defaults stay short (the pay sheet at most 30 words, in TEST MODE and
-// live; no sentence over 10 words), the safety lines stay, and a game's `words` reach the page. No real money: the live payee is a test address nobody
+// The words of the shop's sheets and of the player's sign-in sheet (happy-dom): the defaults stay short (the pay sheet at most 30 words of its own, in TEST
+// MODE and live, beside the kit's fixed lines: the trust line and the price line; no sentence over 10 words), the safety lines stay, and a game's `words`
+// reach the page. No real money: the live payee is a test address nobody
 // holds the key for, and nothing is sent.
 import assert from "node:assert/strict";
 import test, { after, before } from "node:test";
@@ -71,6 +72,9 @@ const wordsOf = (text: string) => text.split(/\s+/).filter((t) => /[\p{L}\p{N}]/
 const sentencesOf = (text: string) => text.split(/(?<=[.!?…])\s+/).filter((s) => s.trim());
 const longest = (lines: string[]) => Math.max(0, ...lines.flatMap(sentencesOf).map((s) => wordsOf(s).length));
 const count = (lines: string[]) => lines.reduce((n, l) => n + wordsOf(l).length, 0);
+/** The kit's fixed lines (since 0.16.0 they do not count in a sheet's own budget, Wes 2026-11-14): the trust line and the price line. */
+const FIXED = /^(Paid straight to the creator\. No network fee\.|Price: .*|Powered by CoinGecko\.)$/;
+const own = (lines: string[]) => count(lines.filter((l) => !FIXED.test(l)));
 
 /** A game with the real handler and the kit's three feed names (each answers $1). */
 function game(payee: string | null) {
@@ -103,8 +107,9 @@ async function paySheet(payee: string | null, words?: Parameters<typeof shopPane
 test("the pay sheet in TEST MODE: at most 30 words, no sentence over 10; the stamp word for word, nothing can be paid, the wallet key off with its reason", async (t) => {
   const sheet = await paySheet(null);
   const lines = visibleLines(sheet);
-  t.diagnostic(`TEST MODE: ${count(lines)} words, longest sentence ${longest(lines)}: ${lines.join(" | ")}`);
-  assert.ok(count(lines) <= 30, `${count(lines)} words`);
+  t.diagnostic(`TEST MODE: ${own(lines)} words of its own (${count(lines)} in all), longest sentence ${longest(lines)}: ${lines.join(" | ")}`);
+  assert.ok(own(lines) <= 30, `${own(lines)} words`);
+  assert.ok(!lines.some((l) => l.includes("No network fee")), "no trust line in test mode");
   assert.ok(longest(lines) <= 10, `a sentence of ${longest(lines)} words`);
   assert.equal(sheet.querySelector(".n133s-stamp")!.textContent, "TEST MODE: DO NOT PAY");
   assert.ok(lines.includes("Nothing can be paid here."));
@@ -113,14 +118,15 @@ test("the pay sheet in TEST MODE: at most 30 words, no sentence over 10; the sta
   assert.ok(lines.some((l) => l.includes("Powered by CoinGecko")));
 });
 
-test("the pay sheet live: at most 30 words, no sentence over 10; send the exact amount, the order ends at the timer, Powered by CoinGecko", async (t) => {
+test("the pay sheet live: at most 30 words of its own, no sentence over 10; send the exact amount, the time left, the trust line, Powered by CoinGecko", async (t) => {
   const sheet = await paySheet(testAddress());
   const lines = visibleLines(sheet);
-  t.diagnostic(`live: ${count(lines)} words, longest sentence ${longest(lines)}: ${lines.join(" | ")}`);
-  assert.ok(count(lines) <= 30, `${count(lines)} words`);
+  t.diagnostic(`live: ${own(lines)} words of its own (${count(lines)} in all), longest sentence ${longest(lines)}: ${lines.join(" | ")}`);
+  assert.ok(own(lines) <= 30, `${own(lines)} words`);
   assert.ok(longest(lines) <= 10, `a sentence of ${longest(lines)} words`);
-  assert.ok(lines.some((l) => l.startsWith("Send exactly 0.25 XNO")));
-  assert.ok(lines.some((l) => /^Ends in \d+:\d\d\.$/.test(l)));
+  assert.ok(lines.some((l) => l.startsWith("Send exactly") && l.includes("0.25 XNO")));
+  assert.ok(lines.some((l) => /^Time left \d+:\d\d$/.test(l)), "the time left, for a screen reader (the digits are for the eye)");
+  assert.ok(lines.includes("Paid straight to the creator. No network fee."));
   assert.ok(lines.includes("Price: Kraken, KuCoin. Powered by CoinGecko."));
   // The fold open: the amount and the address by hand, and the words that another amount does not match.
   sheet.querySelector("details")!.setAttribute("open", "");
@@ -240,9 +246,9 @@ test("a play's sheets: the 18-or-older step, and the pay sheet in TEST MODE and 
     const sheet = await playSheet(payee, adultsOnly);
     const lines = visibleLines(sheet);
     const refund = sheet.querySelector(".n133s-refund");
-    const own = refund ? count(lines) - count(visibleLines(refund)) : count(lines);
-    t.diagnostic(`${name}: ${own} words of the kit (${count(lines)} with the refund words), longest sentence ${longest(lines)}: ${lines.join(" | ")}`);
-    assert.ok(own <= 30, `${name}: ${own} words`);
+    const kit = own(lines) - (refund ? count(visibleLines(refund)) : 0);
+    t.diagnostic(`${name}: ${kit} words of the kit's own (${count(lines)} with the refund words and the fixed lines), longest sentence ${longest(lines)}: ${lines.join(" | ")}`);
+    assert.ok(kit <= 30, `${name}: ${kit} words`);
     assert.ok(longest(lines) <= 10, `${name}: a sentence of ${longest(lines)} words`);
     if (refund) assert.ok(count(visibleLines(refund)) <= 15, "the sample refund words are short");
     if (adultsOnly) assert.ok(lines.includes("Paid rounds are for players 18 and up."));
@@ -256,7 +262,7 @@ test("a play's sheets: the 18-or-older step, and the pay sheet in TEST MODE and 
   assert.equal(w.playFor(shopPanel.playPrice(0.05)), "Play for 5¢");
   assert.equal(w.playReady("round", 1), "1 round ready");
   assert.equal(w.playReady("life", 2), "2 lives ready");
-  assert.equal(w.playPaid("round"), "Paid. Your round is ready.");
+  assert.equal(w.playPaid("round"), "Your round is ready");
   assert.equal(w.playLine("round"), "1 round. Used once.");
   assert.deepEqual([0.005, 0.25, 0.9999, 1, 1.5].map(shopPanel.playPrice), ["0.5¢", "25¢", "99.99¢", "$1.00", "$1.50"]);
   assert.match(w.playLate("round"), /no round/);
