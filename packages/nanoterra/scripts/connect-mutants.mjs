@@ -99,7 +99,7 @@ const MUTANTS = [
   ["A16", "Node: no bound on the body's size (the kit's test)", "node.ts", "    if (size > BODY_MAX) {", "    if (false) {"],
   ["A17", "C7 errors logged by their message", "core.ts", "const errorName = (e: unknown) => (e instanceof Error && /^[A-Za-z]{1,40}$/.test(e.name) ? e.name : \"error\");", "const errorName = (e: unknown) => (e instanceof Error ? e.message : \"error\");"],
   ["A18", "F2 Origin null taken as this site", "core.ts", "  if (origin === null) return site === \"same-origin\";", "  if (origin === null) return site === \"same-origin\";\n  if (origin === \"null\") return true;"],
-  ["A19", "N1 Not me uses the cookie up before the origin check", "core.ts", "    if (!ownOrigin(req, o.origins)) return page(403, \"notOwnPage\");\n    const pending = key ? await readPending(key, req, now(), origins) : null;\n    if (pending) await o.once(pending.id, pending.exp, \"cancel\");", "    const pending = key ? await readPending(key, req, now(), origins) : null;\n    if (pending) await o.once(pending.id, pending.exp, \"cancel\");\n    if (!ownOrigin(req, o.origins)) return page(403, \"notOwnPage\");"],
+  ["A19", "N1 Not me uses the cookie up before the origin check", "core.ts", "    if (!ownOrigin(req, o.origins)) return page(403, \"notOwnPage\");\n    const pending = keyNow() ? await readPending(keyNow(), req, now(), origins) : null;\n    if (pending) await o.once(pending.id, pending.exp, \"cancel\");", "    const pending = keyNow() ? await readPending(keyNow(), req, now(), origins) : null;\n    if (pending) await o.once(pending.id, pending.exp, \"cancel\");\n    if (!ownOrigin(req, o.origins)) return page(403, \"notOwnPage\");"],
   ["A20", "F3 no bound on the pending cookie's size (the kit's test)", "core.ts", "  if (!token || token.length > PENDING_MAX) return null;", "  if (!token) return null;"],
   ["A21", "C3 the plain state name read when the __Host- one is missing", "core.ts", "    const kept = readCookie(req, STATE_COOKIE, origins) ?? \"\";", "    const kept = readCookie(req, STATE_COOKIE, origins) ?? cookie(req, STATE_COOKIE) ?? \"\";"],
   // The review's fixes: the code before each fix, and each part of the new rules taken out.
@@ -112,9 +112,11 @@ const MUTANTS = [
   ["N07", "F1 the signing key's length", "core.ts", "key.length >= SIGNING_KEY_MIN && kinds(key) >= SIGNING_KEY_KINDS", "key.length > 0"],
   ["N08", "F1 the Worker answers a weak secret by throwing (Cloudflare's own error page, no guest link)", "worker.ts", "    if (e instanceof ConnectSetupError) return setupWrongConnect(options);\n", ""],
   ["N09", "F4 signIn after a screen gets items: [] (the code before the review)", "core.ts", "    const { items: _none, ...player } = read;", "    const player = read;"],
-  ["N10", "F5 the cookies' names from the request, not from origins (the code before the review)", "core.ts", "  return localUrl(new URL(origins && origins.length ? origins[0] : req.url));", "  return localUrl(new URL(req.url));"],
+  ["N10", "F5 the cookies' names from the request, not from origins (the code before the review)", "core.ts", "  return origins && origins.length ? origins.every((x) => localUrl(new URL(x))) : localUrl(new URL(req.url));", "  return localUrl(new URL(req.url));"],
   ["N11", "F7 no Origin refused even with Sec-Fetch-Site same-origin (the code before the review; stricter, but the player's own press fails)", "core.ts", "  if (origin === null) return site === \"same-origin\";", "  if (origin === null) return false;"],
   ["N12", "F12 Node: no time bound on the body", "node.ts", "    const step = await Promise.race([it.next(), late]).finally(() => clearTimeout(timer));", "    const step = await it.next().finally(() => clearTimeout(timer));"],
+  ["N13", "R2 localDevSecret signs the pending cookie with the weak secret (the code before the re-check)", "core.ts", "  const keyNow = () => (problem ? (localDevKey ??= randomHex(32)) : key);", "  const keyNow = () => key;"],
+  ["N14", "R1 the first listed origin alone decides the cookies' names (the code before the re-check)", "core.ts", "  return origins && origins.length ? origins.every((x) => localUrl(new URL(x))) : localUrl(new URL(req.url));", "  return localUrl(new URL(origins && origins.length ? origins[0] : req.url));"],
 ];
 
 const files = ["core.ts", "screens.ts", "node.ts", "worker.ts"];
@@ -136,7 +138,7 @@ for (const [id, rule, file, from, to] of MUTANTS) {
     continue;
   }
   writeFileSync(path, text.replace(from, to));
-  const r = spawnSync(process.execPath, ["--import", tsxPath, "--test", "--test-reporter=tap", "test/connect.test.ts"], { cwd: dir, encoding: "utf8", timeout: 240_000 });
+  const r = spawnSync(process.execPath, ["--import", tsxPath, "--test", "--test-reporter=tap", "test/connect.test.ts", "test/connect-recheck.test.ts", "test/connect-recheck-gaps.test.ts"], { cwd: dir, encoding: "utf8", timeout: 240_000 });
   const failed = [...r.stdout.matchAll(/^\s*not ok \d+ - (.+)$/gm)].map((m) => m[1]);
   const worker = new Set(), node = new Set(), kit = [];
   // TAP nests the cases under their describe: read which suite each failed case is in.

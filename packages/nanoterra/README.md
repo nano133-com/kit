@@ -2114,7 +2114,7 @@ screen), its "works once" store (D1 and Firestore are in the package), and, if i
 | `limit(scope, req)` | 20 a minute a visitor, in memory | `scope` is `"start"`, `"callback"` or `"confirm"` |
 | `visitor(req)` | CF-Connecting-IP (IPv6 by its /64) | the default limit's visitor. On Node give `limit` or `visitor` |
 | `after` | `"/"` | where the player goes; a path on this site only (another site, `//host`, a backslash or a space throws) |
-| `origins` | the request's origin | the game's public origins (required on Node: a proxy hides the https address). The FIRST one decides the cookies' names (`__Host-` unless it is plain http on localhost), never the request's Host header |
+| `origins` | the request's origin | the game's public origins (required on Node: a proxy hides the https address). They decide the cookies' names, never the request's Host header: plain names only when EVERY origin is plain http on localhost; else `__Host-` |
 | `signingKey` | the client secret itself | the pending cookie's HMAC key: at least 32 characters of random text |
 | `localDevSecret` | false | a local dev server only: accept a weak secret or key (see below) |
 | `screens` | the starter's | `words`, `errors`, `stylesheets` (default `["/nanoterra.css"]`), `head`, `logoLabel`, `render`, `csp` |
@@ -2138,7 +2138,7 @@ closed:
   is still "not set up" (503).
 - **A local dev server** with a made-up secret sets `localDevSecret: true`. It also needs `site` (on a Worker, `NANOTERRA_ORIGIN`): a stand-in for
   nano133.com on this computer, because a weak secret can never trade with nano133.com. With `origins` that name another site it throws. Every
-  request that is not plain http on localhost, 127.0.0.1 or [::1] then gets the 500 page, so the setting cannot open a deployed game. A test needs
+  request that is not plain http on localhost, 127.0.0.1 or [::1] then gets the 500 page, so the setting cannot open a deployed game, and the pending cookie is signed with a random key of the process, never the weak secret. A test needs
   no opt-in: use `connectTestSecret()` from `/connect/conformance` (a new random secret of the right shape).
 
 ### The screens and their look

@@ -35,8 +35,9 @@
     `ConnectSetupError`, `SIGNING_KEY_MIN`, and `connectTestSecret()` in `/connect/conformance` for tests.
   - **`signIn` after a screen gets no `items`** (`undefined`, never `[]`: the pending cookie does not hold them; type `SignInPlayer`). Keep the
     owned items in `keep`. On a press, `signIn` still gets them.
-  - **With `origins`, the first origin decides the cookies' names**, never the request's Host header (a proxy that sends `Host: localhost` no
-    longer turns them into plain names). `localDev`, `setCookie`, `readCookie` and `readPending` take `origins` as a last, optional argument.
+  - **With `origins`, the listed origins decide the cookies' names**, never the request's Host header (a proxy that sends `Host: localhost` no
+    longer turns them into plain names): plain names only when EVERY origin is plain http on localhost; else `__Host-`. With `localDevSecret`
+    the pending cookie is signed with a random key of the process, never the weak secret. `localDev`, `setCookie`, `readCookie` and `readPending` take `origins` as a last, optional argument.
   - **Node: the body of a press is read for at most 10 seconds** (`webRequest(req, origin, bodyMs)`), as well as at most 2,048 bytes.
   - **The suite holds more**: cookie names with a no-break space or in another case (C3, F3), an address with a bad checksum (C6), an Origin that
     only starts with the game's (F2, N1), a no-Origin press with any `Sec-Fetch-Site` but `same-origin` (F2), and a refused Not me that must use

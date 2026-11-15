@@ -112,6 +112,8 @@ export const ONCE_WINDOW_MS = 10 * 60_000;
 export const PENDING_LABEL = "@nano133/nanoterra connect: a Nanoterra sign-in waits for a press, v1";
 /** The longest pending cookie read (Arcade's; the starter's was 512: the cookie now carries the name, the look and the record, never the items). */
 export const PENDING_MAX = 1024;
+/** The pending cookie's key with `localDevSecret`: random, new in each process, never the weak secret, so nobody can forge a cookie with it. */
+let localDevKey: string | undefined;
 const text = new TextEncoder();
 
 export type Look = Record<(typeof LOOK_PARTS)[number], string>;
@@ -398,7 +400,7 @@ export type ConnectOptions = {
   after?: string;
   /**
    * The game's public origins, for a server that does not see its own https address (Node behind a proxy). Default: the request's origin. When set,
-   * the FIRST one decides the cookies' names (`__Host-` unless it is plain http on localhost), never the request's Host header.
+   * they decide the cookies' names, never the request's Host header: plain names only when EVERY origin is plain http on localhost, else `__Host-`.
    */
   origins?: readonly string[];
   /** The pending cookie's key (default: the client secret itself). At least 32 characters of random text. A new key ends every pending screen. */
@@ -464,6 +466,7 @@ export function createConnect(o: ConnectOptions): Connect {
   if (problem && (siteOf(o.site) === null || siteOf(o.site) === NANOTERRA_SITE)) throw new ConnectSetupError("connect: `localDevSecret` needs a stand-in for nano133.com on this computer (`site`, or NANOTERRA_ORIGIN on a Worker).");
   const setup = setupOf(o.clientId, o.secret, o.site);
   const key = o.signingKey ?? setup?.secret ?? "";
+  const keyNow = () => (problem ? (localDevKey ??= randomHex(32)) : key);
   const s = o.screens ?? {};
   const origins = o.origins;
   const cookieOut = (req: Request, name: string, value: string, maxAgeSec: number) => setCookie(req, name, value, maxAgeSec, origins);
@@ -505,7 +508,7 @@ export function createConnect(o: ConnectOptions): Connect {
 
   /** A screen that waits for a press: the pending cookie is set and the state cookie dropped. */
   const pendingPage = async (req: Request, player: Player, clear: string[], current?: string): Promise<Response> => {
-    const token = await pendingToken(key, player, now());
+    const token = await pendingToken(keyNow(), player, now());
     const bind = await bindOf(token);
     const html = current === undefined ? signInHtml(s, player.username, player.address, bind, after) : switchHtml(s, player.username, current, bind, after);
     // "same-origin", not "no-referrer": with no-referrer a browser sends `Origin: null` on the form's POST, and confirm() would refuse
@@ -616,7 +619,7 @@ export function createConnect(o: ConnectOptions): Connect {
     if (!(await limit("confirm", req))) return page(429, "tooMany");
     // Every refusal from here on drops the pending cookie (Arcade's): a cookie that was refused once is never pressed again.
     const clear = [cookieOut(req, PENDING_COOKIE, "", 0)];
-    const pending = await readPending(key, req, now(), origins);
+    const pending = await readPending(keyNow(), req, now(), origins);
     if (!pending) return page(400, "ranOut", clear);
     // The press must be from the screen that this cookie made: a second callback in this browser has replaced the cookie since the screen was drawn.
     if (!(await sameText(await bindField(req), await bindOf(pending.token)))) return page(400, "changed", clear);
@@ -631,7 +634,7 @@ export function createConnect(o: ConnectOptions): Connect {
     if (refusedHere(req)) return setupWrong();
     // From this game's own page only (Arcade's; the starter took it from anywhere): another site cannot spend a player's screen.
     if (!ownOrigin(req, o.origins)) return page(403, "notOwnPage");
-    const pending = key ? await readPending(key, req, now(), origins) : null;
+    const pending = keyNow() ? await readPending(keyNow(), req, now(), origins) : null;
     if (pending) await o.once(pending.id, pending.exp, "cancel");
     return go([cookieOut(req, PENDING_COOKIE, "", 0)]);
   }
@@ -719,7 +722,7 @@ export function cookie(req: Request, name: string): string | null {
  * and a proxy that sends `Host: localhost` must not turn the live game's cookies into plain names (F5 of the review).
  */
 export function localDev(req: Request, origins?: readonly string[]): boolean {
-  return localUrl(new URL(origins && origins.length ? origins[0] : req.url));
+  return origins && origins.length ? origins.every((x) => localUrl(new URL(x))) : localUrl(new URL(req.url));
 }
 /** Plain http on this computer: localhost, 127.0.0.1 or [::1]. */
 const localUrl = (u: URL) => u.protocol === "http:" && (u.hostname === "localhost" || u.hostname === "127.0.0.1" || u.hostname === "[::1]");
