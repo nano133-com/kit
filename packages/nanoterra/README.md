@@ -2224,7 +2224,7 @@ The starter's `src/worker/nanoterra.ts` (375 lines) becomes about 60 lines: the 
 6. Run `connectConformance` on the game's mounted Worker (the example above), then the game's whole check.
 
 The proof (2026-11-15, the starter at 5409723 in a scratch copy, the package packed from this branch): the file went from 375 to 59 lines
-(359 out, 43 in); `index.ts` 7 lines out, 6 in; two test files 11 lines out, 14 in (10 changes, each for a reason in step 5); one new test file
+(359 out, 43 in); `index.ts` 7 lines out, 6 in; two test files 11 lines out, 14 in (11 changes, each for a reason in step 5); one new test file
 of 45 lines (the suite). The whole check passed: the types, 381 tests (356 and the suite's 25), the build. The page's build did not change (the
 same files, names and sizes): the connect is server code.
 
