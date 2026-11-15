@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+- **Fix: the QR code holds every wallet's sign-in link** (`/shop/panel`: `qrSvg`, `qrModules`). It held versions 1 to 10 at level M (213 bytes), made
+  for a `nano:` link (at most 117), but every game also gives it to the sign-in sheet, and Nautilus's sign-in link is 460 to 740 bytes (540 for the
+  player on a host of 28 characters, 612 for the admin): on a computer the sheet showed "qrModules: the text is longer than this QR code holds (213
+  bytes)" in place of the code. Now versions 1 to 40: level M up to 213 bytes, so every code that existed is the same, module for module (a fingerprint
+  of 336 texts in the tests); level L above, two versions smaller than M at these lengths (Nautilus's player link: 81 modules, not 89), as a code on a
+  screen needs larger modules more than it needs M's correction. Up to 2,953 bytes. `qrModules(text, mask, level)` takes a level; new: `qrLevelFor`,
+  `qrBlocks`, `qrAlignment`, `QR_MAX_BYTES`; a text longer than any code holds throws an error that names its size, never the text. `qrVersionFor(length)` gives the version of the code `qrModules` makes
+  (0 only above 2,953 bytes). The tables (ISO/IEC 18004's table 9 and annex E) are checked entry by entry against jsQR's and the `qrcode` package's,
+  every version's modules against the `qrcode` package's at the same level and mask, and jsQR reads back every version at both levels with every mask
+  (`test/qr-versions.test.ts`; both are dev dependencies only).
+- **Fix: the sign-in sheet's QR code has a size** (`/player-signin/style.css`, also the admin's): about 336 px, crisp edges, a token `--n133-qr-size`; it
+  was 0 by 0 px in a game with no rule of its own. `qrSvg`'s code gets a whole number of CSS pixels a module (the nearest, never wider than the sheet; it
+  sets `--n133-qr-modules` on its SVG): Nautilus's player link 356 px at 4 px a module, the admin's 372 px. At 3.78 px a module the modules were 3 and
+  4 px wide in turn on a 1x screen, and jsQR could not read that screenshot. A game's own rule wins (the kit's has the weight of one class).
+- **Fix: a `qr` hook that throws** no longer puts its message in the player's sheet: the sheet shows its own words (`openOnPhone`) and the other steps.
+- Sizes (gzip, size test): `/shop/panel` 13.5 kB (ceiling 13.7 kB, was 13.2 kB), `/admin-signin/panel` 9.8 kB (ceiling 10.0 kB, was 9.5 kB): the
+  QR code's versions 11 to 40 and level L, +0.31 kB each (the tables are four strings of 40 characters). `/player-signin/panel` holds no QR code (the
+  game's `qr` hook draws it): +0.02 kB.
+
 ## 0.17.0 (2026-11-15)
 
 - **New: Nanoterra connect** (`@nano133/nanoterra/connect`; "Nanoterra connect" in the README). Sign in from Nanoterra (nano133.com's code

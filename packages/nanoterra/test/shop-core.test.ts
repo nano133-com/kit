@@ -31,7 +31,7 @@ import {
   xnoText,
   type Fetch,
 } from "../src/shop/index.js";
-import { qrModules, qrVersionFor } from "../src/shop/panel/qr.js";
+import { qrLevelFor, qrModules, qrVersionFor } from "../src/shop/panel/qr.js";
 import { MockNode, testAddress, type NodeMode } from "./shop-helpers.js";
 
 const XNO = (s: string) => {
@@ -248,9 +248,11 @@ describe("the QR code", () => {
     const m = qrModules(TEXT);
     assert.equal(m.length, 7 * 4 + 17);
     assert.ok(m.every((row) => row.length === m.length));
-    // The longest link (39 digits) still fits a small code; 214 bytes do not fit at all.
+    // The longest link (39 digits) still fits a small code at level M. Since 0.17.1 a longer text (a wallet's sign-in link) is level L, up to version 40
+    // (2,953 bytes; test/qr-versions.test.ts); one byte more does not fit at all.
     assert.ok(qrVersionFor(5 + 65 + 8 + 39) <= 7);
-    assert.throws(() => qrModules("x".repeat(214)), /longer/);
+    assert.equal(qrLevelFor(5 + 65 + 8 + 39), "M");
+    assert.throws(() => qrModules("x".repeat(2954)), /more than a QR code holds/);
   });
 
   test("the finder patterns, the timing lines and the dark module are where the standard puts them", () => {

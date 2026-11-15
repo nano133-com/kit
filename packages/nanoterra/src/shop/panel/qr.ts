@@ -1,22 +1,55 @@
-// A QR code for the pay sheet, made in the browser: no outside service sees the payment request, and the package needs no QR library. Byte mode, error
-// correction level M (as the game starter's qrcode-generator used), versions 1 to 10: up to 213 bytes, and a nano: link with a raw amount is at most 117.
+// A QR code made in the browser: no outside service sees the payment request or the sign-in link, and the package needs no QR library. Byte mode,
+// versions 1 to 40, error correction level M or L. The pay sheet's nano: link (at most 117 bytes) is level M, as the game starter's qrcode-generator
+// made it; a wallet's sign-in link (Nautilus's is 460 to 740 bytes, with the callback URL and the label in it) is longer, and a text longer than
+// version 10 holds at level M (213 bytes) is level L: read from a screen, nothing smudges the code, and the larger modules matter more (L is two
+// versions smaller there, 8 modules fewer each way). Every text of 213 bytes or less gives the same code as before 0.17.1.
 // The steps are ISO/IEC 18004's (and Project Nayuki's reference code): the data and its Reed-Solomon codes, the fixed patterns, the zig-zag placement, and
 // the mask with the lowest penalty. `qrModules` has no DOM; `qrSvg` draws it as one SVG path (crisp at any size, fine under a strict CSP).
+// The tables (ISO/IEC 18004 table 9: the EC codewords per block and the blocks, for each version) are checked entry by entry against the `qrcode`
+// package's in test/qr-versions.test.ts, and every version is read back by an independent decoder (jsQR) there.
 
-/** For each version 1 to 10 at level M: the EC codewords per block, and the data codewords of each block. */
-const BLOCKS: readonly [number, readonly number[]][] = [
-  [10, [16]],
-  [16, [28]],
-  [26, [44]],
-  [18, [32, 32]],
-  [24, [43, 43]],
-  [16, [27, 27, 27, 27]],
-  [18, [31, 31, 31, 31]],
-  [22, [38, 38, 39, 39]],
-  [22, [36, 36, 36, 37, 37]],
-  [26, [43, 43, 43, 43, 44]],
-];
-const ALIGN: readonly (readonly number[])[] = [[], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34], [6, 22, 38], [6, 24, 42], [6, 26, 46], [6, 28, 50]];
+/** A level of error correction: M (about 15% of the code can be lost) or L (about 7%). */
+export type QrLevel = "L" | "M";
+
+/**
+ * For versions 1 to 40 at levels L and M (ISO/IEC 18004 table 9): the EC codewords of each block, then the number of blocks, one character a version,
+ * its code less 40 (")" is 1, "F" is 30). Compact on purpose: the shop's and the sign-in's pages load it.
+ */
+const TABLE: Record<QrLevel, readonly [string, string]> = {
+  L: ["/27<B:<@F:<@BF>@DFDDDDFFBDFFFFFFFFFFFFFF", ")))))****,,,,,..../0011244456789:;;<=>@A"],
+  M: ["28B:@8:>>BF>>@@DDBBBBDDDDDDDDDDDDDDDDDDD", ")))**,,,---01122356899:<=?ABDEGIKMNPSUWY"],
+};
+
+/** The codewords of a version (data and EC): its modules less the fixed patterns and the format and version information, over 8. */
+function rawCodewords(version: number): number {
+  let bits = (16 * version + 128) * version + 64;
+  if (version >= 2) {
+    const n = Math.floor(version / 7) + 2;
+    bits -= (25 * n - 10) * n - 55;
+    if (version >= 7) bits -= 36;
+  }
+  return bits >>> 3;
+}
+
+/** The data codewords of each block of `version` at `level` (the short blocks first, as the standard orders them), and the EC codewords of each block. */
+export function qrBlocks(version: number, level: QrLevel): { ec: number; data: number[] } {
+  const ec = TABLE[level][0].charCodeAt(version - 1) - 40;
+  const n = TABLE[level][1].charCodeAt(version - 1) - 40;
+  const raw = rawCodewords(version);
+  const short = Math.floor(raw / n) - ec;
+  const shortCount = n - (raw % n);
+  return { ec, data: Array.from({ length: n }, (_, i) => short + (i < shortCount ? 0 : 1)) };
+}
+
+/** The centres of the alignment patterns on each axis (ISO/IEC 18004 annex E): from row 6 to size - 7, evenly spaced on even rows. */
+export function qrAlignment(version: number): number[] {
+  if (version === 1) return [];
+  const n = Math.floor(version / 7) + 2;
+  const step = version === 32 ? 26 : Math.ceil((version * 4 + 4) / (n * 2 - 2)) * 2;
+  const out = [6];
+  for (let p = version * 4 + 10; out.length < n; p -= step) out.splice(1, 0, p);
+  return out;
+}
 
 const gfMul = (x: number, y: number): number => {
   let z = 0;
@@ -51,9 +84,9 @@ function rsRemainder(data: readonly number[], divisor: readonly number[]): numbe
   return out;
 }
 
-/** The codewords (data and EC, interleaved) of `bytes` in `version`. */
-function codewords(bytes: Uint8Array, version: number): number[] {
-  const [ecLen, blocks] = BLOCKS[version - 1];
+/** The codewords (data and EC, interleaved) of `bytes` in `version` at `level`. */
+function codewords(bytes: Uint8Array, version: number, level: QrLevel): number[] {
+  const { ec: ecLen, data: blocks } = qrBlocks(version, level);
   const capacity = blocks.reduce((a, b) => a + b, 0);
   const bits: number[] = [];
   const put = (value: number, n: number) => {
@@ -126,17 +159,39 @@ function penalty(m: boolean[][]): number {
   return score;
 }
 
-/** The smallest version that holds `length` bytes at level M, or 0. */
-export const qrVersionFor = (length: number): number => BLOCKS.findIndex(([, b], i) => 4 + (i + 1 < 10 ? 8 : 16) + 8 * length <= 8 * b.reduce((x, y) => x + y, 0)) + 1;
+/** The data bits that `length` bytes take in byte mode in `version`: the mode, the count (8 bits to version 9, 16 from 10) and the bytes. */
+const dataBits = (length: number, version: number) => 4 + (version < 10 ? 8 : 16) + 8 * length;
+
+/**
+ * The smallest version that holds `length` bytes, or 0 when none does. With `level`, at that level. Without one, the version of the code that
+ * `qrModules` makes: level M up to version 10 (213 bytes), else level L (`qrLevelFor`).
+ */
+export function qrVersionFor(length: number, level?: QrLevel): number {
+  const at = level ?? qrLevelFor(length);
+  for (let v = 1; v <= 40; v++) {
+    const { data } = qrBlocks(v, at);
+    if (dataBits(length, v) <= 8 * data.reduce((x, y) => x + y, 0)) return v;
+  }
+  return 0;
+}
+
+/** The level that `qrModules` uses for `length` bytes: M when version 10 holds them at M (213 bytes, every nano: link), else L. */
+export const qrLevelFor = (length: number): QrLevel => (length <= 213 ? "M" : "L");
+
+/** The most bytes that any code holds: version 40 at level L. */
+export const QR_MAX_BYTES = 2953;
 
 /**
  * The modules of the QR code of `text` (UTF-8): `true` is dark, `[row][column]`, without the quiet zone. `mask` forces a mask (0 to 7); by default the
- * one with the lowest penalty. Throws when the text is longer than version 10 holds (213 bytes).
+ * one with the lowest penalty. `level` forces a level; by default M up to 213 bytes, else L (`qrLevelFor`). Throws when the text is longer than
+ * version 40 holds (2,953 bytes at L, 2,331 at M): its message names the size, never the text.
  */
-export function qrModules(text: string, mask?: number): boolean[][] {
+export function qrModules(text: string, mask?: number, level?: QrLevel): boolean[][] {
   const bytes = new TextEncoder().encode(text);
-  const version = qrVersionFor(bytes.length);
-  if (version < 1) throw new Error("qrModules: the text is longer than this QR code holds (213 bytes)");
+  const at = level ?? qrLevelFor(bytes.length);
+  const version = qrVersionFor(bytes.length, at);
+  // The size only, never the text.
+  if (version < 1) throw new Error(`qrModules: ${bytes.length} bytes are more than a QR code holds (${QR_MAX_BYTES})`);
   const size = version * 4 + 17;
   const m: boolean[][] = Array.from({ length: size }, () => new Array<boolean>(size).fill(false));
   const fixed: boolean[][] = Array.from({ length: size }, () => new Array<boolean>(size).fill(false));
@@ -157,7 +212,7 @@ export function qrModules(text: string, mask?: number): boolean[][] {
         if (x >= 0 && x < size && y >= 0 && y < size) set(x, y, d !== 2 && d !== 4);
       }
   }
-  const pos = ALIGN[version - 1];
+  const pos = qrAlignment(version);
   for (let i = 0; i < pos.length; i++)
     for (let j = 0; j < pos.length; j++) {
       const corner = (i === 0 && j === 0) || (i === 0 && j === pos.length - 1) || (i === pos.length - 1 && j === 0);
@@ -165,7 +220,7 @@ export function qrModules(text: string, mask?: number): boolean[][] {
       for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) set(pos[i] + dx, pos[j] + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
     }
   const drawFormat = (maskNo: number) => {
-    const data = (0 << 3) | maskNo; // level M is 00
+    const data = ((at === "M" ? 0 : 1) << 3) | maskNo; // the level's bits: M is 00, L is 01
     let rem = data;
     for (let i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
     const bits = ((data << 10) | rem) ^ 0x5412;
@@ -192,7 +247,7 @@ export function qrModules(text: string, mask?: number): boolean[][] {
       set(b, a, dark);
     }
   }
-  const words = codewords(bytes, version);
+  const words = codewords(bytes, version, at);
   let i = 0;
   for (let right = size - 1; right >= 1; right -= 2) {
     if (right === 6) right = 5;
@@ -242,6 +297,9 @@ export function qrSvg(text: string, label: string): SVGSVGElement {
   svg.setAttribute("role", "img");
   svg.setAttribute("aria-label", label);
   svg.setAttribute("shape-rendering", "crispEdges");
+  // The modules each way, quiet zone included: the sign-in sheet's stylesheet makes each module a whole number of CSS pixels from it. (A style set
+  // through the CSSOM: a strict CSP's style-src allows it.)
+  svg.style.setProperty("--n133-qr-modules", String(n));
   const back = document.createElementNS(SVG, "rect");
   back.setAttribute("width", String(n));
   back.setAttribute("height", String(n));

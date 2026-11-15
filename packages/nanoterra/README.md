@@ -77,7 +77,7 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/admin/conformance` | test cases that a game runs against its own admin (a dev dependency in practice; since 0.2.0) | no | n/a |
 | `@nano133/nanoterra/admin-signin` | the admin's wallet sign-in on one fixed route, `/api/admin-signin`: the routes, `session(request)` for the admin handler, "Sign out everywhere", the sign-in list, a memory store, and (since 0.12.0, `passkeys: true`) the owner's linked passkeys (server code; it needs `@nano133/signin`; since 0.11.0) | no | 6.9 kB without `@nano133/signin` |
 | `@nano133/nanoterra/admin-signin/d1`, `/admin-signin/firestore` | its store on D1 (the starter's own tables; a new game adds `/admin-signin/d1.sql`) or Firestore (a small interface, no Firebase dependency) (since 0.11.0) | no | 1.9 kB, 2.2 kB |
-| `@nano133/nanoterra/admin-signin/panel` | the admin's sign-in in the browser, for `mountAdmin`'s `signIn` and `signOut`: `adminSignIn()`, `adminSignOut()`, with its own QR code, and (since 0.12.0) the Passkey tile and the `ownerPasskeys()` card (the passkey code loads only at a passkey's use); its stylesheet `@nano133/nanoterra/admin-signin/style.css` is the player sheet's (since 0.11.0) | no | 9.3 kB |
+| `@nano133/nanoterra/admin-signin/panel` | the admin's sign-in in the browser, for `mountAdmin`'s `signIn` and `signOut`: `adminSignIn()`, `adminSignOut()`, with its own QR code, and (since 0.12.0) the Passkey tile and the `ownerPasskeys()` card (the passkey code loads only at a passkey's use); its stylesheet `@nano133/nanoterra/admin-signin/style.css` is the player sheet's (since 0.11.0) | no | 9.8 kB (the QR code's 40 versions since 0.17.1) |
 | `@nano133/nanoterra/admin-signin/conformance` | the store's rules as test cases, for a store a game writes itself (since 0.11.0) | no | n/a |
 | `@nano133/nanoterra/friends` | the game's own friends list: the handler, the rules, a memory store (server code; since 0.6.0) | no | 3.7 kB |
 | `@nano133/nanoterra/friends/d1`, `/friends/firestore` | the friends store for D1 (with the migration `/friends/d1.sql`) or Firestore (a small interface, no Firebase dependency): `createD1Friends`, `createFirestoreFriends` (since 0.6.0) | no | 3.0 kB each |
@@ -95,7 +95,7 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/shop` | the shop's rules and routes, the payment scan, a memory store, the CSP lists (server code; since 0.9.0); the plays and `findUnmatched` (since 0.15.0) | no | 9.1 kB (all), 7.1 kB (`createShopHandler` alone); 12.7 kB (all) with the plays |
 | `@nano133/nanoterra/shop/d1`, `/shop/firestore` | the shop's store on D1 (the starter's tables, `/shop/d1.sql`; the plays' migration `/shop/d1-plays.sql`, since 0.15.0) or Firestore: `createD1Shop`, `createFirestoreShop` (since 0.9.0) | no | 2.4 kB, 2.2 kB |
 | `@nano133/nanoterra/shop/worker` | the shop for a Worker with D1, from the starter's settings: `createShop` (since 0.9.0) | no | 10.0 kB (with the D1 store and Turnstile); 14.3 kB with the plays |
-| `@nano133/nanoterra/shop/panel` | the Looks key, the looks sheet and the pay sheet with its own QR code: `mountShop`, and its stylesheet `@nano133/nanoterra/shop/style.css` (since 0.9.0); the Play key and the "18 or older" step (since 0.15.0) | no | 10.0 kB + 2.5 kB of CSS (gzip; 8.5 kB minified); 11.2 kB with the plays |
+| `@nano133/nanoterra/shop/panel` | the Looks key, the looks sheet and the pay sheet with its own QR code: `mountShop`, and its stylesheet `@nano133/nanoterra/shop/style.css` (since 0.9.0); the Play key and the "18 or older" step (since 0.15.0) | no | 10.0 kB + 2.5 kB of CSS (gzip; 8.5 kB minified); 11.2 kB with the plays; 13.5 kB with the pay sheet of 0.16.0 and the QR code's 40 versions (0.17.1) |
 | `@nano133/nanoterra/shop/conformance` | the shop's money rules as test cases, for a store a game writes itself (since 0.9.0) | no | n/a |
 | `@nano133/nanoterra/connect` | Sign in from Nanoterra: `createConnect` (the four routes on Web Request/Response), the screens' words, `createMemoryOnce` (server code; since 0.17.0) | no | 11.0 kB (with the record's lists and the address check); a page loads none |
 | `@nano133/nanoterra/connect/worker`, `/connect/node` | the Worker's adapter (`createWorkerConnect`: the env's settings, D1's `hits`) and Node's (`createNodeConnect`, `webRequest`, `sendResponse`, `connectMiddleware`) (since 0.17.0) | no | 11.0 kB, 11.4 kB |
@@ -863,7 +863,7 @@ passkey opens /admin only after a wallet login linked it. So:
 **The rest:** `base` (keep the default), `page` (default `/admin`), `domain` (the host every text names; a call to another host is refused), `cookies`
 (default `{ session: "admin", starter: "starter-admin" }`), `now`, `onError`. Starts: 20 in 10 minutes per visitor (the player's key: one count for both);
 checks 90 a minute and the wallets' calls 30 a minute per IP address. **The panel** (`adminSignIn(options)`, `adminSigninView(options)`, `adminSignOut(options)`): the
-wallets as tiles, on a phone one key that opens the app, on a computer a QR code (the package's own; a link that is too long for it, Nautilus's, shows as a link), the
+wallets as tiles, on a phone one key that opens the app, on a computer a QR code (the package's own; since 0.17.1 it holds Nautilus's link too; a `qr` hook that throws shows the link), the
 check every 2 seconds, and `done()` once the owner has signed in. Options: `base`, `nanchat`, `personCheck(box)`, `qr(text)`, `touch`, `fetch`. Text 16 px, keys 48 px.
 
 **Moving the game starter onto it:** use `createD1AdminSignin(env.DB)` (no migration), answer `adminSignin.handle(request)` before the player's sign-in, give the admin handler
@@ -1395,7 +1395,7 @@ import { SCHEME } from "./scheme";                // the frozen scheme above
 const signin = mountPlayerSignin(document.body, {
   name: "My Game",                               // the device shows it next to the passkey: "My Game · 1 Nov 2026"
   scheme: SCHEME,
-  qr: (text) => qrCanvas(text),                  // a QR code for a wallet's link on a computer (no hook: the link as text)
+  qr: (text) => qrSvg(text, "QR code"),          // a QR code for a wallet's link on a computer (no hook: the link as text); qrSvg is the shop panel's
   personCheck: (box) => turnstileToken(box),     // optional
   onSignedIn: (player) => refresh(),             // { address, via: "wallet" | "passkey" }
 });
@@ -1409,6 +1409,13 @@ const player = await signin.open();              // the shop's "sign in first": 
 - The faults, in plain words: no passkey used, no PRF, no passkeys in this browser, a password manager's answer in a form the kit does not read, another
   game's passkey, another passkey than the one just made, two answers for one passkey, the wrong host. None names a seed or a key; none says to delete a passkey.
 - A wallet: on a touch screen one key that opens the app; with a mouse its QR code. The page asks every 2 s, at most 5 minutes.
+- **The QR code** (since 0.17.1). `qrSvg` (from `@nano133/nanoterra/shop/panel`) holds every wallet's sign-in link: versions 1 to 40, level M up to
+  213 bytes (every `nano:` link: the same code as before), level L above (up to 2,953 bytes). The links, measured with the package's handlers on a host of
+  28 characters: Berry Wallet 129 bytes, NanChat 207, Nautilus 540 (the admin's: 135, 213, 612); Nautilus's is a code of 81 to 85 modules. The sheet
+  gives the code a size of about 336 px with crisp edges, each module a whole number of CSS pixels (the nearest, never wider than the sheet): Nautilus's
+  player link is 356 px at 4 px a module, the admin's 372 px, which a phone's camera reads from a laptop's screen. Set `--n133-qr-size` to change it,
+  or a rule of your own (the kit's has the weight of one class). A `qr` hook that throws (a text
+  longer than its code holds) gets the sheet's own words, "Open this page on your phone to use <wallet>." (`openOnPhone`), never its message.
 - `signInView(options)` is the same content for a game with a sheet of its own (`{ node, stop, reset }`).
 - Phone first (since 0.9.3 by default): every text 16 px or more, and every key, wallet tile, link, the back key and the close key 48 px or more each way
   ("Last used" sits in the flow, under a wallet's name or at the end of the passkey's row). The sheet comes from the bottom on a phone held upright, and is

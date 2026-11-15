@@ -156,3 +156,12 @@ test("K4: the item's picture frame clips all the game's preview, a position: fix
   assert.equal(prop(pic, "overflow"), "hidden");
   assert.match(prop(pic, "contain") ?? "", /\b(paint|content|strict)\b/, "contain: paint makes the frame the box of a fixed child, and clips it");
 });
+
+test("the sign-in sheet's QR code: a size of its own (--n133-qr-size, the weight of one class), and qrSvg's code in whole CSS pixels a module", () => {
+  const rules = cssRules(readFileSync(new URL("../src/player-signin/panel/style.css", import.meta.url), "utf8"));
+  const base = rules.find((r) => r.at === "" && r.selector === ".n133-signin :where(.n133s-qr svg, .n133s-qr canvas, .n133s-qr img)");
+  assert.equal(prop(base, "width"), "var(--n133-qr-size, min(336px, 100%))");
+  assert.equal(prop(base, "shape-rendering"), "crispEdges");
+  const snap = rules.find((r) => r.at === "@supports (width: round(down, 10px, 1px))" && r.selector === ".n133-signin :where(.n133s-qr svg.n133s-qr-code)");
+  assert.match(prop(snap, "width") ?? "", /^calc\(var\(--n133-qr-modules\) \* min\(round\(nearest, var\(--n133-qr-size, 336px\) \/ var\(--n133-qr-modules\), 1px\), round\(down, 100% \/ var\(--n133-qr-modules\), 1px\)\)\)$/);
+});

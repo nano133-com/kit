@@ -85,7 +85,7 @@ test("in mountAdmin: the gate shows Berry Wallet and Nautilus (Berry first, no N
   mounted.destroy();
 });
 
-test("Berry Wallet on a computer shows its QR code; Nautilus's link is too long for the package's QR code, so its link shows (no fault); a phone gets one key", async () => {
+test("Berry Wallet and Nautilus on a computer show their QR codes (Nautilus's admin link is about 540 bytes: level L since 0.17.1); a phone gets one key", async () => {
   const p = page({ signAs: null });
   const v = panel.adminSigninView({ fetch: p.send, touch: false });
   p.root.append(v.node);
@@ -97,9 +97,18 @@ test("Berry Wallet on a computer shows its QR code; Nautilus's link is too long 
   (v.node.querySelector('[data-way="nautilus"]') as HTMLElement).click();
   await settle();
   assert.ok(text(v.node).includes("Check that Nautilus shows the code"));
-  assert.ok(byText(v.node, "open Nautilus on this computer"), "the link, not a fault");
-  assert.doesNotMatch(text(v.node.querySelector(".n133s-status")), /qrModules|longer/);
+  assert.ok(v.node.querySelector(".n133s-qr svg"), "Nautilus's QR code");
+  assert.ok(text(v.node).includes("Scan this with Nautilus on your phone"));
+  assert.doesNotMatch(text(v.node), /qrModules|longer|more than a QR/);
   v.stop();
+  // A game's qr hook that throws: the sheet's own words and the link, never the hook's message.
+  const thrower = panel.adminSigninView({ fetch: p.send, touch: false, qr: () => { throw new Error("qrModules: the text is longer than this QR code holds"); } });
+  p.root.append(thrower.node);
+  (thrower.node.querySelector('[data-way="nautilus"]') as HTMLElement).click();
+  await settle();
+  assert.ok(byText(thrower.node, "open Nautilus on this computer"), "the link in place of the code");
+  assert.doesNotMatch(text(thrower.node), /qrModules|longer|more than a QR/);
+  thrower.stop();
   const phone = panel.adminSigninView({ fetch: p.send, touch: true });
   p.root.append(phone.node);
   (phone.node.querySelector('[data-way="nautilus"]') as HTMLElement).click();

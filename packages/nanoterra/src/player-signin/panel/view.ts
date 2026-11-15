@@ -365,10 +365,18 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
   /** What the player does with the wallet: on a touch screen, one key; with a mouse, a QR code for the phone. */
   function walletSteps(s: Start, name: string): Node[] {
     const open = (text: string, href: string, newTab = false) => h("a", { class: "n133s-btn n133s-primary", href, target: newTab ? "_blank" : undefined, rel: newTab ? "noopener" : undefined }, text);
+    // The game's QR code of the link; the sheet's own words when there is no hook, or when the hook throws (a text longer than its code holds): never the
+    // hook's message, and the other steps (the code to check, the link on this computer) stay.
     const qr = (text: string) => {
-      if (!options.qr) return h("p", { class: "n133s-fine" }, w.openOnPhone(name));
-      const c = options.qr(text);
-      c.setAttribute("aria-label", w.qrLabel(name));
+      const none = () => h("p", { class: "n133s-fine n133s-qr-none" }, w.openOnPhone(name));
+      if (!options.qr) return none();
+      let c: HTMLElement;
+      try {
+        c = options.qr(text);
+        c.setAttribute("aria-label", w.qrLabel(name));
+      } catch {
+        return none();
+      }
       return h("div", { class: "n133s-qr" }, c);
     };
     const only = h("p", { class: "n133s-fine" }, w.onlyYours(location.host));

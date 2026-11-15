@@ -190,6 +190,44 @@ test("a wallet: the start goes to the handler; with a mouse the game's QR hook d
   touch.v.stop();
 });
 
+test("a wallet on a computer: Nautilus's sign-in link (about 480 bytes) is a QR code that jsQR reads back; a qr hook that throws gives the sheet's own words, never its message", async () => {
+  const { qrSvg } = await import("../src/shop/panel/qr.js");
+  const { default: jsQR } = await import("jsqr");
+  for (const [i, way] of [[0, "berry"], [1, "nanchat"], [2, "nautilus"]] as const) {
+    const links: string[] = [];
+    const { v } = view({ touch: false, qr: (text) => (links.push(text), qrSvg(text, "QR") as unknown as HTMLElement) });
+    await settle();
+    click(v.node.querySelectorAll(".n133s-tile")[i]);
+    await settle(30);
+    const svg = v.node.querySelector(".n133s-qr svg");
+    assert.ok(svg, `${way}: a QR code`);
+    assert.doesNotMatch(v.node.textContent!, /qrModules|longer than|more than a QR/, `${way}: no encoder text`);
+    // The SVG's path, read back as modules (one "M x y h1v1h-1z" a dark module, a quiet zone of 4), drawn 3 px a module and decoded.
+    const n = Number(svg.getAttribute("viewBox")!.split(" ")[2]);
+    assert.equal((svg as SVGElement).style.getPropertyValue("--n133-qr-modules"), String(n), "the module count for the sheet's whole-pixel size");
+    const px = 3;
+    const rgba = new Uint8ClampedArray(n * px * n * px * 4).fill(255);
+    for (const [, x, y] of svg.querySelector("path")!.getAttribute("d")!.matchAll(/M(\d+) (\d+)h1v1h-1z/g))
+      for (let dy = 0; dy < px; dy++) for (let dx = 0; dx < px; dx++) rgba.fill(0, ((Number(y) * px + dy) * n * px + Number(x) * px + dx) * 4, ((Number(y) * px + dy) * n * px + Number(x) * px + dx) * 4 + 3);
+    const read = jsQR(rgba, n * px, n * px);
+    assert.equal(read?.data, links[0], `${way}: jsQR reads the link (${new TextEncoder().encode(links[0]).length} bytes)`);
+    if (way === "nautilus") assert.ok(links[0].length > 213, "Nautilus's link is longer than the 0.17.0 code held");
+    v.stop();
+  }
+  // A game's qr hook that throws (an old encoder, a text too long for any code): the sheet's own words for a phone, the steps go on.
+  const { v } = view({ touch: false, qr: () => { throw new Error("qrModules: the text is longer than this QR code holds (213 bytes)"); } });
+  await settle();
+  click(v.node.querySelectorAll(".n133s-tile")[2]);
+  await settle(30);
+  assert.equal(v.node.querySelector(".n133s-step")?.textContent, "Nautilus");
+  assert.ok(v.node.querySelector(".n133s-qr-none"), "the words in place of the code");
+  assert.match(v.node.textContent!, /Open this page on your phone to use Nautilus\./);
+  assert.match(v.node.textContent!, /Check that Nautilus shows this code/);
+  assert.doesNotMatch(v.node.textContent!, /qrModules|213 bytes/);
+  assert.match(v.node.querySelector(".n133s-status")!.textContent!, /Waiting for Nautilus/);
+  v.stop();
+});
+
 test("the sheet: open() resolves with the player after a sign-in, null after Escape; it is a modal dialog", async () => {
   const host = document.createElement("div");
   document.body.append(host);
