@@ -1,7 +1,7 @@
 {
   "name": "@nano133/nanoterra",
   "version": "0.16.0",
-  "description": "Nanoterra for a creator's game, in one package: the player's sign-in ticket, the player's character (a toon body on the island's skeleton), the looks ladder, the admin and its wallet sign-in, the friends list, an options menu, emotes, the player's sign-in (a passkey or a wallet app) and a shop that sells looks for Nano with no key on the server.",
+  "description": "Nanoterra for a creator's game, in one package: the player's sign-in ticket, the player's character (a toon body on the island's skeleton), the looks ladder, the admin and its wallet sign-in, the friends list, an options menu, emotes, the player's sign-in (a passkey or a wallet app), a shop that sells looks for Nano with no key on the server, and Nanoterra connect (a player signed in at nano133.com arrives signed in, for a Worker or Node).",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -56,7 +56,14 @@
     "./shop/firestore": { "types": "./dist/shop/adapters/firestore.d.ts", "import": "./dist/shop/adapters/firestore.js" },
     "./shop/worker": { "types": "./dist/shop/worker.d.ts", "import": "./dist/shop/worker.js" },
     "./shop/panel": { "types": "./dist/shop/panel/index.d.ts", "import": "./dist/shop/panel/index.js" },
-    "./shop/style.css": "./src/shop/panel/style.css"
+    "./shop/style.css": "./src/shop/panel/style.css",
+    "./connect": { "types": "./dist/connect/index.d.ts", "import": "./dist/connect/index.js" },
+    "./connect/worker": { "types": "./dist/connect/worker.d.ts", "import": "./dist/connect/worker.js" },
+    "./connect/node": { "types": "./dist/connect/node.d.ts", "import": "./dist/connect/node.js" },
+    "./connect/d1": { "types": "./dist/connect/adapters/d1.d.ts", "import": "./dist/connect/adapters/d1.js" },
+    "./connect/firestore": { "types": "./dist/connect/adapters/firestore.d.ts", "import": "./dist/connect/adapters/firestore.js" },
+    "./connect/conformance": { "types": "./dist/connect/conformance.d.ts", "import": "./dist/connect/conformance.js" },
+    "./connect/style.css": "./src/connect/style.css"
   },
   "sideEffects": false,
   "files": ["dist", "src", "README.md", "CHANGELOG.md", "LICENSE", "ai"],
@@ -84,5 +91,5 @@
   },
   "homepage": "https://nano133.com/build/nanoterra",
   "license": "MIT",
-  "keywords": ["nano", "gltf", "glb", "model check", "xno", "nanoterra", "sign in", "ticket", "character", "avatar", "three", "three.js", "toon", "looks", "cosmetics", "friends", "friends list", "options", "settings", "options menu", "emotes", "emote wheel", "passkey", "webauthn", "berry wallet", "nautilus", "nanchat", "shop", "pay", "qr code"]
+  "keywords": ["nano", "gltf", "glb", "model check", "xno", "nanoterra", "sign in", "ticket", "character", "avatar", "three", "three.js", "toon", "looks", "cosmetics", "friends", "friends list", "options", "settings", "options menu", "emotes", "emote wheel", "passkey", "webauthn", "berry wallet", "nautilus", "nanchat", "shop", "pay", "qr code", "connect", "oauth", "code exchange"]
 }

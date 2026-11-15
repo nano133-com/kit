@@ -3,11 +3,11 @@
 Package: `@nano133/nanoterra` (0.1.0 or later). Follow these steps in order. Each step ends with a check. Ask the owner when a step says
 "ask". The package has five parts: the sign-in ticket (`/ticket`), the player's character (`/character`, Three.js), the
 looks ladder (`/looks`), held input that does not stick (`/input`), the friends list (`/friends`, with its panel), the options menu (`/options`), the emotes (`/emotes`, with the wheel), the player's sign-in (`/player-signin`: a passkey or a wallet app, with
-`@nano133/signin`), the admin's sign-in (`/admin-signin`, with `@nano133/signin`) and the shop (`/shop`, with its panel; it sells looks, and plays: a round, a level, a life or a continue, used once). Use only the parts the game needs. Only the two sign-ins and the shop have Nano code; the shop holds no key and sends nothing: it reads the ledger. Read the package README first.
+`@nano133/signin`), the admin's sign-in (`/admin-signin`, with `@nano133/signin`), Nanoterra connect (`/connect`, for a game with a server: step 16) and the shop (`/shop`, with its panel; it sells looks, and plays: a round, a level, a life or a continue, used once). Use only the parts the game needs. Only the two sign-ins and the shop have Nano code; the shop holds no key and sends nothing: it reads the ledger. Read the package README first.
 
 ## 0. What the owner decides (ask)
 
-1. Does the game have a server? If yes, sign the player in with the code exchange (the game starter has it) and do **not** use `/ticket`: a ticket cannot prove
+1. Does the game have a server? If yes, sign the player in with the code exchange (`/connect`, step 16) and do **not** use `/ticket`: a ticket cannot prove
    who is at the other end. If no (a static site), use `/ticket`.
 2. Where the character comes from: the player's own Nanoterra character (the default), or the game's own character. Keep that choice in **one** place:
    in the game starter it is `"character": "nanoterra" | "own"` in `game.config.json` (nothing else reads it).
@@ -344,7 +344,32 @@ older" step. `POST /api/plays/use` with no credit answers 402; with one credit (
 the same ref twice answers `again: true` and a new ref answers 402. A paid round does not pause when the tab is hidden. `plays.json` passes
 `checkPlays`. Never turn test mode off, and never deploy: the owner does both.
 
-## 16. Do not
+## 16. Nanoterra connect: sign in from Nanoterra (a game with a server; since 0.17.0)
+
+A player signed in at nano133.com presses Play and arrives at the game signed in. Use the package's part; never write a state, a state cookie,
+a token call, a compare or a confirm screen of your own, and never copy the starter's old `src/worker/nanoterra.ts`.
+
+1. **Ask the owner** for the client id (a setting) and the secret, which Nanoterra shows once after Send. The secret goes in the game's secret
+   store (`npx wrangler secret put NANOTERRA_SECRET`, or the host's secret manager). Never print, log, commit or send it.
+2. **The routes.** A Worker: `createWorkerConnect(env, { signIn, session, keep, enabled })` from `@nano133/nanoterra/connect/worker` ("works once" is
+   D1's `hits`: a new game adds `/shop/d1.sql`). Node: `createNodeConnect({ clientId, secret, origins, once, limit, signIn, session })` from
+   `@nano133/nanoterra/connect/node`, with `createFirestoreOnce` or its own `once`. Answer `connect.handle(request)` for every path under
+   `/nanoterra/`, before the game's other routes.
+3. **`signIn(req, player, how)`** makes the game's OWN session for `player.address` and returns its Set-Cookie value(s); the session says
+   `via: "nanoterra"` and never opens the admin. A rule of the game that says no returns a `Response` instead (never a session).
+4. **`session(req)`** returns `{ address, name }` of the session in this browser, or null. Without it a press never skips the screen.
+5. **Rules of the game's own** (a key sign-in elsewhere, a limit for each account, combined accounts) go in `arrived`, `same` and `signIn`.
+   Never change a check of the part, its cookies, its words' forms or the order of its screens.
+6. **The look**: keep the game's `public/nanoterra.css` (the class names are the starter's), or serve `@nano133/nanoterra/connect/style.css` and
+   set the `--n133-*` tokens; the words through `screens.words`; a whole page through `screens.render`, keeping `screen.html.confirm` and
+   `screen.html.cancel`.
+7. **The listing file** says `"signin": "exchange"`.
+
+**Check:** run `connectConformance` from `@nano133/nanoterra/connect/conformance` on the game's mounted routes (test values for the client id and
+secret; the token route goes to the suite's stand-in): every case passes. `GET /nanoterra/start` answers a 302 to
+`https://nano133.com/api/nanoterra/authorize` with a `__Host-nanoterra-state` cookie. Never sign in to a live site to test it: the owner does the real run.
+
+## 17. Do not
 
 - Do not edit the geometry, the skeleton or the toon and ink materials.
 - Do not add the katana, the headband or other brands' art. A game's own worn model goes on a socket (`c.socket("head" | "hand" | "back")` or

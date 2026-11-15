@@ -64,7 +64,7 @@ prize. Follow `packages/three/ai/SPEC.md` step by step.
 Use it when a game wants the player's Nanoterra identity: a sign-in ticket (a game on a
 **static site**), the player's character in a Three.js scene, or the looks ladder for a game
 that sells looks, a friends list, an options menu, emotes, the player's sign-in, or a shop for its looks. One package; the main paths: `/ticket`, `/character` (and `/character/record`
-with no Three.js), `/looks`, `/friends`, `/options`, `/emotes`, `/player-signin`, `/admin-signin` and `/shop`. Follow `packages/nanoterra/ai/SPEC.md` step by step.
+with no Three.js), `/looks`, `/friends`, `/options`, `/emotes`, `/player-signin`, `/admin-signin`, `/shop` and `/connect`. Follow `packages/nanoterra/ai/SPEC.md` step by step.
 
 - **The ticket** (`/ticket`): a game with a server uses the code exchange, not this. A ticket
   proves nothing to a server: never give a sale, a prize or a score on it. Ask "Sign in as
@@ -133,6 +133,13 @@ with no Three.js), `/looks`, `/friends`, `/options`, `/emotes`, `/player-signin`
   `adminSignin.session` to `createAdminHandler`. Do not change its checks or its signed texts. The owner's linked passkeys (`passkeys: true`, since 0.12.0) only if
   the owner asks: only a wallet admin session links one, and a passkey opens /admin only while its link to the current owner exists. Never set `linkedTo` on a
   session yourself, and never loosen `adminAccess` beyond its one passkey rule.
+
+- **Nanoterra connect** (`/connect`, `/connect/worker`, `/connect/node`, `/connect/d1`, `/connect/firestore`, `/connect/conformance`; since 0.17.0):
+  Sign in from Nanoterra for a game with a server. Install it; never write or copy a state, a state cookie, a token call, a compare or a confirm
+  screen. The game gives the client id and the secret (a secret: never print, log or commit it), `signIn` (its own session, `via: "nanoterra"`,
+  never an admin login), `session`, and a "works once" store. Its own rules go in `arrived`, `same` and `signIn`; never change a check, a cookie,
+  a form or the order of the screens. `after` is a fixed path on the game's site. Run `connectConformance` on the game's mounted routes with test
+  values only; never sign in to a live site to test it.
 
 ## Working in this repository
 

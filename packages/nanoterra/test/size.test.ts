@@ -12,6 +12,12 @@ const dist = join(root, "dist/");
 const esbuild = await import("esbuild").catch(() => null);
 const ready = !!esbuild && existsSync(join(dist, "index.js"));
 
+// The connect's ceilings (0.17.0): measured 10,113 B, 10,158 B and 10,492 B here. Server code: a game's page loads none of it. The core holds the
+// record's closed lists (about 4.4 kB) and the address check; the Worker's adapter adds the D1 counter (shop/adapters/d1-limit.ts) and nothing of the shop.
+const CONNECT_CEILING = 10_500;
+const CONNECT_WORKER_CEILING = 10_600;
+const CONNECT_NODE_CEILING = 10_900;
+
 /** The path, the files it bundles, the ceiling in bytes (gzip) and whether it may import Three.js. */
 const PATHS: [string, string[], number, boolean][] = [
   ["@nano133/nanoterra", ["index.js"], 200, false],
@@ -42,6 +48,11 @@ const PATHS: [string, string[], number, boolean][] = [
   ["@nano133/nanoterra/admin-signin/d1", ["admin-signin/adapters/d1.js"], 1_950, false],
   ["@nano133/nanoterra/admin-signin/firestore", ["admin-signin/adapters/firestore.js"], 2_300, false],
   ["@nano133/nanoterra/admin-signin/panel", ["admin-signin/panel/index.js"], 9_700, false],
+  // Since 0.17.0 the connect (Sign in from Nanoterra): server code only (no byte of it reaches a page); the core holds the record's lists and the address
+  // check, the Worker's adapter the D1 store too.
+  ["@nano133/nanoterra/connect", ["connect/index.js"], CONNECT_CEILING, false],
+  ["@nano133/nanoterra/connect/worker", ["connect/worker.js"], CONNECT_WORKER_CEILING, false],
+  ["@nano133/nanoterra/connect/node", ["connect/node.js"], CONNECT_NODE_CEILING, false],
 ];
 /** The emote clips: their own chunk, loaded on the first emote (never in a path's bundle above: "./clips.js" stays outside). */
 const LAZY: [string, string, number][] = [["the emote clips (loaded on the first emote)", "emotes/clips.js", 21_000]];

@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+- **New: Nanoterra connect** (`@nano133/nanoterra/connect`; "Nanoterra connect" in the README). Sign in from Nanoterra (nano133.com's code
+  exchange) as a part of the package, for a Worker (`/connect/worker`: `createWorkerConnect`, the env's settings, D1's `hits`) and for Node
+  (`/connect/node`: `createNodeConnect`, `webRequest`, `sendResponse`, `connectMiddleware`). The game starter's `src/worker/nanoterra.ts`
+  (5409723), moved with every check: the state and its `__Host-` cookie, the code exchange, the press (`arrival: "press"`), "Sign in as
+  <name>?", "Switch to <name>?", Continue and Not me. A game gives `signIn`, `session` and a "works once" store; its own rules go in `arrived`,
+  `same` and `signIn` (which may answer a page).
+- **Where the six copies differed, the stricter one** (README, "Where the six copies differed"): Nano Arcade's checks where they were stricter
+  than the starter's: Continue needs the game's own Origin (no Origin, `null`, another site or `Sec-Fetch-Site` other than `same-origin`: 403);
+  Not me only from the game's own page; a name with a control or direction character is refused; the client id must be `ng_` and 20 hex digits
+  and the secret at most 100 characters; the bind is compared in constant time; a refused Continue drops the pending cookie; the press's body is
+  read with a bound. The state is 24 random bytes in base64url (was 16 in hex: both 32 characters). The token answer is read with a bound of 32 KB
+  (the starter's 4,096 characters would refuse a player with many owned cosmetics). The pending cookie holds the address, the name, the look and
+  the record (never the items). The stand-in for nano133.com (`NANOTERRA_ORIGIN`) may only be on localhost.
+- **The screens** keep the starter's markup, words and class names (a game's `public/nanoterra.css` works with no change), with a policy of
+  their own on every page (`CONNECT_CSP`: no script, no frame around the page); `@nano133/nanoterra/connect/style.css` is the starter's layout on
+  the `--n133-*` tokens; `screens.words`, `errors`, `stylesheets`, `head`, `logoLabel`, `render` and `csp`.
+- **The conformance suite** (`@nano133/nanoterra/connect/conformance`: `connectConformance`, `CONNECT_RULES`): 25 rules of the protocol and of the
+  Launch checker, run on a game's mounted routes. The package runs it on the Worker adapter (D1 on SQLite) and the Node adapter (a `node:http`
+  server); `scripts/connect-mutants.mjs` proves each rule on a broken copy.
+- **What a game sees change** when it moves from its own copy (README, "Moving the game starter onto the part"): `exchangeCode(setup, code,
+  state, fetch)` and `pendingToken(key, player, now)` take new arguments; a state is base64url; the pending cookie is longer (under 600
+  characters); a press of Not me needs the game's own Origin; `signinOff()` is gone (the switch is `enabled`). The routes, the cookies' names
+  and the screens are the same.
+- `d1Limit` moved to `src/shop/adapters/d1-limit.ts` (unchanged), so the connect reaches no shop code; `@nano133/nanoterra/shop/d1` still exports it.
+
 ## 0.16.0 (2026-11-14)
 
 - **Behaviour change: the kit's own Looks list has the offer step (one more press before a purchase); `offer: false` keeps the 0.15 flow.**

@@ -18,6 +18,7 @@
 // a gap can win, and a use is one UPDATE that holds its own check (`used_at IS NULL`), with (player, use_ref) UNIQUE: one ref uses one credit.
 
 import type { D1Like } from "../../admin/adapters/d1.js";
+import { d1Limit, tableName } from "./d1-limit.js";
 import { parseRate } from "../../admin/rate.js";
 import { paidStatus } from "../orders.js";
 import { PLAY_WAIT_DAYS } from "../../looks/play.js";
@@ -25,6 +26,7 @@ import { checkRef, DAY_MS, useDaysOf } from "../plays.js";
 import { FORGOTTEN, kindOf, type Credit, type ForgetResult, type UseResult, type OrderStatus, type Settled, type ShopOrder, type ShopStore } from "../store.js";
 
 export type { D1Like, D1StatementLike } from "../../admin/adapters/d1.js";
+export { d1Limit } from "./d1-limit.js";
 
 /** The table names. The defaults are the game starter's, and "credits" and "play_adults" (d1-plays.sql). (`hits` is for `d1Limit` only.) */
 export type ShopTables = { orders?: string; owned?: string; meta?: string; hits?: string; credits?: string; adults?: string };
@@ -86,32 +88,15 @@ const orderOf = (r: Row): ShopOrder => ({
   visitor: r.visitor ?? null,
 });
 
-const NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+
 const changes = (res: unknown): number => Number((res as { meta?: { changes?: number } } | undefined)?.meta?.changes ?? 0);
 const isUnique = (e: unknown) => /UNIQUE/i.test(String((e as Error)?.message ?? e));
 /** D1 takes at most 100 bound values in one statement. */
 const CHUNK = 90;
 
-const tableName = (v: string | undefined, fallback: string): string => {
-  const name = v ?? fallback;
-  if (!NAME.test(name)) throw new Error(`the table name "${name}" must be plain (letters, digits and _)`);
-  return name;
-};
-
 async function sha256Hex(text: string): Promise<string> {
   const bytes = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)));
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-/**
- * True while `key` has made at most `limit` calls in this fixed window, counted in D1 (the table `hits`: one count for the whole game, every location).
- * The game starter's `d1Limit`. Old windows stay until the game deletes them (the starter's cron deletes those older than a day).
- */
-export async function d1Limit(db: D1Like, key: string, limit: number, windowMs: number, now = Date.now(), tables: Pick<ShopTables, "hits"> = {}): Promise<boolean> {
-  const hits = tableName(tables.hits, "hits");
-  const win = Math.floor(now / windowMs);
-  const row = await db.prepare(`INSERT INTO ${hits} (key, win, count) VALUES (?, ?, 1) ON CONFLICT (key, win) DO UPDATE SET count = count + 1 RETURNING count`).bind(key, win).first<{ count: number }>();
-  return Number(row?.count ?? 1) <= limit;
 }
 
 /** The visitor's IP address as Cloudflare saw it (CF-Connecting-IP); an IPv6 address by its /64 (one home network). "local" when there is none. */

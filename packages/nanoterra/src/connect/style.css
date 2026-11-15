@@ -1,0 +1,303 @@
+/*
+ * The screens of Sign in from Nanoterra ("@nano133/nanoterra/connect"): "Sign in as <name>?", "Switch to <name>?" and the pages of a sign-in that did
+ * not work. They are plain HTML from the game's server, not part of its bundle: serve this file at the address the connect links (`screens.stylesheets`,
+ * default "/nanoterra.css"), for example by copying it into the game's public/ folder at the build. The page's policy allows only the site's own files.
+ *
+ * The parts (stable names; the game starter's): main.nt (the page), .nt-logo (an optional CSS picture), .nt-card (the card), h1, p, code (the short
+ * address), .nt-guard (the line against a stranger's link), form > button.primary (Continue, Switch), form > button (Not me, Stay), .nt-go a (Play as
+ * a guest).
+ *
+ * TO GIVE THEM YOUR GAME'S LOOK, set the package's tokens (the same as the sign-in sheet's and the shop's): --n133-ink, --n133-ink-soft, --n133-paper,
+ * --n133-ground, --n133-line, --n133-gem, --n133-gem-dark, --n133-on-gem, --n133-radius, --n133-key-radius, --n133-font, --n133-display, and the dark
+ * twins (--n133-dark-ink and so on). Light and dark follow the device. Or write your own stylesheet on the parts above (the starter's public/nanoterra.css
+ * is one). Never change the words, the forms or their order: they belong to the sign-in's safety.
+ */
+
+:root {
+  color-scheme: light;
+  --nt-bg: var(--n133-ground, #eef2f7);
+  --nt-ink: var(--n133-ink, #16202e);
+  --nt-ink-soft: var(--n133-ink-soft, #4a5568);
+  --nt-card: var(--n133-paper, #ffffff);
+  --nt-tile: var(--n133-ground, #eef2f7);
+  --nt-line: var(--n133-line, #d3dce7);
+  --nt-key: var(--n133-paper, #ffffff);
+  --nt-key-text: var(--nt-ink);
+  --nt-key-edge: var(--n133-line, #d3dce7);
+  --nt-main: var(--n133-gem, #20c9a6);
+  --nt-main-text: var(--n133-on-gem, #062b23);
+  --nt-main-edge: var(--n133-gem-dark, #0e8a72);
+  --nt-focus: var(--n133-gem-dark, #0e8a72);
+  --nt-radius: var(--n133-radius, 18px);
+  --nt-key-radius: var(--n133-key-radius, 999px);
+  --nt-key-size: 52px;
+  --nt-main-size: 60px;
+  --nt-shadow: 0 10px 30px rgb(10 30 60 / 0.16);
+  --nt-display: var(--n133-display, var(--n133-font, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif));
+  --nt-body: var(--n133-font, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+  --nt-picture: none;
+  --nt-picture-tall: var(--nt-picture);
+  --nt-dim: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --nt-bg: var(--n133-dark-ground, #0f151e);
+    --nt-ink: var(--n133-dark-ink, #e7edf5);
+    --nt-ink-soft: var(--n133-dark-ink-soft, #a9b5c5);
+    --nt-card: var(--n133-dark-paper, #171f2b);
+    --nt-tile: var(--n133-dark-ground, #0f151e);
+    --nt-line: var(--n133-dark-line, #34415a);
+    --nt-key: var(--n133-dark-paper, #171f2b);
+    --nt-key-edge: var(--n133-dark-line, #34415a);
+    --nt-main: var(--n133-dark-gem, #20c9a6);
+    --nt-main-text: var(--n133-dark-on-gem, #062b23);
+    --nt-main-edge: var(--n133-dark-gem-dark, #3fd8b6);
+    --nt-focus: var(--n133-dark-gem-dark, #3fd8b6);
+    --nt-shadow: 0 10px 30px rgb(0 0 0 / 0.45);
+  }
+}
+
+/* High contrast: plain edges and ink, and the main key's edge in the ink. */
+@media (prefers-contrast: more) {
+  :root {
+    --nt-line: var(--nt-ink);
+    --nt-key-edge: var(--nt-ink);
+    --nt-main-edge: var(--nt-ink);
+    --nt-ink-soft: var(--nt-ink);
+  }
+}
+
+/* ---- the layout (no need to change below this line) ---- */
+
+html {
+  background: var(--nt-bg);
+}
+
+body {
+  margin: 0;
+  color: var(--nt-ink);
+  font: 17px/1.5 var(--nt-body);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* The background stays put while a long page scrolls: a fixed layer, not `background-attachment` (iOS Safari ignores it). */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--nt-dim), var(--nt-picture) center / cover no-repeat, var(--nt-bg);
+}
+
+@media (max-aspect-ratio: 1/1) {
+  body::before {
+    background: var(--nt-dim), var(--nt-picture-tall) center / cover no-repeat, var(--nt-bg);
+  }
+}
+
+.nt {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: max(24px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(32px, env(safe-area-inset-bottom, 0px))
+    max(16px, env(safe-area-inset-left, 0px));
+}
+
+.nt-card {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 28rem;
+  padding: 24px 20px;
+  border: 1px solid var(--nt-line);
+  border-radius: var(--nt-radius);
+  background: var(--nt-card);
+  box-shadow: var(--nt-shadow);
+}
+
+h1 {
+  margin: 0 0 12px;
+  font: 800 28px/1.15 var(--nt-display);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+p {
+  margin: 0 0 12px;
+}
+
+strong {
+  overflow-wrap: anywhere;
+}
+
+/* The address: short (the start and the end), so it moves to the next line whole. */
+code {
+  white-space: nowrap;
+  padding: 1px 6px;
+  border: 1px solid var(--nt-line);
+  border-radius: 6px;
+  background: var(--nt-tile);
+  font: 16px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* The line that keeps a stranger's link from signing the player in: its own tile, so it is read. */
+.nt-guard {
+  margin: 16px 0 20px;
+  padding: 10px 14px;
+  border-left: 4px solid var(--nt-main-edge);
+  border-radius: 8px;
+  background: var(--nt-tile);
+  color: var(--nt-ink-soft);
+}
+
+.nt-guard strong {
+  color: var(--nt-ink);
+}
+
+form {
+  margin: 0;
+}
+
+form + form {
+  margin-top: 12px;
+}
+
+.nt-go {
+  margin: 20px 0 0;
+}
+
+/* The keys. "Not me" is a plain key; Continue and Play as a guest are the main keys. */
+button,
+.nt-go a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--nt-key-size);
+  margin: 0;
+  padding: 8px 20px;
+  border: 2px solid var(--nt-key-edge);
+  border-radius: var(--nt-key-radius);
+  background: var(--nt-key);
+  color: var(--nt-key-text);
+  font: 700 18px/1.2 var(--nt-display);
+  text-align: center;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.06s ease-out, filter 0.06s ease-out;
+}
+
+button.primary,
+.nt-go a {
+  min-height: var(--nt-main-size);
+  border-color: var(--nt-main-edge);
+  background: var(--nt-main);
+  color: var(--nt-main-text);
+  font-size: 20px;
+}
+
+button:active,
+.nt-go a:active {
+  transform: translateY(2px);
+  filter: brightness(0.95);
+}
+
+button:focus-visible,
+.nt-go a:focus-visible {
+  outline: 3px solid var(--nt-focus);
+  outline-offset: 3px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  button:hover,
+  .nt-go a:hover {
+    filter: brightness(1.05);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button,
+  .nt-go a {
+    transition: none;
+  }
+
+  button:active,
+  .nt-go a:active {
+    transform: none;
+  }
+}
+
+/* A screen with little height (a phone on its side): tighter spaces, and a logo (if shown) beside the card, so the keys are in
+   reach without a scroll. */
+@media (min-aspect-ratio: 5/4) and (max-height: 560px) {
+  .nt {
+    flex-direction: row;
+    gap: 24px;
+    padding-top: max(12px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .nt-card {
+    max-width: 34rem;
+    padding: 14px 18px;
+    font-size: 16px;
+    line-height: 1.4;
+  }
+
+  h1 {
+    font-size: 22px;
+    margin-bottom: 6px;
+  }
+
+  p {
+    margin-bottom: 8px;
+  }
+
+  .nt-guard {
+    margin: 8px 0 12px;
+    padding: 6px 12px;
+  }
+
+  form + form {
+    margin-top: 8px;
+  }
+
+  .nt-go {
+    margin-top: 12px;
+  }
+}
+
+/* ---- Optional: your logo ----
+ * Hidden by default. To show a logo above the card, put it in public/art/ and replace this rule with, for example:
+ *
+ *   .nt-logo {
+ *     display: block;
+ *     width: min(76vw, 320px);
+ *     aspect-ratio: 2 / 1;          (your logo's width / height)
+ *     background: url("/art/logo.png") center / contain no-repeat;
+ *   }
+ *
+ * On a phone on its side the rule below puts it beside the card at a smaller size; check that the keys still fit at 844 x 390.
+ */
+.nt-logo {
+  display: none;
+}
+
+@media (min-aspect-ratio: 5/4) and (max-height: 560px) {
+  .nt-logo {
+    flex: none;
+    width: min(30vw, 240px);
+  }
+}

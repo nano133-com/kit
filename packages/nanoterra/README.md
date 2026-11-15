@@ -14,6 +14,7 @@ themselves. This package gives your game these things:
 - **An options menu** (`/options`, since 0.8.0): the game's settings as data, with defaults for each device, kept in the player's browser, and a ready Options key and panel (one page: the Advanced rows behind one row that opens them); common settings to opt into, and a section another module adds.
 - **The player's sign-in** (`/player-signin`, since 0.9.0): a passkey (Face ID, Touch ID or the device PIN) or a wallet app (Berry Wallet, NanChat, Nautilus), the sessions and a ready sign-in sheet, for a game with a server. It needs `@nano133/signin` (an optional peer).
 - **Emotes** (`/emotes`, since 0.8.0): Nano Island's eleven emotes on the player's character (the Wave, Cheer, Clap, Dance and seven more, made in Blender), and the emote wheel of eight that the player picks, which also plays a game's own animations.
+- **Nanoterra connect** (`/connect`, since 0.17.0): a player signed in at nano133.com arrives at a game with a server signed in: the start and callback routes, the state cookie, the code exchange, "Sign in as <name>?", the press and "Switch to <name>?", for a Worker and for Node, with a conformance suite. Server code: a game's page loads none of it.
 - **A shop** (`/shop`, since 0.9.0): sells looks for Nano (XNO) straight to the creator's address, with no key on the server: the routes, the payment check, D1 and Firestore stores, and the Looks and pay sheets (QR code, test mode stamp). Since 0.15.0 it also sells **plays**, one-time purchases (a round, a level, a life or a continue), pay to play only, with the creator's Legal card in /admin.
 
 It replaces `@nano133/character` 0.1.0, `@nano133/ticket` 0.1.0 and `@nano133/looks` 0.1.0
@@ -96,6 +97,11 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/shop/worker` | the shop for a Worker with D1, from the starter's settings: `createShop` (since 0.9.0) | no | 10.0 kB (with the D1 store and Turnstile); 14.3 kB with the plays |
 | `@nano133/nanoterra/shop/panel` | the Looks key, the looks sheet and the pay sheet with its own QR code: `mountShop`, and its stylesheet `@nano133/nanoterra/shop/style.css` (since 0.9.0); the Play key and the "18 or older" step (since 0.15.0) | no | 10.0 kB + 2.5 kB of CSS (gzip; 8.5 kB minified); 11.2 kB with the plays |
 | `@nano133/nanoterra/shop/conformance` | the shop's money rules as test cases, for a store a game writes itself (since 0.9.0) | no | n/a |
+| `@nano133/nanoterra/connect` | Sign in from Nanoterra: `createConnect` (the four routes on Web Request/Response), the screens' words, `createMemoryOnce` (server code; since 0.17.0) | no | 10.1 kB (with the record's lists and the address check); a page loads none |
+| `@nano133/nanoterra/connect/worker`, `/connect/node` | the Worker's adapter (`createWorkerConnect`: the env's settings, D1's `hits`) and Node's (`createNodeConnect`, `webRequest`, `sendResponse`, `connectMiddleware`) (since 0.17.0) | no | 10.2 kB, 10.5 kB |
+| `@nano133/nanoterra/connect/d1`, `/connect/firestore` | the "works once" store on D1 (`createD1Once`, the starter's `hits`) or Firestore (`createFirestoreOnce`, a small interface, no Firebase dependency) (since 0.17.0) | no | n/a |
+| `@nano133/nanoterra/connect/conformance` | the protocol's rules as test cases, run on a game's own mounted routes (since 0.17.0) | no | n/a |
+| `@nano133/nanoterra/connect/style.css` | the screens' stylesheet on the `--n133-*` tokens (since 0.17.0) | no | 8.4 kB of CSS (not minified) |
 
 Measured 2026-10-26 (the friends paths 2026-10-30, the options, the emotes, the player sign-in and the shop paths 2026-11-01; "with the plays" 2026-11-03, by the size test): `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
 All four paths together: 23.6 kB. A test of the package proves that the record, the ticket, the looks and the small part import no package at all.
@@ -2029,6 +2035,199 @@ The rows of money, prizes, chance and transfer are fixed in the kit, never a swi
 gambling games, and Nanoterra lists kit games. Your paid game, its prices and its risk are yours, and every payment goes to a wallet that you hold
 the key for.
 
+## Nanoterra connect (`/connect`; since 0.17.0)
+
+**Sign in from Nanoterra** for a game with a server: a player who is signed in at nano133.com presses Play and arrives at the game signed in.
+It is nano133.com's code exchange (its `docs/agents/launch.md`, "Signed-in Play" and "The arrival field"), as the game starter's
+`src/worker/nanoterra.ts` did it, moved into the package with every check. Four routes, next to the game's play address:
+
+| Route | What it does |
+|---|---|
+| `GET /nanoterra/start` | makes a new state (24 random bytes), keeps it in a `__Host-nanoterra-state` cookie (Secure, HttpOnly, Path=/, SameSite=Lax, no Domain, 10 minutes) and sends the browser to `https://nano133.com/api/nanoterra/authorize?client_id=…&state=…` |
+| `GET /nanoterra/callback` | accepts the link's state ONLY when it equals this browser's cookie; trades the code from the server with the client id, the secret and the cookie's state; drops the state cookie; shows "Sign in as <name>?" (Continue / Not me), or, for a press (`arrival: "press"`), signs in at once, or asks "Switch to <name>?" when another account is signed in here |
+| `POST /nanoterra/confirm` | Continue or Switch: from the game's own page only (Origin), with the signed pending cookie (5 minutes) and the screen's `bind`; works once; makes the game's session |
+| `POST /nanoterra/cancel` | Not me or Stay: uses the pending cookie up, makes no session |
+
+The secret stays on the server: no page, cookie, log line or error holds it, or a code, a state or a cookie. A session it makes proves no key
+and no payment: name it `via: "nanoterra"` and never let it open the game's admin.
+
+### On a Worker (the starter, Echo Island, Banano, Ananos, Sunk Cost)
+
+```ts
+import { createWorkerConnect } from "@nano133/nanoterra/connect/worker";
+
+// NANOTERRA_CLIENT_ID (a setting) and NANOTERRA_SECRET (`npx wrangler secret put NANOTERRA_SECRET`) come from env; "works once" is D1's `hits`.
+const connect = (env: Env) =>
+  createWorkerConnect(env, {
+    signIn: (req, player) => playerSignin(env).signIn(req, player.address, "nanoterra"), // the game's own session: its Set-Cookie
+    session: async (req) => {                                                             // the session here, for a press
+      const here = await playerSignin(env).session(req);
+      return here ? { address: here.address, name: here.via === "nanoterra" ? (await playerOf(env.DB, here.address))?.username : undefined } : null;
+    },
+    keep: (player) => keepPlayer(env.DB, player),                                          // optional: what Nanoterra said, after the exchange
+    enabled: async () => signinOn((await settingsOf(env)).signin),                         // optional: the admin's switch
+  });
+
+// in fetch(): before the game's other routes
+const answer = new URL(req.url).pathname.startsWith("/nanoterra/") ? await connect(env).handle(req) : null;
+if (answer) return answer;
+```
+
+### On Node (Nano Arcade: Express and React Router, Firestore)
+
+```ts
+import { createNodeConnect } from "@nano133/nanoterra/connect/node";
+import { createFirestoreOnce } from "@nano133/nanoterra/connect/firestore";
+
+export const connect = createNodeConnect({
+  clientId: process.env.NANOTERRA_CLIENT_ID,
+  secret: process.env.NANOTERRA_SECRET,
+  origins: ["https://nanoarcade.party", "https://www.nanoarcade.party"], // the public origins: a press must come from one
+  once: createFirestoreOnce(firestore),                                  // nanoterra_once/{id}, create() once; TTL on deleteAt
+  limit: (scope, req) => myLimits(scope, req),                           // the game's own limits (or `visitor` for the default 20 a minute)
+  signIn: (req, player, how) => arcadeSignIn(req, player, how),          // its session cookie(s), or a page (a rule said no)
+  session: (req) => arcadeSession(req),                                  // { address: the account, name }
+  same: (here, player) => sameAccount(here.address, player.address),     // combined accounts: one account, many addresses
+  arrived: (req, player) => arcadeArrival(req, player),                  // its own rules before any screen, or null
+});
+// React Router resource routes:  export const loader = ({ request }) => connect.start(request);   (and callback)
+//                                export const action = ({ request }) => connect.confirm(request); (and cancel)
+// Express:  app.use(connectMiddleware(connect, "https://nanoarcade.party"));
+```
+
+### What the game writes, and what it never writes
+
+The game writes: where its client id and secret come from, `signIn` (its own session for the proved address), `session` (to let a press skip the
+screen), its "works once" store (D1 and Firestore are in the package), and, if it wants, `keep`, `enabled`, `after` (a fixed path on its own site,
+"/" by default), its words or its whole screen. It never writes a state, a cookie of this flow, a token call, a compare or a screen's form.
+
+| Option | Default | What it is |
+|---|---|---|
+| `clientId`, `secret` | (none: "not set up", 503) | `ng_` and 20 hex digits; the secret at most 100 characters. The Worker reads `NANOTERRA_CLIENT_ID` and `NANOTERRA_SECRET` ("none", "skip", "off", "-" are not set) |
+| `once(id, until, use)` | D1 `hits` on a Worker | true the first time only. `createD1Once`, `createFirestoreOnce`, `createMemoryOnce` (tests) |
+| `signIn(req, player, how)` | (required) | the game's session: one or more Set-Cookie values, or a `Response` that is sent instead (this flow's cookies are dropped on it). `how.via` is `"press"` or `"confirm"`, `how.id` a new 24-hex id |
+| `session(req)` | none: a press never skips the screen | `{ address, name? }` of the session here, or null; a throw shows the old screen |
+| `same(here, player)` | the same address | whether the session here is the account Nanoterra named |
+| `keep(player, req)` | none | runs after the exchange, before any screen |
+| `arrived(req, player)` | none | the game's own rule before the press: a `Response` to send instead, or null; a throw shows the old screen and the press is not used |
+| `enabled(req)` | on | false: start, callback and confirm answer "is off" (503); Not me always works |
+| `limit(scope, req)` | 20 a minute a visitor, in memory | `scope` is `"start"`, `"callback"` or `"confirm"` |
+| `visitor(req)` | CF-Connecting-IP (IPv6 by its /64) | the default limit's visitor. On Node give `limit` or `visitor` |
+| `after` | `"/"` | where the player goes; a path on this site only (another site, `//host`, a backslash or a space throws) |
+| `origins` | the request's origin | the game's public origins (required on Node: a proxy hides the https address) |
+| `signingKey` | the client secret | the pending cookie's HMAC key |
+| `screens` | the starter's | `words`, `errors`, `stylesheets` (default `["/nanoterra.css"]`), `head`, `logoLabel`, `render`, `csp` |
+| `log(message, detail)` | `console.warn("Nanoterra sign-in: …")` | fixed messages, with at most a status or an error's name |
+| `site` | `https://nano133.com` | tests and a local dev server only: a stand-in on localhost, 127.0.0.1 or [::1]; anything else is "not set up" |
+
+### The screens and their look
+
+The markup and the words are the starter's, with the same stable class names, so a game's own `public/nanoterra.css` keeps working with no
+change: `main.nt` (the page), `.nt-logo` (an optional CSS picture), `.nt-card`, `h1`, `p`, `code` (the short address), `.nt-guard` (the line
+against a stranger's link), `form > button.primary` (Continue, Switch), `form > button` (Not me, Stay), `.nt-go a` (Play as a guest).
+
+- **The package's stylesheet**, `@nano133/nanoterra/connect/style.css`: the starter's layout on the package's tokens (`--n133-ink`, `--n133-ink-soft`,
+  `--n133-paper`, `--n133-ground`, `--n133-line`, `--n133-gem`, `--n133-gem-dark`, `--n133-on-gem`, `--n133-radius`, `--n133-key-radius`,
+  `--n133-font`, `--n133-display` and the `--n133-dark-*` twins). Serve it at the address in `screens.stylesheets` (copy it into `public/`). Light and
+  dark follow the device; `prefers-contrast: more` draws plain edges.
+- **Words**: `screens.words` (over `CONNECT_WORDS`) and `screens.errors` (over `CONNECT_ERRORS`): plain text, `{name}`, `{current}`, `{address}`,
+  and `**strong**`. Everything is escaped.
+- **Head and logo**: `screens.head` (the game's own tags, for example a font's preload) and `screens.logoLabel` (the logo's name for a screen reader).
+- **The whole page**: `screens.render(screen)` returns the game's own HTML (or null for the kit's). `screen.html` holds every part ESCAPED (the title,
+  the name, the lead, the guard, the two forms, the guest link) and `screen.page` the kit's own page. Keep `screen.html.confirm` and
+  `screen.html.cancel` as they are. A page with an inline style also sets `screens.csp`.
+- **The policy** of every page: `CONNECT_CSP` (no script, this site's own styles, pictures and fonts, forms to this site, no frame around it), and
+  `X-Frame-Options: DENY`, `no-store`, no Referer (`same-origin` on the two screens, so the press carries the Origin).
+
+### The rules, and the suite that holds them
+
+`connectConformance(make)` from `@nano133/nanoterra/connect/conformance` runs each rule against a game's MOUNTED routes, with nano133.com's token
+route replaced by the suite's stand-in (no request leaves the computer). The package runs it on its Worker adapter (D1 on SQLite) and on its Node
+adapter (a real `node:http` server through `connectMiddleware`), and `scripts/connect-mutants.mjs` proves each rule: it makes a broken copy for each
+(48 copies) and every copy but one fails a case (the one that lives sends the link's state instead of the cookie's, which are the same text after the compare).
+
+| Rule | Source | What the suite checks |
+|---|---|---|
+| S1 | checker "callback" (2) | start redirects (302, 303 or 307) to nano133.com's authorize route with exactly `client_id` and `state` |
+| S2 | arrival field rule 3; `pressProblem` | the state is 16 to 128 of `A-Z a-z 0-9 - _`, at least 22 characters (32 when hex only) |
+| S3 | rule 3; `pressProblem` (`again`) | a new state at each start |
+| S4 | rule 2; `pressProblem` | the state cookie: `__Host-`, Secure, HttpOnly, Path=/, SameSite=Lax, no Domain, at most 600 s; it holds the state |
+| S5 | the starter | start takes GET only; `no-store`; no Referer; no secret in the redirect or the cookie |
+| C1 | checker "callback" (1) | 43 A's and no state: 400, 401, 403 or 422, and no token call |
+| C2 | the starter | a code of the wrong shape: 400, no token call |
+| C3 | rule 1; "The state flow" (3) | the link's state equals THIS browser's `__Host-` cookie, or 400 and no token call (no cookie, another state, no state, a planted plain name) |
+| C4 | rule 1; "The exchange" | one POST of JSON `{client_id, client_secret, code, state}` with the cookie's state to the token route, no redirect followed |
+| C5 | rule 2 | the state cookie is dropped in every answer after the compare; the same link again trades nothing |
+| C6 | "The exchange" | only a 200 with a whole answer signs in: a refusal, a fault, more than 32 KB, a bad or `xrb_` address, `playerId` not the address, a name that is empty, over 60 characters or holds a control or direction character, a bad look |
+| C7 | the starter | the secret, the code, the state and the pending cookie are in no page, no other header and no log line |
+| P1 | rules 4 and 5 | no `arrival`, or not exactly `"press"`: the screen, no session |
+| P2 | the starter; rule 2 | the screen: the pending cookie `__Host-`, HttpOnly, Lax, at most 300 s; `no-store`; Referrer-Policy `same-origin`; no frame; the name escaped; the bind a hash, never the token |
+| P3 | rule 4 | a press with no session: the session at once, to `after`, no pending cookie |
+| P4 | rule 4 | a press with a session of the same account: it stays, no new one |
+| P5 | rule 4 | a press with another account here: "Switch to <name>?"; Stay keeps it, Switch changes it |
+| F1 | the starter | Continue makes the session for the address Nanoterra named and drops the pending cookie |
+| F2 | the starter; Arcade's `ownOriginPost` | Continue: POST only; the Origin is this site's (another site, `null`, none, a subdomain: 403); `Sec-Fetch-Site`, when sent, is `same-origin` |
+| F3 | the starter | Continue needs this browser's pending cookie, whole and signed with the game's key (changed, forged, unsigned, too long, the plain name: 400) |
+| F4 | the starter | the bind ties the press to its screen: after a second callback, the old screen's Continue, no bind or a wrong bind sign nobody in |
+| F5 | the starter | a pending cookie works once: a second Continue, or Continue after Not me, signs nobody in |
+| N1 | the starter; Arcade's | Not me: POST only, from this site's page only, no session, the pending cookie dropped |
+| R1 | the starter | every redirect goes to `after`, never to an address from the request |
+| L1 | the starter | 20 tries a minute a visitor on start, callback and Continue, then 429 |
+
+A game runs the suite on its own routes (a dev dependency in practice):
+
+```ts
+import { connectConformance } from "@nano133/nanoterra/connect/conformance";
+for (const c of connectConformance(async (token) => ({
+  handle: (req) => withFetch(token, () => worker.fetch(req, env)), // the token route goes to the suite's stand-in
+  clientId: "ng_00000000000000000002", secret: "ns_test-only",      // test values: never the real secret
+  signedIn: async (cookie) => (await playerSignin(env).session(new Request("https://game.test/", { headers: { Cookie: cookie } })))?.address ?? null,
+  sessionFor: async (address) => (await playerSignin(env).signIn(new Request("https://game.test/"), address, "wallet")).split(";")[0],
+}))) it(`${c.rule} ${c.name}`, c.run);
+```
+
+### Where the six copies differed, and what the package does
+
+| What differed | Copies | The package |
+|---|---|---|
+| The state: 16 bytes in hex, or 24 bytes in base64url | starter, Echo, Banano, Ananos, Sunk Cost: hex; Arcade: base64url | 24 bytes in base64url (192 bits; the same length) |
+| The token answer's bound: 4,096 characters read whole, or 32 KB read with a bound | starter copies: 4,096; Arcade: 32 KB | 32 KB, read with a bound (the owned cosmetics grow with the catalogue) |
+| A name with a control or direction character | starter copies: shown; Arcade: refused | refused |
+| The address: `nano_` only (`@nano133/signin`), or any checksum | the same in all six | `nano_` only, with the package's own checksum |
+| Continue with no Origin and `Sec-Fetch-Site: same-origin`; with the right Origin and `Sec-Fetch-Site: cross-site` | starter copies: accepted; Arcade: refused | refused (Arcade's `ownOriginPost`) |
+| Not me from another site | starter copies: accepted; Arcade: refused | refused |
+| The bind compared in constant time | starter copies: no; Arcade: yes | yes |
+| A refusal of Continue drops the pending cookie | starter copies: no; Arcade: yes | yes |
+| The press's form body read with a bound | starter copies: by Content-Length; Arcade: and by its length | read with a bound of 1,024 bytes |
+| The pending cookie holds the address, or the address, name, look and record | starter copies: address; Arcade: the four | the four (never the items); at most 1,024 characters |
+| The cookies' names without `__Host-`: on plain http to localhost, or whenever NODE_ENV is not "production" | starter copies: localhost; Arcade: NODE_ENV | localhost only |
+| The pages' policy | starter copies: the game's own (from `secure()`); Arcade: its own, with inline styles | `CONNECT_CSP` on every page (no inline style; a game may set its own) |
+| Not set up | starter copies: a 503 page; Arcade: to the Arcade as a guest | a 503 page (`connect.ready` tells a game, so it can send players on first) |
+| The client id's shape and the secret's length | starter copies: any; Arcade: `ng_` + 20 hex, at most 100 | the Arcade's |
+| The stand-in for nano133.com (`NANOTERRA_ORIGIN`) | starter copies: any address; Arcade: any, but not in production | localhost, 127.0.0.1 or [::1] only |
+| The frame of the screens | starter: `.nt` frame; Echo: the same with a font preload and a logo label; Sunk Cost: no frame; Arcade: its own page | the starter's frame; `head`, `logoLabel` and `render` for the rest |
+| The game's own rules (the Arcade's key on another device, its limit for each account, the deletion lock, the same account by its root) | Arcade only | hooks: `arrived`, `same`, `signIn` may answer a page |
+
+### Moving the game starter onto the part
+
+The starter's `src/worker/nanoterra.ts` (375 lines) becomes about 60 lines: the routes for one request, `keep` (its `nanoterra_players` row) and
+`playerOf`, unchanged. Its tables, its cron and its sessions stay as they are (the "works once" rows are the same `hits` rows).
+
+1. Install `@nano133/nanoterra@^0.17.0`.
+2. Replace the file's checks with `createWorkerConnect(env, { now, visitor, enabled, signIn, session, keep })` (the example above). Keep `playerOf`.
+   Re-export `bindOf`, `pressOf`, `readPlayer` and the types from `@nano133/nanoterra/connect` if the game's code or tests use them.
+3. In `src/worker/index.ts`, replace the five lines of the four routes and the switch with one: `if (path.startsWith("/nanoterra/")) { const answer =
+   await nanoterraRoutes(...).handle(req); if (answer) return secure(answer, false); }`. `signinOff()` is gone: the switch is `enabled`.
+4. Keep `public/nanoterra.css`: the markup and the class names are the same. (Or serve the package's `style.css` and set the `--n133-*` tokens.)
+5. The game's tests: `exchangeCode(setup, code, state, fetch)` and `pendingToken(key, player, now)` have new arguments; a state is 32 base64url
+   characters now (was 32 hex digits); the pending cookie is under 600 characters (was under 400); Not me needs the game's own Origin.
+6. Run `connectConformance` on the game's mounted Worker (the example above), then the game's whole check.
+
+The proof (2026-11-15, the starter at 5409723 in a scratch copy, the package packed from this branch): the file went from 375 to 59 lines
+(359 out, 43 in); `index.ts` 7 lines out, 6 in; two test files 11 lines out, 14 in (10 changes, each for a reason in step 5); one new test file
+of 45 lines (the suite). The whole check passed: the types, 381 tests (356 and the suite's 25), the build. The page's build did not change (the
+same files, names and sizes): the connect is server code.
+
 ## Moving from the three old packages
 
 | Before | Now |
@@ -2059,6 +2258,12 @@ the key for.
 npm install      # at the kit's root
 npm run build -w @nano133/nanoterra
 npm test -w @nano133/nanoterra
+```
+
+The connect's broken copies (each rule taken out, the connect tests run on each: every copy but the one named in the script must fail):
+
+```sh
+cd packages/nanoterra && node scripts/connect-mutants.mjs
 ```
 
 MIT license.
