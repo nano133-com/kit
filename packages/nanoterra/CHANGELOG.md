@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.0 (2026-11-15)
 
 - **New: Nanoterra connect** (`@nano133/nanoterra/connect`; "Nanoterra connect" in the README). Sign in from Nanoterra (nano133.com's code
   exchange) as a part of the package, for a Worker (`/connect/worker`: `createWorkerConnect`, the env's settings, D1's `hits`) and for Node
