@@ -788,9 +788,11 @@ describe("connect: bounds (the review's broken copies A10, A16, A20; F12)", () =
       fetch: ((_url: string, init: RequestInit) =>
         new Promise((_ok, fail) => {
           signal = init.signal ?? undefined;
-          init.signal?.addEventListener("abort", () => fail(init.signal!.reason));
-          // No answer, ever, without the signal. A guard ends the test if no signal comes.
-          setTimeout(() => fail(new Error("no timeout")), 9_000).unref();
+          // No answer, ever, without the signal. A guard ends the test if no signal comes. The guard is a plain timer (not unref'd) and is
+          // cleared at the abort: on Node 22 the timer of AbortSignal.timeout() does not keep the event loop alive, so with an unref'd guard
+          // nothing held the loop and the runner ended the suite ("Promise resolution is still pending but the event loop has already resolved").
+          const guard = setTimeout(() => fail(new Error("no timeout")), 9_000);
+          init.signal?.addEventListener("abort", () => (clearTimeout(guard), fail(init.signal!.reason)));
         })) as unknown as typeof fetch,
     });
     const t0 = Date.now();
