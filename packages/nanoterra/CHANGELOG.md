@@ -31,6 +31,9 @@
   after it opens; the key that had the focus went with the old nodes, the focus fell to the page, and Escape and Tab no longer reached the sheet. Now the
   same choice gets the focus again (the passkey's row, or the same wallet's tile: the tiles have `data-way`), and a focus on any other control (the close
   key, the game's own) stays where it is. The same for the "Try again" screen of an ended wallet request.
+- **Docs: serving the connect's stylesheet** (README, "Serving the stylesheet"): a Worker built with Vite writes the installed
+  `@nano133/nanoterra/connect/style.css` into its static files at the build (the game starter's 15-line plugin), and links it before its own tokens;
+  without Vite, a copy in the build script. A test reads every doc: no `ns_` text in them is a secret the connect would take.
 - Sizes (gzip, size test): `/shop/panel` 13.5 kB (ceiling 13.7 kB, was 13.2 kB), `/admin-signin/panel` 9.8 kB (ceiling 10.0 kB, was 9.5 kB): the
   QR code's versions 11 to 40 and level L, +0.31 kB each (the tables are four strings of 40 characters). `/player-signin/panel` holds no QR code (the
   game's `qr` hook draws it): +0.02 kB.

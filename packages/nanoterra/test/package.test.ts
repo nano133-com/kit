@@ -322,3 +322,18 @@ test("the README and the changelog say what the code says", () => {
   assert.match(read("CHANGELOG.md"), /@nano133\/ticket`? 0\.1\.0/);
   assert.match(read("CHANGELOG.md"), /@nano133\/looks`? 0\.1\.0/);
 });
+
+test("the docs never show a client secret that the connect would take: every ns_ text in them fails strongSecret", async () => {
+  const { strongSecret } = await import("../src/connect/index.js");
+  const files = ["README.md", "CHANGELOG.md", ...readdirSync(join(root, "ai")).map((f) => `ai/${f}`), "../../README.md", "../../AGENTS.md"];
+  const walkMd = (dir: string): string[] => readdirSync(dir).flatMap((f) => (statSync(join(dir, f)).isDirectory() ? walkMd(join(dir, f)) : f.endsWith(".md") ? [join(dir, f)] : []));
+  if (existsSync(join(root, "../../skills"))) files.push(...walkMd(join(root, "../../skills")).map((f) => relative(root, f)));
+  let seen = 0;
+  for (const f of files) {
+    for (const m of read(f).matchAll(/ns_[A-Za-z0-9_-]+/g)) {
+      seen++;
+      assert.equal(strongSecret(m[0]), false, `${f}: ${m[0].slice(0, 6)}… is a secret the connect would take`);
+    }
+  }
+  assert.ok(seen >= 3, "the check reads the docs");
+});

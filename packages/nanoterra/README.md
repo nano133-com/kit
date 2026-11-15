@@ -2083,6 +2083,37 @@ const answer = new URL(req.url).pathname.startsWith("/nanoterra/") ? await conne
 if (answer) return answer;
 ```
 
+**Serving the stylesheet.** The screens are plain HTML from the Worker: they link `screens.stylesheets` (default `["/nanoterra.css"]`), and the
+page's policy (`CONNECT_CSP`) allows only the site's own files. So the package's `@nano133/nanoterra/connect/style.css` must be a file of the game's
+own site, of the INSTALLED version: never a copy in the repository (a new kit version brings its own). A Worker built with Vite (its static files in
+`dist/client`, served by Workers' assets) writes it at the build, with a small plugin (the game starter's, `vite.config.ts`):
+
+```ts
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { defineConfig, type Plugin } from "vite";
+
+/** Writes dist/client/nanoterra-kit.css: the installed package's stylesheet of the connect screens. */
+function nanoterraKitCss(): Plugin {
+  return {
+    name: "nanoterra-kit-css",
+    generateBundle() {
+      const file = createRequire(import.meta.url).resolve("@nano133/nanoterra/connect/style.css");
+      this.emitFile({ type: "asset", fileName: "nanoterra-kit.css", source: readFileSync(file, "utf8") });
+    },
+  };
+}
+
+export default defineConfig({ plugins: [nanoterraKitCss()] /* and the game's own */ });
+```
+
+Then link it first and the game's own tokens after it: `screens: { stylesheets: ["/nanoterra-kit.css", "/nanoterra.css"] }`, with
+`public/nanoterra.css` holding only the `--n133-*` values. `createRequire(...).resolve` works on this path because it is a plain file in the exports map
+(the JavaScript paths export only `import`, so `resolve` fails on those). `vite dev` does not run `generateBundle`: on a local dev server, run the build
+once (or `vite build --watch`). Without Vite, copy the file into the folder of static files in the build script (`cp
+node_modules/@nano133/nanoterra/src/connect/style.css public/nanoterra-kit.css`, and keep `public/nanoterra-kit.css` out of git). A Node server serves
+it from the same path with its static files.
+
 ### On Node (Nano Arcade: Express and React Router, Firestore)
 
 ```ts
@@ -2159,7 +2190,7 @@ against a stranger's link), `form > button.primary` (Continue, Switch), `form > 
 
 - **The package's stylesheet**, `@nano133/nanoterra/connect/style.css`: the starter's layout on the package's tokens (`--n133-ink`, `--n133-ink-soft`,
   `--n133-paper`, `--n133-ground`, `--n133-line`, `--n133-gem`, `--n133-gem-dark`, `--n133-on-gem`, `--n133-radius`, `--n133-key-radius`,
-  `--n133-font`, `--n133-display` and the `--n133-dark-*` twins). Serve it at the address in `screens.stylesheets` (see "Serving the stylesheet" below). Light and
+  `--n133-font`, `--n133-display` and the `--n133-dark-*` twins). Serve it at the address in `screens.stylesheets` (see "Serving the stylesheet" above). Light and
   dark follow the device; `prefers-contrast: more` draws plain edges.
 - **The page behind the card** (since 0.17.1; the connect screens are the package's only full pages: every other part sits in the game's own page):
 
