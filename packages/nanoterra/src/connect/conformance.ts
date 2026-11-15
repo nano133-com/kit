@@ -43,7 +43,16 @@ function check(ok: unknown, message: string): asserts ok {
   if (!ok) throw new Error(message);
 }
 
-// ---- Addresses, answers and the token route's stand-in ----
+// ---- Addresses, secrets, answers and the token route's stand-in ----
+
+/**
+ * A client secret of nano133.com's shape ("ns_" and 43 base64url characters), random at each call, for a game's tests and its harness: the kit refuses
+ * a short or made-up secret (`strongSecret`). It is a test value: never the game's real secret, and nobody else knows it.
+ */
+export function connectTestSecret(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return `ns_${btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}`;
+}
 
 const ALPHABET = "13456789abcdefghijkmnopqrstuwxyz";
 const b32 = (n: bigint, chars: number) => Array.from({ length: chars }, (_, i) => ALPHABET[Number((n >> BigInt(5 * (chars - 1 - i))) & 31n)]).join("");
@@ -274,6 +283,16 @@ export function connectConformance(make: (token: typeof fetch) => Promise<Connec
       ["a state that differs in its last character", `${"c".repeat(31)}d`, `${name}=${"c".repeat(32)}`],
     ];
     if (live) cases.push(["the plain name (planted by a sibling subdomain)", a, `nanoterra-state=${a}`], ["the __Host- name holds another state, the plain name this one", a, `__Host-nanoterra-state=${"f".repeat(32)}; nanoterra-state=${a}`]);
+    // Names that a sibling subdomain CAN set and that are not this name: a reader that compares with JS trim() (it drops U+00A0) or without case
+    // would take them (Sunk Cost's AGENTS.md: "never go back to trim()"). A browser drops only spaces and tabs around a name, never U+00A0.
+    const nbsp = "\u00a0";
+    cases.push(
+      ["a no-break space before the name", a, `${nbsp}${name}=${a}`],
+      ["a no-break space after the name", a, `${name}${nbsp}=${a}`],
+      ["the name in lower case", a, `${name.toLowerCase()}=${a}`],
+      ["the name in upper case", a, `${name.toUpperCase()}=${a}`],
+      ["a no-break space before the name in lower case", a, `${nbsp}${name.toLowerCase()}=${a}`],
+    );
     for (const [why, state, cookie] of cases) {
       const res = await browser(h).callback(CODE, state, { cookie });
       check(res.status === 400, `${why}: the callback answered ${res.status}`);
@@ -327,6 +346,10 @@ export function connectConformance(make: (token: typeof fetch) => Promise<Connec
       ["an answer over 32 KB", () => c.t.answer({ ...tokenAnswer(good), pad: "x".repeat(40_000) })],
       ["a bad address", () => c.t.answer(tokenAnswer("nano_notanaddress"))],
       ["an xrb_ address", () => c.t.answer(tokenAnswer(good.replace(/^nano_/, "xrb_")))],
+      ["an address with a bad checksum (one character changed)", () => {
+        const bent = `${good.slice(0, -1)}${good.endsWith("1") ? "3" : "1"}`;
+        c.t.answer(tokenAnswer(bent));
+      }],
       ["a playerId that is not the address", () => c.t.answer(tokenAnswer(good, { playerId: other }))],
       ["an empty name", () => c.t.answer(tokenAnswer(good, { username: "  " }))],
       ["a name over 60 characters", () => c.t.answer(tokenAnswer(good, { username: "x".repeat(61) }))],
@@ -488,14 +511,21 @@ export function connectConformance(make: (token: typeof fetch) => Promise<Connec
       ["another site's Origin with no Sec-Fetch-Site", { Origin: "https://evil.test" }],
       ["a sibling subdomain", { Origin: b.origin.replace("://", "://x."), "Sec-Fetch-Site": "same-site" }],
       ["the right Origin and Sec-Fetch-Site cross-site", { Origin: b.origin, "Sec-Fetch-Site": "cross-site" }],
+      // An Origin that only STARTS with this site's: a compare by prefix would take it.
+      ["an Origin that starts with this site's (another domain)", { Origin: `${b.origin}.evil.test`, "Sec-Fetch-Site": "cross-site" }],
+      ["an Origin that starts with this site's, with no Sec-Fetch-Site", { Origin: `${b.origin}.evil.test` }],
+      ["this site's Origin with more after it", { Origin: `${b.origin}evil` }],
+      ["this site's Origin with a port added", { Origin: `${b.origin}:8443` }],
+      // No Origin at all: only Sec-Fetch-Site "same-origin" (a browser that hides its Origin still sends it) may pass; nothing else.
+      ["no Origin and no Sec-Fetch-Site", {}],
+      ["no Origin and Sec-Fetch-Site same-site", { "Sec-Fetch-Site": "same-site" }],
+      ["no Origin and Sec-Fetch-Site cross-site", { "Sec-Fetch-Site": "cross-site" }],
+      ["no Origin and Sec-Fetch-Site none", { "Sec-Fetch-Site": "none" }],
     ];
     for (const [why, headers] of others) {
       const res = await b.send(CONNECT_PATHS.confirm, { method: "POST", headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" }, body: `bind=${bind}`, keep: false });
       check(res.status === 403, `${why}: confirm answered ${res.status}`);
     }
-    // No Origin at all: a form's POST from a page always has one.
-    const none = await b.send(CONNECT_PATHS.confirm, { method: "POST", headers: { "Sec-Fetch-Site": "same-origin", "Content-Type": "application/x-www-form-urlencoded" }, body: `bind=${bind}`, keep: false });
-    check(none.status === 403, `a press with no Origin answered ${none.status}`);
     check((await c.h.signedIn(b.cookieHeader())) === null, "a press from another page signed in");
     // The screen still works for the player's own press.
     check((await b.press("confirm", bind)).status === 303 && (await c.h.signedIn(b.cookieHeader())) === address, "the player's own press failed after the refusals");
@@ -516,6 +546,8 @@ export function connectConformance(make: (token: typeof fetch) => Promise<Connec
       ["too long", `${name}=${payload}.${"A".repeat(1100)}`],
     ];
     if (name.startsWith("__Host-")) bad.push(["the plain name", `${name.slice(7)}=${value}`]);
+    // Names a sibling subdomain can set that are not this name (a reader with trim() or without case would take them).
+    bad.push(["a no-break space before the name", `\u00a0${name}=${value}`], ["the name in lower case", `${name.toLowerCase()}=${value}`]);
     // A cookie made by someone else: a whole payload for another address, a deadline far ahead, and a signature that is not the game's.
     const b64 = (v: string) => btoa(v).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
     const forged = b64(JSON.stringify({ a: connectTestAddress(), n: "Mallory", l: tokenAnswer("x").character.look, r: null, exp: Date.now() + 3_600_000, j: "0".repeat(24) }));
@@ -567,16 +599,25 @@ export function connectConformance(make: (token: typeof fetch) => Promise<Connec
   // ---- N: Not me (POST /nanoterra/cancel) ----
 
   add("N1", "Not me takes POST from this game's own page only, makes no session, drops the pending cookie and goes to the game", async (c) => {
-    const { b, bind } = await onScreen(c);
+    const { b, bind, address } = await onScreen(c);
     check((await b.send(CONNECT_PATHS.cancel, { keep: false })).status === 405, "a GET of cancel worked");
     const cross = await b.send(CONNECT_PATHS.cancel, { method: "POST", headers: { Origin: "https://evil.test", "Sec-Fetch-Site": "cross-site" }, keep: false });
     check(cross.status === 403, `Not me from another site answered ${cross.status}`);
-    const res = await b.press("cancel", bind);
+    const prefix = await b.send(CONNECT_PATHS.cancel, { method: "POST", headers: { Origin: `${b.origin}.evil.test` }, keep: false });
+    check(prefix.status === 403, `Not me from an Origin that starts with this site's answered ${prefix.status}`);
+    const bare = await b.send(CONNECT_PATHS.cancel, { method: "POST", keep: false });
+    check(bare.status === 403, `Not me with no Origin and no Sec-Fetch-Site answered ${bare.status}`);
+    // The refused presses spent nothing: the player's own Continue on this screen still signs in (the origin is checked BEFORE the cookie is used).
+    const own = await b.press("confirm", bind);
+    check(own.status === 303 || own.status === 302, `Continue after a refused Not me answered ${own.status}: a refused Not me used the cookie up`);
+    check((await c.h.signedIn(b.cookieHeader())) === address, "Continue after a refused Not me made no session: a refused Not me used the cookie up");
+    const { b: b2, bind: bind2 } = await onScreen(c);
+    const res = await b2.press("cancel", bind2);
     check(res.status === 303 || res.status === 302, `Not me answered ${res.status}`);
     check(res.headers.get("Location") === after(c.h), "Not me went somewhere else");
     const p = pendingCookieOf(res);
     check(p && maxAgeOf(p) === 0, "Not me kept the pending cookie");
-    check(otherCookies(res).length === 0 && (await c.h.signedIn(b.cookieHeader())) === null, "Not me signed in");
+    check(otherCookies(res).length === 0 && (await c.h.signedIn(b2.cookieHeader())) === null, "Not me signed in");
   });
 
   // ---- R: where the player goes ----

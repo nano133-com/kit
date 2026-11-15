@@ -31,7 +31,7 @@ export type ConnectWords = {
 };
 
 /** The pages of a sign-in that did not work: a title and a line each (plain text). */
-export type ConnectErrorKey = "off" | "notSetUp" | "tooMany" | "badCode" | "notHere" | "refused" | "notOwnPage" | "ranOut" | "changed" | "used";
+export type ConnectErrorKey = "off" | "notSetUp" | "setupWrong" | "tooMany" | "badCode" | "notHere" | "refused" | "notOwnPage" | "ranOut" | "changed" | "used";
 export type ConnectErrorWords = Record<ConnectErrorKey, { title: string; text: string }>;
 
 /** The starter's words, exactly. */
@@ -52,6 +52,7 @@ export const CONNECT_WORDS: ConnectWords = {
 export const CONNECT_ERRORS: ConnectErrorWords = {
   off: { title: "Sign-in from Nanoterra is off", text: "This game has turned off sign-in from Nanoterra. You can play as a guest." },
   notSetUp: { title: "Nanoterra sign-in is not set up", text: "This game has not finished setting up sign-in from Nanoterra yet." },
+  setupWrong: { title: "Nanoterra sign-in is set up wrong", text: "This game's sign-in from Nanoterra needs a fix by its owner. You can play as a guest." },
   tooMany: { title: "Too many tries", text: "Wait a minute, then press Play in Nanoterra again." },
   badCode: { title: "That sign-in did not work", text: "The sign-in code is missing or not valid. Press Play in Nanoterra again." },
   notHere: { title: "That sign-in did not start here", text: "It did not start in this browser, or it started more than 10 minutes ago. Press Play in Nanoterra again." },

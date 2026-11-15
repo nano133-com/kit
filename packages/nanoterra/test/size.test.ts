@@ -12,11 +12,12 @@ const dist = join(root, "dist/");
 const esbuild = await import("esbuild").catch(() => null);
 const ready = !!esbuild && existsSync(join(dist, "index.js"));
 
-// The connect's ceilings (0.17.0): measured 10,113 B, 10,158 B and 10,492 B here. Server code: a game's page loads none of it. The core holds the
-// record's closed lists (about 4.4 kB) and the address check; the Worker's adapter adds the D1 counter (shop/adapters/d1-limit.ts) and nothing of the shop.
-const CONNECT_CEILING = 10_500;
-const CONNECT_WORKER_CEILING = 10_600;
-const CONNECT_NODE_CEILING = 10_900;
+// The connect's ceilings (0.17.0): measured 10,959 B, 10,953 B and 11,402 B here (10,113, 10,158 and 10,492 before the security review's fixes: the
+// secret's floor, the setup page, the Node body's time bound). Server code: a game's page loads none of it. The core holds the record's closed lists
+// (about 4.4 kB) and the address check; the Worker's adapter adds the D1 counter (shop/adapters/d1-limit.ts) and nothing of the shop.
+const CONNECT_CEILING = 11_400;
+const CONNECT_WORKER_CEILING = 11_400;
+const CONNECT_NODE_CEILING = 11_900;
 
 /** The path, the files it bundles, the ceiling in bytes (gzip) and whether it may import Three.js. */
 const PATHS: [string, string[], number, boolean][] = [

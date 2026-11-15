@@ -6,7 +6,7 @@
 //   const connect = createWorkerConnect(env, { signIn, session, keep, enabled });
 //   const answer = await connect.handle(request);   // null for any other path
 
-import { createConnect, type Connect, type ConnectOnce, type ConnectOptions } from "./core.js";
+import { ConnectSetupError, createConnect, setupWrongConnect, type Connect, type ConnectOnce, type ConnectOptions } from "./core.js";
 import { createD1Once } from "./adapters/d1.js";
 import type { D1CounterLike } from "../shop/adapters/d1-limit.js";
 
@@ -38,5 +38,12 @@ export function createWorkerConnect(env: ConnectEnv, options: WorkerConnectOptio
   const db = options.db ?? env.DB;
   const once = options.once ?? (db ? createD1Once(db) : undefined);
   if (!once) throw new TypeError("connect: give the Worker's D1 database (env.DB or `db`) or a `once` store");
-  return createConnect({ ...options, clientId: setting(env.NANOTERRA_CLIENT_ID), secret: setting(env.NANOTERRA_SECRET), site: setting(env.NANOTERRA_ORIGIN), once });
+  try {
+    return createConnect({ ...options, clientId: setting(env.NANOTERRA_CLIENT_ID), secret: setting(env.NANOTERRA_SECRET), site: setting(env.NANOTERRA_ORIGIN), once });
+  } catch (e) {
+    // A weak NANOTERRA_SECRET (or signingKey): the Worker reads it at each request, so it fails here, closed. The four routes answer a 500 page that
+    // names no value; the rest of the game goes on.
+    if (e instanceof ConnectSetupError) return setupWrongConnect(options);
+    throw e;
+  }
 }

@@ -57,8 +57,10 @@ export type NodeResponseLike = {
 
 /** The press's form is tiny: a body is read up to this many bytes and no further (the core reads 1,024 at most). */
 const BODY_MAX = 2048;
+/** And for at most this long (ms): a body that comes one byte at a time does not hold the request open past it (F12 of the review). */
+export const BODY_MS = 10_000;
 
-async function bodyOf(req: NodeRequestLike): Promise<Uint8Array | string | null> {
+async function bodyOf(req: NodeRequestLike, bodyMs: number): Promise<Uint8Array | string | null> {
   if (req.body !== undefined && req.body !== null) {
     if (typeof req.body === "string") return req.body;
     if (req.body instanceof Uint8Array) return req.body;
@@ -70,8 +72,16 @@ async function bodyOf(req: NodeRequestLike): Promise<Uint8Array | string | null>
   const parts: Uint8Array[] = [];
   let size = 0;
   const it = iterate.call(req);
+  const end = Date.now() + bodyMs;
   for (;;) {
-    const { done, value } = await it.next();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<"late">((done) => (timer = setTimeout(() => done("late"), Math.max(0, end - Date.now()))));
+    const step = await Promise.race([it.next(), late]).finally(() => clearTimeout(timer));
+    if (step === "late") {
+      void Promise.resolve(it.return?.()).catch(() => undefined);
+      return null;
+    }
+    const { done, value } = step;
     if (done) break;
     const chunk = typeof value === "string" ? new TextEncoder().encode(value) : (value as Uint8Array);
     size += chunk.byteLength;
@@ -92,9 +102,9 @@ async function bodyOf(req: NodeRequestLike): Promise<Uint8Array | string | null>
 
 /**
  * A Web Request from a Node request, at the game's PUBLIC origin `origin` (never the Host header: a proxy may change it). A POST's body is read with a
- * bound (or taken from Express's body parser). Use it only for the four paths of this flow.
+ * bound of 2,048 bytes and `bodyMs` (default 10 seconds), or taken from Express's body parser. Use it only for the four paths of this flow.
  */
-export async function webRequest(req: NodeRequestLike, origin: string): Promise<Request> {
+export async function webRequest(req: NodeRequestLike, origin: string, bodyMs = BODY_MS): Promise<Request> {
   if (!goodOrigin(origin)) throw new TypeError("connect: the origin must be https (http only on localhost)");
   const headers = new Headers();
   for (const [k, v] of Object.entries(req.headers)) {
@@ -105,7 +115,7 @@ export async function webRequest(req: NodeRequestLike, origin: string): Promise<
   const url = new URL(req.originalUrl ?? req.url ?? "/", origin);
   if (url.origin !== origin) throw new TypeError("connect: the request's path is not a path");
   if (method === "GET" || method === "HEAD") return new Request(url, { method, headers });
-  const body = await bodyOf(req);
+  const body = await bodyOf(req, bodyMs);
   headers.delete("content-length");
   headers.delete("transfer-encoding");
   return new Request(url, { method, headers, body: typeof body === "string" || body === null ? (body ?? "") : new TextDecoder().decode(body) });

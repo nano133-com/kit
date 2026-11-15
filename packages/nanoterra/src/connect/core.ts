@@ -57,6 +57,35 @@ export const ANSWER_MAX = 32 * 1024;
 /** nano133.com's client id (`ng_` and 20 hex digits) and its secret (at most 100 characters): Arcade's. Anything else is "not set up". */
 const CLIENT_ID = /^ng_[0-9a-f]{20}$/;
 const SECRET_MAX = 100;
+/**
+ * The client secret as nano133.com makes it (its app/nanoterra/signin/secret.server.ts, `newSecret`: "ns_" and 32 random bytes in base64url, 43
+ * characters), at most 100 characters in all (its SECRET_MAX). The secret is also the pending cookie's key (`signingKey` changes that): a short or
+ * made-up secret would let anyone sign a pending cookie for any address. So a secret of another shape is a setup error, never "not set up".
+ */
+const SECRET_SHAPE = /^ns_[A-Za-z0-9_-]{43,97}$/;
+/**
+ * Placeholders that have the right shape ("ns_" and 43 x's, a word typed again and again) are refused too: 43 random base64url characters hold 16
+ * or more different characters in all but about 1 of 10^13 secrets; a typed placeholder holds far fewer.
+ */
+const SECRET_KINDS = 16;
+/** A game's own `signingKey`: at least 32 characters, and 8 or more different ones (32 random hex digits have fewer in about 1 of 3 x 10^7 keys). */
+export const SIGNING_KEY_MIN = 32;
+const SIGNING_KEY_KINDS = 8;
+const kinds = (s: string) => new Set(s).size;
+/** True for a client secret of the shape nano133.com makes (the rule above). Spaces around it are dropped first, as the setup does. */
+export const strongSecret = (secret: string): boolean => {
+  const s = secret.trim();
+  return SECRET_SHAPE.test(s) && kinds(s.slice(3)) >= SECRET_KINDS;
+};
+/** True for a pending-cookie key a game may give (`signingKey`): at least 32 characters, 8 or more of them different. */
+export const strongSigningKey = (key: string): boolean => typeof key === "string" && key.length >= SIGNING_KEY_MIN && kinds(key) >= SIGNING_KEY_KINDS;
+/** A setting that would let someone forge a sign-in: thrown by `createConnect`. Its message names the setting, never its value. */
+export class ConnectSetupError extends Error {
+  override name = "ConnectSetupError";
+}
+const WEAK_SECRET =
+  'connect: the client secret is not one that nano133.com made ("ns_" and 43 letters, digits, "-" or "_"). Copy it again from Launch (make a new one if it is lost). For a local dev server only, set `localDevSecret: true`.';
+const WEAK_KEY = "connect: `signingKey` must be at least 32 characters of random text (8 or more different characters). For a local dev server only, set `localDevSecret: true`.";
 // Names and texts from nano133.com that hold a control or direction character are refused (Arcade's): they could hide or reorder words on a screen.
 const CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u200e\u200f\u202a-\u202e\u2066-\u2069]/;
 export const CALLBACK_LIMIT = { limit: 20, windowMs: 60_000 };
@@ -79,10 +108,10 @@ export const PENDING_COOKIE = "nanoterra-pending";
 export const PENDING_SECONDS = 300;
 /** A pending cookie is used once: its id is counted in the game's "once" store in the window of its own deadline (D1: `hits`, 10-minute windows). */
 export const ONCE_WINDOW_MS = 10 * 60_000;
-/** Put in front of what is signed, so a signature made here is good for nothing else. */
-const PENDING_LABEL = "@nano133/nanoterra connect: a Nanoterra sign-in waits for a press, v1";
+/** Put in front of what is signed, so a signature made here is good for nothing else. (Exported for the package's own tests; not in the index.) */
+export const PENDING_LABEL = "@nano133/nanoterra connect: a Nanoterra sign-in waits for a press, v1";
 /** The longest pending cookie read (Arcade's; the starter's was 512: the cookie now carries the name, the look and the record, never the items). */
-const PENDING_MAX = 1024;
+export const PENDING_MAX = 1024;
 const text = new TextEncoder();
 
 export type Look = Record<(typeof LOOK_PARTS)[number], string>;
@@ -92,6 +121,12 @@ export type PackedRecord = [number, number];
 export type Player = { username: string; address: string; look: Look; record: PackedRecord | null; items: string[] };
 /** The token answer: the player, and `press`, true only when the answer says `arrival: "press"` (pressOf). */
 export type Exchanged = Player & { press: boolean };
+/**
+ * The player that `signIn` gets. `items` (the owned cosmetics) is there only on a press with no screen. After a screen (Continue, Switch) it is
+ * undefined, never `[]`: the pending cookie does not hold the items, so the kit does not know them then. A game that keeps the items keeps them in
+ * `keep`, which runs after every exchange with the whole answer.
+ */
+export type SignInPlayer = Omit<Player, "items"> & { items?: string[] };
 
 /**
  * True only when the token answer has `arrival` and it is exactly the string "press" (launch.md, "The arrival field": any other value, a value of
@@ -241,19 +276,22 @@ export async function pendingToken(key: string, player: Player, now: number): Pr
 /** The field of the confirm screen that ties a press to the cookie the screen was made with. It is a hash: the token itself never goes into the page. */
 export const bindOf = async (token: string): Promise<string> => (await sha256Hex(token)).slice(0, 32);
 
-export type Pending = { player: Player; id: string; exp: number; token: string };
+/** A pending sign-in: what the cookie holds. Its player has no `items` (the cookie never holds them: `SignInPlayer`). */
+export type Pending = { player: SignInPlayer; id: string; exp: number; token: string };
 
-/** This browser's pending cookie, if it is signed with this key and has not run out; null for anything else. */
-export async function readPending(key: string, req: Request, now: number): Promise<Pending | null> {
-  const token = readCookie(req, PENDING_COOKIE);
+/** This browser's pending cookie, if it is signed with this key and has not run out; null for anything else. `origins`: as in `readCookie`. */
+export async function readPending(key: string, req: Request, now: number, origins?: readonly string[]): Promise<Pending | null> {
+  const token = readCookie(req, PENDING_COOKIE, origins);
   if (!token || token.length > PENDING_MAX) return null;
   const [payload, sig, more] = token.split(".");
   if (!payload || !sig || more !== undefined) return null;
   try {
     if (!(await crypto.subtle.verify("HMAC", await hmacKey(key, ["verify"]), unb64url(sig), text.encode(`${PENDING_LABEL}\n${payload}`)))) return null;
     const v = JSON.parse(new TextDecoder().decode(unb64url(payload))) as { a?: unknown; n?: unknown; l?: unknown; r?: unknown; exp?: unknown; j?: unknown };
-    const player = readPlayer({ username: v.n, address: v.a, playerId: v.a, character: { v: 1, look: v.l, record: Array.isArray(v.r) ? { v: 2, k: v.r } : null, items: [] } });
-    if (!player || typeof v.exp !== "number" || v.exp < now || typeof v.j !== "string" || !/^[0-9a-f]{24}$/.test(v.j)) return null;
+    const read = readPlayer({ username: v.n, address: v.a, playerId: v.a, character: { v: 1, look: v.l, record: Array.isArray(v.r) ? { v: 2, k: v.r } : null, items: [] } });
+    if (!read || typeof v.exp !== "number" || v.exp < now || typeof v.j !== "string" || !/^[0-9a-f]{24}$/.test(v.j)) return null;
+    // The items are not in the cookie: the player goes on with no `items` key at all, never an empty list that looks real (F4 of the review).
+    const { items: _none, ...player } = read;
     return { player, id: v.j, exp: v.exp, token };
   } catch {
     return null;
@@ -273,16 +311,17 @@ async function bindField(req: Request): Promise<string> {
 // ---- The checks of a request ---------------------------------------------------------------------------------------------------------
 
 /**
- * True only for a press from this game's own page (Arcade's `ownOriginPost`): the Origin header is there and is exactly this site's (the request's own
- * origin, or one of `origins`, the game's public origins, for a server behind a proxy that does not see its own https address), and Sec-Fetch-Site,
- * when sent, is "same-origin". Every browser sends Origin on a form's POST, so a request without one is not a press on the page. (The starter also took
- * a request with no Origin and Sec-Fetch-Site "same-origin"; this is the stricter of the two.)
+ * True only for a press from this game's own page (Arcade's `ownOriginPost`): Sec-Fetch-Site, when sent, is exactly "same-origin", and the Origin
+ * header is exactly this site's (the request's own origin, or one of `origins`, the game's public origins, for a server behind a proxy that does not
+ * see its own https address); never compared by its start. With NO Origin header, only Sec-Fetch-Site "same-origin" lets it through (the starter's
+ * rule): a browser that hides its Origin (Firefox with `network.http.sendOriginHeader` at 0) still sends that header, and a page cannot set it (a
+ * forbidden header). With no Origin and no Sec-Fetch-Site, or any other Sec-Fetch-Site, it is refused.
  */
 export function ownOrigin(req: Request, origins?: readonly string[]): boolean {
   const site = req.headers.get("Sec-Fetch-Site");
   const origin = req.headers.get("Origin");
   if (site !== null && site !== "same-origin") return false;
-  if (origin === null) return false;
+  if (origin === null) return site === "same-origin";
   return origins && origins.length ? origins.includes(origin) : origin === new URL(req.url).origin;
 }
 
@@ -340,7 +379,7 @@ export type ConnectOptions = {
    * said no: the page is sent with this flow's cookies dropped). The session must say it came from Nanoterra (`via: "nanoterra"`): it proves no key, so
    * it never opens the game's admin.
    */
-  signIn: (req: Request, player: Player, how: ConnectHow) => Promise<string | string[] | Response>;
+  signIn: (req: Request, player: SignInPlayer, how: ConnectHow) => Promise<string | string[] | Response>;
   /** The session this browser has at the game, or null. Without it a press never skips the screen ("in any doubt, the screen"). */
   session?: (req: Request) => Promise<ConnectSession | null>;
   /** Whether the session here is the account Nanoterra named (default: the same address). */
@@ -357,10 +396,20 @@ export type ConnectOptions = {
   visitor?: (req: Request) => string;
   /** The path the player goes to after (default "/"): a path on this site, fixed in the game's code. */
   after?: string;
-  /** The game's public origins, for a server that does not see its own https address (Node behind a proxy). Default: the request's origin. */
+  /**
+   * The game's public origins, for a server that does not see its own https address (Node behind a proxy). Default: the request's origin. When set,
+   * the FIRST one decides the cookies' names (`__Host-` unless it is plain http on localhost), never the request's Host header.
+   */
   origins?: readonly string[];
-  /** The pending cookie's key (default: the client secret). A new key ends every pending screen. */
+  /** The pending cookie's key (default: the client secret itself). At least 32 characters of random text. A new key ends every pending screen. */
   signingKey?: string;
+  /**
+   * A local dev server only: accept a client secret or a `signingKey` that is not strong (a placeholder such as "dev"). It needs `site` (a stand-in
+   * for nano133.com on this computer: a weak secret can never trade with nano133.com), else it throws; with `origins` that name another site it throws
+   * too. Every request that is not plain http on localhost, 127.0.0.1 or [::1] then gets a 500 page ("set up wrong"). It changes nothing for a strong
+   * secret. Never needed in a test: use a strong test secret (`connectTestSecret` in "/connect/conformance").
+   */
+  localDevSecret?: boolean;
   screens?: ConnectScreens;
   log?: ConnectLog;
   fetch?: typeof fetch;
@@ -381,11 +430,45 @@ export type Connect = {
 /** The starter's keys of its memory limits. */
 const LIMIT_KEYS: Record<ConnectScope, string> = { start: "nanoterra-start", callback: "nanoterra", confirm: "nanoterra-confirm" };
 
+const isOrigin = (x: unknown) => {
+  try {
+    return typeof x === "string" && new URL(x).origin === x;
+  } catch {
+    return false;
+  }
+};
+/** A local dev server's origin: plain http on this computer (`localUrl`). */
+const localOrigin = (origin: string) => localUrl(new URL(origin));
+
+/**
+ * The setting that would let someone forge a sign-in, or null: a client secret that is set but not of nano133.com's shape, or a `signingKey` that is
+ * not strong. A missing secret is not one of them (the game is "not set up": 503). The message names the setting, never its value.
+ */
+export function connectSetupProblem(o: Pick<ConnectOptions, "secret" | "signingKey">): string | null {
+  const secret = (o.secret ?? "").trim();
+  if (secret && !strongSecret(secret)) return WEAK_SECRET;
+  if (o.signingKey !== undefined && !strongSigningKey(o.signingKey)) return WEAK_KEY;
+  return null;
+}
+
 export function createConnect(o: ConnectOptions): Connect {
   const after = afterPath(o.after);
+  if (o.origins && !o.origins.every(isOrigin)) throw new TypeError('connect: each of `origins` is an origin, like "https://game.example"');
+  // A weak secret or key fails closed (F1 of the review): a thrown error here, or, with `localDevSecret`, a 500 page for every request that is not
+  // on a local dev server.
+  const problem = connectSetupProblem(o);
+  if (problem && !o.localDevSecret) throw new ConnectSetupError(problem);
+  if (problem && o.origins?.length && !o.origins.every(localOrigin)) throw new ConnectSetupError("connect: `localDevSecret` works only on a local dev server, and `origins` names another site.");
+  // A weak secret can never trade with nano133.com (it knows only the secrets it made), so a local dev server with one always trades with a stand-in
+  // on this computer. Needing that stand-in too means a deployed game cannot take the opt-in by one setting alone.
+  if (problem && (siteOf(o.site) === null || siteOf(o.site) === NANOTERRA_SITE)) throw new ConnectSetupError("connect: `localDevSecret` needs a stand-in for nano133.com on this computer (`site`, or NANOTERRA_ORIGIN on a Worker).");
   const setup = setupOf(o.clientId, o.secret, o.site);
   const key = o.signingKey ?? setup?.secret ?? "";
   const s = o.screens ?? {};
+  const origins = o.origins;
+  const cookieOut = (req: Request, name: string, value: string, maxAgeSec: number) => setCookie(req, name, value, maxAgeSec, origins);
+  /** With a weak secret or key (`localDevSecret`): true for a request that is not on a local dev server. */
+  const refusedHere = (req: Request) => problem !== null && !localDev(req, origins);
   const log = o.log ?? consoleLog;
   const now = () => (o.now ? o.now() : Date.now());
   const visitor = o.visitor ?? visitorIp;
@@ -398,6 +481,11 @@ export function createConnect(o: ConnectOptions): Connect {
     const headers = pageHeaders(s, "no-referrer");
     for (const c of cookies) headers.append("Set-Cookie", c);
     return new Response(errorHtml(s, why, status, after), { status, headers });
+  };
+  /** A weak secret or key on a request that is not on a local dev server: a 500 page that names no setting's value, and a fixed log line. */
+  const setupWrong = (): Response => {
+    log("the setup is wrong: a weak setting is used away from a local dev server");
+    return page(500, "setupWrong");
   };
   const notAllowed = (allow: string) => new Response(JSON.stringify({ error: "Not allowed." }), { status: 405, headers: { "Content-Type": "application/json; charset=utf-8", Allow: allow, "Cache-Control": "no-store" } });
   /** To the game (`after`), with these cookies. */
@@ -423,7 +511,7 @@ export function createConnect(o: ConnectOptions): Connect {
     // "same-origin", not "no-referrer": with no-referrer a browser sends `Origin: null` on the form's POST, and confirm() would refuse
     // the player's own press. Another site still gets no Referer from this page, and its own POST here still carries its own Origin.
     const headers = pageHeaders(s, "same-origin");
-    headers.append("Set-Cookie", setCookie(req, PENDING_COOKIE, token, PENDING_SECONDS));
+    headers.append("Set-Cookie", cookieOut(req, PENDING_COOKIE, token, PENDING_SECONDS));
     // The state has done its work: it works once.
     for (const c of clear) headers.append("Set-Cookie", c);
     return new Response(html, { status: 200, headers });
@@ -456,6 +544,7 @@ export function createConnect(o: ConnectOptions): Connect {
    */
   async function start(req: Request): Promise<Response> {
     if (req.method !== "GET") return notAllowed("GET");
+    if (refusedHere(req)) return setupWrong();
     if (await off(req)) return page(503, "off");
     if (!setup) return page(503, "notSetUp");
     if (!(await limit("start", req))) return page(429, "tooMany");
@@ -464,7 +553,7 @@ export function createConnect(o: ConnectOptions): Connect {
     to.searchParams.set("client_id", setup.clientId);
     to.searchParams.set("state", state);
     const headers = new Headers({ Location: to.toString(), "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
-    headers.append("Set-Cookie", setCookie(req, STATE_COOKIE, state, STATE_SECONDS));
+    headers.append("Set-Cookie", cookieOut(req, STATE_COOKIE, state, STATE_SECONDS));
     return new Response(null, { status: 302, headers });
   }
 
@@ -475,6 +564,7 @@ export function createConnect(o: ConnectOptions): Connect {
    */
   async function callback(req: Request): Promise<Response> {
     if (req.method !== "GET") return notAllowed("GET");
+    if (refusedHere(req)) return setupWrong();
     if (await off(req)) return page(503, "off");
     if (!setup) return page(503, "notSetUp");
     if (!(await limit("callback", req))) return page(429, "tooMany");
@@ -485,8 +575,8 @@ export function createConnect(o: ConnectOptions): Connect {
     // browser's cookie, and nothing is traded for it. The cookie is dropped in every answer from here on: a state works once. The token route gets
     // the state from the COOKIE, never the link's: so even a missed compare would fail at nano133.com.
     const state = params.get("state") ?? "";
-    const kept = readCookie(req, STATE_COOKIE) ?? "";
-    const clear = [setCookie(req, STATE_COOKIE, "", 0)];
+    const kept = readCookie(req, STATE_COOKIE, origins) ?? "";
+    const clear = [cookieOut(req, STATE_COOKIE, "", 0)];
     if (!STATE.test(state) || !STATE.test(kept) || !(await sameText(state, kept))) return page(400, "notHere", clear);
     const player = await exchangeCode(setup, code, kept, fetcher, log);
     if (!player) return page(400, "refused", clear);
@@ -519,13 +609,14 @@ export function createConnect(o: ConnectOptions): Connect {
    */
   async function confirm(req: Request): Promise<Response> {
     if (req.method !== "POST") return notAllowed("POST");
+    if (refusedHere(req)) return setupWrong();
     if (await off(req)) return page(503, "off");
     if (!setup) return page(503, "notSetUp");
     if (!ownOrigin(req, o.origins)) return page(403, "notOwnPage");
     if (!(await limit("confirm", req))) return page(429, "tooMany");
     // Every refusal from here on drops the pending cookie (Arcade's): a cookie that was refused once is never pressed again.
-    const clear = [setCookie(req, PENDING_COOKIE, "", 0)];
-    const pending = await readPending(key, req, now());
+    const clear = [cookieOut(req, PENDING_COOKIE, "", 0)];
+    const pending = await readPending(key, req, now(), origins);
     if (!pending) return page(400, "ranOut", clear);
     // The press must be from the screen that this cookie made: a second callback in this browser has replaced the cookie since the screen was drawn.
     if (!(await sameText(await bindField(req), await bindOf(pending.token)))) return page(400, "changed", clear);
@@ -537,11 +628,12 @@ export function createConnect(o: ConnectOptions): Connect {
   /** POST /nanoterra/cancel: the player pressed "Not me" (or Stay). Uses the pending token up, drops the cookie, makes no session, and goes to the game. */
   async function cancel(req: Request): Promise<Response> {
     if (req.method !== "POST") return notAllowed("POST");
+    if (refusedHere(req)) return setupWrong();
     // From this game's own page only (Arcade's; the starter took it from anywhere): another site cannot spend a player's screen.
     if (!ownOrigin(req, o.origins)) return page(403, "notOwnPage");
-    const pending = key ? await readPending(key, req, now()) : null;
+    const pending = key ? await readPending(key, req, now(), origins) : null;
     if (pending) await o.once(pending.id, pending.exp, "cancel");
-    return go([setCookie(req, PENDING_COOKIE, "", 0)]);
+    return go([cookieOut(req, PENDING_COOKIE, "", 0)]);
   }
 
   async function handle(req: Request): Promise<Response | null> {
@@ -554,6 +646,23 @@ export function createConnect(o: ConnectOptions): Connect {
   }
 
   return { ready: setup !== null, start, callback, confirm, cancel, handle };
+}
+
+/**
+ * The four routes of a game whose setup would let someone forge a sign-in (`connectSetupProblem`): each answers a 500 page ("set up wrong") that names
+ * no value, with a fixed log line; `ready` is false. The Worker's adapter answers with it, because a Worker reads its secret at each request: there is
+ * no start-up to throw at.
+ */
+export function setupWrongConnect(o: Pick<ConnectOptions, "screens" | "after" | "log">): Connect {
+  const after = afterPath(o.after);
+  const s = o.screens ?? {};
+  const log = o.log ?? consoleLog;
+  const answer = async (): Promise<Response> => {
+    log("the setup is wrong: a weak setting");
+    return new Response(errorHtml(s, "setupWrong", 500, after), { status: 500, headers: pageHeaders(s, "no-referrer") });
+  };
+  const handle = async (req: Request) => (Object.values(CONNECT_PATHS).includes(new URL(req.url).pathname as never) ? answer() : null);
+  return { ready: false, start: answer, callback: answer, confirm: answer, cancel: answer, handle };
 }
 
 // ---- The memory limit and the visitor ----
@@ -605,19 +714,23 @@ export function cookie(req: Request, name: string): string | null {
  * Secure cookie on plain http, so only there do the sign-in cookies go without the `__Host-` prefix. Everywhere else (the game on https, and an
  * http request that reached a real host) they are `__Host-` names: no sibling subdomain and no parent domain can plant one, and the plain name
  * is never read (an http request to the live game gets no cookie it can use, so its sign-in fails).
+ *
+ * With `origins` (the game's public origins), the FIRST origin decides, never the request: on Node the request's address comes from the Host header,
+ * and a proxy that sends `Host: localhost` must not turn the live game's cookies into plain names (F5 of the review).
  */
-export function localDev(req: Request): boolean {
-  const u = new URL(req.url);
-  return u.protocol === "http:" && (u.hostname === "localhost" || u.hostname === "127.0.0.1" || u.hostname === "[::1]");
+export function localDev(req: Request, origins?: readonly string[]): boolean {
+  return localUrl(new URL(origins && origins.length ? origins[0] : req.url));
 }
+/** Plain http on this computer: localhost, 127.0.0.1 or [::1]. */
+const localUrl = (u: URL) => u.protocol === "http:" && (u.hostname === "localhost" || u.hostname === "127.0.0.1" || u.hostname === "[::1]");
 
 /** A cookie for this site only: the `__Host-` prefix and Secure (Path=/, no Domain), except on a local dev server (`localDev`). */
-export function setCookie(req: Request, name: string, value: string, maxAgeSec: number): string {
-  const plain = localDev(req);
+export function setCookie(req: Request, name: string, value: string, maxAgeSec: number, origins?: readonly string[]): string {
+  const plain = localDev(req, origins);
   return `${plain ? "" : "__Host-"}${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAgeSec}; HttpOnly; SameSite=Lax${plain ? "" : "; Secure"}`;
 }
 
 /** A cookie that `setCookie` set: by its `__Host-` name, or by the plain name on a local dev server only. */
-export function readCookie(req: Request, name: string): string | null {
-  return cookie(req, localDev(req) ? name : `__Host-${name}`);
+export function readCookie(req: Request, name: string, origins?: readonly string[]): string | null {
+  return cookie(req, localDev(req, origins) ? name : `__Host-${name}`);
 }

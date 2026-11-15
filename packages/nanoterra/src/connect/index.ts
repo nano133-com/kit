@@ -15,15 +15,18 @@ export {
   AUTHORIZE_PATH,
   CALLBACK_LIMIT,
   CONNECT_PATHS,
+  ConnectSetupError,
   NANOTERRA_SITE,
   ONCE_WINDOW_MS,
   PENDING_COOKIE,
   PENDING_SECONDS,
+  SIGNING_KEY_MIN,
   STATE_COOKIE,
   STATE_SECONDS,
   TOKEN_PATH,
   afterPath,
   bindOf,
+  connectSetupProblem,
   consoleLog,
   createConnect,
   exchangeCode,
@@ -39,9 +42,11 @@ export {
   setCookie,
   setupOf,
   siteOf,
+  strongSecret,
+  strongSigningKey,
   visitorIp,
 } from "./core.js";
-export type { Connect, ConnectHow, ConnectLog, ConnectOnce, ConnectOptions, ConnectScope, ConnectSession, ConnectSetup, Exchanged, Look, PackedRecord, Pending, Player } from "./core.js";
+export type { Connect, ConnectHow, ConnectLog, ConnectOnce, ConnectOptions, ConnectScope, ConnectSession, ConnectSetup, Exchanged, Look, PackedRecord, Pending, Player, SignInPlayer } from "./core.js";
 export { CONNECT_CSP, CONNECT_ERRORS, CONNECT_WORDS, escapeHtml, shortAddress } from "./screens.js";
 export type { ConnectErrorKey, ConnectErrorWords, ConnectScreen, ConnectScreens, ConnectWords } from "./screens.js";
 export { createMemoryOnce } from "./memory.js";

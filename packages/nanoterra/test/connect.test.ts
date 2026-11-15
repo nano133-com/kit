@@ -6,8 +6,8 @@ import assert from "node:assert/strict";
 import { createServer, request as httpRequest, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { describe, it } from "node:test";
-import { CONNECT_RULES, connectConformance, connectTestAddress, tokenAnswer, type ConnectConformanceCase, type ConnectHarness } from "../src/connect/conformance.js";
-import { createConnect, type ConnectOptions, type ConnectSession, type Player } from "../src/connect/core.js";
+import { CONNECT_RULES, connectConformance, connectTestAddress, connectTestSecret, tokenAnswer, type ConnectConformanceCase, type ConnectHarness } from "../src/connect/conformance.js";
+import { ConnectSetupError, createConnect, PENDING_LABEL, PENDING_MAX, strongSecret, strongSigningKey, type ConnectOptions, type ConnectSession, type SignInPlayer } from "../src/connect/core.js";
 import { createD1Once } from "../src/connect/adapters/d1.js";
 import { createFirestoreOnce } from "../src/connect/adapters/firestore.js";
 import { CONNECT_CSP, CONNECT_WORDS, createMemoryOnce, readPlayer, pendingToken, bindOf, afterPath, siteOf, setupOf, ANSWER_MAX } from "../src/connect/index.js";
@@ -16,7 +16,8 @@ import { createWorkerConnect, setting } from "../src/connect/worker.js";
 import { d1Over, noSqlite, sqlite } from "./shop-helpers.js";
 
 const CLIENT_ID = "ng_00000000000000000001";
-const SECRET = "ns_test-secret-never-real";
+/** A test secret of nano133.com's shape, new at each run (the kit refuses a short or made-up one). */
+const SECRET = connectTestSecret();
 const CODE = "A".repeat(43);
 
 /** The game's own sessions, in memory: a random token in `__Host-session` (or `session` on a local dev server) for an address. */
@@ -26,7 +27,7 @@ function sessions() {
   const tokenIn = (cookie: string, name: string) => cookie.split(";").map((p) => p.trim()).find((p) => p.startsWith(`${name}=`))?.slice(name.length + 1) ?? null;
   return {
     byToken,
-    async signIn(req: Request, player: Player, via = "nanoterra"): Promise<string> {
+    async signIn(req: Request, player: SignInPlayer, via = "nanoterra"): Promise<string> {
       const token = crypto.randomUUID().replace(/-/g, "");
       byToken.set(token, { address: player.address, via });
       return `${nameOf(req)}=${token}; Path=/; Max-Age=2592000; HttpOnly; SameSite=Lax${nameOf(req) === "session" ? "" : "; Secure"}`;
@@ -166,14 +167,13 @@ const pairOf = (res: Response, name: string) => res.headers.getSetCookie().find(
 const bindIn = (html: string) => /name="bind" value="([0-9a-f]{32})"/.exec(html)?.[1];
 
 describe("connect: the setup and the switch", () => {
-  it("is off until the client id (ng_ and 20 hex) and the secret (at most 100 characters) are set; start, callback and confirm answer 503, Not me still works", async () => {
+  it("is off until the client id (ng_ and 20 hex) and the secret are set; start, callback and confirm answer 503, Not me still works", async () => {
     for (const [clientId, secret] of [
       [undefined, SECRET],
       [CLIENT_ID, undefined],
       [CLIENT_ID, "  "],
       ["ng_123", SECRET],
       ["NG_00000000000000000001", SECRET],
-      [CLIENT_ID, "x".repeat(101)],
     ] as [string | undefined, string | undefined][]) {
       const { connect, calls } = harness({ clientId, secret }, tokenAnswer(connectTestAddress()));
       assert.equal(connect.ready, false);
@@ -366,11 +366,11 @@ describe("connect: the game's hooks", () => {
     assert.deepEqual(done.headers.getSetCookie(), ["__Host-nanoterra-pending=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax; Secure"]);
   });
 
-  it("signIn gets the player and how: a press with a new id, Continue with the pending cookie's id", async () => {
-    const seen: { via: string; id: string; address: string; name: string }[] = [];
+  it("signIn gets the player and how: a press with a new id and the items, Continue with the pending cookie's id and NO items (never an empty list)", async () => {
+    const seen: { via: string; id: string; address: string; name: string; items: unknown; hasItems: boolean }[] = [];
     const s = sessions();
     const signIn: ConnectOptions["signIn"] = async (req, p, how) => {
-      seen.push({ ...how, address: p.address, name: p.username });
+      seen.push({ ...how, address: p.address, name: p.username, items: p.items, hasItems: "items" in p });
       return s.signIn(req, p);
     };
     const a = connectTestAddress();
@@ -384,6 +384,28 @@ describe("connect: the game's hooks", () => {
     assert.deepEqual([seen[1].via, seen[1].address, seen[1].name], ["confirm", b, "Bea"]);
     assert.match(seen[0].id, /^[0-9a-f]{24}$/);
     assert.match(seen[1].id, /^[0-9a-f]{24}$/);
+    // F4: the press has the answer's items; after a screen the kit does not know them, so there is no `items` key (a game keeps them in `keep`).
+    assert.deepEqual(seen[0].items, ["hub.sun-hat"]);
+    assert.equal(seen[1].hasItems, false);
+    assert.equal(seen[1].items, undefined);
+  });
+
+  it("Continue checks the once store BEFORE signIn: a second Continue, or Continue after Not me, never calls signIn", async () => {
+    let calls = 0;
+    const s = sessions();
+    const { connect } = harness({ signIn: async (req, p) => (calls++, s.signIn(req, p)) }, tokenAnswer(connectTestAddress()));
+    const shown = await arrive(connect);
+    const pending = pairOf(shown, "__Host-nanoterra-pending")!;
+    const bind = bindIn(await shown.text())!;
+    assert.equal((await post(connect, "/nanoterra/confirm", pending, `bind=${bind}`)).status, 303);
+    assert.equal((await post(connect, "/nanoterra/confirm", pending, `bind=${bind}`)).status, 400);
+    assert.equal(calls, 1);
+    const two = await arrive(connect);
+    const pending2 = pairOf(two, "__Host-nanoterra-pending")!;
+    const bind2 = bindIn(await two.text())!;
+    assert.equal((await post(connect, "/nanoterra/cancel", pending2, `bind=${bind2}`)).status, 303);
+    assert.equal((await post(connect, "/nanoterra/confirm", pending2, `bind=${bind2}`)).status, 400);
+    assert.equal(calls, 1);
   });
 
   it("keep runs after the exchange and before any screen; arrived may answer first (Arcade's rules); a fault in arrived shows the old screen", async () => {
@@ -506,6 +528,15 @@ describe("connect: the screens", () => {
     assert.deepEqual(Object.keys(CONNECT_WORDS).length, 10);
   });
 
+  it("the switch screen escapes the name of the account signed in here", async () => {
+    const evil = `<img src=x onerror=alert(1)> & "q"`;
+    const { connect } = harness({ session: async () => ({ address: connectTestAddress(), name: evil }) }, tokenAnswer(connectTestAddress(), { arrival: "press" }));
+    const html = await (await arrive(connect)).text();
+    assert.doesNotMatch(html, /<img/);
+    assert.ok(html.includes("You are signed in here as <strong>&#60;img src=x onerror=alert(1)&#62; &#38; &#34;q&#34;</strong>."));
+    assert.ok(html.includes('<button type="submit">Stay as &#60;img src=x onerror=alert(1)&#62; &#38; &#34;q&#34;</button>'));
+  });
+
   it("the switch names a session with no name by its short address", async () => {
     const bob = connectTestAddress();
     const { connect } = harness({ session: async () => ({ address: bob }) }, tokenAnswer(connectTestAddress(), { arrival: "press" }));
@@ -589,5 +620,238 @@ describe("connect: the Node bridge", () => {
     assert.equal(done.status, 303);
     const wrong = await c.confirm(new Request("http://game.test/nanoterra/confirm", { method: "POST", headers: { Origin: "http://game.test", Cookie: pending }, body: `bind=${bind}` }));
     assert.equal(wrong.status, 403);
+  });
+});
+
+// ---- The fixes of the security review (2026-11-15): each test fails on the code before them ----
+
+/** A weak value never shows in a message, a page or a log: each check below looks for it. */
+const WEAK_SECRETS = ["dev", "changeme", "x", "ns_test", "ns_test-secret-never-real", `ns_${"x".repeat(43)}`, `ns_${"changeme".repeat(6)}`, `ns_${"A".repeat(42)}`, `ns_${"a+b/".repeat(11)}`, `ns_${"Ab9_".repeat(25)}`, "nanoterra secret placeholder value 0123456789"];
+
+describe("connect: a weak client secret or signing key fails closed (F1)", () => {
+  it("strongSecret: nano133.com's shape (ns_ and 43 base64url characters, 16 or more different) passes; a placeholder or anything short fails", () => {
+    for (let i = 0; i < 500; i++) assert.equal(strongSecret(connectTestSecret()), true);
+    assert.equal(strongSecret(`  ${connectTestSecret()} `), true);
+    for (const weak of WEAK_SECRETS) assert.equal(strongSecret(weak), false, weak.length.toString());
+  });
+
+  it("strongSigningKey: at least 32 characters, 8 or more different; 32 random hex digits pass", () => {
+    for (let i = 0; i < 200; i++) assert.equal(strongSigningKey(Array.from(crypto.getRandomValues(new Uint8Array(16)), (x) => x.toString(16).padStart(2, "0")).join("")), true);
+    assert.equal(strongSigningKey("nano133 local development nanoterra pending key"), true); // the Arcade's development text (47 characters)
+    for (const weak of ["dev", "", "x".repeat(64), "ab".repeat(32), "changemechangemechangemechangeme", "0123456789abcdef0123456789abcde"]) assert.equal(strongSigningKey(weak), false, weak.length.toString());
+  });
+
+  it("createConnect and createNodeConnect throw a ConnectSetupError that names no value; a missing secret is still 'not set up'", () => {
+    for (const weak of WEAK_SECRETS) {
+      const e = (() => {
+        try {
+          createConnect({ clientId: CLIENT_ID, secret: weak, once: createMemoryOnce(), signIn: async () => "" });
+        } catch (x) {
+          return x;
+        }
+        return null;
+      })();
+      assert.ok(e instanceof ConnectSetupError, weak.length.toString());
+      assert.match(e.message, /not one that nano133\.com made/);
+      if (weak.length >= 5) assert.ok(!e.message.includes(weak), "the message names the secret");
+      assert.throws(() => createNodeConnect({ clientId: CLIENT_ID, secret: weak, once: createMemoryOnce(), signIn: async () => "", origins: ["https://game.test"], limit: () => true }), ConnectSetupError);
+    }
+    for (const weak of ["qq1", "x".repeat(40), "changemechangemechangemechangeme"]) assert.throws(() => createConnect({ clientId: CLIENT_ID, secret: SECRET, signingKey: weak, once: createMemoryOnce(), signIn: async () => "" }), (e: unknown) => e instanceof ConnectSetupError && /signingKey/.test(e.message) && !e.message.includes(weak));
+    assert.equal(createConnect({ clientId: CLIENT_ID, secret: undefined, once: createMemoryOnce(), signIn: async () => "" }).ready, false);
+    assert.equal(createConnect({ clientId: CLIENT_ID, secret: SECRET, signingKey: "a long and random enough key for the pending cookie 7f3", once: createMemoryOnce(), signIn: async () => "" }).ready, true);
+  });
+
+  it("a forged pending cookie: with the old code a key like 'dev' signed in anyone; now that setup never starts", async () => {
+    // Probe 9g of the review: signingKey "dev", a cookie for any address made by someone who guessed the key.
+    assert.throws(() => harness({ signingKey: "dev" }), ConnectSetupError);
+    assert.throws(() => harness({ secret: "ns_test" }), ConnectSetupError);
+  });
+
+  it("the Worker adapter: a weak NANOTERRA_SECRET gives a 500 page on the four routes (no value in it or the log), ready false, other paths untouched", async () => {
+    const lines: string[] = [];
+    for (const weak of WEAK_SECRETS) {
+      const c = createWorkerConnect({ NANOTERRA_CLIENT_ID: CLIENT_ID, NANOTERRA_SECRET: weak, DB: d1Over(sqlite()) }, { signIn: async () => "", log: (m, d) => lines.push(`${m} ${JSON.stringify(d ?? {})}`) });
+      assert.equal(c.ready, false);
+      for (const [path, method] of [["/nanoterra/start", "GET"], [`/nanoterra/callback?code=${CODE}&state=${STATE}`, "GET"], ["/nanoterra/confirm", "POST"], ["/nanoterra/cancel", "POST"]]) {
+        const res = (await c.handle(new Request(`https://game.test${path}`, { method, headers: { Origin: "https://game.test", Cookie: `__Host-nanoterra-state=${STATE}` } })))!;
+        assert.equal(res.status, 500, path);
+        assert.equal(res.headers.get("Cache-Control"), "no-store");
+        assert.deepEqual(res.headers.getSetCookie(), []);
+        const html = await res.text();
+        assert.match(html, /Nanoterra sign-in is set up wrong/);
+        if (weak.length >= 5) assert.ok(!html.includes(weak), "the page names the secret"); // (a 1 to 3 letter value is in any page)
+      }
+      assert.equal(await c.handle(new Request("https://game.test/play")), null);
+    }
+    assert.ok(lines.length > 0 && lines.every((l) => l === "the setup is wrong: a weak setting {}"));
+    assert.ok(WEAK_SECRETS.filter((w) => w.length >= 5).every((w) => !lines.join("\n").includes(w)));
+  });
+
+  it("localDevSecret: a weak secret works on a local dev server with a local stand-in, and nowhere else", async () => {
+    const weak = "dev";
+    const address = connectTestAddress();
+    const local = "http://127.0.0.1:8788";
+    const lines: string[] = [];
+    const { connect, s } = harness({ secret: weak, localDevSecret: true, site: local, log: (m) => lines.push(m) }, tokenAnswer(address));
+    assert.equal(connect.ready, true);
+    // On a local dev server: the whole flow.
+    const dev = "http://127.0.0.1:8787";
+    assert.equal((await get(connect, "/nanoterra/start", undefined, dev)).status, 302);
+    const shown = await arrive(connect, "", dev, "nanoterra-state");
+    assert.equal(shown.status, 200);
+    const pending = pairOf(shown, "nanoterra-pending")!;
+    const done = await post(connect, "/nanoterra/confirm", pending, `bind=${bindIn(await shown.text())}`, dev);
+    assert.equal(done.status, 303);
+    assert.equal(s.signedIn(done.headers.getSetCookie().join("; ").split(";")[0], "session"), address);
+    // Anywhere else (https, or http to a real host): a 500 on every route, before any cookie is read.
+    for (const origin of ["https://game.test", "http://game.example", "https://localhost"]) {
+      for (const res of [await get(connect, "/nanoterra/start", undefined, origin), await arrive(connect, "", origin), await post(connect, "/nanoterra/confirm", pending, "", origin), await post(connect, "/nanoterra/cancel", pending, "", origin)]) {
+        assert.equal(res.status, 500, origin);
+        assert.deepEqual(res.headers.getSetCookie(), []);
+      }
+    }
+    assert.ok(lines.includes("the setup is wrong: a weak setting is used away from a local dev server"));
+    // The opt-in needs a stand-in on this computer (a weak secret never trades with nano133.com), and local origins when origins are named.
+    assert.throws(() => harness({ secret: weak, localDevSecret: true }), (e: unknown) => e instanceof ConnectSetupError && /stand-in/.test(e.message));
+    assert.throws(() => harness({ secret: weak, localDevSecret: true, site: "https://nano133.com" }), ConnectSetupError);
+    assert.throws(() => harness({ secret: weak, localDevSecret: true, site: local, origins: ["https://game.test"] }), (e: unknown) => e instanceof ConnectSetupError && /origins/.test(e.message));
+    assert.equal(harness({ secret: weak, localDevSecret: true, site: local, origins: ["http://localhost:5173"] }).connect.ready, true);
+    // With a strong secret the opt-in changes nothing.
+    assert.equal((await get(harness({ localDevSecret: true }).connect, "/nanoterra/start")).status, 302);
+  });
+});
+
+describe("connect: with `origins`, the first origin decides the cookies' names, never the Host header (F5)", () => {
+  it("a request with Host localhost to a game at https://game.example sets and reads only the __Host- cookies", async () => {
+    const address = connectTestAddress();
+    const { connect } = harness({ origins: ["https://game.example"] }, tokenAnswer(address));
+    const started = await get(connect, "/nanoterra/start", undefined, "http://localhost");
+    assert.match(started.headers.getSetCookie()[0], /^__Host-nanoterra-state=[A-Za-z0-9_-]{32}; Path=\/; Max-Age=600; HttpOnly; SameSite=Lax; Secure$/);
+    // The plain name (a sibling could plant it) is not read; the __Host- one is.
+    assert.equal((await arrive(connect, "", "http://localhost", "nanoterra-state")).status, 400);
+    const shown = await arrive(connect, "", "http://localhost", "__Host-nanoterra-state");
+    assert.equal(shown.status, 200);
+    assert.match(shown.headers.getSetCookie()[0], /^__Host-nanoterra-pending=.+; Secure$/);
+    const bind = bindIn(await shown.text())!;
+    const value = pairOf(shown, "__Host-nanoterra-pending")!.split("=")[1];
+    const press = (cookie: string) =>
+      connect.confirm(new Request("http://localhost/nanoterra/confirm", { method: "POST", headers: { Origin: "https://game.example", "Sec-Fetch-Site": "same-origin", Cookie: cookie, "Content-Type": "application/x-www-form-urlencoded" }, body: `bind=${bind}` }));
+    assert.equal((await press(`nanoterra-pending=${value}`)).status, 400);
+    const done = await press(`__Host-nanoterra-pending=${value}`);
+    assert.equal(done.status, 303);
+    assert.match(done.headers.getSetCookie().find((c) => c.startsWith("__Host-nanoterra-pending="))!, /; Secure$/);
+  });
+
+  it("a game whose first origin is a local dev server uses the plain names, whatever the request's address", async () => {
+    const { connect } = harness({ origins: ["http://localhost:5173"] }, tokenAnswer(connectTestAddress()));
+    assert.match((await get(connect, "/nanoterra/start", undefined, "https://game.test")).headers.getSetCookie()[0], /^nanoterra-state=/);
+    assert.throws(() => harness({ origins: ["game.test"] }), TypeError);
+  });
+});
+
+describe("connect: a press with no Origin header (F7)", () => {
+  const noOrigin = (c: ReturnType<typeof createConnect>, path: string, cookie: string, body: string, site?: string) =>
+    c.handle(new Request(`https://game.test${path}`, { method: "POST", headers: { Cookie: cookie, "Content-Type": "application/x-www-form-urlencoded", ...(site ? { "Sec-Fetch-Site": site } : {}) }, body })) as Promise<Response>;
+
+  it("Continue and Not me with no Origin pass only with Sec-Fetch-Site exactly same-origin (a browser that hides its Origin still sends it)", async () => {
+    const address = connectTestAddress();
+    const { connect, s } = harness({}, tokenAnswer(address));
+    for (const site of [undefined, "same-site", "cross-site", "none", "Same-Origin", "same-origin, cross-site"]) {
+      const shown = await arrive(connect);
+      const pending = pairOf(shown, "__Host-nanoterra-pending")!;
+      const bind = bindIn(await shown.text())!;
+      assert.equal((await noOrigin(connect, "/nanoterra/confirm", pending, `bind=${bind}`, site)).status, 403, String(site));
+      assert.equal((await noOrigin(connect, "/nanoterra/cancel", pending, "", site)).status, 403, String(site));
+    }
+    const shown = await arrive(connect);
+    const pending = pairOf(shown, "__Host-nanoterra-pending")!;
+    const done = await noOrigin(connect, "/nanoterra/confirm", pending, `bind=${bindIn(await shown.text())}`, "same-origin");
+    assert.equal(done.status, 303);
+    assert.equal(s.signedIn(done.headers.getSetCookie().join("; ").split(";")[0]), address);
+    const two = await arrive(connect);
+    const cancelled = await noOrigin(connect, "/nanoterra/cancel", pairOf(two, "__Host-nanoterra-pending")!, "", "same-origin");
+    assert.equal(cancelled.status, 303);
+    assert.deepEqual(cancelled.headers.getSetCookie(), ["__Host-nanoterra-pending=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax; Secure"]);
+  });
+});
+
+describe("connect: bounds (the review's broken copies A10, A16, A20; F12)", () => {
+  it("a token call that never answers is stopped by the 5-second timeout: 400, and the log names TimeoutError", { timeout: 15_000 }, async () => {
+    const lines: string[] = [];
+    let signal: AbortSignal | undefined;
+    const c = createConnect({
+      clientId: CLIENT_ID,
+      secret: SECRET,
+      once: createMemoryOnce(),
+      signIn: async () => "",
+      log: (m, d) => lines.push(`${m} ${JSON.stringify(d)}`),
+      fetch: ((_url: string, init: RequestInit) =>
+        new Promise((_ok, fail) => {
+          signal = init.signal ?? undefined;
+          init.signal?.addEventListener("abort", () => fail(init.signal!.reason));
+          // No answer, ever, without the signal. A guard ends the test if no signal comes.
+          setTimeout(() => fail(new Error("no timeout")), 9_000).unref();
+        })) as unknown as typeof fetch,
+    });
+    const t0 = Date.now();
+    assert.equal((await arrive(c)).status, 400);
+    const took = Date.now() - t0;
+    assert.ok(signal, "the token call has no signal");
+    assert.ok(took >= 4_500 && took < 8_000, `${took} ms`);
+    assert.deepEqual(lines, ['the exchange failed {"error":"TimeoutError"}']);
+  });
+
+  it("Node: a body is read up to 2,048 bytes and no further (a 5 MB body stops after the first chunks)", async () => {
+    let pulled = 0;
+    let stopped = false;
+    const big = {
+      method: "POST",
+      url: "/nanoterra/confirm",
+      headers: { origin: "https://game.test" },
+      [Symbol.asyncIterator]: () => ({
+        next: async () => (pulled++ < 5_000 ? { done: false, value: new Uint8Array(1024).fill(120) } : { done: true, value: undefined }),
+        return: async () => ((stopped = true), { done: true, value: undefined }),
+      }),
+    };
+    const req = await webRequest(big, "https://game.test");
+    assert.equal(await req.text(), "");
+    assert.ok(pulled <= 3, `${pulled} chunks read`);
+    assert.equal(stopped, true);
+  });
+
+  it("Node: a body that comes too slowly is dropped at the time bound (F12), and the read is stopped", { timeout: 5_000 }, async () => {
+    let stopped = false;
+    let n = 0;
+    const slow = {
+      method: "POST",
+      url: "/nanoterra/confirm",
+      headers: { origin: "https://game.test" },
+      [Symbol.asyncIterator]: () => ({
+        next: () => (n++ === 0 ? Promise.resolve({ done: false, value: new Uint8Array([98]) }) : new Promise<IteratorResult<unknown>>(() => undefined)),
+        return: async () => ((stopped = true), { done: true, value: undefined }),
+      }),
+    };
+    const t0 = Date.now();
+    const req = await webRequest(slow, "https://game.test", 60);
+    assert.ok(Date.now() - t0 < 1_000);
+    assert.equal(await req.text(), "");
+    assert.equal(stopped, true);
+    // A body that comes in time is read whole.
+    const quick = { method: "POST", url: "/x", headers: {}, [Symbol.asyncIterator]: async function* () { yield new TextEncoder().encode("bind="); yield "abc"; } };
+    assert.equal(await (await webRequest(quick, "https://game.test", 60)).text(), "bind=abc");
+  });
+
+  it("a pending cookie over 1,024 characters is refused, even when it is signed with the game's key", async () => {
+    const address = connectTestAddress();
+    const { connect } = harness({}, tokenAnswer(address));
+    const b64 = (v: string | Uint8Array) => Buffer.from(v).toString("base64url");
+    const payload = b64(JSON.stringify({ a: address, n: "Ann", l: tokenAnswer(address).character.look, r: null, exp: Date.now() + 60_000, j: "ab".repeat(12), pad: "x".repeat(900) }));
+    const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    const sig = b64(new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${PENDING_LABEL}\n${payload}`))));
+    const token = `${payload}.${sig}`;
+    assert.ok(token.length > PENDING_MAX);
+    const res = await post(connect, "/nanoterra/confirm", `__Host-nanoterra-pending=${token}`, `bind=${await bindOf(token)}`);
+    assert.equal(res.status, 400);
+    assert.match(await res.text(), /That sign-in has run out/);
   });
 });
