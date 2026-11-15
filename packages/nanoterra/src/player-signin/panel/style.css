@@ -445,7 +445,7 @@
 /* qrSvg's code: each module a whole number of CSS pixels (the nearest to the size above, never wider than the sheet). At 3.78 px a module the
    modules are 3 and 4 px wide in turn on a screen of 1 device pixel a CSS pixel, and a reader of a sharp picture can miss that (jsQR did). The longest
    sign-in link, Nautilus's (460 to 740 bytes), is a code of 77 to 93 modules and 4 more on each side for the quiet zone: 4 px a module (340 to 372
-   px), or 3 px (303 px) from 719 bytes (version 19); on a narrow screen, the most whole pixels that fit. */
+   px), or 3 px (291 px) from 645 bytes (version 18); on a narrow screen, the most whole pixels that fit. */
 @supports (width: round(down, 10px, 1px)) {
   .n133-signin :where(.n133s-qr svg.n133s-qr-code) {
     width: calc(var(--n133-qr-modules) * min(round(nearest, var(--n133-qr-size, 336px) / var(--n133-qr-modules), 1px), round(down, 100% / var(--n133-qr-modules), 1px)));

@@ -191,7 +191,7 @@ test("a wallet: the start goes to the handler; with a mouse the game's QR hook d
 });
 
 test("a wallet on a computer: Nautilus's sign-in link (about 480 bytes) is a QR code that jsQR reads back; a qr hook that throws gives the sheet's own words, never its message", async () => {
-  const { qrSvg } = await import("../src/shop/panel/qr.js");
+  const { qrModules, qrSvg } = await import("../src/shop/panel/qr.js");
   const { default: jsQR } = await import("jsqr");
   for (const [i, way] of [[0, "berry"], [1, "nanchat"], [2, "nautilus"]] as const) {
     const links: string[] = [];
@@ -205,6 +205,9 @@ test("a wallet on a computer: Nautilus's sign-in link (about 480 bytes) is a QR 
     // The SVG's path, read back as modules (one "M x y h1v1h-1z" a dark module, a quiet zone of 4), drawn 3 px a module and decoded.
     const n = Number(svg.getAttribute("viewBox")!.split(" ")[2]);
     assert.equal((svg as SVGElement).style.getPropertyValue("--n133-qr-modules"), String(n), "the module count for the sheet's whole-pixel size");
+    // The quiet zone (review of 2026-11-15, F2): 4 light modules on each side, so the first dark module (the top-left finder's corner) is at (4, 4).
+    assert.equal(n, qrModules(links[0]).length + 8, `${way}: the code and a quiet zone of 4 modules on each side`);
+    assert.ok(svg.querySelector("path")!.getAttribute("d")!.startsWith("M4 4h1v1h-1z"), `${way}: the first dark module is at (4, 4)`);
     const px = 3;
     const rgba = new Uint8ClampedArray(n * px * n * px * 4).fill(255);
     for (const [, x, y] of svg.querySelector("path")!.getAttribute("d")!.matchAll(/M(\d+) (\d+)h1v1h-1z/g))

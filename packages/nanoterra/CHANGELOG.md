@@ -7,7 +7,7 @@
   player on a host of 28 characters, 612 for the admin): on a computer the sheet showed "qrModules: the text is longer than this QR code holds (213
   bytes)" in place of the code. Now versions 1 to 40: level M up to 213 bytes, so every code that existed is the same, module for module (a fingerprint
   of 336 texts in the tests); level L above, two versions smaller than M at these lengths (Nautilus's player link: 81 modules, not 89), as a code on a
-  screen needs larger modules more than it needs M's correction. Up to 2,953 bytes. `qrModules(text, mask, level)` takes a level; new: `qrLevelFor`,
+  screen needs larger modules more than it needs M's correction. Up to 2,953 bytes. `qrModules(text, mask, level)` takes a level; new in the module (not exported from `/shop/panel`): `qrLevelFor`,
   `qrBlocks`, `qrAlignment`, `QR_MAX_BYTES`; a text longer than any code holds throws an error that names its size, never the text. `qrVersionFor(length)` gives the version of the code `qrModules` makes
   (0 only above 2,953 bytes). The tables (ISO/IEC 18004's table 9 and annex E) are checked entry by entry against jsQR's and the `qrcode` package's,
   every version's modules against the `qrcode` package's at the same level and mask, and jsQR reads back every version at both levels with every mask
