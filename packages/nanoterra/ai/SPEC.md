@@ -350,13 +350,15 @@ A player signed in at nano133.com presses Play and arrives at the game signed in
 a token call, a compare or a confirm screen of your own, and never copy the starter's old `src/worker/nanoterra.ts`.
 
 1. **Ask the owner** for the client id (a setting) and the secret, which Nanoterra shows once after Send. The secret goes in the game's secret
-   store (`npx wrangler secret put NANOTERRA_SECRET`, or the host's secret manager). Never print, log, commit or send it.
+   store (`npx wrangler secret put NANOTERRA_SECRET`, or the host's secret manager). Never print, log, commit or send it. The part refuses a
+   secret that is not of nano133.com's shape (`ns_` and 43 characters): never put a placeholder there. Tests use `connectTestSecret()`.
 2. **The routes.** A Worker: `createWorkerConnect(env, { signIn, session, keep, enabled })` from `@nano133/nanoterra/connect/worker` ("works once" is
    D1's `hits`: a new game adds `/shop/d1.sql`). Node: `createNodeConnect({ clientId, secret, origins, once, limit, signIn, session })` from
    `@nano133/nanoterra/connect/node`, with `createFirestoreOnce` or its own `once`. Answer `connect.handle(request)` for every path under
    `/nanoterra/`, before the game's other routes.
 3. **`signIn(req, player, how)`** makes the game's OWN session for `player.address` and returns its Set-Cookie value(s); the session says
-   `via: "nanoterra"` and never opens the admin. A rule of the game that says no returns a `Response` instead (never a session).
+   `via: "nanoterra"` and never opens the admin. A rule of the game that says no returns a `Response` instead (never a session). `player.items`
+   is `undefined` after a screen: save the owned items in `keep`, never in `signIn`.
 4. **`session(req)`** returns `{ address, name }` of the session in this browser, or null. Without it a press never skips the screen.
 5. **Rules of the game's own** (a key sign-in elsewhere, a limit for each account, combined accounts) go in `arrived`, `same` and `signIn`.
    Never change a check of the part, its cookies, its words' forms or the order of its screens.
@@ -364,6 +366,7 @@ a token call, a compare or a confirm screen of your own, and never copy the star
    set the `--n133-*` tokens; the words through `screens.words`; a whole page through `screens.render`, keeping `screen.html.confirm` and
    `screen.html.cancel`.
 7. **The listing file** says `"signin": "exchange"`.
+8. **The game's play address is the root of its origin** (the four routes answer there only).
 
 **Check:** run `connectConformance` from `@nano133/nanoterra/connect/conformance` on the game's mounted routes (test values for the client id and
 secret; the token route goes to the suite's stand-in): every case passes. `GET /nanoterra/start` answers a 302 to

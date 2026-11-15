@@ -136,7 +136,8 @@ with no Three.js), `/looks`, `/friends`, `/options`, `/emotes`, `/player-signin`
 
 - **Nanoterra connect** (`/connect`, `/connect/worker`, `/connect/node`, `/connect/d1`, `/connect/firestore`, `/connect/conformance`; since 0.17.0):
   Sign in from Nanoterra for a game with a server. Install it; never write or copy a state, a state cookie, a token call, a compare or a confirm
-  screen. The game gives the client id and the secret (a secret: never print, log or commit it), `signIn` (its own session, `via: "nanoterra"`,
+  screen. The game gives the client id and the secret (a secret: never print, log or commit it; a placeholder secret is refused, and a test uses
+  `connectTestSecret()`), `signIn` (its own session, `via: "nanoterra"`,
   never an admin login), `session`, and a "works once" store. Its own rules go in `arrived`, `same` and `signIn`; never change a check, a cookie,
   a form or the order of the screens. `after` is a fixed path on the game's site. Run `connectConformance` on the game's mounted routes with test
   values only; never sign in to a live site to test it.

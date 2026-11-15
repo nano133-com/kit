@@ -9,9 +9,10 @@
   <name>?", "Switch to <name>?", Continue and Not me. A game gives `signIn`, `session` and a "works once" store; its own rules go in `arrived`,
   `same` and `signIn` (which may answer a page).
 - **Where the six copies differed, the stricter one** (README, "Where the six copies differed"): Nano Arcade's checks where they were stricter
-  than the starter's: Continue needs the game's own Origin (no Origin, `null`, another site or `Sec-Fetch-Site` other than `same-origin`: 403);
-  Not me only from the game's own page; a name with a control or direction character is refused; the client id must be `ng_` and 20 hex digits
-  and the secret at most 100 characters; the bind is compared in constant time; a refused Continue drops the pending cookie; the press's body is
+  than the starter's: Continue needs the game's own Origin, exactly (`null`, another site, an origin that only starts with it, or
+  `Sec-Fetch-Site` other than `same-origin`: 403; with no Origin at all only `Sec-Fetch-Site: same-origin` passes, the starter's rule, for a
+  browser that hides its Origin); Not me only from the game's own page; a name with a control or direction character is refused; the client id
+  must be `ng_` and 20 hex digits; the bind is compared in constant time; a refused Continue drops the pending cookie; the press's body is
   read with a bound. The state is 24 random bytes in base64url (was 16 in hex: both 32 characters). The token answer is read with a bound of 32 KB
   (the starter's 4,096 characters would refuse a player with many owned cosmetics). The pending cookie holds the address, the name, the look and
   the record (never the items). The stand-in for nano133.com (`NANOTERRA_ORIGIN`) may only be on localhost.
@@ -23,8 +24,26 @@
   server); `scripts/connect-mutants.mjs` proves each rule on a broken copy.
 - **What a game sees change** when it moves from its own copy (README, "Moving the game starter onto the part"): `exchangeCode(setup, code,
   state, fetch)` and `pendingToken(key, player, now)` take new arguments; a state is base64url; the pending cookie is longer (under 600
-  characters); a press of Not me needs the game's own Origin; `signinOff()` is gone (the switch is `enabled`). The routes, the cookies' names
-  and the screens are the same.
+  characters); a press of Not me needs the game's own Origin; a test secret must have nano133.com's shape; `signinOff()` is gone (the switch is
+  `enabled`). The routes, the cookies' names and the screens are the same.
+- **The security review's fixes** (2026-11-15, before the first publish):
+  - **A weak secret or key fails closed.** The client secret must have nano133.com's shape (`ns_` and 43 base64url characters, 16 or more of them
+    different); a game's own `signingKey` at least 32 characters (8 or more different). Otherwise `createConnect` and `createNodeConnect` throw a
+    `ConnectSetupError` that names no value, and a Worker's four routes answer a 500 page ("set up wrong", with the guest link). A missing secret is
+    still "not set up" (503). A local dev server with a made-up secret sets `localDevSecret: true` with a stand-in for nano133.com (`site`); every
+    request that is not plain http on localhost then gets the 500 page. New: `strongSecret`, `strongSigningKey`, `connectSetupProblem`,
+    `ConnectSetupError`, `SIGNING_KEY_MIN`, and `connectTestSecret()` in `/connect/conformance` for tests.
+  - **`signIn` after a screen gets no `items`** (`undefined`, never `[]`: the pending cookie does not hold them; type `SignInPlayer`). Keep the
+    owned items in `keep`. On a press, `signIn` still gets them.
+  - **With `origins`, the first origin decides the cookies' names**, never the request's Host header (a proxy that sends `Host: localhost` no
+    longer turns them into plain names). `localDev`, `setCookie`, `readCookie` and `readPending` take `origins` as a last, optional argument.
+  - **Node: the body of a press is read for at most 10 seconds** (`webRequest(req, origin, bodyMs)`), as well as at most 2,048 bytes.
+  - **The suite holds more**: cookie names with a no-break space or in another case (C3, F3), an address with a bad checksum (C6), an Origin that
+    only starts with the game's (F2, N1), a no-Origin press with any `Sec-Fetch-Site` but `same-origin` (F2), and a refused Not me that must use
+    nothing up (N1). The kit's own tests hold the token call's timeout, the escaped name on the Switch screen, the order of the once check and
+    `signIn`, the pending cookie's size bound and the Node body's bounds. `scripts/connect-mutants.mjs` makes 81 broken copies (the 48 before,
+    the review's 21, 12 for its fixes): all but the one expected copy fail.
+  - The README names the known limits: the play address is the root of the game's origin; the answer's `character.v` must be 1.
 - `d1Limit` moved to `src/shop/adapters/d1-limit.ts` (unchanged), so the connect reaches no shop code; `@nano133/nanoterra/shop/d1` still exports it.
 
 ## 0.16.0 (2026-11-14)
