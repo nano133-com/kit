@@ -134,6 +134,20 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
   /** Puts these in the area (a null is left out). */
   const fill = (...parts: (Node | null)[]) => area.replaceChildren(...parts.filter((p): p is Node => p !== null));
   const personToken = async () => (options.personCheck ? options.personCheck(check) : undefined);
+  /**
+   * Draws the area again without losing the keyboard focus: the key that had it goes with the old nodes, and the focus would fall to the page, out of
+   * reach of Escape and Tab. When the focus was in the area, it goes to the same choice in the new nodes (the passkey's row, or the same wallet's
+   * tile), else to the first key. When it was anywhere else (the game's own control, the close key), it stays there.
+   */
+  const keepFocus = (draw: () => void) => {
+    const had = document.activeElement;
+    const inside = had instanceof HTMLElement && area.contains(had);
+    const way = inside ? had.closest<HTMLElement>("[data-way]")?.dataset.way : undefined;
+    const same = inside ? (had.closest(".n133s-pk") ? ".n133s-pk" : way ? `[data-way="${way}"]` : null) : null;
+    draw();
+    if (!inside || (document.activeElement && area.contains(document.activeElement))) return;
+    ((same ? area.querySelector<HTMLElement>(same) : null) ?? area.querySelector<HTMLElement>("h3, button:not([disabled])") ?? area).focus?.({ preventScroll: true });
+  };
 
   function stopWaiting() {
     if (timer) clearTimeout(timer);
@@ -172,7 +186,7 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
       ...ways.map((way) =>
         h(
           "button",
-          { class: "n133s-tile", type: "button", onclick: () => choose(way) },
+          { class: "n133s-tile", type: "button", "data-way": way, onclick: () => choose(way) },
           h("span", { class: "n133s-mark", "aria-hidden": "true" }, WALLETS[way].mark),
           h("span", { class: "n133s-name" }, WALLETS[way].name),
           last === way ? h("span", { class: "n133s-last" }, w.lastUsed) : null,
@@ -397,7 +411,7 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
   /** The request ended without a sign-in: say why, and offer a new one. */
   function again(s: Start, words: string) {
     current = null;
-    area.replaceChildren(backKey(), title(WALLETS[s.way].name), h("div", { class: "n133s-keys" }, key(w.tryAgain, () => void choose(s.way), "primary"), key(w.otherWay, () => showWays())));
+    keepFocus(() => area.replaceChildren(backKey(), title(WALLETS[s.way].name), h("div", { class: "n133s-keys" }, key(w.tryAgain, () => void choose(s.way), "primary"), key(w.otherWay, () => showWays()))));
     say(words);
   }
 
@@ -426,8 +440,8 @@ export function signInView(options: PlayerSigninViewOptions): PlayerSigninView {
   if (passkeyOn)
     void passkeySupport().then((s) => {
       support = s;
-      // Only the ways' screen depends on it: redraw it when it shows.
-      if (!stopped && area.querySelector(".n133s-pk")) showWays();
+      // Only the ways' screen depends on it: redraw it when it shows, with the focus on the same choice.
+      if (!stopped && area.querySelector(".n133s-pk")) keepFocus(showWays);
     });
 
   return {

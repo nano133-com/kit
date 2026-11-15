@@ -253,6 +253,71 @@ test("the sheet: open() resolves with the player after a sign-in, null after Esc
   assert.equal(host.children.length, 0);
 });
 
+test("the sheet keeps the keyboard focus when the passkey check answers and the ways are drawn again: the same choice, never taken from elsewhere", async () => {
+  // The device's answer waits until the test lets it go, so the redraw comes after the focus moved.
+  let answer!: () => void;
+  const late = () => {
+    const gate = new Promise<void>((r) => (answer = r));
+    (win as unknown as { PublicKeyCredential: { getClientCapabilities(): Promise<unknown> } }).PublicKeyCredential.getClientCapabilities = async () => (await gate, { "extension:prf": true });
+  };
+  const host = document.createElement("div");
+  const outside = document.createElement("input");
+  document.body.append(host, outside);
+  const isIn = (el: Element | null) => !!el && el.isConnected && host.contains(el);
+
+  // 1. Opened: the first choice (the passkey's row) has the focus; the answer redraws it; the NEW row has it.
+  late();
+  let sheet = panel.mountPlayerSignin(host, { name: "Game Example", scheme: SAMPLE, fetch: fakeFetch });
+  void sheet.open();
+  const before = document.activeElement;
+  assert.ok(before?.classList.contains("n133s-pk"), "open() focuses the passkey's row");
+  answer();
+  await settle();
+  assert.notEqual(host.querySelector(".n133s-pk"), before, "the ways were drawn again");
+  assert.ok(isIn(document.activeElement), "the focus is still in the sheet");
+  assert.ok(document.activeElement?.classList.contains("n133s-pk"), "on the same choice");
+  // Escape still reaches the sheet.
+  document.activeElement!.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Escape", bubbles: true }) as unknown as Event);
+  assert.equal(sheet.isOpen, false, "Escape closed it");
+  sheet.destroy();
+
+  // 2. The player moved to Nautilus's tile before the answer: the focus stays on Nautilus's tile.
+  late();
+  sheet = panel.mountPlayerSignin(host, { name: "Game Example", scheme: SAMPLE, fetch: fakeFetch });
+  void sheet.open();
+  (host.querySelector('[data-way="nautilus"]') as HTMLElement).focus();
+  answer();
+  await settle();
+  assert.ok(isIn(document.activeElement));
+  assert.equal((document.activeElement as HTMLElement).dataset.way, "nautilus");
+  sheet.destroy();
+
+  // 3. The focus is on another control (the close key, the game's own input): the redraw never takes it.
+  for (const where of ["close", "outside"] as const) {
+    late();
+    sheet = panel.mountPlayerSignin(host, { name: "Game Example", scheme: SAMPLE, fetch: fakeFetch });
+    void sheet.open();
+    const target = where === "close" ? (host.querySelector(".n133s-close") as HTMLElement) : outside;
+    target.focus();
+    answer();
+    await settle();
+    assert.equal(document.activeElement, target, `the focus stays on ${where}`);
+    sheet.destroy();
+  }
+  // 4. No PRF: the passkey's row moves to the end, and keeps the focus.
+  device.prf = "no";
+  installDevice();
+  late();
+  (win as unknown as { PublicKeyCredential: { getClientCapabilities(): Promise<unknown> } }).PublicKeyCredential.getClientCapabilities = async () => ({ "extension:prf": false });
+  sheet = panel.mountPlayerSignin(host, { name: "Game Example", scheme: SAMPLE, fetch: fakeFetch });
+  void sheet.open();
+  await settle();
+  assert.ok(isIn(document.activeElement), "the focus is in the sheet after the 'no PRF' redraw");
+  assert.ok(document.activeElement?.classList.contains("n133s-pk"));
+  sheet.destroy();
+  outside.remove();
+});
+
 test("hostFits: the passkey's id on its own host and subdomains only, never an IP address", () => {
   assert.equal(panel.hostFits("game.example", "game.example"), true);
   assert.equal(panel.hostFits("www.game.example", "game.example"), true);

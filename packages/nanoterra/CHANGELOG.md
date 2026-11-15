@@ -27,6 +27,10 @@
 - **New tokens: the page behind the connect card** (`/connect/style.css`): `--n133-page` (its colour, default `--n133-ground`, as before) with its dark
   twin, and `--n133-page-picture`, `--n133-page-picture-tall` and `--n133-page-dim` for a picture over it (default none). `--n133-ground` painted both the
   page and the tiles in the card, so a game that wanted another page colour used `--nt-picture`, a name the kit did not list; those names still work.
+- **Fix: the sign-in sheet keeps the keyboard focus** (`/player-signin/panel`). It draws its ways again when the device's passkey check answers, a moment
+  after it opens; the key that had the focus went with the old nodes, the focus fell to the page, and Escape and Tab no longer reached the sheet. Now the
+  same choice gets the focus again (the passkey's row, or the same wallet's tile: the tiles have `data-way`), and a focus on any other control (the close
+  key, the game's own) stays where it is. The same for the "Try again" screen of an ended wallet request.
 - Sizes (gzip, size test): `/shop/panel` 13.5 kB (ceiling 13.7 kB, was 13.2 kB), `/admin-signin/panel` 9.8 kB (ceiling 10.0 kB, was 9.5 kB): the
   QR code's versions 11 to 40 and level L, +0.31 kB each (the tables are four strings of 40 characters). `/player-signin/panel` holds no QR code (the
   game's `qr` hook draws it): +0.02 kB.

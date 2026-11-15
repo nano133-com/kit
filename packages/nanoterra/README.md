@@ -1417,6 +1417,8 @@ const player = await signin.open();              // the shop's "sign in first": 
   or a rule of your own (the kit's has the weight of one class). A `qr` hook that throws (a text
   longer than its code holds) gets the sheet's own words, "Open this page on your phone to use <wallet>." (`openOnPhone`), never its message.
 - `signInView(options)` is the same content for a game with a sheet of its own (`{ node, stop, reset }`).
+- The focus stays in the sheet (since 0.17.1): when the passkey check answers and the ways are drawn again, the same choice gets the focus back; a
+  focus on another control is never taken. A game's own focus keeper (Coin Bees' `holdFocus`) can go.
 - Phone first (since 0.9.3 by default): every text 16 px or more, and every key, wallet tile, link, the back key and the close key 48 px or more each way
   ("Last used" sits in the flow, under a wallet's name or at the end of the passkey's row). The sheet comes from the bottom on a phone held upright, and is
   a card in the middle on a wide or sideways screen; Escape, the close key and the scrim close it; no browser dialog. Light and dark like the options panel (`data-n133-theme` on `<html>`, else the device), every colour a
