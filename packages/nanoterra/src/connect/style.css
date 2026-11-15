@@ -9,13 +9,17 @@
  *
  * TO GIVE THEM YOUR GAME'S LOOK, set the package's tokens (the same as the sign-in sheet's and the shop's): --n133-ink, --n133-ink-soft, --n133-paper,
  * --n133-ground, --n133-line, --n133-gem, --n133-gem-dark, --n133-on-gem, --n133-radius, --n133-key-radius, --n133-font, --n133-display, and the dark
- * twins (--n133-dark-ink and so on). Light and dark follow the device. Or write your own stylesheet on the parts above (the starter's public/nanoterra.css
+ * twins (--n133-dark-ink and so on). Light and dark follow the device.
+ * The page behind the card (since 0.17.1): --n133-page (its colour; default --n133-ground, which also paints the tiles inside the card: the address
+ * and the guard line), --n133-page-picture (a picture or a gradient over it, wide screens), --n133-page-picture-tall (a screen held upright; default
+ * the wide one) and --n133-page-dim (a layer over the picture so the card stands out), each colour with its dark twin (--n133-dark-page). The
+ * --nt-picture, --nt-picture-tall and --nt-dim of 0.17.0 still work. Or write your own stylesheet on the parts above (the starter's public/nanoterra.css
  * is one). Never change the words, the forms or their order: they belong to the sign-in's safety.
  */
 
 :root {
   color-scheme: light;
-  --nt-bg: var(--n133-ground, #eef2f7);
+  --nt-bg: var(--n133-page, var(--n133-ground, #eef2f7));
   --nt-ink: var(--n133-ink, #16202e);
   --nt-ink-soft: var(--n133-ink-soft, #4a5568);
   --nt-card: var(--n133-paper, #ffffff);
@@ -35,15 +39,15 @@
   --nt-shadow: 0 10px 30px rgb(10 30 60 / 0.16);
   --nt-display: var(--n133-display, var(--n133-font, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif));
   --nt-body: var(--n133-font, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
-  --nt-picture: none;
-  --nt-picture-tall: var(--nt-picture);
-  --nt-dim: none;
+  --nt-picture: var(--n133-page-picture, none);
+  --nt-picture-tall: var(--n133-page-picture-tall, var(--nt-picture));
+  --nt-dim: var(--n133-page-dim, none);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --nt-bg: var(--n133-dark-ground, #0f151e);
+    --nt-bg: var(--n133-dark-page, var(--n133-dark-ground, #0f151e));
     --nt-ink: var(--n133-dark-ink, #e7edf5);
     --nt-ink-soft: var(--n133-dark-ink-soft, #a9b5c5);
     --nt-card: var(--n133-dark-paper, #171f2b);

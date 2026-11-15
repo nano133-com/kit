@@ -24,6 +24,9 @@
   gem colour as text on the paper or the ground (default `--n133-gem-dark`), each with its `--n133-dark-*` twin, in the sign-in sheets, the options, the
   friends, the shop and the admin panel. A game that sets neither sees no change. The sign-in sheet's dark theme now names `--n133-on-gem` on its
   `--n133-gem` keys (the value it had).
+- **New tokens: the page behind the connect card** (`/connect/style.css`): `--n133-page` (its colour, default `--n133-ground`, as before) with its dark
+  twin, and `--n133-page-picture`, `--n133-page-picture-tall` and `--n133-page-dim` for a picture over it (default none). `--n133-ground` painted both the
+  page and the tiles in the card, so a game that wanted another page colour used `--nt-picture`, a name the kit did not list; those names still work.
 - Sizes (gzip, size test): `/shop/panel` 13.5 kB (ceiling 13.7 kB, was 13.2 kB), `/admin-signin/panel` 9.8 kB (ceiling 10.0 kB, was 9.5 kB): the
   QR code's versions 11 to 40 and level L, +0.31 kB each (the tables are four strings of 40 characters). `/player-signin/panel` holds no QR code (the
   game's `qr` hook draws it): +0.02 kB.

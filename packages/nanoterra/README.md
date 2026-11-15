@@ -2157,8 +2157,19 @@ against a stranger's link), `form > button.primary` (Continue, Switch), `form > 
 
 - **The package's stylesheet**, `@nano133/nanoterra/connect/style.css`: the starter's layout on the package's tokens (`--n133-ink`, `--n133-ink-soft`,
   `--n133-paper`, `--n133-ground`, `--n133-line`, `--n133-gem`, `--n133-gem-dark`, `--n133-on-gem`, `--n133-radius`, `--n133-key-radius`,
-  `--n133-font`, `--n133-display` and the `--n133-dark-*` twins). Serve it at the address in `screens.stylesheets` (copy it into `public/`). Light and
+  `--n133-font`, `--n133-display` and the `--n133-dark-*` twins). Serve it at the address in `screens.stylesheets` (see "Serving the stylesheet" below). Light and
   dark follow the device; `prefers-contrast: more` draws plain edges.
+- **The page behind the card** (since 0.17.1; the connect screens are the package's only full pages: every other part sits in the game's own page):
+
+  | Token | What | Default |
+  |---|---|---|
+  | `--n133-page` (`--n133-dark-page`) | the page's colour behind the card | `--n133-ground` (`--n133-dark-ground`), as before |
+  | `--n133-page-picture` | a picture or a gradient over that colour (`url("/art/wide.jpg")`: a file of the game's own site) | none |
+  | `--n133-page-picture-tall` | the picture on a screen held upright | `--n133-page-picture` |
+  | `--n133-page-dim` | a layer over the picture, so the card stands out (`linear-gradient(rgb(0 0 0 / 0.3), rgb(0 0 0 / 0.3))`) | none |
+
+  `--n133-ground` still paints the tiles inside the card (the address, the guard line): set `--n133-page` for a page of another colour. The names
+  of 0.17.0 (`--nt-picture`, `--nt-picture-tall`, `--nt-dim`) still work.
 - **Words**: `screens.words` (over `CONNECT_WORDS`) and `screens.errors` (over `CONNECT_ERRORS`): plain text, `{name}`, `{current}`, `{address}`,
   and `**strong**`. Everything is escaped.
 - **Head and logo**: `screens.head` (the game's own tags, for example a font's preload) and `screens.logoLabel` (the logo's name for a screen reader).

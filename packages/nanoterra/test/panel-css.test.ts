@@ -183,6 +183,25 @@ test("the dark gem colour's two jobs have their own tokens: no text in --gem-dar
   for (const r of signin.filter((x) => /data-n133-theme/.test(x.selector) && /\.n133s-(pk|primary)$/.test(x.selector))) assert.match(r.body, /color: var\(--on-gem\)/, `${r.at} ${r.selector}`);
 });
 
+// 0.17.1: the page behind the connect card has a public token of its own. --n133-ground painted both the page and the tiles in the card (the address,
+// the guard line), so the starter's builder painted the page with --nt-picture, a name the kit did not list.
+test("the connect screens: --n133-page (and its dark twin) paints the page, defaulting to --n133-ground; the tiles keep --n133-ground; the picture has public names", () => {
+  const rules = cssRules(readFileSync(new URL("../src/connect/style.css", import.meta.url), "utf8"));
+  const light = rules.find((r) => r.at === "" && r.selector === ":root")!;
+  const dark = rules.find((r) => r.at === "@media (prefers-color-scheme: dark)" && r.selector === ":root")!;
+  assert.equal(prop(light, "--nt-bg"), "var(--n133-page, var(--n133-ground, #eef2f7))");
+  assert.equal(prop(dark, "--nt-bg"), "var(--n133-dark-page, var(--n133-dark-ground, #0f151e))");
+  assert.equal(prop(light, "--nt-tile"), "var(--n133-ground, #eef2f7)", "the tiles stay on the ground");
+  assert.equal(prop(dark, "--nt-tile"), "var(--n133-dark-ground, #0f151e)");
+  assert.equal(prop(light, "--nt-picture"), "var(--n133-page-picture, none)");
+  assert.equal(prop(light, "--nt-picture-tall"), "var(--n133-page-picture-tall, var(--nt-picture))");
+  assert.equal(prop(light, "--nt-dim"), "var(--n133-page-dim, none)");
+  // The page's layers: the dim, the picture and the ground, on the html and on the fixed layer behind a long page.
+  const bodyBefore = rules.filter((r) => r.selector === "body::before");
+  assert.ok(bodyBefore.length >= 2 && bodyBefore.every((r) => /var\(--nt-bg\)\s*$/.test(prop(r, "background") ?? "")), "the ground is the last layer");
+  assert.match(prop(rules.find((r) => r.selector === "html"), "background") ?? "", /var\(--nt-bg\)/);
+});
+
 test("the sign-in sheet's QR code: a size of its own (--n133-qr-size, the weight of one class), and qrSvg's code in whole CSS pixels a module", () => {
   const rules = cssRules(readFileSync(new URL("../src/player-signin/panel/style.css", import.meta.url), "utf8"));
   const base = rules.find((r) => r.at === "" && r.selector === ".n133-signin :where(.n133s-qr svg, .n133s-qr canvas, .n133s-qr img)");
