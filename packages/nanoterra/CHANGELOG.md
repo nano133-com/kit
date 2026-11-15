@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.1 (2026-11-15)
 
 - **Fix: the QR code holds every wallet's sign-in link** (`/shop/panel`: `qrSvg`, `qrModules`). It held versions 1 to 10 at level M (213 bytes), made
   for a `nano:` link (at most 117), but every game also gives it to the sign-in sheet, and Nautilus's sign-in link is 460 to 740 bytes (540 for the
@@ -34,9 +34,13 @@
 - **Docs: serving the connect's stylesheet** (README, "Serving the stylesheet"): a Worker built with Vite writes the installed
   `@nano133/nanoterra/connect/style.css` into its static files at the build (the game starter's 15-line plugin), and links it before its own tokens;
   without Vite, a copy in the build script. A test reads every doc: no `ns_` text in them is a secret the connect would take.
-- Sizes (gzip, size test): `/shop/panel` 13.5 kB (ceiling 13.7 kB, was 13.2 kB), `/admin-signin/panel` 9.8 kB (ceiling 10.0 kB, was 9.5 kB): the
-  QR code's versions 11 to 40 and level L, +0.31 kB each (the tables are four strings of 40 characters). `/player-signin/panel` holds no QR code (the
-  game's `qr` hook draws it): +0.02 kB.
+- Sizes (gzip, size test): `/shop/panel` 13.6 kB (13,550 B; ceiling 13.7 kB, was 13,227 B), `/admin-signin/panel` 9.8 kB (9,793 B; ceiling 10.0 kB,
+  was 9,459 B): the QR code's versions 11 to 40, level L and the whole-pixel size, +0.32 and +0.33 kB (the tables are four strings of 40 characters).
+  `/player-signin/panel` holds no QR code (the game's `qr` hook draws it): +0.15 kB (the guard and the focus keeper).
+
+- **What a game changes to take 0.17.1: nothing.** A game may drop its workarounds: a `qr` hook that catches the encoder's error, its own size rule for
+  the sheet's QR code, and a focus keeper for the sign-in sheet (Coin Bees: the catch in `openSignin`, `.cbp-qr svg`, `holdFocus`). A game's test that
+  pinned `qrModules` throwing at 214 bytes, or `qrVersionFor` giving 0 above 213, sees the new limits (2,953 bytes).
 
 ## 0.17.0 (2026-11-15)
 

@@ -42,14 +42,14 @@ const PATHS: [string, string[], number, boolean][] = [
   // Since 0.15.0 the panel sells plays too (buyPlay, the "18 or older" step, the Play key, ready()).
   // 0.16.0: 13.1 kB, the pay sheet of design A (the item's picture, the main way by the device, the success that stays, the offer step, the trust line,
   // the ended order without its ways to pay); the design note estimated about +1.4 kB.
-  // 0.17.1: 13.5 kB, the QR code's versions 11 to 40 and level L (a wallet's sign-in link; +0.31 kB: the tables are four strings of 40 characters).
+  // 0.17.1: 13.6 kB (13,550 B here), the QR code's versions 11 to 40 and level L (a wallet's sign-in link; +0.32 kB: the tables are four strings of 40 characters).
   ["@nano133/nanoterra/shop/panel", ["shop/panel/index.js"], 13_700, false],
   // The admin's sign-in: the server part without @nano133/signin (an optional peer, outside the bundle), the stores, and the panel with its QR code.
   // Since 0.12.0 each holds the owner's passkeys too (the routes, the link's store methods, the Passkey tile and the Owner passkeys card; the passkey code itself stays outside).
   ["@nano133/nanoterra/admin-signin", ["admin-signin/index.js"], 7_300, false],
   ["@nano133/nanoterra/admin-signin/d1", ["admin-signin/adapters/d1.js"], 1_950, false],
   ["@nano133/nanoterra/admin-signin/firestore", ["admin-signin/adapters/firestore.js"], 2_300, false],
-  // 0.17.1: the QR code's versions 11 to 40, so Nautilus's admin link (about 540 to 740 bytes) is a code too (+0.31 kB).
+  // 0.17.1: the QR code's versions 11 to 40, so Nautilus's admin link (about 540 to 740 bytes) is a code too (9,793 B here, +0.33 kB).
   ["@nano133/nanoterra/admin-signin/panel", ["admin-signin/panel/index.js"], 10_000, false],
   // Since 0.17.0 the connect (Sign in from Nanoterra): server code only (no byte of it reaches a page); the core holds the record's lists and the address
   // check, the Worker's adapter the D1 store too.
