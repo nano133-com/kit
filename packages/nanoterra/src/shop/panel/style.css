@@ -3,7 +3,8 @@
    stands in the middle; on a phone held sideways the pay sheet puts the QR code beside the words, and the wallet key stays in view.
    Light and dark: mountShop sets data-theme="light" | "dark" on .n133-shop (the game's word, the page's data-n133-theme, or the device's setting).
    To theme it, set the --n133-* custom properties on the element that holds the key (or a parent): --n133-ink, --n133-ink-soft, --n133-paper,
-   --n133-ground, --n133-line, --n133-gem, --n133-gem-dark, --n133-on-gem, --n133-sun (the Buy key), --n133-warn (the test stamp), --n133-radius,
+   --n133-ground, --n133-line, --n133-gem, --n133-gem-dark, --n133-on-gem, --n133-gem-text (the worn ✓; since 0.17.1, default
+   --n133-gem-dark), --n133-sun (the Buy key), --n133-warn (the test stamp), --n133-radius,
    --n133-font. Those set the LIGHT theme; the dark one reads the twins with "dark-" in the name (--n133-dark-ink and so on), as the admin panel does.
    Since 0.16.0 (the pay sheet's design), a game's skin with no class name of the kit's: --n133-display (the face of the title, the amount and the
    success), --n133-edge (the edge of the keys, a border value: "3px solid #1d1530"), --n133-key-radius, --n133-key-shadow (the step under a key),
@@ -25,6 +26,7 @@
   --gem: var(--n133-gem, #20c9a6);
   --gem-dark: var(--n133-gem-dark, #0e8a72);
   --on-gem: var(--n133-on-gem, #062b23);
+  --gem-text: var(--n133-gem-text, var(--gem-dark));
   --sun: var(--n133-sun, #ffd23f);
   --on-sun: var(--n133-on-sun, #3a2a00);
   --warn: var(--n133-warn, #d6223b);
@@ -61,6 +63,7 @@
   --gem: var(--n133-dark-gem, #20c9a6);
   --gem-dark: var(--n133-dark-gem-dark, #3fd8b6);
   --on-gem: var(--n133-dark-on-gem, #062b23);
+  --gem-text: var(--n133-dark-gem-text, var(--gem-dark));
   --sun: var(--n133-dark-sun, #ffd23f);
   --on-sun: var(--n133-dark-on-sun, #3a2a00);
   --warn: var(--n133-dark-warn, #ff5d73);
@@ -334,7 +337,7 @@
 
 .n133-shop .n133s-look-worn .n133s-look-text strong::after {
   content: " ✓";
-  color: var(--gem-dark);
+  color: var(--gem-text);
 }
 
 .n133-shop .n133s-look-text {

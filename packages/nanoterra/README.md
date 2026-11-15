@@ -732,7 +732,7 @@ flat picture stays. `createLookPreview({ size?, body?, record?, background?, key
 **The Shelf never writes.** It edits a draft in the owner's browser and gives text to copy (`looks.json`, or a message for an AI assistant): there is no call in the panel that
 changes a look, a price or an order, and a test proves that editing the Shelf sends no request. A change of looks is a change of your repository. The **Game** card writes only the
 five settings. The stylesheet is scoped under `.n133-admin`, so it cannot leak into your page; to theme it set `--n133-ink`, `--n133-ink-soft`, `--n133-paper`, `--n133-line`,
-`--n133-gem`, `--n133-gem-dark`, `--n133-sea`, `--n133-radius`, `--n133-font`, `--n133-ground` (the wells inside a card), `--n133-warn`, `--n133-bad` or `--n133-shadow` on the
+`--n133-gem`, `--n133-gem-dark`, `--n133-gem-text` (since 0.17.1: the marks in the gem colour; see "The colour tokens of the panels"), `--n133-sea`, `--n133-radius`, `--n133-font`, `--n133-ground` (the wells inside a card), `--n133-warn`, `--n133-bad` or `--n133-shadow` on the
 element that holds it. Every key, tab, filter key, copy key, input, switch, swatch and price step is 44 px high or more (`test/panel-css.test.ts`), and a card the page scrolls to stops under the sticky tabs (`--tabs-room`). The layout follows the panel's own
 width (a container query), not the window's: on a phone two cards a row and the five tabs as icons over their words; three cards a row and the orders as a table from
 760 px; four cards from 1000 px. The panel can be up to 1200 px wide: the page that holds it sets the width (the starter's admin page is 900 px).
@@ -1161,7 +1161,7 @@ level). The panel holds the focus while it is open. Every key, switch, choice an
 
 **Light and dark.** The panel follows `data-n133-theme="light" | "dark"` on the page's `<html>` when the page sets it (the admin panel does), else the device's
 `prefers-color-scheme`. Every colour is a variable: `--n133-ink`, `--n133-ink-soft`, `--n133-paper`, `--n133-ground` (a choice's well and a key cap),
-`--n133-line`, `--n133-gem`, `--n133-gem-dark`, `--n133-on-gem` set the light theme, and each has a `--n133-dark-*` twin; `--n133-radius`, `--n133-font` and
+`--n133-line`, `--n133-gem`, `--n133-gem-dark`, `--n133-on-gem` and `--n133-on-gem-dark` (since 0.17.1: the text on a chosen key) set the light theme, and each has a `--n133-dark-*` twin; `--n133-radius`, `--n133-font` and
 `--n133-options-z` (default 1100, above the friends panel) too. `--n133-scrim` (a colour, since 0.15.1) is the dim over the game while the panel is
 open, the same property as the friends panel's; its dark twin is `--n133-dark-scrim` (defaults: `rgb(16 24 40 / 0.4)`, and `rgb(0 0 0 / 0.4)` in the
 dark theme). The stylesheet is scoped under `.n133-options`.
@@ -1420,7 +1420,8 @@ const player = await signin.open();              // the shop's "sign in first": 
 - Phone first (since 0.9.3 by default): every text 16 px or more, and every key, wallet tile, link, the back key and the close key 48 px or more each way
   ("Last used" sits in the flow, under a wallet's name or at the end of the passkey's row). The sheet comes from the bottom on a phone held upright, and is
   a card in the middle on a wide or sideways screen; Escape, the close key and the scrim close it; no browser dialog. Light and dark like the options panel (`data-n133-theme` on `<html>`, else the device), every colour a
-  `--n133-*` variable with a `--n133-dark-*` twin; `--n133-signin-z` (default 1200) for its z-index.
+  `--n133-*` variable with a `--n133-dark-*` twin; `--n133-signin-z` (default 1200) for its z-index. Since 0.17.1 the text on the passkey's row and the main
+  keys is `--n133-on-gem-dark`, and the links and "Signed in as" are `--n133-gem-text` (see "The colour tokens of the panels").
 - The page loads the purse's signing code (`@nano133/signin/purse`, 40 kB gzip) only when a passkey signs in.
 - The browser remembers, in `localStorage["n133.player-signin.v1:<rpId>"]`, the ids of its passkeys, which were made here and never opened, and the last
   way: no secret and no address.
@@ -2280,6 +2281,40 @@ the whole check passed (the types, 381 tests, the build), and nano133.com's own 
   starter's copies have the same rule. nano133.com keeps it as part of its contract (`docs/agents/launch.md`).
 - **A name with a control or direction character is refused** (the player cannot sign in from Nanoterra). nano133.com's names are 3 to 16 of
   `A-Z a-z 0-9 _` today, so this cannot happen now.
+
+## The colour tokens of the panels (since 0.17.1)
+
+Every sheet and panel of the package reads the same `--n133-*` tokens (each list above names its own), each with a `--n133-dark-*` twin for the dark
+theme. The dark gem colour has two jobs, and since 0.17.1 each job has a token of its own, so a light sheet can pass 4.5:1 both ways. A game that sets
+neither of the new tokens sees no change: each defaults to the value it had.
+
+| Token | What it paints | Default |
+|---|---|---|
+| `--n133-gem-dark` | a FILL (the passkey's row, the main keys, a chosen Settings key), and the edges, the focus rings, a switch, a slider and the pay sheet's time bar | `#0e8a72` (dark `#3fd8b6`) |
+| `--n133-on-gem-dark` | the TEXT on a `--n133-gem-dark` fill | `--n133-on-gem` (the friends panel: `#ffffff`, as before) |
+| `--n133-gem-text` | the gem colour as TEXT on the paper or the ground: a link, "Signed in as", the worn ✓, the friends' invite line, the admin's marks | `--n133-gem-dark` |
+| `--n133-on-gem` | the text on a `--n133-gem` fill (the shop's and the admin's main keys, the emote wheel's chosen place) | per sheet, as before |
+
+Where each new token is used:
+
+- `--n133-on-gem-dark`: the player's sign-in sheet and the admin's sign-in (`.n133s-pk`, the passkey's row; `.n133s-primary`, the main keys; in the light
+  theme only: the dark theme fills them with `--n133-dark-gem` and writes `--n133-dark-on-gem`); the options panel (`.n133o-seg-key[aria-checked="true"]`,
+  a chosen choice; `.n133o-keycap[aria-pressed="true"]`, a key being set; `.n133o-primary`); the friends panel (`.n133f-primary`; `.n133f-badge.is-online`).
+- `--n133-gem-text`: the sign-in sheets (`a:not(.n133s-btn)`: "open a wallet", "open Nautilus on this computer" and the other links; `.n133s-done`, "Signed in
+  as nano_…"); the shop (`.n133s-look-worn` ✓); the friends panel (`.n133f-invite`); the admin panel (`.gate-icon`, `.who-mark`, the chosen theme's icon,
+  `.start-icon`, `.shelf-add-tile:hover`, and the KPI tiles' icons, `--accent` of `.kpi`).
+- Unchanged, on `--n133-gem-dark`: every edge, focus ring and outline; the options' switch, slider and key-cap edges; the shop's time bar; the connect
+  screens (their main key is a `--n133-gem` fill with `--n133-on-gem` text, and `--n133-gem-dark` is only its edge and the focus ring); the emote wheel.
+
+For example, a light sheet with a gold fill and navy text on it, and a darker gold for the links:
+
+```css
+:root {
+  --n133-gem-dark: #b07a10;       /* the fill */
+  --n133-on-gem-dark: #121b33;    /* navy on the gold fill */
+  --n133-gem-text: #7a5208;       /* a darker gold, as text on the cream sheet */
+}
+```
 
 ## Moving from the three old packages
 

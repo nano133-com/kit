@@ -5,7 +5,8 @@
    is a card in the middle. A scrim covers the game while it is open.
    Light and dark: the sheet follows data-n133-theme="light" | "dark" on the page's <html> when the page sets it, else the device's prefers-color-scheme.
    To theme it, set the --n133-* custom properties on the element that holds the sheet (or a parent): --n133-ink, --n133-ink-soft, --n133-paper,
-   --n133-ground, --n133-line, --n133-gem, --n133-gem-dark, --n133-on-gem, --n133-radius, --n133-font and --n133-signin-z (the sheet's z-index, default
+   --n133-ground, --n133-line, --n133-gem, --n133-gem-dark, --n133-on-gem, --n133-on-gem-dark (the text on the dark gem fill), --n133-gem-text (the gem colour as text: the links,
+   "Signed in as"; both since 0.17.1, defaulting to --n133-on-gem and --n133-gem-dark), --n133-radius, --n133-font and --n133-signin-z (the sheet's z-index, default
    1200: above the options and friends panels). Those set the LIGHT theme; the DARK theme reads the twins with "dark-" in the name. */
 
 .n133-signin {
@@ -19,6 +20,8 @@
   --gem: var(--n133-gem, #20c9a6);
   --gem-dark: var(--n133-gem-dark, #0e8a72);
   --on-gem: var(--n133-on-gem, #ffffff);
+  --on-gem-dark: var(--n133-on-gem-dark, var(--on-gem));
+  --gem-text: var(--n133-gem-text, var(--gem-dark));
   --warn: #b4232f;
   --shade: 16 24 40;
   color: var(--ink);
@@ -38,6 +41,8 @@
   --gem: var(--n133-dark-gem, #20c9a6);
   --gem-dark: var(--n133-dark-gem-dark, #3fd8b6);
   --on-gem: var(--n133-dark-on-gem, #062b23);
+  --on-gem-dark: var(--n133-dark-on-gem-dark, var(--on-gem));
+  --gem-text: var(--n133-dark-gem-text, var(--gem-dark));
   --warn: #ff8a93;
   --shade: 0 0 0;
   color-scheme: dark;
@@ -53,6 +58,8 @@
     --gem: var(--n133-dark-gem, #20c9a6);
     --gem-dark: var(--n133-dark-gem-dark, #3fd8b6);
     --on-gem: var(--n133-dark-on-gem, #062b23);
+    --on-gem-dark: var(--n133-dark-on-gem-dark, var(--on-gem));
+    --gem-text: var(--n133-dark-gem-text, var(--gem-dark));
     --warn: #ff8a93;
     --shade: 0 0 0;
     color-scheme: dark;
@@ -204,7 +211,7 @@
   border: 0;
   border-radius: 16px;
   background: var(--gem-dark);
-  color: var(--on-gem);
+  color: var(--on-gem-dark);
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -213,11 +220,13 @@
 
 :root[data-n133-theme="dark"] .n133-signin .n133s-pk {
   background: var(--gem);
+  color: var(--on-gem);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-n133-theme="light"]) .n133-signin .n133s-pk {
     background: var(--gem);
+    color: var(--on-gem);
   }
 }
 
@@ -350,18 +359,20 @@
 .n133-signin .n133s-primary {
   border-color: var(--gem-dark);
   background: var(--gem-dark);
-  color: var(--on-gem);
+  color: var(--on-gem-dark);
 }
 
 :root[data-n133-theme="dark"] .n133-signin .n133s-primary {
   border-color: var(--gem);
   background: var(--gem);
+  color: var(--on-gem);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-n133-theme="light"]) .n133-signin .n133s-primary {
     border-color: var(--gem);
     background: var(--gem);
+    color: var(--on-gem);
   }
 }
 
@@ -405,7 +416,7 @@
   align-items: center;
   min-width: 48px;
   min-height: 48px;
-  color: var(--gem-dark);
+  color: var(--gem-text);
   font-weight: 650;
   text-underline-offset: 2px;
 }
@@ -471,7 +482,7 @@
   gap: 10px;
   margin: 8px 0;
   font: 700 17px/1.3 var(--font);
-  color: var(--gem-dark);
+  color: var(--gem-text);
 }
 
 .n133-signin .n133s-status {

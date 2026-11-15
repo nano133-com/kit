@@ -3,13 +3,16 @@
    sheet on the right. In "nanoterra" mode the nano133 window stays in the page while the panel is closed (it holds the live connection): the
    closed panel is hidden and moved off the screen, never display: none.
    To theme it, set the --n133-* custom properties on the element that holds the key (or a parent): --n133-ink, --n133-ink-soft, --n133-paper,
-   --n133-line, --n133-gem, --n133-gem-dark, --n133-radius, --n133-font, --n133-scrim (the dim over the game while the panel is open, a colour; the
+   --n133-line, --n133-gem, --n133-gem-dark, --n133-on-gem-dark (the text on the main key and the online badge,
+   default white), --n133-gem-text (the invite line, default --n133-gem-dark; both since 0.17.1), --n133-radius, --n133-font, --n133-scrim (the dim over the game while the panel is open, a colour; the
    options panel reads it too) and --n133-friends-z (the panel's z-index, default 1000). */
 
 .n133-friends {
   --font: var(--n133-font, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
   --gem: var(--n133-gem, #20c9a6);
   --gem-dark: var(--n133-gem-dark, #0e8a72);
+  --on-gem-dark: var(--n133-on-gem-dark, #ffffff);
+  --gem-text: var(--n133-gem-text, var(--gem-dark));
   --ink: var(--n133-ink, #16202e);
   --ink-soft: var(--n133-ink-soft, #4a5568);
   --line: var(--n133-line, #dbe4ee);
@@ -57,6 +60,7 @@
 /* No requests: the badge counts the friends online, in the gem colour. */
 .n133-friends .n133f-badge.is-online {
   background: var(--gem-dark);
+  color: var(--on-gem-dark);
 }
 
 /* The scrim: the game dims under the open panel; a press on it closes the panel. */
@@ -213,7 +217,7 @@
 .n133-friends .n133f-primary {
   border-color: var(--gem-dark);
   background: var(--gem-dark);
-  color: #fff;
+  color: var(--on-gem-dark);
 }
 
 .n133-friends .n133f-quiet {
@@ -317,7 +321,7 @@
 }
 
 .n133-friends .n133f-invite {
-  color: var(--gem-dark);
+  color: var(--gem-text);
   font-weight: 650;
 }
 

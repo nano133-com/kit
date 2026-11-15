@@ -3,7 +3,8 @@
    small keys 40 px. The layout follows the PANEL's width (a container query), not the window's: one column on a phone, two from 560 px, three cards a row and the
    orders as a table from 760 px.
    To theme it, set the --n133-* custom properties on the element that holds the panel (or on any parent): --n133-ink, --n133-ink-soft, --n133-paper, --n133-line,
-   --n133-gem, --n133-gem-dark, --n133-sea, --n133-radius and --n133-font; and, with the tabbed layout, --n133-ground (the wells inside a card), --n133-warn and
+   --n133-gem, --n133-gem-dark, --n133-gem-text (the marks in the gem colour; since 0.17.1, default --n133-gem-dark),
+   --n133-sea, --n133-radius and --n133-font; and, with the tabbed layout, --n133-ground (the wells inside a card), --n133-warn and
    --n133-bad (the amber and red of a warning and a problem) and --n133-shadow (the cards' shadow). Every other colour has a hook too (the list below, e.g.
    --n133-ok-bg). Those set the LIGHT theme. The DARK theme reads the twins with "dark-" in the name: --n133-dark-ink, --n133-dark-paper, --n133-dark-shadow and so
    on. The panel's theme key (theme.ts) sets data-theme="light" or "dark" on the panel. */
@@ -21,6 +22,7 @@
   --gem: var(--n133-gem, #20c9a6);
   --gem-dark: var(--n133-gem-dark, #0e8a72);
   --on-gem: var(--n133-on-gem, #062b23);
+  --gem-text: var(--n133-gem-text, var(--gem-dark));
   --sea: var(--n133-sea, #1f8fc4);
   --warn: var(--n133-warn, #8a4b00);
   --bad: var(--n133-bad, #b4142f);
@@ -74,6 +76,7 @@
   --gem: var(--n133-dark-gem, #20c9a6);
   --gem-dark: var(--n133-dark-gem-dark, #3fd8b6);
   --on-gem: var(--n133-dark-on-gem, #062b23);
+  --gem-text: var(--n133-dark-gem-text, var(--gem-dark));
   --sea: var(--n133-dark-sea, #62bcec);
   --warn: var(--n133-dark-warn, #f2b45c);
   --bad: var(--n133-dark-bad, #ff8293);
@@ -375,7 +378,7 @@
   height: 56px;
   border-radius: 50%;
   background: color-mix(in srgb, var(--gem) 16%, var(--paper));
-  color: var(--gem-dark);
+  color: var(--gem-text);
 }
 
 .n133-admin .gate-signin {
@@ -411,7 +414,7 @@
   height: 40px;
   border-radius: 50%;
   background: color-mix(in srgb, var(--gem) 16%, var(--paper));
-  color: var(--gem-dark);
+  color: var(--gem-text);
 }
 
 .n133-admin .who {
@@ -555,7 +558,7 @@
 }
 
 .n133-admin .theme-choice[aria-pressed="true"] .icon {
-  color: var(--gem-dark);
+  color: var(--gem-text);
 }
 
 .n133-admin .theme-choice:focus-visible {
@@ -599,7 +602,7 @@
 }
 
 .n133-admin .kpi {
-  --accent: var(--gem-dark);
+  --accent: var(--gem-text);
   display: grid;
   gap: 2px;
   align-content: start;
@@ -1058,7 +1061,7 @@
   height: 48px;
   border-radius: 14px;
   background: color-mix(in srgb, var(--gem) 18%, var(--paper));
-  color: var(--gem-dark);
+  color: var(--gem-text);
 }
 
 .n133-admin .start-steps {
@@ -1777,7 +1780,7 @@
 @media (hover: hover) {
   .n133-admin .shelf-add-tile:hover {
     border-color: var(--gem-dark);
-    color: var(--gem-dark);
+    color: var(--gem-text);
   }
 }
 

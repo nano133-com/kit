@@ -157,6 +157,32 @@ test("K4: the item's picture frame clips all the game's preview, a position: fix
   assert.match(prop(pic, "contain") ?? "", /\b(paint|content|strict)\b/, "contain: paint makes the frame the box of a fixed child, and clips it");
 });
 
+// 0.17.1: the dark gem colour has two jobs. As a FILL (the passkey's row, a chosen Settings key, the main keys) its text is --n133-on-gem-dark; as TEXT on
+// the paper or the ground (a link, "Signed in as", the worn ✓, the admin's marks) it is --n133-gem-text. One colour could not pass 4.5:1 both ways on a
+// light sheet (Coin Bees: 4.58:1 one way, 3.43:1 the other). Both default to today's values, so a game that sets neither sees no change.
+test("the dark gem colour's two jobs have their own tokens: no text in --gem-dark, no fill of --gem-dark with --on-gem text; the defaults are today's", () => {
+  const SHEETS = ["player-signin/panel", "shop/panel", "options/panel", "friends/panel", "emotes/panel", "admin/panel"].map((p) => `src/${p}/style.css`).concat("src/connect/style.css");
+  for (const file of SHEETS) {
+    const rules = cssRules(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"));
+    for (const r of rules) {
+      const where = `${file}: ${r.at} ${r.selector}`;
+      assert.doesNotMatch(r.body, /(^|[;\s])color:\s*var\(--(n133-)?gem-dark\b/, `${where}: text in the dark gem colour (use --gem-text)`);
+      assert.doesNotMatch(r.body, /--accent:\s*var\(--gem-dark\)/, `${where}: an accent text in the dark gem colour`);
+      if (/(^|[;\s])background(-color)?:\s*var\(--gem-dark\)/.test(r.body) && /(^|[;\s])color:/.test(r.body)) assert.match(r.body, /(^|[;\s])color:\s*var\(--on-gem-dark\)/, `${where}: text on the dark gem fill`);
+      if (/(^|[;\s])background(-color)?:\s*var\(--gem-dark\)/.test(r.body) && !/(^|[;\s])color:/.test(r.body) && /n133f-badge/.test(r.selector)) assert.fail(`${where}: the badge's count has no colour of its own`);
+    }
+    const text = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+    if (/var\(--gem-text\)/.test(text)) {
+      assert.match(text, /--gem-text: var\(--n133-gem-text, var\(--gem-dark\)\);/, `${file}: --gem-text defaults to the dark gem colour`);
+      if (/--n133-dark-gem-dark/.test(text)) assert.match(text, /--gem-text: var\(--n133-dark-gem-text, var\(--gem-dark\)\);/, `${file}: and its dark twin`);
+    }
+    if (/var\(--on-gem-dark\)/.test(text)) assert.match(text, /--on-gem-dark: var\(--n133-on-gem-dark, (var\(--on-gem\)|#ffffff)\);/, `${file}: --on-gem-dark defaults to today's text on the fill`);
+  }
+  // The sheet's dark theme fills its main keys with --gem, so their text there is --on-gem, never the dark fill's.
+  const signin = cssRules(readFileSync(new URL("../src/player-signin/panel/style.css", import.meta.url), "utf8"));
+  for (const r of signin.filter((x) => /data-n133-theme/.test(x.selector) && /\.n133s-(pk|primary)$/.test(x.selector))) assert.match(r.body, /color: var\(--on-gem\)/, `${r.at} ${r.selector}`);
+});
+
 test("the sign-in sheet's QR code: a size of its own (--n133-qr-size, the weight of one class), and qrSvg's code in whole CSS pixels a module", () => {
   const rules = cssRules(readFileSync(new URL("../src/player-signin/panel/style.css", import.meta.url), "utf8"));
   const base = rules.find((r) => r.at === "" && r.selector === ".n133-signin :where(.n133s-qr svg, .n133s-qr canvas, .n133s-qr img)");

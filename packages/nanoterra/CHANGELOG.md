@@ -17,6 +17,13 @@
   sets `--n133-qr-modules` on its SVG): Nautilus's player link 356 px at 4 px a module, the admin's 372 px. At 3.78 px a module the modules were 3 and
   4 px wide in turn on a 1x screen, and jsQR could not read that screenshot. A game's own rule wins (the kit's has the weight of one class).
 - **Fix: a `qr` hook that throws** no longer puts its message in the player's sheet: the sheet shows its own words (`openOnPhone`) and the other steps.
+- **New tokens: the dark gem colour's two jobs apart** (README, "The colour tokens of the panels"). The kit paints the passkey's row, a chosen Settings key
+  and the main keys in `--n133-gem-dark` with `--n133-on-gem` text, and also wrote `--n133-gem-dark` as text on the sheet ("Signed in as nano_…", "open a
+  wallet", the worn ✓). A light sheet could not pass 4.5:1 both ways with one colour (Coin Bees: 4.58:1 one way, 3.43:1 the other). Now
+  `--n133-on-gem-dark` is the text on a `--n133-gem-dark` fill (default `--n133-on-gem`; the friends panel's white, as before) and `--n133-gem-text` the
+  gem colour as text on the paper or the ground (default `--n133-gem-dark`), each with its `--n133-dark-*` twin, in the sign-in sheets, the options, the
+  friends, the shop and the admin panel. A game that sets neither sees no change. The sign-in sheet's dark theme now names `--n133-on-gem` on its
+  `--n133-gem` keys (the value it had).
 - Sizes (gzip, size test): `/shop/panel` 13.5 kB (ceiling 13.7 kB, was 13.2 kB), `/admin-signin/panel` 9.8 kB (ceiling 10.0 kB, was 9.5 kB): the
   QR code's versions 11 to 40 and level L, +0.31 kB each (the tables are four strings of 40 characters). `/player-signin/panel` holds no QR code (the
   game's `qr` hook draws it): +0.02 kB.

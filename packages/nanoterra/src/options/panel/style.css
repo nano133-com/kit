@@ -4,7 +4,8 @@
    Light and dark: the panel follows data-n133-theme="light" | "dark" on the page's <html> when the page sets it (the admin panel does), else the device's
    prefers-color-scheme.
    To theme it, set the --n133-* custom properties on the element that holds the key (or a parent): --n133-ink, --n133-ink-soft, --n133-paper, --n133-ground
-   (a choice's well and a key cap), --n133-line, --n133-gem, --n133-gem-dark, --n133-on-gem, --n133-radius, --n133-font, --n133-scrim (the dim over the
+   (a choice's well and a key cap), --n133-line, --n133-gem, --n133-gem-dark, --n133-on-gem, --n133-on-gem-dark (the text on a chosen key; since 0.17.1,
+   default --n133-on-gem), --n133-radius, --n133-font, --n133-scrim (the dim over the
    game while the panel is open, a colour; the friends panel reads it too) and --n133-options-z (the panel's
    z-index, default 1100: above the friends panel). Those set the LIGHT theme; the DARK theme reads the twins with "dark-" in the name: --n133-dark-ink,
    --n133-dark-paper and so on. */
@@ -20,6 +21,7 @@
   --gem: var(--n133-gem, #20c9a6);
   --gem-dark: var(--n133-gem-dark, #0e8a72);
   --on-gem: var(--n133-on-gem, #ffffff);
+  --on-gem-dark: var(--n133-on-gem-dark, var(--on-gem));
   /* The colour of the shadows (r g b), and the scrim's dim (a game's --n133-scrim wins). */
   --shade: 16 24 40;
   --scrim: var(--n133-scrim, rgb(16 24 40 / 0.4));
@@ -42,6 +44,7 @@
   --gem: var(--n133-dark-gem, #20c9a6);
   --gem-dark: var(--n133-dark-gem-dark, #3fd8b6);
   --on-gem: var(--n133-dark-on-gem, #062b23);
+  --on-gem-dark: var(--n133-dark-on-gem-dark, var(--on-gem));
   --shade: 0 0 0;
   --scrim: var(--n133-dark-scrim, var(--n133-scrim, rgb(0 0 0 / 0.4)));
   color-scheme: dark;
@@ -57,6 +60,7 @@
     --gem: var(--n133-dark-gem, #20c9a6);
     --gem-dark: var(--n133-dark-gem-dark, #3fd8b6);
     --on-gem: var(--n133-dark-on-gem, #062b23);
+    --on-gem-dark: var(--n133-dark-on-gem-dark, var(--on-gem));
     --shade: 0 0 0;
     --scrim: var(--n133-dark-scrim, var(--n133-scrim, rgb(0 0 0 / 0.4)));
     color-scheme: dark;
@@ -364,7 +368,7 @@
 
 .n133-options .n133o-seg-key[aria-checked="true"] {
   background: var(--gem-dark);
-  color: var(--on-gem);
+  color: var(--on-gem-dark);
 }
 
 .n133-options .n133o-select {
@@ -468,7 +472,7 @@
 .n133-options .n133o-keycap[aria-pressed="true"] {
   border-color: var(--gem-dark);
   background: var(--gem-dark);
-  color: var(--on-gem);
+  color: var(--on-gem-dark);
 }
 
 .n133-options .n133o-empty {
@@ -515,7 +519,7 @@
 .n133-options .n133o-primary {
   border-color: var(--gem-dark);
   background: var(--gem-dark);
-  color: var(--on-gem);
+  color: var(--on-gem-dark);
 }
 
 .n133-options .n133o-ask {
