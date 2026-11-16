@@ -1229,8 +1229,10 @@
   background: rgb(255 255 255 / 0.35);
 }
 
+/* the keys stand over the canvas (the viewer puts it in the stage after them) */
 .n133-shop .n133s-upclose-key {
   position: absolute;
+  z-index: 1;
   top: 8px;
   left: 8px;
   min-height: 44px;
@@ -1239,6 +1241,7 @@
 
 .n133-shop .n133s-stage-keys {
   position: absolute;
+  z-index: 1;
   top: 8px;
   right: 8px;
   display: flex;
@@ -1333,8 +1336,11 @@
   touch-action: manipulation;
 }
 
-.n133-shop .n133s-try:hover {
-  background: var(--ground);
+/* a hover colour only where there is a hover (a phone keeps it after a tap) */
+@media (hover: hover) {
+  .n133-shop .n133s-try:hover {
+    background: var(--ground);
+  }
 }
 
 .n133-shop .n133s-try[aria-pressed="true"] {
@@ -1343,8 +1349,9 @@
 }
 
 .n133-shop .n133s-try-word {
-  flex: none;
-  padding: 4px 10px;
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 2px 10px;
   border: 1px solid var(--line);
   border-radius: 999px;
   color: var(--ink-soft);
@@ -1355,12 +1362,6 @@
   border-color: var(--gem-dark);
   background: var(--gem);
   color: var(--on-gem);
-}
-
-@media (max-width: 400px) {
-  .n133-shop .n133s-try-word {
-    display: none;
-  }
 }
 
 /* Up close, phone upright: the whole screen, the stage and the tray only */

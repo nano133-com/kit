@@ -61,8 +61,17 @@ function primitiveBody(): TryOnBody<Look> {
     g.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
     slot[s] = null;
   };
+  // The head under a hat or over a scarf, for the framing only (never drawn): "it is you, wearing it". The stage measures hidden meshes too.
+  const headProbe = () => {
+    const probe = new THREE.Mesh(new THREE.SphereGeometry(0.34, 12, 8));
+    geos.push(probe.geometry);
+    probe.position.set(0, 1.72, 0);
+    probe.visible = false;
+    return probe;
+  };
   const hatOf = (shape: string, colour: string) => {
     const g = new THREE.Group();
+    g.add(headProbe());
     const m = mat(colour);
     if (shape === "cone") {
       mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.04, 28), m, 0, 1.95, 0, g);
@@ -77,6 +86,7 @@ function primitiveBody(): TryOnBody<Look> {
   const kitHat = (look: Look) => {
     const c = look.change!;
     const g = new THREE.Group();
+    g.add(headProbe());
     const m = mat(c.hatColor ?? "#333333");
     if (c.hat === "cap") {
       mesh(new THREE.SphereGeometry(0.33, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), m, 0, 1.85, 0, g);
@@ -111,6 +121,7 @@ function primitiveBody(): TryOnBody<Look> {
       if (s === "hat") g = hatOf(look.slots?.shape ?? "brim", colour);
       else if (s === "scarf") {
         g = new THREE.Group();
+        g.add(headProbe());
         const knit = mat(colour);
         const ring = mesh(new THREE.TorusGeometry(0.27, 0.08, 10, 28), knit, 0, 1.46, 0, g);
         ring.rotation.x = Math.PI / 2;

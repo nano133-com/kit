@@ -29,7 +29,8 @@ export { BACK, FRONT, LIFT, MARGIN, ZOOM_STEP, fitPoints, keyStep, listWords, ri
 export type TryOnBody<L = Look> = PreviewBody<L> & {
   /**
    * What the stage frames for a tried look, after `dress`: the item's object (a hat on the head socket, a pack on the back socket) or a box in the
-   * character's space, or null for the whole character (a colour). Give the head with a hat ("it is you, wearing it"): a `THREE.Box3` that holds both.
+   * character's space, or null for the whole character (a colour). An object is measured from its real vertices (hidden meshes count: a hidden
+   * sphere the size of the head frames a hat with the head under it, "it is you, wearing it"); a box is taken as it is.
    */
   part?(look: L): THREE.Object3D | THREE.Box3 | null;
   /** One frame (seconds): the idle pose, a cape's sway. */
@@ -51,7 +52,26 @@ const TAP_PX = 8;
 const TAP_MS = 450;
 const DRAG_TURN = 0.012;
 
-const boxOf = (b: THREE.Box3): Box => ({ min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z] });
+const boxOf = (b: THREE.Box3, r?: number): Box => ({ min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z], ...(r !== undefined ? { r } : {}) });
+
+/** An object's real points (its meshes' vertices, skinned as drawn), as a box and the radius about the upright axis that holds them. */
+function pointsBox(o: THREE.Object3D): { box: THREE.Box3; r: number } | null {
+  const box = new THREE.Box3();
+  const v = new THREE.Vector3();
+  let r = 0;
+  o.traverse((x) => {
+    const m = x as THREE.Mesh;
+    const pos = m.isMesh ? m.geometry?.getAttribute("position") : null;
+    if (!pos) return;
+    for (let i = 0; i < pos.count; i++) {
+      m.getVertexPosition(i, v).applyMatrix4(m.matrixWorld);
+      if (!Number.isFinite(v.x + v.y + v.z)) continue;
+      box.expandByPoint(v);
+      r = Math.max(r, Math.hypot(v.x, v.z));
+    }
+  });
+  return box.isEmpty() ? null : { box, r };
+}
 
 /** The order the stage dresses looks in: the outfit first, then each item, one look a slot (a tried look over the worn one). */
 function dressList(v: TryOnShow): Look[] {
@@ -252,18 +272,23 @@ function mountStage(box: HTMLElement, ctx: TryOnContext, makeBody: () => TryOnBo
     const whole = measure(() => new THREE.Box3().setFromObject(body.object, true));
     if (whole) frame = { body: boxOf(whole), fov };
     let part: THREE.Box3 | null = null;
+    let radius: number | undefined;
     if (v.focus) {
       const focus = v.focus;
       let source: THREE.Object3D | THREE.Box3 | null = null;
       part = measure(() => {
         const p = body.part?.(focus) ?? null;
         source = p instanceof THREE.Box3 ? p.clone() : p;
-        return p instanceof THREE.Box3 ? p.clone() : p ? new THREE.Box3().setFromObject(p, true) : null;
+        if (p instanceof THREE.Box3) return p.clone();
+        // an object: its real vertices give the box and the radius (a round brim is framed by its own radius, not its box's corners)
+        const m = p ? pointsBox(p) : null;
+        radius = m?.r;
+        return m?.box ?? null;
       });
       partSource = part ? source : null;
     } else partSource = null;
     focusId = v.focus?.id ?? null;
-    const item = part ? boxOf(part) : null;
+    const item = part ? boxOf(part, radius) : null;
     if (v.focus) {
       touch();
       yawTo = yawFor(sideOf(item), yawTo);

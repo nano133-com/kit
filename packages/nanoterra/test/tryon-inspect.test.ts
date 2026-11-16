@@ -110,6 +110,23 @@ test("a try-on fills the stage: the item's cylinder touches the margin across or
   }
 });
 
+test("a round brim measured from its vertices (r) is framed by its own radius: larger than by its box's corners, and every point of it whole", () => {
+  const lim = 1 - 2 * MARGIN + 1e-6;
+  const brim: Box = { min: [-0.85, 1.85, -0.85], max: [0.85, 2.1, 0.85], r: 0.85 };
+  for (const aspect of ASPECTS) {
+    const byR = tryOnView(brim, frame, aspect);
+    const byCorners = tryOnView({ min: brim.min, max: brim.max }, frame, aspect);
+    assert.ok(byR.d < byCorners.d * 0.8, `aspect ${aspect}: ${byR.d.toFixed(2)} is not nearer than ${byCorners.d.toFixed(2)}`);
+    // the brim itself: 64 points on each of its two circles, at twelve turns (a circle turned is the same circle)
+    const cam = cameraFor(byR, aspect);
+    for (const y of [brim.min[1], brim.max[1]]) for (let k = 0; k < 64; k++) {
+      const p = new THREE.Vector3(0.85 * Math.cos((k * Math.PI) / 32), y, 0.85 * Math.sin((k * Math.PI) / 32)).project(cam);
+      assert.ok(Math.abs(p.x) <= lim && Math.abs(p.y) <= lim, `aspect ${aspect}: (${p.x.toFixed(3)}, ${p.y.toFixed(3)})`);
+    }
+  }
+  assert.ok(isRound(brim));
+});
+
 test("the screen numbers of the pure module are three.js's own projection", () => {
   for (const aspect of ASPECTS) {
     const v: View = { x: 0.2, y: 1.3, d: 4.2 };

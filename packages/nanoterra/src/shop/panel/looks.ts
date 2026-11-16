@@ -73,14 +73,14 @@ export function looksView(p: LooksViewOptions): HTMLElement {
   const row = (pic: HTMLElement, name: string, line: string, action: HTMLElement, worn: boolean, look?: Look) => {
     const text = h("span", { class: "n133s-look-text" }, h("strong", {}, name), h("small", {}, line));
     if (!look || !p.tryOn) return h("li", { class: `n133s-look${worn ? " n133s-look-worn" : ""}` }, pic, text, action);
-    // The try-on key: the picture and the name are one key (48 px or more), with its word beside the line.
+    // The try-on key: the picture and the name are one key (48 px or more), with its word under the line (the name keeps the row's width).
     const tried = p.tryOn.tried(look);
+    text.append(h("span", { class: "n133s-try-word", "aria-hidden": "true" }, w.tryOn));
     const key = h(
       "button",
       { class: "n133s-try", type: "button", "aria-pressed": tried ? "true" : "false", "aria-label": w.tryOnLook(look.name), "data-look": look.id, onclick: () => p.tryOn!.toggle(look) },
       pic,
       text,
-      h("span", { class: "n133s-try-word", "aria-hidden": "true" }, w.tryOn),
     );
     return h("li", { class: `n133s-look n133s-look-try${worn ? " n133s-look-worn" : ""}${tried ? " n133s-look-tried" : ""}` }, key, action);
   };

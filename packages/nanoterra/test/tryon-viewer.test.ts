@@ -8,7 +8,25 @@ import { LIFT, MARGIN, loadKitBody, mount, sideOf, tryOnView, tryOnViewer, type 
 import { kitBody } from "../src/shop/viewer/kit.js";
 
 const outfit = (hat: (typeof HATS)[number] | null, price = 0.25): Look => ({ id: `o-${hat ?? "none"}`, name: "O", priceUsd: price, change: { body: "#e0453b", ...(hat ? { hat, hatColor: "#222222" } : {}) } });
-const boxOf = (b: THREE.Box3): Box => ({ min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z] });
+const boxOf = (b: THREE.Box3, r?: number): Box => ({ min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z], ...(r ? { r } : {}) });
+/** What the stage measures of an object: its vertices' box (hidden meshes too) and their radius about the upright axis. */
+function measured(o: THREE.Object3D) {
+  o.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  let r = 0;
+  const v = new THREE.Vector3();
+  o.traverse((x) => {
+    const m = x as THREE.Mesh;
+    const pos = m.isMesh ? m.geometry.getAttribute("position") : null;
+    if (!pos) return;
+    for (let i = 0; i < pos.count; i++) {
+      m.getVertexPosition(i, v).applyMatrix4(m.matrixWorld);
+      box.expandByPoint(v);
+      r = Math.max(r, Math.hypot(v.x, v.z));
+    }
+  });
+  return { box, r };
+}
 
 test("the kit's character: each hat of looks.json is on the head, and `part` frames the hat with the head under it", () => {
   const body = kitBody();
@@ -16,8 +34,9 @@ test("the kit's character: each hat of looks.json is on the head, and `part` fra
   const whole = new THREE.Box3().setFromObject(body.object, true);
   for (const hat of HATS) {
     body.dress(outfit(hat));
-    const part = body.part!(outfit(hat)) as THREE.Box3;
-    assert.ok(part instanceof THREE.Box3, hat);
+    const object = body.part!(outfit(hat)) as THREE.Object3D;
+    assert.ok(object?.isObject3D, hat);
+    const part = measured(object).box;
     const hatMesh = body.object.getObjectByName(`hat-${hat}`)!;
     assert.ok(hatMesh, `${hat} is on the character`);
     body.object.updateMatrixWorld(true);
@@ -38,15 +57,23 @@ test("the kit's character: each hat of looks.json is on the head, and `part` fra
   body.dispose();
 });
 
-test("the kit's character with a hat, framed by the stage: the hat whole with the margin, on every aspect, at every turn", () => {
+test("the kit's character with a hat, framed by the stage: every vertex of the hat inside the margin, on every aspect, at every turn", () => {
   const body = kitBody();
   const lim = 1 - 2 * MARGIN + 1e-6;
   for (const hat of HATS) {
     body.dress(outfit(hat));
     body.object.updateMatrixWorld(true);
     const whole = boxOf(new THREE.Box3().setFromObject(body.object, true));
-    const part = boxOf(body.part!(outfit(hat)) as THREE.Box3);
-    const hatBox = new THREE.Box3().setFromObject(body.object.getObjectByName(`hat-${hat}`)!, true);
+    const m = measured(body.part!(outfit(hat)) as THREE.Object3D);
+    const part = boxOf(m.box, m.r);
+    // the hat's real vertices (a box's corner, turned, can lie outside the round thing it holds)
+    const hatPoints: THREE.Vector3[] = [];
+    body.object.getObjectByName(`hat-${hat}`)!.traverse((x) => {
+      const mesh = x as THREE.Mesh;
+      const pos = mesh.isMesh ? mesh.geometry.getAttribute("position") : null;
+      if (pos) for (let i = 0; i < pos.count; i++) hatPoints.push(mesh.getVertexPosition(i, new THREE.Vector3()).applyMatrix4(mesh.matrixWorld));
+    });
+    assert.ok(hatPoints.length > 50);
     for (const aspect of [0.5, 1, 1.5, 2.5]) {
       const v = tryOnView(part, { body: whole, fov: 30 }, aspect);
       const cam = new THREE.PerspectiveCamera(30, aspect, 0.01, 100);
@@ -55,8 +82,8 @@ test("the kit's character with a hat, framed by the stage: the hat whole with th
       cam.updateMatrixWorld(true);
       for (let k = 0; k < 12; k++) {
         const turn = new THREE.Matrix4().makeRotationY((k * Math.PI) / 6);
-        for (const x of [hatBox.min.x, hatBox.max.x]) for (const y of [hatBox.min.y, hatBox.max.y]) for (const z of [hatBox.min.z, hatBox.max.z]) {
-          const p = new THREE.Vector3(x, y, z).applyMatrix4(turn).project(cam);
+        for (const q of hatPoints) {
+          const p = q.clone().applyMatrix4(turn).project(cam);
           assert.ok(Math.abs(p.x) <= lim && Math.abs(p.y) <= lim, `${hat}, aspect ${aspect}, turn ${k}: (${p.x.toFixed(3)}, ${p.y.toFixed(3)})`);
         }
       }

@@ -58,6 +58,12 @@ export function kitBody(record?: LookRecord | null): TryOnBody<Look> {
   const ramp = makeRamp();
   const head = c.socket("head");
   let hat: THREE.Group | null = null;
+  // The head under a hat, for the framing only (never drawn): a sphere the size of the head round the hat frame's middle ("it is you, wearing it").
+  const headGeo = new THREE.SphereGeometry(0.5, 16, 10);
+  const headProbe = new THREE.Mesh(headGeo);
+  headProbe.visible = false;
+  headProbe.scale.set(1, 1.05, 1.05);
+  headProbe.position.set(0, -0.15, 0.03);
   return {
     object: c.object,
     dress(look) {
@@ -68,20 +74,15 @@ export function kitBody(record?: LookRecord | null): TryOnBody<Look> {
         freeTree(hat);
         hat = null;
       }
-      if (look.change.hat) head.add((hat = hatOf(look.change.hat, look.change.hatColor ?? "#333333", ramp)));
+      if (look.change.hat) head.add((hat = hatOf(look.change.hat, look.change.hatColor ?? "#333333", ramp)), headProbe);
+      else head.remove(headProbe);
     },
-    part(look) {
-      if (!isOutfit(look) || !hat) return null;
-      // The hat with the head under it: the head is about the hat frame's unit round the socket's origin.
-      c.object.updateMatrixWorld(true);
-      const box = new THREE.Box3().setFromObject(hat, true);
-      const corner = new THREE.Vector3();
-      for (const x of [-0.5, 0.5]) for (const y of [-0.55, 0.2]) for (const z of [-0.5, 0.55]) box.expandByPoint(head.localToWorld(corner.set(x, y, z)));
-      return box;
-    },
+    // The head socket holds the hat and the head's hidden sphere: the stage measures both from their vertices.
+    part: (look) => (isOutfit(look) && hat ? head : null),
     update: (dt) => c.update(dt),
     dispose() {
       if (hat) freeTree(hat);
+      headGeo.dispose();
       ramp.dispose();
       c.dispose();
     },

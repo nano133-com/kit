@@ -10,8 +10,9 @@
 // about the character's axis (a hat, a crown: `isRound`) is framed as the upright cylinder that holds it, so it stays whole at every turn; any
 // other item (a pack, a tool, a scarf's knot) as its box from the side the stage shows it (the front, or the back for a pack).
 
-/** A box in the character's own space, at yaw 0: its least and its greatest corner. */
-export type Box = { min: readonly [number, number, number]; max: readonly [number, number, number] };
+/** A box in the character's own space, at yaw 0: its least and its greatest corner. `r`: the radius about the upright axis that holds the thing
+ *  itself, when it is known from its vertices (a round brim's is its own radius; the box's corners are about 1.4 times as far). */
+export type Box = { min: readonly [number, number, number]; max: readonly [number, number, number]; r?: number };
 
 /** The camera: the point it looks at (`x` across, 0 on the character's axis; `y` up) and its distance from that point. The camera stands in front
  *  of that point (+Z), lifted by LIFT. */
@@ -44,14 +45,16 @@ const tanOf = (fov: number) => Math.tan(((fov / 2) * Math.PI) / 180);
 
 /** The smallest box that holds both. */
 export function union(a: Box, b: Box): Box {
+  if (a.r !== undefined || b.r !== undefined) return { ...union({ min: a.min, max: a.max }, { min: b.min, max: b.max }), r: Math.max(radiusOf(a), radiusOf(b)) };
   return { min: [0, 1, 2].map((i) => Math.min(a.min[i], b.min[i])) as unknown as Box["min"], max: [0, 1, 2].map((i) => Math.max(a.max[i], b.max[i])) as unknown as Box["max"] };
 }
 
 /** Whether a box has a size and finite corners. */
 export const boxOk = (b: Box | null | undefined): b is Box => !!b && [0, 1, 2].every((i) => Number.isFinite(b.min[i]) && Number.isFinite(b.max[i]) && b.max[i] >= b.min[i]);
 
-/** The radius about the upright axis that holds every corner of a box. */
+/** The radius about the upright axis that holds the thing: its measured `r`, else every corner of its box. */
 export function radiusOf(b: Box): number {
+  if (b.r !== undefined && Number.isFinite(b.r) && b.r > 0) return b.r;
   let r = 0;
   for (const x of [b.min[0], b.max[0]]) for (const z of [b.min[2], b.max[2]]) r = Math.max(r, Math.hypot(x, z));
   return r;
