@@ -31,6 +31,7 @@ import type { PayView } from "../handler.js";
 import type { PlayUse } from "../../looks/play.js";
 import { looksView, slotsOf, swatchOf, type SlotWords } from "./looks.js";
 import { itemPicture, payPanel, type PayNext } from "./pay.js";
+import type { TryOnLoad, TryOnPanel } from "./tryon.js";
 import { playPrice, shopWords, type ShopWords } from "./words.js";
 
 /** A play as the panel shows it (plays.json; the server checks the file and decides every price). */
@@ -102,7 +103,7 @@ export type ShopMountOptions = {
 
   // ---- the creator's part of the pay sheet (since 0.16.0) ----
   /**
-   * The item's picture at a size in CSS px (64 beside its line, 128 on the success, 176 on the offer): the look on the player's own character, a round's
+   * The item's picture at a size in CSS px (64 beside its line, 128 on the success, 240 on the offer, since 0.18.0; 176 before): the look on the player's own character, a round's
    * day. Null (or no hook): `picture(look)`, else the kit's swatch; a play: its first letter.
    */
   preview?: (item: ShopItem, size: number) => HTMLElement | null;
@@ -118,6 +119,15 @@ export type ShopMountOptions = {
    * asked) until that key. Default true. It never shows for the game's own Buy (`buy(lookId)`) or a play: the game's own shelf showed the item already.
    */
   offer?: boolean;
+
+  // ---- the try-on (since 0.18.0) ----
+  /**
+   * The try-on stage: a large stage over the list (beside it on a wide screen) shows the player's character in the looks they wear and the ones
+   * they try on. It turns, zooms and opens Up close, and frames a tried item whole. VIEWER is "@nano133/nanoterra/shop/viewer". The kit's character: `() => import(VIEWER)`.
+   * The game's own character: `async () => (await import(VIEWER)).tryOnViewer({ body })`. It loads when the sheet first
+   * opens. Left out: the sheet as before (no stage, no Three.js). A tried look is never worn, saved or sent.
+   */
+  tryOn?: TryOnLoad;
 };
 
 export type MountedShop = {
@@ -166,6 +176,11 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
   const cleanup: (() => void)[] = [];
   const words = shopWords(options.words);
   const sheetTitle = options.title ?? words.title;
+  /** The try-on's part (./tryon.ts, a chunk of its own: loaded with import() at the first Looks, only when the game gives `tryOn`), and its place. */
+  let tryOn: TryOnPanel | null = null;
+  let tryOnLoading: Promise<TryOnPanel | null> | null = null;
+  let tryOnFailed = false;
+  let side: HTMLElement | null = null;
 
   const title = h("h2", { class: "n133s-title", tabindex: "-1" });
   const closeKey = h("button", { class: "n133s-close", type: "button", "aria-label": words.close }, icon("close", 20));
@@ -202,6 +217,8 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
   const show = (heading: string, content: Node) => {
     stopTimers();
     title.textContent = heading;
+    // The try-on's layout (a large stage, beside the list on a wide screen) is the looks' only: Buy and the pay sheet keep the sheet's own size.
+    dialog.classList.toggle("n133s-sheet-tryon", content instanceof HTMLElement && content.classList.contains("n133s-tryon"));
     body.replaceChildren(content);
     body.scrollTop = 0;
     if (!isOpen()) {
@@ -217,6 +234,7 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
   };
   const closed = () => {
     stopTimers();
+    tryOn?.stop();
     key?.setAttribute("aria-expanded", "false");
     options.onClose?.();
     const back = opener;
@@ -240,6 +258,21 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
     }
   };
   dialog.addEventListener("close", closed);
+  // Escape closes Up close first, and the sheet only at the next Escape (the focus goes back to the key that opened Up close).
+  dialog.addEventListener(
+    "keydown",
+    (e) => {
+      if (e.key === "Escape" && tryOn?.isUpClose) {
+        e.preventDefault();
+        e.stopPropagation();
+        tryOn.leaveUpClose();
+      }
+    },
+    true,
+  );
+  dialog.addEventListener("cancel", (e) => {
+    if (tryOn?.leaveUpClose()) e.preventDefault();
+  });
   dialog.addEventListener("click", (e) => {
     if (e.target === dialog) close();
   });
@@ -248,11 +281,39 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
 
   const ownedNow = () => new Set([...options.owned(), ...bought]);
 
+  /** The try-on's part of the sheet: made once, at the first Looks (the stage keeps its canvas while the list beside it is drawn again). */
+  function tryOnPart(): Promise<TryOnPanel | null> {
+    const load = options.tryOn;
+    if (!load || tryOnFailed) return Promise.resolve(null);
+    side ??= h("div", { class: "n133s-tryon-side" });
+    const host = side;
+    tryOnLoading ??= import("./tryon.js").then(
+      ({ tryOnPanel }) =>
+        (tryOn = tryOnPanel({
+      host,
+      load,
+      words: options.words,
+      worn: () => looks.filter((l) => options.worn(l)),
+      owns: (l) => l.priceUsd === 0 || ownedNow().has(l.id),
+      still: (l, size) => (l ? itemPicture(l.name, size, previewOf({ kind: "look", look: l }), "n133s-stage-pic") : h("span", { class: "n133s-pic n133s-stage-pic" })),
+      buy: (l) => void buy(l, false),
+      changed: () => showLooks(),
+      upClose: (open) => dialog.classList.toggle("n133s-upclose-on", open),
+        })),
+      () => {
+        // The chunk did not load (offline): the sheet goes on as before, with no stage.
+        tryOnFailed = true;
+        if (isOpen() && side && body.contains(side)) showLooks();
+        return null;
+      },
+    );
+    return tryOnLoading;
+  }
+
   function showLooks() {
     if (destroyed) return;
-    show(
-      sheetTitle,
-      looksView({
+    const trying = !!options.tryOn && !tryOnFailed;
+    const list = looksView({
         looks,
         owned: ownedNow(),
         signedIn: options.signedIn(),
@@ -277,8 +338,30 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
           showLooks();
           body.querySelector<HTMLElement>('.n133s-tab[aria-selected="true"]')?.focus();
         },
-      }),
-    );
+        tryOn: trying ? { tried: (l) => tryOn?.tried(l) ?? false, toggle: (l) => (tryOn ? tryOn.toggle(l) : void tryOnPart().then((p) => p?.toggle(l))) } : undefined,
+      });
+    if (!trying) return show(sheetTitle, list);
+    // The stage stays in the page while the list beside it is drawn again: its canvas, its turn and the focus on its keys stay.
+    const holder = body.querySelector<HTMLElement>(":scope > .n133s-tryon > .n133s-tryon-list");
+    if (holder && isOpen() && title.textContent === sheetTitle) {
+      const was = globalThis.document?.activeElement as HTMLElement | null;
+      // a look's id is lowercase letters, digits and dashes (checkLooks): safe in a selector as it is
+      const look = holder.contains(was) ? was?.getAttribute("data-look") : null;
+      const kind = was?.classList.contains("n133s-try") ? ".n133s-try" : ".n133s-btn";
+      holder.replaceChildren(list);
+      if (look) holder.querySelector<HTMLElement>(`${kind}[data-look="${look}"]`)?.focus({ preventScroll: true });
+      tryOn?.refresh();
+      return;
+    }
+    side ??= h("div", { class: "n133s-tryon-side" });
+    const at = side;
+    show(sheetTitle, h("div", { class: "n133s-tryon" }, at, h("div", { class: "n133s-tryon-list" }, list)));
+    void tryOnPart().then((p) => {
+      if (!p || !isOpen() || !body.contains(at)) return;
+      p.start();
+      // the rows say what is tried on (a press before the chunk came is in)
+      showLooks();
+    });
   }
 
   /** The item's picture for the pay sheet: the game's `preview`, else its `picture(look)`, else the kit's swatch (a play: none: its first letter). */
@@ -314,7 +397,7 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
       h(
         "div",
         { class: "n133s-offer" },
-        h("div", { class: "n133s-stage" }, itemPicture(look.name, 176, previewOf(item), "n133s-offer-pic")),
+        h("div", { class: "n133s-stage" }, itemPicture(look.name, 240, previewOf(item), "n133s-offer-pic")),
         h("p", { class: "n133s-pay-what" }, words.lookLine(look.name)),
         h("button", { class: "n133s-btn n133s-buy n133s-wide n133s-offer-key", type: "button", onclick: () => void buy(look, false) }, words.buy(usdText(look.priceUsd))),
         h("button", { class: "n133s-btn n133s-wide", type: "button", onclick: () => showLooks() }, words.back),
@@ -527,6 +610,7 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
     },
     refresh() {
       if (isOpen() && body.querySelector(".n133s-looks-view")) showLooks();
+      else tryOn?.refresh();
     },
     get isOpen() {
       return isOpen();

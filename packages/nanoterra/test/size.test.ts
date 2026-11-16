@@ -43,7 +43,12 @@ const PATHS: [string, string[], number, boolean][] = [
   // 0.16.0: 13.1 kB, the pay sheet of design A (the item's picture, the main way by the device, the success that stays, the offer step, the trust line,
   // the ended order without its ways to pay); the design note estimated about +1.4 kB.
   // 0.17.1: 13.6 kB (13,550 B here), the QR code's versions 11 to 40 and level L (a wallet's sign-in link; +0.32 kB: the tables are four strings of 40 characters).
-  ["@nano133/nanoterra/shop/panel", ["shop/panel/index.js"], 13_700, false],
+  // 0.18.0: 14.3 kB (14,325 B here, +0.78 kB): the try-on's hook (the layout that keeps the stage while the list is drawn again, the Try on keys of the
+  // rows, Escape and Up close's switch, three words). The try-on's sheet part (./tryon.js) and the viewer are chunks of their own (below, and the next row).
+  ["@nano133/nanoterra/shop/panel", ["shop/panel/index.js"], 14_500, false],
+  // 0.18.0: the try-on stage (Three.js, an optional peer): loaded by the game's `tryOn` when the sheet opens. The kit's character is a chunk of its own (below).
+  // 6.3 kB here (6,289 B): the renderer, the pointer, the wheel, the keys and the framing (inspect.ts).
+  ["@nano133/nanoterra/shop/viewer", ["shop/viewer/index.js"], 6_600, true],
   // The admin's sign-in: the server part without @nano133/signin (an optional peer, outside the bundle), the stores, and the panel with its QR code.
   // Since 0.12.0 each holds the owner's passkeys too (the routes, the link's store methods, the Passkey tile and the Owner passkeys card; the passkey code itself stays outside).
   ["@nano133/nanoterra/admin-signin", ["admin-signin/index.js"], 7_300, false],
@@ -58,11 +63,18 @@ const PATHS: [string, string[], number, boolean][] = [
   ["@nano133/nanoterra/connect/node", ["connect/node.js"], CONNECT_NODE_CEILING, false],
 ];
 /** The emote clips: their own chunk, loaded on the first emote (never in a path's bundle above: "./clips.js" stays outside). */
-const LAZY: [string, string, number][] = [["the emote clips (loaded on the first emote)", "emotes/clips.js", 21_000]];
+/** The name, the file, the ceiling (gzip), whether it has a default export, and the files it shares with the path that loads it (a bundler keeps those in that path's chunk). */
+const LAZY: [string, string, number, boolean, string[]?][] = [
+  ["the emote clips (loaded on the first emote)", "emotes/clips.js", 21_000, true],
+  // 0.18.0: the sheet's try-on part (what is tried on, the stage's box, Up close, the tray), loaded by mountShop only when the game gives `tryOn`.
+  ["the sheet's try-on part (loaded with tryOn)", "shop/panel/tryon.js", 3_000, false, ["./pay.js", "./words.js", "../../admin/panel/dom.js", "../../looks/look.js"]],
+  // 0.18.0: the kit's character as a try-on body (the viewer with no `body`): the character's builder (shared with /character in a game that has it) and the hats.
+  ["the viewer's kit character (loaded with no body)", "shop/viewer/kit.js", 24_500, false, ["../../looks/look.js"]],
+];
 
-async function bundle(files: string[], whole = true, withDefault = false) {
+async function bundle(files: string[], whole = true, withDefault = false, shared: string[] = []) {
   const contents = files.map((f) => `export * from ${JSON.stringify(dist + f)};${withDefault ? ` export { default } from ${JSON.stringify(dist + f)};` : ""}`).join("\n");
-  const r = await esbuild!.build({ stdin: { contents, resolveDir: dist }, bundle: true, minify: true, format: "esm", external: ["three", "./clips.js", "@nano133/signin"], write: false, treeShaking: !whole, logLevel: "silent" });
+  const r = await esbuild!.build({ stdin: { contents, resolveDir: dist }, bundle: true, minify: true, format: "esm", external: ["three", "./clips.js", "./tryon.js", "./kit.js", "@nano133/signin", ...shared], write: false, treeShaking: !whole, logLevel: "silent" });
   return r.outputFiles[0].text;
 }
 
@@ -78,8 +90,8 @@ test("each path's size is under its ceiling, and the paths with no Three.js do n
   }
   const all = gzipSync(await bundle(PATHS.slice(0, 5).flatMap(([, f]) => f)), { level: 9 }).length;
   rows.push(`${"all five paths".padEnd(40)} ${String(all).padStart(7)} B gzip (the shared record counted once)`);
-  for (const [name, file, ceiling] of LAZY) {
-    const text = await bundle([file], true, true);
+  for (const [name, file, ceiling, withDefault, shared] of LAZY) {
+    const text = await bundle([file], true, withDefault, shared);
     const gz = gzipSync(text, { level: 9 }).length;
     rows.push(`${name.padEnd(40)} ${String(text.length).padStart(7)} B minified ${String(gz).padStart(6)} B gzip`);
     assert.ok(gz <= ceiling, `${name} is ${gz} B gzipped, over its ceiling of ${ceiling} B`);

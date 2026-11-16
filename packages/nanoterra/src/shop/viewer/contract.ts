@@ -34,7 +34,7 @@ export type TryOnStage = {
 };
 
 /**
- * A viewer: the kit's (`() => import("@nano133/nanoterra/shop/viewer")`, or `tryOnViewer({ body })` from it) or the game's own. `mount` puts
+ * A viewer: the kit's (`() => import(VIEWER)`, or `tryOnViewer({ body })` from it) or the game's own. `mount` puts
  * a canvas in `box` and answers the stage, or throws (no WebGL): the sheet then shows the look's still picture, large.
  */
 export type TryOnViewer = {

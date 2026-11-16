@@ -1691,7 +1691,7 @@ trust line are the kit's. A creator gives three hooks, the offer step's switch a
 ```ts
 const shop = mountShop(el, {
   ...options,
-  // the item's picture at a size in CSS px (64 beside its line, 128 on the success, 176 on the offer); null: picture(look), else the kit's swatch
+  // the item's picture at a size in CSS px (64 beside its line, 128 on the success, 240 on the offer); null: picture(look), else the kit's swatch
   preview: (item, size) => (item.kind === "look" ? myLookPicture(item.look, size) : myRoundPicture(item.play, size)),
   // the success's key: the sheet closes, then run() runs. Null: "Keep playing", which only closes
   next: (item) => (item.kind === "play" ? { label: "Play now", run: () => startRound(item.play.id) } : null),

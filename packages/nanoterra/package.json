@@ -56,6 +56,7 @@
     "./shop/firestore": { "types": "./dist/shop/adapters/firestore.d.ts", "import": "./dist/shop/adapters/firestore.js" },
     "./shop/worker": { "types": "./dist/shop/worker.d.ts", "import": "./dist/shop/worker.js" },
     "./shop/panel": { "types": "./dist/shop/panel/index.d.ts", "import": "./dist/shop/panel/index.js" },
+    "./shop/viewer": { "types": "./dist/shop/viewer/index.d.ts", "import": "./dist/shop/viewer/index.js" },
     "./shop/style.css": "./src/shop/panel/style.css",
     "./connect": { "types": "./dist/connect/index.d.ts", "import": "./dist/connect/index.js" },
     "./connect/worker": { "types": "./dist/connect/worker.d.ts", "import": "./dist/connect/worker.js" },

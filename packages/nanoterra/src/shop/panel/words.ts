@@ -11,7 +11,26 @@
 
 import { usdText, type Hat } from "../../looks/look.js";
 
-export type ShopWords = {
+/** The try-on stage's own words (its defaults are in ./tryon.ts, TRYON_WORDS: that chunk loads only with `tryOn`). */
+export type TryOnWords = {
+  /** The key that opens the large stage, and the same key while it is open. */
+  upClose: string;
+  backToList: string;
+  /** The tray's key that takes a tried look off (the stage shows what is worn again). */
+  takeOff: string;
+  /** The stage's name for a screen reader: what the character wears and what it tries on (look names). */
+  stageLabel: (worn: readonly string[], trying: readonly string[]) => string;
+  /** How to use the stage, for a screen reader (read once, with the stage). */
+  stageHint: string;
+  /** The tray's line: how many looks are tried on that the player does not own, and their total ("$0.30"). */
+  trayLine: (count: number, total: string) => string;
+  zoomIn: string;
+  zoomOut: string;
+  whole: string;
+  turnAround: string;
+};
+
+export type ShopWords = TryOnWords & {
   // ---- the looks sheet ----
   /** The sheet's title, the Looks key's word and the sheet's name for a screen reader. The option `title` wins over it. */
   title: string;
@@ -41,6 +60,13 @@ export type ShopWords = {
   looksNote: string;
   /** Under the list and at Buy, while nobody is signed in. */
   signInFirst: string;
+
+  // ---- the try-on (`tryOn`; since 0.18.0) ----
+  /** A look's try-on key: its visible word, and its name for a screen reader with the look's name. */
+  tryOn: string;
+  tryOnLook: (look: string) => string;
+  /** Added to the line of a look that is tried on now. The stage's own words: `TryOnWords`. */
+  tryingOn: string;
 
   // ---- Buy ----
   /** The title of Buy and of the pay sheet (since 0.16.0 the look's name alone). */
@@ -149,7 +175,7 @@ export const COINGECKO_CREDIT = "Powered by CoinGecko";
  */
 export const TRUST_LINE = "Paid straight to the creator. No network fee.";
 
-export const SHOP_WORDS: ShopWords = {
+export const SHOP_WORDS: Omit<ShopWords, keyof TryOnWords> = {
   title: "Looks",
   close: "Close",
   kinds: "Kinds of looks",
@@ -165,6 +191,10 @@ export const SHOP_WORDS: ShopWords = {
   buy: (price) => `Buy ${price}`,
   looksNote: "Looks never change play. Pay in Nano, straight to the creator.",
   signInFirst: "Sign in first to buy a look.",
+
+  tryOn: "Try on",
+  tryOnLook: (look) => `Try on ${look}`,
+  tryingOn: "trying on",
 
   buyTitle: (look) => look,
   making: "Making your order…",
@@ -220,10 +250,10 @@ export const SHOP_WORDS: ShopWords = {
 };
 
 /** The game's words over the defaults. A key the game leaves out, or gives as undefined, keeps its default. */
-export function shopWords(over?: Partial<ShopWords>): ShopWords {
-  const out = { ...SHOP_WORDS };
-  for (const [k, v] of Object.entries(over ?? {})) if (v !== undefined && k in SHOP_WORDS) (out as Record<string, unknown>)[k] = v;
-  return out;
+export function shopWords(over?: Partial<ShopWords>, defaults: Partial<ShopWords> = SHOP_WORDS): ShopWords {
+  const out = { ...SHOP_WORDS, ...defaults };
+  for (const [k, v] of Object.entries(over ?? {})) if (v !== undefined && k in out) (out as Record<string, unknown>)[k] = v;
+  return out as ShopWords;
 }
 
 /** The price's line: the game's words, with "Powered by CoinGecko" added when CoinGecko is a source and the words leave it out. */

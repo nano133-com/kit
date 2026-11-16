@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Try-on demo</title>
+    <link rel="stylesheet" href="./style.css" />
+    <style>
+      :root { color-scheme: light dark; }
+      body { margin: 0; min-height: 100vh; font: 16px/1.4 system-ui, sans-serif; background: #dfe8f1; color: #16202e; }
+      @media (prefers-color-scheme: dark) { body { background: #0b1118; color: #e7edf5; } }
+      main { display: grid; gap: 12px; padding: 16px; }
+      h1 { margin: 0; font-size: 20px; }
+      p { margin: 0; }
+      .row { display: flex; flex-wrap: wrap; gap: 8px; }
+      button.demo { min-height: 48px; padding: 0 16px; border-radius: 999px; border: 1px solid #8894a6; font: inherit; background: #fff; color: #16202e; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Try-on demo</h1>
+      <p>A primitive character (boxes and spheres) with a hat, a scarf and a pack. No game, no money: the shop runs in this page in test mode.</p>
+      <div class="row" id="keys"></div>
+      <div id="shop"></div>
+    </main>
+    <script type="module" src="./demo.js"></script>
+  </body>
+</html>
