@@ -95,7 +95,8 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/shop` | the shop's rules and routes, the payment scan, a memory store, the CSP lists (server code; since 0.9.0); the plays and `findUnmatched` (since 0.15.0) | no | 9.1 kB (all), 7.1 kB (`createShopHandler` alone); 12.7 kB (all) with the plays |
 | `@nano133/nanoterra/shop/d1`, `/shop/firestore` | the shop's store on D1 (the starter's tables, `/shop/d1.sql`; the plays' migration `/shop/d1-plays.sql`, since 0.15.0) or Firestore: `createD1Shop`, `createFirestoreShop` (since 0.9.0) | no | 2.4 kB, 2.2 kB |
 | `@nano133/nanoterra/shop/worker` | the shop for a Worker with D1, from the starter's settings: `createShop` (since 0.9.0) | no | 10.0 kB (with the D1 store and Turnstile); 14.3 kB with the plays |
-| `@nano133/nanoterra/shop/panel` | the Looks key, the looks sheet and the pay sheet with its own QR code: `mountShop`, and its stylesheet `@nano133/nanoterra/shop/style.css` (since 0.9.0); the Play key and the "18 or older" step (since 0.15.0) | no | 10.0 kB + 2.5 kB of CSS (gzip; 8.5 kB minified); 11.2 kB with the plays; 13.6 kB with the pay sheet of 0.16.0 and the QR code's 40 versions (0.17.1) |
+| `@nano133/nanoterra/shop/panel` | the Looks key, the looks sheet and the pay sheet with its own QR code: `mountShop`, and its stylesheet `@nano133/nanoterra/shop/style.css` (since 0.9.0); the Play key and the "18 or older" step (since 0.15.0) | no | 10.0 kB + 2.5 kB of CSS (gzip; 8.5 kB minified); 11.2 kB with the plays; 13.6 kB with the pay sheet of 0.16.0 and the QR code's 40 versions (0.17.1); 14.3 kB with the try-on's hook (0.18.0) |
+| `@nano133/nanoterra/shop/viewer` | the looks sheet's try-on stage (`mountShop`'s `tryOn`): `mount` (the kit's character), `tryOnViewer({ body })` (the game's), the framing's numbers (since 0.18.0) | yes (an optional peer) | 6.3 kB; the kit's character for it is a chunk of its own (20.6 kB), loaded only with no `body` |
 | `@nano133/nanoterra/shop/conformance` | the shop's money rules as test cases, for a store a game writes itself (since 0.9.0) | no | n/a |
 | `@nano133/nanoterra/connect` | Sign in from Nanoterra: `createConnect` (the four routes on Web Request/Response), the screens' words, `createMemoryOnce` (server code; since 0.17.0) | no | 11.0 kB (with the record's lists and the address check); a page loads none |
 | `@nano133/nanoterra/connect/worker`, `/connect/node` | the Worker's adapter (`createWorkerConnect`: the env's settings, D1's `hits`) and Node's (`createNodeConnect`, `webRequest`, `sendResponse`, `connectMiddleware`) (since 0.17.0) | no | 11.0 kB, 11.4 kB |
@@ -1459,6 +1460,7 @@ one puts a key on the server.)
 | `@nano133/nanoterra/shop/firestore` | the store on Firestore (a small interface, no Firebase dependency): `createFirestoreShop` |
 | `@nano133/nanoterra/shop/worker` | the shop for a Worker with D1, set up from the starter's settings: `createShop(env, { catalogue, player })` |
 | `@nano133/nanoterra/shop/panel`, `/shop/style.css` | the Looks key, the looks sheet and the pay sheet (QR code, test stamp), in plain DOM: `mountShop` |
+| `@nano133/nanoterra/shop/viewer` | the looks sheet's try-on stage (Three.js), loaded by `mountShop`'s `tryOn` when the sheet opens (since 0.18.0) |
 | `@nano133/nanoterra/shop/conformance` | the money rules as test cases, for a store a game writes itself |
 
 ### On a Worker with D1 (the starter's way)
@@ -1744,6 +1746,78 @@ const shop = mountShop(el, {
 
 A game's display face with one weight (Lilita One) is never made bold by the browser (`font-synthesis: none`). A game's CSS that hides a part of the
 pay sheet hides a part of a payment: do not.
+
+### The try-on stage (`/shop/viewer`; since 0.18.0)
+
+Wes, 2026-11-16: "when I'm trying on an item before I buy it, there's a way to see my character model up close with that item ... It should be larger
+and inspectable." With `tryOn`, the looks sheet shows a large stage of the player's character over the list (beside it on a wide screen). Each look's
+picture and name become one **Try on** key. The stage frames the tried item whole, as large as the stage allows. The player turns it all the way
+round, zooms, and opens **Up close**. The tray under the stage holds what is tried on, its price, **Take off** and **Buy**.
+
+Turn it on (the kit's own character, no hook):
+
+```ts
+const shop = mountShop(el, {
+  ...options,                                                    // looks, owned, signedIn, worn, wear, ...
+  tryOn: () => import("@nano133/nanoterra/shop/viewer"),         // loaded when the sheet first opens; needs three (an optional peer)
+});
+```
+
+With the game's own character, give a **body**: the same shape as `createLookPreview`'s body, and one optional part for the framing:
+
+```ts
+tryOn: async () => (await import("@nano133/nanoterra/shop/viewer")).tryOnViewer({
+  body: () => ({
+    object: avatar.group,                                         // a THREE.Object3D: feet at y = 0, facing +Z
+    dress: (look) => avatar.wear(look),                           // ONE look, in its wear slot (a promise waits for a model)
+    part: (look) => avatar.thingOf(look),                         // optional: the item's object (or a THREE.Box3); null: the whole character
+    update: (dt) => avatar.animate(dt),                           // optional: the idle pose
+    dispose: () => avatar.release(),
+  }),
+}),
+```
+
+- **One renderer while the sheet is open.** The viewer makes one small WebGL renderer in the stage when the sheet opens, and frees it (and the body)
+  when the sheet closes. It never draws with the game's renderer: a DOM sheet over the game needs its own canvas.
+- **The body is made for each stage.** `dress(look)` is called for the looks the player wears (the outfit first), then for the tried ones. A tried
+  look that is taken off, with nothing worn in its slot, makes a new body. Keep `dress` to drawing: it never saves or sends a look.
+- **The framing comes from the item's real box** on this character and the stage's real shape (no fixed numbers per slot). `part(look)` gives the
+  item's object: the stage measures its vertices, skinned as drawn, hidden meshes too. A hat and a scarf read best with the head: add a hidden
+  head-sized sphere to the object (the kit's character does this). A round item (a hat) is framed whole at every turn; another item (a pack, a tool)
+  from the side the stage shows (a pack from the back). The item keeps 8% of the stage clear on each side. A tiny item gets the closest view.
+- **The fallback.** With no `tryOn` the sheet is as before (no stage, no Three.js); the offer step's still picture is 240 px (it was 176). With
+  `tryOn` and no WebGL (or a viewer that does not load), the stage shows the look's still picture, large (`preview`, else `picture`, else the swatch).
+- **What loads.** `/shop/panel` grows 0.78 kB gzip for every game. The sheet's try-on part (1.7 kB gzip), the viewer (6.3 kB) and the kit's
+  character for it (20.6 kB, shared with `/character` in a game that has it) are chunks of their own, loaded only with `tryOn`.
+- **A game with its own looks sheet** (it calls `buy(lookId)`) can mount the viewer in its own box: `const v = (await import("@nano133/nanoterra/shop/viewer")).tryOnViewer({ body })`,
+  `const stage = await v.mount(box, { calm, onTap, words })`, then `stage.show({ worn, tried, focus })` on each change and `stage.dispose()` on close
+  (`TryOnViewer` in `/shop/panel`'s types). Or move to the kit's sheet: it has the wear slots' tabs, `picture`, `takeOff` and the try-on.
+- **A game's own viewer** (another engine) passes the same contract: `tryOn: async () => ({ mount: (box, ctx) => myStage(box, ctx) })`.
+
+The controls (the stage is a focusable group named "Your character, wearing Classic, trying on Mint Cap"):
+
+| Action | Touch | Mouse | Keyboard (the stage focused) |
+|---|---|---|---|
+| Turn | drag sideways | drag | Left and Right (Shift: a bigger step) |
+| Zoom | pinch; the + and - keys | the wheel (beside the list), a trackpad's pinch; the keys | + and - |
+| Move up or down (zoomed in) | drag up or down (Up close, or beside the list) | drag up or down | Up and Down |
+| The whole character | the person key | the person key | Home or 0 |
+| Turn to the back | the turn key | the turn key | the turn key |
+| Up close | the Up close key, or a tap on the stage | the key, or a click | Enter or Space on the stage, or the key |
+| Leave Up close | Back to the list | Back to the list | Escape (the next Escape closes the sheet) |
+
+- On a phone held upright the stage stays at the top of the list; a vertical swipe on it scrolls the list. Up close gives it the whole screen.
+- The idle turn runs only until the player touches the stage, and never with reduced motion (the device's, or the options' "Less motion"); with
+  reduced motion every change of view is a cut.
+- The focus stays in the sheet: a key at a limit says so with `aria-disabled` and keeps the focus; Take off moves the focus to the stage; Escape in
+  Up close gives the focus back to the key (or the stage) that opened it. A game's walk keys never act behind the sheet.
+- Every key is 44 px or more; the colours are the `--n133-*` tokens (`--n133-stage` behind the character), dark and light.
+- Every word is the game's through `words`: `tryOn`, `tryOnLook`, `tryingOn`, `upClose`, `backToList`, `takeOff`, `stageLabel`, `stageHint`,
+  `trayLine`, `zoomIn`, `zoomOut`, `whole`, `turnAround`.
+- **Money is untouched.** A tried look is never worn (`wear` is not called), never saved and never sent: no request leaves the page for a try-on.
+  The tray's Buy is the sheet's own Buy (the same order, the pay sheet), with no offer step (the stage showed the look).
+- A demo with a character of boxes and spheres (a hat, a scarf, a pack): `node test/tryon-demo/serve.mjs 18911`, then `http://127.0.0.1:18911/`
+  (`?body=kit` for the kit's character, `?theme=dark`).
 
 ### The page's Content Security Policy
 

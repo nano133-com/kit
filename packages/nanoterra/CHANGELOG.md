@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.18.0 (unreleased)
+
+- **New: the try-on stage** (`mountShop`'s `tryOn`; the new path `@nano133/nanoterra/shop/viewer`; README "The try-on stage"). Wes, 2026-11-16: "when
+  I'm trying on an item before I buy it, there's a way to see my character model up close with that item ... It should be larger and inspectable."
+  With `tryOn: () => import("@nano133/nanoterra/shop/viewer")` the looks sheet shows a large stage of the player's character over the list (beside it
+  on a wide screen). Each look's picture and name become one Try on key; the tray holds what is tried on, its price, Take off and Buy. The player
+  turns the character all the way round (drag, the arrows, the turn key), zooms (pinch, the wheel, + and -), moves up and down when zoomed in, shows
+  the whole character (Home), and opens Up close (the phone's whole screen; a larger sheet and stage on a wide screen, the list beside it).
+- **The framing comes from the item's real box** on this character and the stage's real shape: the tried item whole, with 8% of the stage clear on
+  each side, as large as the stage allows. A round item (a hat) is framed whole at every turn, by the radius of its real vertices; another item
+  from the side the stage shows (a pack from the back). The pure numbers (`src/shop/viewer/inspect.ts`: the framing, the zoom limits, the keyboard
+  steps, the wheel, the pinch, the idle turn's rule) have no Three.js, and their tests check each framing through a real three.js camera.
+- **The game gives the 3D, the kit gives the viewer.** `tryOnViewer({ body })` takes the same body as `createLookPreview` (`object`, `dress`,
+  `dispose`), with `part(look)` (what to frame) and `update(dt)`, both optional. With no `body`, the kit's character: the player's `record`, an
+  outfit's colour on the shirt and the four hats of looks.json. A game's own viewer passes the same contract (`TryOnViewer`: `mount(box, context)`
+  answers `show` and `dispose`).
+- **Access and motion.** The stage is a focusable group named for what the character wears and tries on. Escape closes Up close before the sheet,
+  and the focus goes back to the key (or the stage) that opened it. A key at a limit says so (`aria-disabled`) and keeps the focus; Take off moves
+  the focus to the stage: the focus never falls to the page, where a game's walk keys act. No idle turn and no camera move with reduced motion
+  (the device's, or the options' "Less motion"). Every key 44 px or more; the `--n133-*` tokens, dark and light.
+- **Money is untouched.** A tried look is never worn, saved or sent: no request, no `wear`, no storage (`test/tryon-panel.test.ts`). The tray's Buy
+  is the sheet's own Buy (the same order and pay sheet), with no offer step. No file of the shop's server, orders, prices or pay sheet changed.
+- **The fallback.** With no `tryOn` the sheet is as before. The offer step's still picture is 240 px (it was 176; `preview(item, size)` gets 240). With
+  `tryOn` and no WebGL, or a viewer that does not load, the stage shows the look's still picture, large.
+- **One renderer while the sheet is open**, freed when it closes. The sheet's try-on part (`src/shop/panel/tryon.ts`) and the kit's character for the
+  viewer (`src/shop/viewer/kit.ts`) are chunks of their own, loaded with `import()` only when needed.
+- Sizes (gzip, size test): `/shop/panel` 14.3 kB (14,325 B; ceiling 14.5 kB, was 13,550 B): the try-on's hook, +0.78 kB for every game. New:
+  `/shop/viewer` 6.3 kB (6,289 B; ceiling 6.6 kB); the sheet's try-on chunk 1.7 kB (1,721 B, beside the panel's shared files); the viewer's kit
+  character 20.6 kB (20,588 B; the character's builder, shared with `/character` in a game that has it). `/shop/style.css` grows by the stage's rules.
+- New words in `ShopWords`: `tryOn`, `tryOnLook`, `tryingOn`, and the stage's own (`TryOnWords`: `upClose`, `backToList`, `takeOff`, `stageLabel`,
+  `stageHint`, `trayLine`, `zoomIn`, `zoomOut`, `whole`, `turnAround`; their defaults are in the try-on chunk).
+- A demo page with a character of boxes and spheres (a hat, a scarf, a pack): `node test/tryon-demo/serve.mjs`.
+
+- **What a game changes to take 0.18.0: nothing.** To turn the try-on on, add `tryOn` (README, 5 lines) and have `three` installed. A game's test
+  that pinned the offer picture at 176 px sees 240.
+
 ## 0.17.1 (2026-11-15)
 
 - **Fix: the QR code holds every wallet's sign-in link** (`/shop/panel`: `qrSvg`, `qrModules`). It held versions 1 to 10 at level M (213 bytes), made

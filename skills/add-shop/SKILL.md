@@ -27,6 +27,9 @@ Follow step 13 of the package's `ai/SPEC.md` (https://nano133.com/build/nanoterr
    game's through `preview` (the item's picture), `next` (the success's key), `celebrate` (a sound),
    `offer` (false with the game's own shelf) and the `--n133-*` tokens; never style the kit's inner
    class names. `onOwned` leaves the sheet open: the success stays until its key.
+   The try-on stage (since 0.18.0), only if the owner asks: `tryOn: () => import("@nano133/nanoterra/shop/viewer")`
+   (the kit's character) or `tryOnViewer({ body })` from it (the game's; the `createLookPreview` body with
+   `part(look)`). A tried look is never worn, saved or sent.
 7. Merge `SHOP_CSP` into the game's policy with `mergeCsp`. Never replace the game's policy.
 8. Call `store.forget(player, now)` from "Delete my data".
 9. Test on a phone first (upright and sideways), then a tablet, then a computer, in TEST MODE:

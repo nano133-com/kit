@@ -252,6 +252,11 @@ import "@nano133/nanoterra/shop/style.css";
   sheet closes, then its `run`), `celebrate(item, calm)` (a sound; nothing when `calm`), `offer` (false for a game with its own shelf) and the
   `--n133-*` tokens (README "The pay sheet"). Never style the kit's inner class names, and never hide a part of the pay sheet. `onOwned` wears the
   look and leaves the sheet open: the success stays until the player presses its key.
+- The try-on stage (since 0.18.0; README "The try-on stage"): ask the owner first. With the kit's character, `tryOn: () => import("@nano133/nanoterra/shop/viewer")`;
+  with the game's own, `tryOnViewer({ body })` from the same path, where `body` is the `createLookPreview` body (`object`, `dress`, `dispose`) with
+  `part(look)` (the item's object; add a hidden head-sized sphere to a hat's or a scarf's) and `update(dt)`. Always a dynamic import, never a static one:
+  a game with no try-on must not load Three.js for the sheet. `dress` only draws: never call the game's `wear`, save or send from it. A tried look
+  is never worn, saved or sent; the tray's Buy is the sheet's own Buy. Keep the stage's keys and Escape order as they are (Escape closes Up close first).
 - The game's own words or language: `words` on `mountShop` (keys of `ShopWords`, over `SHOP_WORDS`). Keep each safety line's meaning; the stamp
   "TEST MODE: DO NOT PAY", "Powered by CoinGecko" and the trust line "Paid straight to the creator. No network fee." are not the game's to change.
   Never write "no account": a player signs in before a purchase. A shop in a modal `<dialog>` of the game's own closes it in `signIn`
@@ -259,6 +264,9 @@ import "@nano133/nanoterra/shop/style.css";
 - Merge `SHOP_CSP` into the game's Content Security Policy with `mergeCsp`; never replace the game's policy.
 - "Delete my data" calls `store.forget(player, now)`; with `waitUntil`, ask the player to try again then.
 - Tests: the shop's money tests are the package's. The game's tests read the game's own looks file and test only the game's own routes and wiring.
+
+**Check (the try-on, when on):** the network tab shows no `three` and no viewer chunk before the Looks sheet opens; Try on a hat, a scarf and a pack:
+each is whole on the stage at 390x844 and 1440x900, a pack from the back; Escape closes Up close first; the network tab shows no request for a try-on.
 
 **Check:** with `TEST_MODE` on, Buy shows the stamp, no QR code and no trust line, and the answer of `POST /api/orders` holds no `address` and no `uri`. With the owner's
 address and `TEST_MODE` off, the pay sheet shows the QR code and the exact amount; a second player gets the next step (0.0001 XNO more); another player's
@@ -382,4 +390,5 @@ secret; the token route goes to the suite's stand-in): every case passes. `GET /
   The game loads the model and frees it; the character never does.
 - Do not use a look or a record for a game's rules, a score or a payment: it is display only.
 - Do not give a look on anything but a paid order (`"paid"`), and never give one on a sign-in or a ticket alone.
+- Do not save, send or wear a tried look (the try-on stage): it is the sheet's state only, forgotten when the sheet closes.
 - Do not sell a play that pays out money, a prize of value or tickets, that is random, or that changes the odds (step 15).
