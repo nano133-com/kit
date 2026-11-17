@@ -502,3 +502,51 @@ test("a look the stage could not draw (R6): the viewer says so; the tray shows i
   assert.equal(el.querySelectorAll(".n133s-tray-failed").length, 0);
   shop.destroy();
 });
+
+test("the tray's Buy orders the look of its own row: two looks tried on, the second one's Buy orders the second one", async () => {
+  const g = game();
+  const v = fakeViewer();
+  const el = root();
+  const shop = mountShop(el, { ...g.opts, tryOn: v.load });
+  mounted.push(shop);
+  shop.open();
+  await settle();
+  tab(el, "Spade").click();
+  tryKey(el, "wood-spade").click();
+  tab(el, "Outfits").click();
+  tryKey(el, "blue-cap").click();
+  assert.equal(el.querySelectorAll(".n133s-tray-row").length, 2);
+  (el.querySelector('[data-buy="blue-cap"]') as HTMLButtonElement).click();
+  await settle();
+  assert.match(g.calls[0], /^POST \/api\/orders \{"lookId":"blue-cap","turnstile":null\}$/);
+  assert.deepEqual(g.wears, []);
+  shop.destroy();
+});
+
+test("a /shop/tryon.css that comes late: no stage at this open, the stage at the next open of the same sheet", async () => {
+  const css = document.getElementById("tryon-css")!;
+  css.remove();
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const g = game();
+    const v = fakeViewer();
+    const el = root();
+    const shop = mountShop(el, { ...g.opts, tryOn: v.load });
+    mounted.push(shop);
+    shop.open();
+    await settle();
+    assert.equal(el.querySelector(".n133s-tryon"), null, "no stage without the stylesheet");
+    assert.equal(v.log.loads, 0);
+    shop.close();
+    document.head.append(css);
+    shop.open();
+    await settle();
+    assert.ok(el.querySelector(".n133s-tryon"), "the stage, now that the stylesheet is on the page");
+    assert.equal(v.log.loads, 1, "the viewer loads");
+    shop.destroy();
+  } finally {
+    console.warn = warn;
+    if (!css.isConnected) document.head.append(css);
+  }
+});

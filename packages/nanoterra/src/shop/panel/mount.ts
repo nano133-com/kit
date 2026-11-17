@@ -180,6 +180,8 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
   let tryOn: TryOnPanel | null = null;
   let tryOnLoading: Promise<TryOnPanel | null> | null = null;
   let tryOnFailed = false;
+  /** No /shop/tryon.css on the page at this open: no stage until the sheet opens again (a stylesheet that came late is read then). */
+  let tryOnUnstyled = false;
   let side: HTMLElement | null = null;
 
   const title = h("h2", { class: "n133s-title", tabindex: "-1" });
@@ -239,6 +241,7 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
   const closed = () => {
     stopTimers();
     tryOn?.stop();
+    tryOnUnstyled = false;
     key?.setAttribute("aria-expanded", "false");
     options.onClose?.();
     const back = opener;
@@ -316,7 +319,7 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
 
   function showLooks() {
     if (destroyed) return;
-    const trying = !!options.tryOn && !tryOnFailed;
+    const trying = !!options.tryOn && !tryOnFailed && !tryOnUnstyled;
     const list = looksView({
         looks,
         owned: ownedNow(),
@@ -363,7 +366,7 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
     void tryOnPart().then((p) => {
       if (!p || !isOpen() || !body.contains(at)) return;
       // No /shop/tryon.css on the page: the sheet goes on as without `tryOn` (the console names the line to add).
-      if (!p.start()) tryOnFailed = true;
+      if (!p.start()) tryOnUnstyled = true;
       // the rows say what is tried on (a press before the chunk came is in)
       showLooks();
     });

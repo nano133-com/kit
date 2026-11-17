@@ -81,7 +81,7 @@ export function makeShop(el: HTMLElement, looks: Look[], me: { owned: string[]; 
     signedIn: () => !!me.address,
     worn: (l) => me.worn.get(wearOf(l)) === l.id,
     wear: (l) => void me.worn.set(wearOf(l), l.id),
-    // the reader's 15 lines (Sunk Cost), whole: the viewer and the game's character load when the sheet first opens
+    // the viewer and the game's character load when the sheet first opens
     tryOn: async () => {
       const { tryOnViewer } = await import("@nano133/nanoterra/shop/viewer");
       const ramp = toonRamp();

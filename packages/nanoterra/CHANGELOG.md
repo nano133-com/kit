@@ -17,7 +17,7 @@
   mountShop(el, { ...options, tryOn: () => import("@nano133/nanoterra/shop/viewer") });
   ```
 
-  Without `tryon.css` the sheet goes on with no stage (as without `tryOn`; no viewer loads), and the console names the line to add, once a page.
+  Without `tryon.css` the sheet goes on with no stage (as without `tryOn`; no viewer loads), and the console names the line to add, once a page. The sheet looks again at the next open (a stylesheet that came late).
 - **A game without `tryOn` pays no CSS:** `/shop/style.css` is the same file as in 0.17.1, and the sheet's DOM is the 0.17.1 DOM (the offer
   step's still picture stays 176 px). Its `/shop/panel` script grows by the try-on's hook: +0.70 kB brotli (`mountShop` alone; +0.80 kB gzip by the
   size test). It loads no Three.js, no viewer, no try-on chunk and no try-on CSS.
