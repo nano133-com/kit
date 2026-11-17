@@ -254,7 +254,8 @@ import "@nano133/nanoterra/shop/style.css";
   look and leaves the sheet open: the success stays until the player presses its key.
 - The try-on stage (since 0.18.0; README "The try-on stage"): ask the owner first. With the kit's character, `tryOn: () => import("@nano133/nanoterra/shop/viewer")`;
   with the game's own, `tryOnViewer({ body })` from the same path, where `body` is the `createLookPreview` body (`object`, `dress`, `dispose`) with
-  `part(look)` (the item's object; add a hidden head-sized sphere to a hat's or a scarf's) and `update(dt)`. Always a dynamic import, never a static one:
+  `part(look)` (the item's object; add a hidden head-sized sphere to a hat's or a scarf's) and `update(dt)`; `examples/own-character.ts` in the
+  package is a whole, type-checked file in this shape. Use the kit's sheet; a game's own sheet does all the work of `examples/own-sheet.ts`. Always a dynamic import, never a static one:
   a game with no try-on must not load Three.js for the sheet. Add `import "@nano133/nanoterra/shop/tryon.css";` after the shop's `style.css` (the
   stage's rules are only there; without it the sheet shows no stage and the console names this line). `dress` only draws: never call the game's `wear`, save or send from it. A tried look
   is never worn, saved or sent; the tray's Buy is the sheet's own Buy. Keep the stage's keys and Escape order as they are (Escape closes Up close first).

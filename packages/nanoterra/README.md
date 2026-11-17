@@ -1769,7 +1769,9 @@ const shop = mountShop(el, {
 Without `tryon.css` the sheet goes on with no stage (as without `tryOn`), loads no viewer, and the console says once:
 `the try-on stage needs its stylesheet. Add this line after the shop's style.css: import "@nano133/nanoterra/shop/tryon.css";`.
 
-With the game's own character, give a **body**: the same shape as `createLookPreview`'s body, and one optional part for the framing:
+With the game's own character, give a **body**: the same shape as `createLookPreview`'s body, and two optional parts (the framing, the idle
+pose). `examples/own-character.ts` is a whole game file in this shape (its own toon character, a hat framed up close), and the package's tests
+type-check it. The body's parts:
 
 ```ts
 tryOn: async () => (await import("@nano133/nanoterra/shop/viewer")).tryOnViewer({
