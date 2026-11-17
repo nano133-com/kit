@@ -95,8 +95,8 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/shop` | the shop's rules and routes, the payment scan, a memory store, the CSP lists (server code; since 0.9.0); the plays and `findUnmatched` (since 0.15.0) | no | 9.1 kB (all), 7.1 kB (`createShopHandler` alone); 12.7 kB (all) with the plays |
 | `@nano133/nanoterra/shop/d1`, `/shop/firestore` | the shop's store on D1 (the starter's tables, `/shop/d1.sql`; the plays' migration `/shop/d1-plays.sql`, since 0.15.0) or Firestore: `createD1Shop`, `createFirestoreShop` (since 0.9.0) | no | 2.4 kB, 2.2 kB |
 | `@nano133/nanoterra/shop/worker` | the shop for a Worker with D1, from the starter's settings: `createShop` (since 0.9.0) | no | 10.0 kB (with the D1 store and Turnstile); 14.3 kB with the plays |
-| `@nano133/nanoterra/shop/panel` | the Looks key, the looks sheet and the pay sheet with its own QR code: `mountShop`, and its stylesheet `@nano133/nanoterra/shop/style.css` (since 0.9.0); the Play key and the "18 or older" step (since 0.15.0) | no | 10.0 kB + 2.5 kB of CSS (gzip; 8.5 kB minified); 11.2 kB with the plays; 13.6 kB with the pay sheet of 0.16.0 and the QR code's 40 versions (0.17.1); 14.3 kB with the try-on's hook (0.18.0) |
-| `@nano133/nanoterra/shop/viewer` | the looks sheet's try-on stage (`mountShop`'s `tryOn`): `mount` (the kit's character), `tryOnViewer({ body })` (the game's), `loadKitBody` (since 0.18.0) | yes (an optional peer) | 6.3 kB; the kit's character for it is a chunk of its own (20.6 kB), loaded only with no `body` |
+| `@nano133/nanoterra/shop/panel` | the Looks key, the looks sheet and the pay sheet with its own QR code: `mountShop`, and its stylesheet `@nano133/nanoterra/shop/style.css` (since 0.9.0); the Play key and the "18 or older" step (since 0.15.0) | no | 10.0 kB + 2.5 kB of CSS (gzip; 8.5 kB minified); 11.2 kB with the plays; 13.6 kB with the pay sheet of 0.16.0 and the QR code's 40 versions (0.17.1); 14.3 kB with the try-on's hook (0.18.0; the try-on's CSS is `/shop/tryon.css`, 1.5 kB) |
+| `@nano133/nanoterra/shop/viewer` | the looks sheet's try-on stage (`mountShop`'s `tryOn`): `mount` (the kit's character), `tryOnViewer({ body })` (the game's), `loadKitBody` (since 0.18.0) | yes (an optional peer) | 7.0 kB; the kit's character for it is a chunk of its own (20.5 kB), loaded only with no `body` |
 | `@nano133/nanoterra/shop/conformance` | the shop's money rules as test cases, for a store a game writes itself (since 0.9.0) | no | n/a |
 | `@nano133/nanoterra/connect` | Sign in from Nanoterra: `createConnect` (the four routes on Web Request/Response), the screens' words, `createMemoryOnce` (server code; since 0.17.0) | no | 11.0 kB (with the record's lists and the address check); a page loads none |
 | `@nano133/nanoterra/connect/worker`, `/connect/node` | the Worker's adapter (`createWorkerConnect`: the env's settings, D1's `hits`) and Node's (`createNodeConnect`, `webRequest`, `sendResponse`, `connectMiddleware`) (since 0.17.0) | no | 11.0 kB, 11.4 kB |
@@ -1796,8 +1796,9 @@ tryOn: async () => (await import("@nano133/nanoterra/shop/viewer")).tryOnViewer(
 - **The fallback.** With no `tryOn` the sheet is as on 0.17.1: the same DOM and the same `/shop/style.css` (no stage, no Three.js, no try-on CSS).
   With `tryOn` and no WebGL (or a viewer that does not load), the stage shows the look's still picture, large (`preview`, else `picture`, else the
   swatch). With `tryOn` and no `/shop/tryon.css`, the sheet has no stage, and the console names the line to add.
-- **What loads.** `/shop/panel` grows 0.78 kB gzip for every game. The sheet's try-on part (1.7 kB gzip), the viewer (6.3 kB) and the kit's
-  character for it (20.6 kB, shared with `/character` in a game that has it) are chunks of their own, loaded only with `tryOn`.
+- **What loads.** A game without `tryOn` loads the 0.17.1 `/shop/style.css` and no try-on CSS; its `/shop/panel` grows 0.8 kB gzip (0.7 kB brotli:
+  the try-on's hook). The sheet's try-on part (2.2 kB gzip), the viewer (7.0 kB), `/shop/tryon.css` (1.5 kB) and the kit's character for the viewer
+  (20.5 kB, shared with `/character` in a game that has it) load only with `tryOn`.
 - **A game's own viewer** (another engine) passes the same contract: `tryOn: async () => ({ mount: (box, ctx) => myStage(box, ctx) })`.
 
 **A game with its own looks sheet.** The supported way is the kit's sheet: `mountShop` with `tryOn` (and `picture`, `slots`, `takeOff`, `worn`
@@ -1836,7 +1837,7 @@ The controls (the stage is a focusable group named "Your character, wearing Clas
   Up close gives the focus back to the key (or the stage) that opened it. A game's walk keys never act behind the sheet.
 - Every key is 44 px or more; the colours are the `--n133-*` tokens (`--n133-stage` behind the character), dark and light.
 - Every word is the game's through `words`: `tryOn`, `tryOnLook`, `tryingOn`, `upClose`, `backToList`, `takeOff`, `stageLabel`, `stageHint`,
-  `trayLine`, `zoomIn`, `zoomOut`, `whole`, `turnAround`.
+  `trayLine`, `zoomIn`, `zoomOut`, `whole`, `turnAround`, `notShown`.
 - **Money is untouched.** A tried look is never worn (`wear` is not called), never saved and never sent: no request leaves the page for a try-on.
   The tray's Buy is the sheet's own Buy (the same order, the pay sheet), with no offer step (the stage showed the look).
 - A demo with a character of boxes and spheres (a hat, a scarf, a pack): `node test/tryon-demo/serve.mjs 18911`, then `http://127.0.0.1:18911/`

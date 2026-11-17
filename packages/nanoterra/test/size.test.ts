@@ -43,11 +43,13 @@ const PATHS: [string, string[], number, boolean][] = [
   // 0.16.0: 13.1 kB, the pay sheet of design A (the item's picture, the main way by the device, the success that stays, the offer step, the trust line,
   // the ended order without its ways to pay); the design note estimated about +1.4 kB.
   // 0.17.1: 13.6 kB (13,550 B here), the QR code's versions 11 to 40 and level L (a wallet's sign-in link; +0.32 kB: the tables are four strings of 40 characters).
-  // 0.18.0: 14.3 kB (14,325 B here, +0.78 kB): the try-on's hook (the layout that keeps the stage while the list is drawn again, the Try on keys of the
-  // rows, Escape and Up close's switch, three words). The try-on's sheet part (./tryon.js) and the viewer are chunks of their own (below, and the next row).
+  // 0.18.0: 14.3 kB (14,348 B here, +0.80 kB): the try-on's hook (the layout that keeps the stage while the list is drawn again, the Try on keys of the
+  // rows, Escape and Up close's switch, three words, the sheet's check for /shop/tryon.css). The try-on's sheet part (./tryon.js) and the viewer are chunks
+  // of their own (below, and the next row); the try-on's CSS is a file of its own (CSS, below).
   ["@nano133/nanoterra/shop/panel", ["shop/panel/index.js"], 14_500, false],
   // 0.18.0: the try-on stage (Three.js, an optional peer): loaded by the game's `tryOn` when the sheet opens. The kit's character is a chunk of its own (below).
-  // 6.3 kB here (6,289 B): the renderer, the pointer, the wheel, the keys and the framing (inspect.ts).
+  // 7.0 kB here (6,977 B): the renderer, the pointer, the wheel, the keys and the framing (inspect.ts); since the fixes of 2026-11-16 (+0.57 kB) the keys'
+  // fit in the stage, a look that does not dress, the game's faults said once in the console, and the stylesheet's check.
   ["@nano133/nanoterra/shop/viewer", ["shop/viewer/index.js"], 7_300, true],
   // The admin's sign-in: the server part without @nano133/signin (an optional peer, outside the bundle), the stores, and the panel with its QR code.
   // Since 0.12.0 each holds the owner's passkeys too (the routes, the link's store methods, the Passkey tile and the Owner passkeys card; the passkey code itself stays outside).
@@ -76,7 +78,7 @@ const LAZY: [string, string, number, boolean, string[]?][] = [
  *  file of their own, so a game without `tryOn` loads the same /shop/style.css as on 0.17.1 (4,654 B here). */
 const CSS: [string, string, number][] = [
   ["@nano133/nanoterra/shop/style.css", "src/shop/panel/style.css", 4_700],
-  // only a game with `tryOn` loads it (1,484 B here)
+  // only a game with `tryOn` loads it (1,514 B here)
   ["@nano133/nanoterra/shop/tryon.css", "src/shop/panel/tryon.css", 1_600],
 ];
 

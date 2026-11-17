@@ -2,43 +2,62 @@
 
 ## 0.18.0 (unreleased)
 
-- **New: the try-on stage** (`mountShop`'s `tryOn`; the new path `@nano133/nanoterra/shop/viewer`; README "The try-on stage"). Wes, 2026-11-16: "when
-  I'm trying on an item before I buy it, there's a way to see my character model up close with that item ... It should be larger and inspectable."
-  With `tryOn: () => import("@nano133/nanoterra/shop/viewer")` the looks sheet shows a large stage of the player's character over the list (beside it
-  on a wide screen). Each look's picture and name become one Try on key; the tray holds what is tried on, its price, Take off and Buy. The player
-  turns the character all the way round (drag, the arrows, the turn key), zooms (pinch, the wheel, + and -), moves up and down when zoomed in, shows
-  the whole character (Home), and opens Up close (the phone's whole screen; a larger sheet and stage on a wide screen, the list beside it).
+- **New: the try-on stage** (`mountShop`'s `tryOn`; the new path `@nano133/nanoterra/shop/viewer` and the new stylesheet
+  `@nano133/nanoterra/shop/tryon.css`; README "The try-on stage"). Wes, 2026-11-16: "when I'm trying on an item before I buy it, there's a way to
+  see my character model up close with that item ... It should be larger and inspectable." The looks sheet shows a large stage of the player's
+  character over the list (beside it on a wide screen). Each look's picture and name become one Try on key; the tray holds what is tried on, its
+  price, Take off and Buy. The player turns the character all the way round (drag, the arrows, the turn key), zooms (pinch, the wheel, + and -),
+  moves up and down when zoomed in, shows the whole character (Home), and opens Up close (the phone's whole screen; a larger sheet and stage on a
+  wide screen, the list beside it).
+- **Turn it on: two lines.** The option, and the stage's stylesheet after the shop's:
+
+  ```ts
+  import "@nano133/nanoterra/shop/style.css";
+  import "@nano133/nanoterra/shop/tryon.css";
+  mountShop(el, { ...options, tryOn: () => import("@nano133/nanoterra/shop/viewer") });
+  ```
+
+  Without `tryon.css` the sheet goes on with no stage (as without `tryOn`; no viewer loads), and the console names the line to add, once a page.
+- **A game without `tryOn` pays no CSS:** `/shop/style.css` is the same file as in 0.17.1, and the sheet's DOM is the 0.17.1 DOM (the offer
+  step's still picture stays 176 px). Its `/shop/panel` script grows by the try-on's hook: +0.70 kB brotli (`mountShop` alone; +0.80 kB gzip by the
+  size test). It loads no Three.js, no viewer, no try-on chunk and no try-on CSS.
 - **The framing comes from the item's real box** on this character and the stage's real shape: the tried item whole, with 8% of the stage clear on
   each side, as large as the stage allows. A round item (a hat) is framed whole at every turn, by the radius of its real vertices; another item
-  from the side the stage shows (a pack from the back). The pure numbers (`src/shop/viewer/inspect.ts`: the framing, the zoom limits, the keyboard
-  steps, the wheel, the pinch, the idle turn's rule) have no Three.js, and their tests check each framing through a real three.js camera.
+  from the side the stage shows (a pack from the back). After Take off the stage shows the whole character again, unless the player moved the view.
+  The pure numbers (`src/shop/viewer/inspect.ts`) have no Three.js, and their tests check each framing through a real three.js camera.
 - **The game gives the 3D, the kit gives the viewer.** `tryOnViewer({ body })` takes the same body as `createLookPreview` (`object`, `dress`,
   `dispose`), with `part(look)` (what to frame) and `update(dt)`, both optional. With no `body`, the kit's character: the player's `record`, an
   outfit's colour on the shirt and the four hats of looks.json. A game's own viewer passes the same contract (`TryOnViewer`: `mount(box, context)`
-  answers `show` and `dispose`).
+  answers `show` and `dispose`). `examples/own-character.ts` (a game with its own character) and `examples/own-sheet.ts` (a game with its own
+  looks sheet; the supported way is the kit's sheet) ship in the package, and the package's tests type-check them.
+- **A game's faults stay in the stage.** A look whose `dress` fails: the other looks still show, and the tray shows its still picture with "Could
+  not show it". A `part` or an `update` that throws: the stage frames the whole character (or keeps its pose), and the console says it once; no
+  error reaches the page.
 - **Access and motion.** The stage is a focusable group named for what the character wears and tries on. Escape closes Up close before the sheet,
   and the focus goes back to the key (or the stage) that opened it. A key at a limit says so (`aria-disabled`) and keeps the focus; Take off moves
-  the focus to the stage: the focus never falls to the page, where a game's walk keys act. No idle turn and no camera move with reduced motion
-  (the device's, or the options' "Less motion"). Every key 44 px or more; the `--n133-*` tokens, dark and light.
+  the focus to the stage; Buy in the tray (and the offer's Buy, and Wear) moves it to the sheet's title: the focus never falls to the page, where a
+  game's walk keys act. The stage's four keys stand whole in the stage, or all hide together (out of the Tab order) when it is too short. With no
+  3D the how-to line ("drag, pinch, the wheel") leaves the page. No idle turn and no camera move with reduced motion (the device's, or the options'
+  "Less motion"). Every key 44 px or more; the `--n133-*` tokens, dark and light; no sideways scroll at 320 px.
 - **Money is untouched.** A tried look is never worn, saved or sent: no request, no `wear`, no storage (`test/tryon-panel.test.ts`). The tray's Buy
   is the sheet's own Buy (the same order and pay sheet), with no offer step. No file of the shop's server, orders, prices or pay sheet changed.
-- **The stage's CSS is a file of its own: `@nano133/nanoterra/shop/tryon.css`.** A game with `tryOn` adds one line after the shop's stylesheet:
-  `import "@nano133/nanoterra/shop/tryon.css";`. `/shop/style.css` is the same file as in 0.17.1, so a game without `tryOn` loads no byte of the
-  stage's rules. A game with `tryOn` and no `tryon.css`: the sheet goes on with no stage (no viewer loads), and the console names the line, once.
-- **The fallback.** With no `tryOn` the sheet is as in 0.17.1 (the same DOM; the offer step's still picture stays 176 px). With `tryOn` and no
-  WebGL, or a viewer that does not load, the stage shows the look's still picture, large.
+- **The fallback.** With `tryOn` and no WebGL, or a viewer that does not load, the stage shows the look's still picture, large.
 - **One renderer while the sheet is open**, freed when it closes. The sheet's try-on part (`src/shop/panel/tryon.ts`) and the kit's character for the
   viewer (`src/shop/viewer/kit.ts`) are chunks of their own, loaded with `import()` only when needed.
-- Sizes (gzip, size test): `/shop/panel` 14.3 kB (14,325 B; ceiling 14.5 kB, was 13,550 B): the try-on's hook, +0.78 kB for every game. New:
-  `/shop/viewer` 6.3 kB (6,289 B; ceiling 6.6 kB); the sheet's try-on chunk 1.7 kB (1,721 B, beside the panel's shared files); the viewer's kit
-  character 20.6 kB (20,588 B; the character's builder, shared with `/character` in a game that has it). `/shop/style.css` grows by the stage's rules.
-- New words in `ShopWords`: `tryOn`, `tryOnLook`, `tryingOn`. The stage's own are a type of their own (`TryOnWords`: `upClose`, `backToList`, `takeOff`,
-  `stageLabel`, `stageHint`, `trayLine`, `zoomIn`, `zoomOut`, `whole`, `turnAround`; their defaults are in the try-on chunk, not in `SHOP_WORDS`);
-  `mountShop`'s `words` takes both (`Partial<ShopWords & TryOnWords>`).
-- A demo page with a character of boxes and spheres (a hat, a scarf, a pack): `node test/tryon-demo/serve.mjs`.
+- **New exports.** `/shop/viewer`: `mount` (the kit's character), `tryOnViewer`, `loadKitBody`, and the types `TryOnBody`, `TryOnViewerOptions`,
+  `TryOnContext`, `TryOnShow`, `TryOnStage`, `TryOnViewer`. `/shop/panel`: the types `TryOnLoad`, `TryOnWords`, `TryOnContext`, `TryOnShow`,
+  `TryOnStage`, `TryOnViewer`. `/shop/tryon.css`. `TryOnContext` has an optional `failed(look)` for a look the viewer could not draw.
+- **Words.** New in `ShopWords` (and `SHOP_WORDS`): `tryOn`, `tryOnLook`, `tryingOn`. The stage's own words are a type of their own, `TryOnWords`:
+  `upClose`, `backToList`, `takeOff`, `stageLabel`, `stageHint`, `trayLine`, `zoomIn`, `zoomOut`, `whole`, `turnAround`, `notShown` (their defaults
+  are in the try-on chunk, not in `SHOP_WORDS`). `mountShop`'s `words` takes both (`Partial<ShopWords & TryOnWords>`).
+- Sizes (gzip, the size test): `/shop/panel` 14.3 kB (14,348 B; was 13,550 B; ceiling 14.5 kB). New: `/shop/viewer` 7.0 kB (6,977 B; ceiling
+  7.3 kB); the sheet's try-on chunk 2.2 kB (2,174 B, beside the panel's shared files); the viewer's kit character 20.5 kB (20,538 B; the
+  character's builder, shared with `/character` in a game that has it); `/shop/tryon.css` 1.5 kB (1,514 B minified and gzipped);
+  `/shop/style.css` 4.7 kB, as in 0.17.1 (4,654 B). The size test now holds both stylesheets.
+- A demo page with a character of boxes and spheres (a hat, a scarf, a pack): `node test/tryon-demo/serve.mjs`; `test/tryon-demo/check.mjs` checks
+  it in Chrome (the tray's Buy and a row's Buy open the same pay sheet in test mode).
 
-- **What a game changes to take 0.18.0: nothing.** To turn the try-on on, add `tryOn` and the `tryon.css` import (README) and have `three`
-  installed.
+- **What a game changes to take 0.18.0: nothing.** To turn the try-on on: `tryOn`, the `tryon.css` import, and `three` installed.
 
 ## 0.17.1 (2026-11-15)
 
