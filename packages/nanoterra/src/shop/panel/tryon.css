@@ -168,6 +168,11 @@
   font-size: 16px;
 }
 
+/* a tried look the stage could not draw: its still picture beside its name, and the words that say so */
+.n133-shop .n133s-tray-failed .n133s-pic {
+  flex: none;
+}
+
 /* a look's try-on key: its picture and its name, one key */
 .n133-shop .n133s-look-try {
   gap: 8px;

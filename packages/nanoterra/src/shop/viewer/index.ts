@@ -289,11 +289,14 @@ function mountStage(box: HTMLElement, ctx: TryOnContext, makeBody: () => TryOnBo
       turner.add(body.object);
     }
     dressed = list;
+    /** The looks that did not dress (a model that did not load): the stage shows the rest, and the sheet marks these. */
+    const bad = new Set<string>();
     for (const l of changed) {
       try {
         await body.dress(l);
       } catch {
-        // a look that did not dress (a model that did not load): the stage shows the rest
+        bad.add(l.id);
+        ctx.failed?.(l);
       }
     }
     if (n !== ask || disposed) return;
@@ -302,7 +305,7 @@ function mountStage(box: HTMLElement, ctx: TryOnContext, makeBody: () => TryOnBo
     if (whole) frame = { body: boxOf(whole), fov };
     let part: THREE.Box3 | null = null;
     let radius: number | undefined;
-    if (v.focus) {
+    if (v.focus && !bad.has(v.focus.id)) {
       const focus = v.focus;
       let source: THREE.Object3D | THREE.Box3 | null = null;
       part = measure(() => {

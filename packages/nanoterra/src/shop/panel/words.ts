@@ -29,6 +29,8 @@ export type TryOnWords = {
   zoomOut: string;
   whole: string;
   turnAround: string;
+  /** A tried look that the stage could not draw (its model did not load), beside its price in the tray. */
+  notShown: string;
 };
 
 export type ShopWords = {

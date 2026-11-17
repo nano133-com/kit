@@ -455,3 +455,39 @@ test("the stylesheets: /shop/style.css holds no rule of the try-on (a game witho
   }
   assert.match(tryon, /\.n133-shop \.n133s-tryon-stage \{\s*--n133s-tryon-css: 1;/);
 });
+
+test("a look the stage could not draw (R6): the viewer says so; the tray shows its still picture and the words, the other looks stay; Take off or another try clears it", async () => {
+  const g = game();
+  const v = fakeViewer();
+  const el = root();
+  const shop = mountShop(el, { ...g.opts, tryOn: v.load });
+  mounted.push(shop);
+  shop.open();
+  await settle();
+  tryKey(el, "blue-cap").click();
+  tab(el, "Spade").click();
+  tryKey(el, "wood-spade").click();
+  const shows = v.log.shows.length;
+  const ctx = v.log.mounts[0].ctx;
+  const cap = LOOKS.find((l) => l.id === "blue-cap")!;
+  ctx.failed?.(cap);
+  assert.equal(v.log.shows.length, shows, "the mark draws the tray only: the stage is not asked again");
+  const rows = [...el.querySelectorAll(".n133s-tray-row")];
+  assert.equal(rows.length, 2, "the other look stays in the tray");
+  const bad = rows.find((r) => r.querySelector('[data-off="blue-cap"]'))!;
+  assert.ok(bad.classList.contains("n133s-tray-failed"));
+  assert.ok(bad.querySelector(".n133s-pic"), "its still picture");
+  assert.match(bad.textContent!, /\$0\.25 · Could not show it/);
+  const good = rows.find((r) => r.querySelector('[data-off="wood-spade"]'))!;
+  assert.ok(!good.classList.contains("n133s-tray-failed"));
+  assert.doesNotMatch(good.textContent!, /Could not show it/);
+  // a worn look (not tried) that fails is not marked
+  ctx.failed?.(LOOKS.find((l) => l.id === "plain")!);
+  assert.equal(el.querySelectorAll(".n133s-tray-failed").length, 1);
+  // Take off clears the mark; a new try of the same look starts clean
+  (el.querySelector('[data-off="blue-cap"]') as HTMLButtonElement).click();
+  tab(el, "Outfits").click();
+  tryKey(el, "blue-cap").click();
+  assert.equal(el.querySelectorAll(".n133s-tray-failed").length, 0);
+  shop.destroy();
+});

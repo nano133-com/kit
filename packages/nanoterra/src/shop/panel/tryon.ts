@@ -27,6 +27,7 @@ export const TRYON_WORDS: TryOnWords = {
   zoomOut: "Zoom out",
   whole: "Show the whole character",
   turnAround: "Turn around",
+  notShown: "Could not show it",
 };
 
 /** The line a game adds when the stage's stylesheet is missing (the console says it once a page). */
@@ -93,6 +94,8 @@ export function tryOnPanel(o: TryOnPanelOptions): TryOnPanel {
   /** One tried look in each wear slot, in the order they were tried. */
   const tried = new Map<string, Look>();
   let focus: Look | null = null;
+  /** The tried looks the stage could not draw (the viewer's `failed`): the tray shows each one's still picture and says so. */
+  const failed = new Set<string>();
   let stage: TryOnStage | null = null;
   let loading = false;
   let started = false;
@@ -118,7 +121,8 @@ export function tryOnPanel(o: TryOnPanelOptions): TryOnPanel {
     still.replaceChildren(pic);
   }
 
-  function draw() {
+  /** The stage's name and the tray (what is tried on, the prices, Take off and Buy). */
+  function drawTray() {
     const worn = o.worn();
     const wornNames = worn.filter((l) => !tried.has(wearOf(l))).map((l) => l.name);
     box.setAttribute("aria-label", w.stageLabel(wornNames, triedList().map((l) => l.name)));
@@ -128,13 +132,25 @@ export function tryOnPanel(o: TryOnPanelOptions): TryOnPanel {
       ...triedList().map((l) =>
         h(
           "li",
-          { class: "n133s-tray-row" },
-          h("span", { class: "n133s-tray-name" }, h("strong", {}, l.name), " ", h("small", {}, o.owns(l) ? (l.priceUsd === 0 ? w.free : w.yours) : usdText(l.priceUsd))),
+          { class: `n133s-tray-row${failed.has(l.id) ? " n133s-tray-failed" : ""}` },
+          // a look the stage could not draw: its still picture here, and the words that say so
+          failed.has(l.id) ? o.still(l, 40) : null,
+          h(
+            "span",
+            { class: "n133s-tray-name" },
+            h("strong", {}, l.name),
+            " ",
+            h("small", {}, `${o.owns(l) ? (l.priceUsd === 0 ? w.free : w.yours) : usdText(l.priceUsd)}${failed.has(l.id) ? ` · ${w.notShown}` : ""}`),
+          ),
           h("button", { class: "n133s-btn n133s-small", type: "button", "data-off": l.id, onclick: () => takeOff(l) }, w.takeOff),
           o.owns(l) ? null : h("button", { class: "n133s-btn n133s-buy n133s-small", type: "button", "data-buy": l.id, onclick: () => o.buy(l) }, w.buy(usdText(l.priceUsd))),
         ),
       ),
     );
+  }
+
+  function draw() {
+    drawTray();
     drawStill();
     stage?.show(view());
   }
@@ -143,6 +159,7 @@ export function tryOnPanel(o: TryOnPanelOptions): TryOnPanel {
     // The focus was on the row's Take off key, which goes: it moves to the stage (never to the page, where a game's walk keys act).
     const had = tray.contains(document.activeElement);
     tried.delete(wearOf(l));
+    failed.delete(l.id);
     if (focus?.id === l.id) focus = null;
     draw();
     o.changed();
@@ -182,6 +199,12 @@ export function tryOnPanel(o: TryOnPanelOptions): TryOnPanel {
         calm: calmNow,
         onTap: () => setUpClose(!upClose, box),
         words: { zoomIn: w.zoomIn, zoomOut: w.zoomOut, whole: w.whole, turn: w.turnAround },
+        failed: (l) => {
+          // only a look tried on now is marked (a worn look that fails is the game's own: the stage shows the rest)
+          if (!started || tried.get(wearOf(l))?.id !== l.id) return;
+          failed.add(l.id);
+          drawTray();
+        },
       });
       if (!started) return s.dispose();
       stage = s;
@@ -202,6 +225,9 @@ export function tryOnPanel(o: TryOnPanelOptions): TryOnPanel {
     tried: (l) => tried.get(wearOf(l))?.id === l.id,
     toggle(l) {
       if (tried.get(wearOf(l))?.id === l.id) return takeOff(l);
+      const was = tried.get(wearOf(l));
+      if (was) failed.delete(was.id);
+      failed.delete(l.id);
       tried.set(wearOf(l), l);
       focus = l;
       draw();
@@ -215,6 +241,7 @@ export function tryOnPanel(o: TryOnPanelOptions): TryOnPanel {
     stop() {
       started = false;
       tried.clear();
+      failed.clear();
       focus = null;
       if (upClose) {
         upClose = false;

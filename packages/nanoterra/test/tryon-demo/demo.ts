@@ -2,6 +2,8 @@
 // body: `tryOnViewer({ body })`), with a hat, a scarf and a pack; `?body=kit` uses the kit's own character instead (no hook). The shop's handler
 // runs in this page on the memory store with no payee: TEST MODE, nothing can be paid. `?theme=dark` and `?theme=light` set the sheet's theme.
 // `?nocss=1` leaves out /shop/tryon.css (a game that forgot it: the console names the line, and the sheet goes on with no stage).
+// For the browser check of a game's faults: `?fail=<look id>` makes that look's `dress` fail (a model that did not load), `?badpart=1` makes
+// `part` throw.
 import * as THREE from "three";
 import { mountShop } from "../../src/shop/panel/index.js";
 import { createMemoryShop, createShopHandler } from "../../src/shop/index.js";
@@ -109,6 +111,7 @@ function primitiveBody(): TryOnBody<Look> {
   return {
     object: root,
     dress(look) {
+      if (params.get("fail") === look.id) return Promise.reject(new Error(`the model of ${look.id} did not load`));
       const s = wearOf(look);
       if (s === "outfit") {
         shirt.color.set(look.change?.body ?? "#4aa8ff");
@@ -138,6 +141,7 @@ function primitiveBody(): TryOnBody<Look> {
       showHats();
     },
     part(look) {
+      if (params.get("badpart")) throw new Error("part failed");
       const s = wearOf(look);
       if (s === "outfit") return look.change?.hat && slot.outfitHat?.visible ? slot.outfitHat : null;
       return slot[s] ?? null;

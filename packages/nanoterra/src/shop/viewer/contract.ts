@@ -15,6 +15,8 @@ export type TryOnContext = {
   onTap(): void;
   /** The words of the viewer's own keys, for a screen reader (the sheet's words: `ShopWords`). */
   words: { zoomIn: string; zoomOut: string; whole: string; turn: string };
+  /** A look the viewer could not draw (its `dress` threw: a model that did not load). The sheet marks it in the tray; the stage shows the rest. */
+  failed?(look: Look): void;
 };
 
 /** What the stage shows: the looks the player wears, the looks tried on over them (one in each wear slot), and the one to frame. */
