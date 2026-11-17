@@ -348,8 +348,11 @@ function mountStage(box: HTMLElement, ctx: TryOnContext, makeBody: () => TryOnBo
       yawTo = yawFor(sideOf(item), yawTo);
       target = tryOnView(item, frame, aspect, yawTo);
       fitted = { view: target, item, yaw: yawTo };
-    } else if (!touched) target = wholeView(frame, aspect);
-    else target = clampView(target, frame, aspect);
+    } else if (!touched || fitted) {
+      // nothing to frame now (the item was taken off): the whole character, unless the player moved the view since the try-on
+      target = wholeView(frame, aspect);
+      fitted = null;
+    } else target = clampView(target, frame, aspect);
     drawKeys();
     box.dataset.focus = focusId ?? "";
     box.dataset.ready = String(n);

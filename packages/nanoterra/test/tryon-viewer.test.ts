@@ -129,6 +129,8 @@ test("the stage's rules that need a GPU: dispose frees the context, a plain whee
   assert.equal([...code.matchAll(/body\.update\?\.\(/g)].length, 2);
   assert.equal([...code.matchAll(/if \(!stillPose\) body\.update\?\.\(/g)].length, 2, "each update() call is guarded");
   assert.match(code, /if \(warned\) return;\s*warned = true;\s*console\.warn\(/);
+  // R15: with nothing to frame (the item taken off), a view that a try-on fitted goes back to the whole character; a view the player moved stays
+  assert.match(code, /\} else if \(!touched \|\| fitted\) \{[^}]*target = wholeView\(frame, aspect\);\s*fitted = null;/);
   // R9: a game's own sheet with no /shop/tryon.css (or no n133-shop around the box): the console says the line, once; the stage goes on
   assert.match(code, /getPropertyValue\("--n133s-tryon-css"\)\.trim\(\) !== "1" && !cssWarned\) \{\s*cssWarned = true;\s*console\.warn\('[^']*import "@nano133\/nanoterra\/shop\/tryon\.css";'\);/);
 });
