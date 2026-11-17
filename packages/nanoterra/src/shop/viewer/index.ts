@@ -139,6 +139,14 @@ export const mount: TryOnViewer["mount"] = (box, context) => tryOnViewer().mount
 /** The kit's character as a try-on body (a chunk of its own): for a game's own `body` that starts from it. */
 export const loadKitBody = async () => (await import("./kit.js")).kitBody;
 
+/** A fault of the game's body (a `part` or an `update` that throws) is said once a page, never thrown at the page: the stage goes on. */
+let warned = false;
+function warnOnce(what: string, e: unknown) {
+  if (warned) return;
+  warned = true;
+  console.warn(`@nano133/nanoterra: the try-on body's ${what} threw. The stage goes on (the whole character, its pose kept).`, e);
+}
+
 function mountStage(box: HTMLElement, ctx: TryOnContext, makeBody: () => TryOnBody<Look>, fov = 30): TryOnStage {
   // The renderer first: no WebGL throws here, and the sheet shows the still picture.
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -175,6 +183,8 @@ function mountStage(box: HTMLElement, ctx: TryOnContext, makeBody: () => TryOnBo
   let dressed: Look[] = [];
   let ask = 0;
   let disposed = false;
+  /** The game's update() threw once: the character keeps its pose from then on. */
+  let stillPose = false;
   /** What the stage framed: the game's object (its meshes) or a box at yaw 0. */
   let partSource: THREE.Object3D | THREE.Box3 | null = null;
   let focusId: string | null = null;
@@ -188,8 +198,9 @@ function mountStage(box: HTMLElement, ctx: TryOnContext, makeBody: () => TryOnBo
     try {
       const out = fn();
       return out && !out.isEmpty() ? out : null;
-    } catch {
+    } catch (e) {
       // the game's part() threw: the whole character
+      warnOnce("part(look)", e);
       return null;
     } finally {
       turner.rotation.y = was;
@@ -300,7 +311,12 @@ function mountStage(box: HTMLElement, ctx: TryOnContext, makeBody: () => TryOnBo
       }
     }
     if (n !== ask || disposed) return;
-    body.update?.(0);
+    try {
+      if (!stillPose) body.update?.(0);
+    } catch (e) {
+      stillPose = true;
+      warnOnce("update(dt)", e);
+    }
     const whole = measure(() => new THREE.Box3().setFromObject(body.object, true));
     if (whole) frame = { body: boxOf(whole), fov };
     let part: THREE.Box3 | null = null;
@@ -428,7 +444,13 @@ function mountStage(box: HTMLElement, ctx: TryOnContext, makeBody: () => TryOnBo
     camera.near = Math.max(0.01, cur.d / 50);
     camera.far = cur.d * 20 + 10;
     camera.updateProjectionMatrix();
-    body.update?.(calm ? 0 : dt);
+    try {
+      if (!stillPose) body.update?.(calm ? 0 : dt);
+    } catch (e) {
+      // the game's update() threw: the character keeps its pose (a fault each frame would flood the page)
+      stillPose = true;
+      warnOnce("update(dt)", e);
+    }
     renderer.render(scene, camera);
   };
   raf = requestAnimationFrame(loop);
@@ -455,7 +477,8 @@ function mountStage(box: HTMLElement, ctx: TryOnContext, makeBody: () => TryOnBo
   (box as HTMLElement & { n133Stage?: () => StageProbe }).n133Stage = () => ({ yaw, view: { ...cur }, whole: isWhole(), touched, focus: focusId, camera, partPoints });
 
   return {
-    show: (v) => void show(v),
+    // a fault of the game's body that the stage did not catch (a body that cannot be made again, an `update` that throws) never reaches the page
+    show: (v) => void show(v).catch((e) => warnOnce("code", e)),
     dispose() {
       if (disposed) return;
       disposed = true;

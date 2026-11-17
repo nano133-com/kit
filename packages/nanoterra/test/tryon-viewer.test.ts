@@ -120,4 +120,13 @@ test("the stage's rules that need a GPU: dispose frees the context, a plain whee
   const fit = code.slice(code.indexOf("function fitKeys()"), code.indexOf("// ---- the size ----"));
   for (const part of ["q.bottom <= s.bottom + 1", "q.right <= s.right + 1", "keys.contains(document.activeElement)) box.focus(", 'keys.style.display = "none"']) assert.ok(fit.includes(part), `fitKeys: ${part}`);
   assert.match(code, /function resize\(\) \{\s*fitKeys\(\);/);
+  // R7: a game's part() or update() that throws is caught, said once in the console, and never reaches the page; the stage frames the whole
+  // character and keeps going
+  const measure = code.slice(code.indexOf("function measure("), code.indexOf("const isWhole"));
+  assert.match(measure, /catch \(e\) \{[^}]*warnOnce\("part\(look\)", e\);\s*return null;/);
+  assert.match(measure, /finally \{\s*turner\.rotation\.y = was;/, "the turn comes back after a throw");
+  assert.match(code, /show: \(v\) => void show\(v\)\.catch\(/);
+  assert.equal([...code.matchAll(/body\.update\?\.\(/g)].length, 2);
+  assert.equal([...code.matchAll(/if \(!stillPose\) body\.update\?\.\(/g)].length, 2, "each update() call is guarded");
+  assert.match(code, /if \(warned\) return;\s*warned = true;\s*console\.warn\(/);
 });

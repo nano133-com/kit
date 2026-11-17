@@ -3,7 +3,7 @@
 // runs in this page on the memory store with no payee: TEST MODE, nothing can be paid. `?theme=dark` and `?theme=light` set the sheet's theme.
 // `?nocss=1` leaves out /shop/tryon.css (a game that forgot it: the console names the line, and the sheet goes on with no stage).
 // For the browser check of a game's faults: `?fail=<look id>` makes that look's `dress` fail (a model that did not load), `?badpart=1` makes
-// `part` throw.
+// `part` throw, `?badupdate=1` makes `update` throw.
 import * as THREE from "three";
 import { mountShop } from "../../src/shop/panel/index.js";
 import { createMemoryShop, createShopHandler } from "../../src/shop/index.js";
@@ -146,6 +146,11 @@ function primitiveBody(): TryOnBody<Look> {
       if (s === "outfit") return look.change?.hat && slot.outfitHat?.visible ? slot.outfitHat : null;
       return slot[s] ?? null;
     },
+    update: params.get("badupdate")
+      ? () => {
+          throw new Error("update failed");
+        }
+      : undefined,
     dispose() {
       for (const g of geos) g.dispose();
       for (const m of made) m.dispose();
