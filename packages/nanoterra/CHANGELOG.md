@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.18.0 (unreleased)
+## 0.18.0 (2026-11-16)
 
 - **New: the try-on stage** (`mountShop`'s `tryOn`; the new path `@nano133/nanoterra/shop/viewer` and the new stylesheet
   `@nano133/nanoterra/shop/tryon.css`; README "The try-on stage"). Wes, 2026-11-16: "when I'm trying on an item before I buy it, there's a way to
