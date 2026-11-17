@@ -363,6 +363,13 @@
     max-height: 96px;
   }
 
+  /* a small phone on its side (320 px tall): one tray row in sight (the rest scroll), so the stage keeps its keys */
+  @media (max-height: 360px) {
+    .n133-shop .n133s-sheet-tryon .n133s-tray-rows {
+      max-height: 52px;
+    }
+  }
+
   /* the stage is short here (the tray under it): its keys stand in a row at the bottom, so all four stay in it */
   .n133-shop .n133s-sheet-tryon:not(.n133s-upclose-on) .n133s-stage-keys {
     top: auto;

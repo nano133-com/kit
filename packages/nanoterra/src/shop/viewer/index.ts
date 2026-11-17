@@ -233,8 +233,29 @@ function mountStage(box: HTMLElement, ctx: TryOnContext, makeBody: () => TryOnBo
     drawKeys();
   }
 
+  /**
+   * The stage's keys stand whole in the stage, clear of its other keys (Up close), or they all hide: a key out of sight must not take the focus
+   * (a phone on its side with the tray full). The arrows, + and -, Home and a pinch still work on the stage, and Up close shows the keys again.
+   */
+  function fitKeys() {
+    keys.style.display = "";
+    const s = box.getBoundingClientRect();
+    if (!s.width || !s.height) return;
+    const others = Array.from(box.querySelectorAll("button")).filter((b) => !keys.contains(b)).map((b) => b.getBoundingClientRect());
+    const fits = Array.from(keys.children).every((k) => {
+      const q = k.getBoundingClientRect();
+      const inside = q.left >= s.left - 1 && q.right <= s.right + 1 && q.top >= s.top - 1 && q.bottom <= s.bottom + 1;
+      return inside && !others.some((o) => o.width && q.left < o.right && q.right > o.left && q.top < o.bottom && q.bottom > o.top);
+    });
+    box.dataset.keys = fits ? "shown" : "hidden";
+    if (fits) return;
+    if (keys.contains(document.activeElement)) box.focus({ preventScroll: true });
+    keys.style.display = "none";
+  }
+
   // ---- the size ----
   function resize() {
+    fitKeys();
     const w = Math.max(1, box.clientWidth);
     const h = Math.max(1, box.clientHeight);
     renderer.setSize(w, h, false);

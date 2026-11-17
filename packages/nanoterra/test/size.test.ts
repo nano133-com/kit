@@ -48,7 +48,7 @@ const PATHS: [string, string[], number, boolean][] = [
   ["@nano133/nanoterra/shop/panel", ["shop/panel/index.js"], 14_500, false],
   // 0.18.0: the try-on stage (Three.js, an optional peer): loaded by the game's `tryOn` when the sheet opens. The kit's character is a chunk of its own (below).
   // 6.3 kB here (6,289 B): the renderer, the pointer, the wheel, the keys and the framing (inspect.ts).
-  ["@nano133/nanoterra/shop/viewer", ["shop/viewer/index.js"], 6_600, true],
+  ["@nano133/nanoterra/shop/viewer", ["shop/viewer/index.js"], 7_300, true],
   // The admin's sign-in: the server part without @nano133/signin (an optional peer, outside the bundle), the stores, and the panel with its QR code.
   // Since 0.12.0 each holds the owner's passkeys too (the routes, the link's store methods, the Passkey tile and the Owner passkeys card; the passkey code itself stays outside).
   ["@nano133/nanoterra/admin-signin", ["admin-signin/index.js"], 7_300, false],

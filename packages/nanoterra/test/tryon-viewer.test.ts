@@ -115,4 +115,9 @@ test("the stage's rules that need a GPU: dispose frees the context, a plain whee
   assert.match(code, /const wheel = \(e: WheelEvent\) => \{[^}]*if \(!e\.ctrlKey && !ownsVertical\(\)\) return;/);
   // a key at a limit says so with aria-disabled: a disabled key would drop the focus to the page, where a game's walk keys act
   assert.doesNotMatch(code, /\.disabled\s*=|toggleAttribute\("disabled"|setAttribute\("disabled"/);
+  // R5: the stage's keys stand whole in the stage, clear of Up close, or all hide together (out of the Tab order), checked at each size change;
+  // the focus on a key that hides goes to the stage, never to the page
+  const fit = code.slice(code.indexOf("function fitKeys()"), code.indexOf("// ---- the size ----"));
+  for (const part of ["q.bottom <= s.bottom + 1", "q.right <= s.right + 1", "keys.contains(document.activeElement)) box.focus(", 'keys.style.display = "none"']) assert.ok(fit.includes(part), `fitKeys: ${part}`);
+  assert.match(code, /function resize\(\) \{\s*fitKeys\(\);/);
 });
