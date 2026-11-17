@@ -210,12 +210,16 @@ export function tryOnPanel(o: TryOnPanelOptions): TryOnPanel {
       stage = s;
       still.replaceChildren();
       box.classList.add("n133s-has-3d");
+      // the how-to line comes (back) with the 3D: the stage now turns and zooms
+      if (!hint.isConnected) box.after(hint);
+      box.setAttribute("aria-describedby", hint.id);
       stage.show(view());
     } catch {
-      // No WebGL, or the viewer did not load: the stage keeps the look's still picture, large. The how-to line (drag, pinch, the wheel) goes: a still
-      // picture does none of it.
+      // No WebGL, or the viewer did not load: the stage keeps the look's still picture, large. The how-to line (drag, pinch, the wheel) goes from
+      // the page, not only from the stage's description: a screen reader that reads the page line by line must not hear it for a still picture.
       stage = null;
       box.removeAttribute("aria-describedby");
+      hint.remove();
     } finally {
       loading = false;
     }

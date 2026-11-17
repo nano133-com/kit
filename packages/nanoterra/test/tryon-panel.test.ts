@@ -369,6 +369,9 @@ test("no 3D (the viewer throws, or does not load): the stage shows the look's st
     assert.equal(still.querySelector("img")?.dataset.look, "blue-cap", `${kind}: the tried look's picture`);
     assert.equal(stageOf(el).getAttribute("aria-label"), "Your character, trying on Blue Cap");
     assert.equal(stageOf(el).getAttribute("aria-describedby"), null, `${kind}: no how-to line for a drag or a zoom that a still picture does not do`);
+    // R8: nor in the page (a screen reader reads a hidden line too, line by line); the text alternative is what the stage can do: its name
+    assert.doesNotMatch(sheet(el).textContent!, /Drag|Pinch|wheel|arrow keys/, `${kind}: the how-to line is gone from the page`);
+    assert.equal(el.querySelector(".n133s-tryon-side .n133s-sr"), null);
     assert.deepEqual(g.calls, []);
     shop.destroy();
   }
