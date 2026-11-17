@@ -1,6 +1,7 @@
 // The switches of the "Game" card in /admin, and the words that say what each does. The handler checks a press with `parsePatch`; the panel
 // draws the card from `SWITCHES` and `FRIENDS_CHOICES`. A switch changes ONLY these five settings; never a look, a price or an order.
-// The "Legal" card's five settings (./legal.ts) go through the same press and the same store: `LEGAL_WORDS` are its words.
+// The "Legal" card's five settings (./legal.ts) go through the same press and the same store: `LEGAL_WORDS` are its words. So does the "Maintenance"
+// card's switch (`maintenance`; MAINTENANCE_CARD are its words, "@nano133/nanoterra/maintenance" what it does).
 
 import type { LegalPatch, LegalState } from "./legal.js";
 import { mergeLegal, parseLegalKey } from "./legalRules.js";
@@ -24,8 +25,20 @@ export type Emotes = "on" | "off";
 export type FreePlay = "on" | "off";
 /** The game's own words for the switches. `friends`, `emotes` and `freePlay` may be left out: "nanoterra", "on" and "on" then (on by default). */
 export type GameSettings = { character: Character; signin: Signin; friends?: Friends; emotes?: Emotes; freePlay?: FreePlay };
-/** What a press can set: sign-in is on ("exchange": a game with a server) or off ("none"); and the Legal card's settings (./legal.ts). */
-export type GamePatch = { character?: Character; signin?: "exchange" | "none"; friends?: Friends; emotes?: Emotes; freePlay?: FreePlay } & LegalPatch;
+/** Whether the game is under maintenance (the Maintenance card; "@nano133/nanoterra/maintenance"): its site shows players "Back soon", and Nanoterra is told. Off by default. */
+export type Maintenance = "on" | "off";
+/**
+ * What a press can set: sign-in is on ("exchange": a game with a server) or off ("none"); maintenance; and the Legal card's settings (./legal.ts).
+ * `maintenanceAt` and `maintenanceToldAt` are the handler's own (the time of the press, and the time that nano133.com accepted): `parsePatch` never
+ * takes them from a request.
+ */
+export type GamePatch = { character?: Character; signin?: "exchange" | "none"; friends?: Friends; emotes?: Emotes; freePlay?: FreePlay; maintenance?: Maintenance; maintenanceAt?: number; maintenanceToldAt?: number } & LegalPatch;
+/**
+ * The maintenance state. `at`: the time of the last press (null: never pressed, so off). `told`: nano133.com accepted the state of that press (true
+ * for a game never pressed: Nanoterra's default is off too). The handler adds `canTell` (the game can tell nano133.com: its client id and secret are
+ * set) and, after a press that nano133.com did not accept, `error` (why, in words).
+ */
+export type MaintenanceState = { on: boolean; at: number | null; told: boolean; canTell?: boolean; error?: string };
 /**
  * The settings as they are now, and which of the Game card's /admin has set (the others still have the game's default). `legal` is the Legal card's: the
  * kit's defaults (DEFAULT_LEGAL) until /admin sets them.
@@ -38,6 +51,8 @@ export type GameState = {
   freePlay: FreePlay;
   fromAdmin: { character: boolean; signin: boolean; friends: boolean; emotes: boolean; freePlay: boolean };
   legal: LegalState;
+  /** The Maintenance card's state. The admin handler leaves it out for a game that did not give its `maintenance` option (no card). */
+  maintenance?: MaintenanceState;
 };
 
 export const isCharacter = (v: unknown): v is Character => v === "nanoterra" || v === "own";
@@ -46,6 +61,7 @@ export const isSignin = (v: unknown): v is Signin => v === "exchange" || v === "
 export const isFriends = (v: unknown): v is Friends => v === "nanoterra" || v === "own" || v === "off";
 export const isEmotes = (v: unknown): v is Emotes => v === "on" || v === "off";
 export const isFreePlay = (v: unknown): v is FreePlay => v === "on" || v === "off";
+export const isMaintenance = (v: unknown): v is Maintenance => v === "on" || v === "off";
 /** The friends list a game shows while neither its own words nor /admin say: Nanoterra's. */
 export const DEFAULT_FRIENDS: Friends = "nanoterra";
 /** Nanoterra's emotes are on while neither the game's own words nor /admin say. */
@@ -59,7 +75,7 @@ export const signinOn = (s: Signin): boolean => s !== "none";
 
 /** A request body for a press: only the known words, at least one. Anything else is refused, with the reason in words. */
 export function parsePatch(body: unknown): { ok: true; patch: GamePatch } | { ok: false; error: string } {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, error: 'Send an object with "character", "signin", "friends", "emotes", "freePlay" or a Legal setting.' };
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, error: 'Send an object with "character", "signin", "friends", "emotes", "freePlay", "maintenance" or a Legal setting.' };
   const patch: GamePatch = {};
   for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
     const legal = parseLegalKey(key, value);
@@ -70,6 +86,8 @@ export function parsePatch(body: unknown): { ok: true; patch: GamePatch } | { ok
     else if (key === "friends" && isFriends(value)) patch.friends = value;
     else if (key === "emotes" && isEmotes(value)) patch.emotes = value;
     else if (key === "freePlay" && isFreePlay(value)) patch.freePlay = value;
+    else if (key === "maintenance" && isMaintenance(value)) patch.maintenance = value;
+    else if (key === "maintenance") return { ok: false, error: '"maintenance" must be "on" or "off".' };
     else if (key === "friends") return { ok: false, error: '"friends" must be "nanoterra", "own" or "off".' };
     else if (key === "emotes") return { ok: false, error: '"emotes" must be "on" or "off".' };
     else if (key === "freePlay") return { ok: false, error: '"freePlay" must be "on" or "off".' };
@@ -77,7 +95,7 @@ export function parsePatch(body: unknown): { ok: true; patch: GamePatch } | { ok
     else if (key === "signin") return { ok: false, error: '"signin" must be "exchange" or "none".' };
     else return { ok: false, error: `"${key}" is not a game switch.` };
   }
-  if (!Object.keys(patch).length) return { ok: false, error: 'Send "character", "signin", "friends", "emotes", "freePlay" or a Legal setting.' };
+  if (!Object.keys(patch).length) return { ok: false, error: 'Send "character", "signin", "friends", "emotes", "freePlay", "maintenance" or a Legal setting.' };
   return { ok: true, patch };
 }
 
@@ -91,8 +109,32 @@ export function mergeSettings(stored: StoredSettings, defaults: GameSettings): G
     freePlay: isFreePlay(stored.freePlay) ? stored.freePlay : isFreePlay(defaults.freePlay) ? defaults.freePlay : DEFAULT_FREE_PLAY,
     fromAdmin: { character: isCharacter(stored.character), signin: isSigninChoice(stored.signin), friends: isFriends(stored.friends), emotes: isEmotes(stored.emotes), freePlay: isFreePlay(stored.freePlay) },
     legal: mergeLegal(stored),
+    maintenance: mergeMaintenance(stored),
   };
 }
+
+/** A kept time in ms (text), or null. */
+const timeOf = (v: unknown): number | null => (typeof v === "string" && /^\d{1,16}$/.test(v) ? Number(v) : null);
+
+/** The maintenance state from what the store kept: off until /admin turns it on. A stored value that is not "on" or "off" reads as off. */
+export function mergeMaintenance(stored: StoredSettings): MaintenanceState {
+  const at = timeOf(stored.maintenanceAt);
+  return { on: stored.maintenance === "on", at, told: at === null || timeOf(stored.maintenanceToldAt) === at };
+}
+
+/** The words of the Maintenance card (./panel/maintenanceCard.ts). */
+export const MAINTENANCE_CARD = {
+  title: "Maintenance",
+  switchTitle: "Under maintenance",
+  on: "On: players who open your game see “Back soon”. Nanoterra shows “Under maintenance” and turns your game's Play keys off. A round that is under way finishes and keeps its result. This page, your sign-in and your game's API still work.",
+  off: "Off: your game is open to players.",
+  told: "Nanoterra is told.",
+  notTold: "Nanoterra not told yet.",
+  cannotTell: "Nanoterra not told: this game has no Nanoterra client id and secret (NANOTERRA_CLIENT_ID, NANOTERRA_SECRET). Your own site still shows “Back soon”.",
+  retry: "Tell Nanoterra again",
+  retrying: "Telling Nanoterra…",
+  chip: "Under maintenance",
+} as const;
 
 /** The friends choice of the card: its title, and for each choice its short name (the card's three keys) and one plain sentence. Nanoterra's is the default. */
 export const FRIENDS_TITLE = "Friends list";

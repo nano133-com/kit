@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.19.0 (unreleased)
+
+- **New: maintenance** (the new path `@nano133/nanoterra/maintenance` and its stylesheet `@nano133/nanoterra/maintenance/style.css`; README
+  "Maintenance"; SPEC step 17). Wes, 2026-11-17: "our nanoterra kit (/admin page for gamers) should have a button to put a game into maintenance
+  mode". The owner's new **Maintenance card** (first in /admin's Settings, and "Under maintenance" in the top bar while it is on) turns it on and off.
+- **Players see "Back soon"**: `maintenanceGate(request, on, { page })` answers a player's page load with `backSoonPage({ name, stylesheets })`
+  (503, `Retry-After: 300`, `no-store`; no script, no inline style, so it fits a strict CSP) in the game's own look. It never stops the admin page,
+  the admin's calls and sign-in, the API, the files or the listing file: a round under way finishes and keeps its result.
+- **Nanoterra is told at once**: the admin handler's new option `maintenance: { tell }` (`nanoterraTeller({ clientId, secret })`) posts the state to
+  nano133.com's `/api/nanoterra/maintenance`, signed with HMAC-SHA256 keyed with the SHA-256 of the game's Nanoterra secret (the hash that nano133.com
+  keeps; no second key; the secret never leaves the server). The time of each press is later than the last; nano133.com refuses an old or repeated
+  one. While nano133.com did not accept the state the card says "Nanoterra not told yet" with the reason, tells it again every 30 seconds while the
+  page is open (10 times at most) and offers "Tell Nanoterra again".
+- **The store:** three more setting rows (`setting:maintenance`, `setting:maintenanceAt`, `setting:maintenanceToldAt`; `SETTING_KEYS` has 13), with no
+  change to the D1 tables or the Firestore collections. `adminStoreConformance` has a case for them. `GameState` has `maintenance` (`on`, `at`,
+  `told`, and from the handler `canTell` and a press's `error`); `parsePatch` takes `{ maintenance: "on" | "off" }` and never the two times. The
+  new `loadMaintenance(store)` reads the switch for the router (a store fault reads as off).
+- **Unchanged:** the money, the shop, the plays, the sign-ins, the Legal card and its defaults. A game that does not give the handler its `maintenance`
+  option has no Maintenance card, and a `{ maintenance }` press is refused (400): a switch that changed nothing for players would mislead the owner.
+  Give the option only with the gate in the game's router.
+
 ## 0.18.0 (2026-11-16)
 
 - **New: the try-on stage** (`mountShop`'s `tryOn`; the new path `@nano133/nanoterra/shop/viewer` and the new stylesheet

@@ -65,7 +65,9 @@
     "./connect/d1": { "types": "./dist/connect/adapters/d1.d.ts", "import": "./dist/connect/adapters/d1.js" },
     "./connect/firestore": { "types": "./dist/connect/adapters/firestore.d.ts", "import": "./dist/connect/adapters/firestore.js" },
     "./connect/conformance": { "types": "./dist/connect/conformance.d.ts", "import": "./dist/connect/conformance.js" },
-    "./connect/style.css": "./src/connect/style.css"
+    "./connect/style.css": "./src/connect/style.css",
+    "./maintenance": { "types": "./dist/maintenance/index.d.ts", "import": "./dist/maintenance/index.js" },
+    "./maintenance/style.css": "./src/maintenance/style.css"
   },
   "sideEffects": false,
   "files": ["dist", "src", "README.md", "CHANGELOG.md", "LICENSE", "ai", "examples"],

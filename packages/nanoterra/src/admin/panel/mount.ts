@@ -2,7 +2,7 @@
 // handler checks it on every call); this page only shows them. `mountAdmin(element, options)` draws the panel into `element`.
 //
 // The page: a top bar (who is signed in, Live or Test mode, the light/dark theme key, Sign out), what is still off (one banner), four numbers (earned, open now, to send back, players;
-// each opens its list), then five tabs: Overview, Cosmetics (the Shelf), Orders, Players and Settings (the Game card, the sign-ins, the facts). Every tab is
+// each opens its list), then five tabs: Overview, Cosmetics (the Shelf), Orders, Players and Settings (the Maintenance card, the Game card, the sign-ins, the facts). Every tab is
 // made once; a new read of the summary fills them again and keeps the chosen tab, the Shelf's draft, a search and the Game card.
 
 import type { Look } from "../../looks/look.js";
@@ -15,6 +15,8 @@ import type { AdminCard } from "./card.js";
 import { copyKey, h, plural, shortAddress } from "./dom.js";
 import { gameCard } from "./gameCard.js";
 import { legalCard, type LegalCard } from "./legalCard.js";
+import { maintenanceCard, type MaintenanceCard } from "./maintenanceCard.js";
+import { MAINTENANCE_CARD } from "../switches.js";
 import { roundsView } from "./rounds.js";
 import { icon, type IconName } from "./icons.js";
 import { ordersView, type OrderFilter } from "./orders.js";
@@ -98,6 +100,7 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
   /** The "Game" card keeps its own state for the life of the page (a payment check redraws the rest, not this). */
   let game: HTMLElement | null = null;
   let legal: LegalCard | null = null;
+  let maint: MaintenanceCard | null = null;
   let gameState: GameState | null = null;
   const plays: Play[] = (() => {
     try {
@@ -121,14 +124,18 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
         gameState = state;
         dash?.setGame(state);
         rounds?.setSellLives(state.legal?.sellLives === true);
+        maint?.set(state);
       };
       rounds?.setSellLives(gameState.legal?.sellLives === true);
       game = gameCard(api, gameState, options.defaultsFile, heard);
       // The Legal card reads the same settings: made once, as the Game card is.
       legal = legalCard(api, gameState, plays, heard);
+      // The Maintenance card reads the same settings (a game that did not give the handler its `maintenance` option, or an older server, sends none: no card).
+      maint = gameState.maintenance ? maintenanceCard(api, gameState, heard) : null;
     } catch {
       game = null;
       legal = null;
+      maint = null;
       gameState = null;
     }
     return game;
@@ -271,14 +278,25 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
       );
     }
 
+    /** The top bar says "Under maintenance" while the switch is on. */
+    const maintChip = h("span", { class: "chip chip-warn chip-maint", title: MAINTENANCE_CARD.on }, h("span", { class: "chip-dot", "aria-hidden": "true" }), MAINTENANCE_CARD.chip);
+    const drawMaint = (state: GameState | null) => {
+      maintChip.hidden = !state?.maintenance?.on;
+    };
+
     return {
-      setGame: (state) => overview.setGame(state),
+      setGame: (state) => {
+        overview.setGame(state);
+        drawMaint(state);
+      },
       update(s) {
         who.replaceChildren(h("span", { class: "who-label" }, "Signed in as"), s.address ? h("span", { class: "who-address" }, h("code", { title: s.address }, shortAddress(s.address)), copyKey(s.address, "Copy your address", icon("copy", 14))) : h("span", {}, "the game's owner"));
         chips.replaceChildren(
           h("span", { class: `chip ${s.testMode ? "chip-warn" : "chip-ok"}`, title: s.testMode ? "Payments are not real" : "Payments are real" }, h("span", { class: "chip-dot", "aria-hidden": "true" }), s.testMode ? "Test mode" : "Live"),
           s.turnstile === undefined ? "" : h("span", { class: `chip ${s.turnstile ? "chip-ok" : "chip-warn"}` }, h("span", { class: "chip-dot", "aria-hidden": "true" }), s.turnstile ? "Bot check on" : "Bot check off"),
+          maintChip,
         );
+        drawMaint(gameState);
         const notes = options.playerPasskeys && previewHost(location.hostname) ? [...s.warnings, PASSKEY_PREVIEW_NOTE] : s.warnings;
         banner.hidden = !notes.length;
         banner.replaceChildren(h("div", { class: "banner-icon", "aria-hidden": "true" }, icon("alert", 20)), h("div", {}, h("h2", {}, "Check these"), h("ul", {}, ...notes.map((w) => h("li", {}, w)))));
@@ -306,7 +324,7 @@ export function mountAdmin(root: HTMLElement, options: MountOptions): MountedAdm
         orders.update(s);
         players.update(s);
         // The Game card is the same element at every redraw: moving it keeps its state.
-        settings.replaceChildren(...[game, sellsPlays(s) ? (legal?.el ?? null) : null, signinsCard(s, api, () => void load(), options.loginsNote), ...(options.cards ?? []).map((c) => c.el), about(s)].filter((p): p is HTMLElement => p !== null));
+        settings.replaceChildren(...[maint?.el ?? null, game, sellsPlays(s) ? (legal?.el ?? null) : null, signinsCard(s, api, () => void load(), options.loginsNote), ...(options.cards ?? []).map((c) => c.el), about(s)].filter((p): p is HTMLElement => p !== null));
       },
     };
   }

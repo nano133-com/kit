@@ -113,7 +113,7 @@ test("a press on a switch saves it, says Saved, and the character note changes w
   const { root, mounted, store, calls } = setup();
   await mounted.ready;
   assert.ok(text(root).includes(CHARACTER_NEEDS_SIGNIN));
-  const signin = root.querySelectorAll(".switch")[1] as HTMLButtonElement;
+  const signin = root.querySelectorAll(".game-card .switch")[1] as HTMLButtonElement;
   signin.click();
   await tick();
   assert.equal(signin.getAttribute("aria-checked"), "false");
@@ -122,12 +122,12 @@ test("a press on a switch saves it, says Saved, and the character note changes w
   assert.ok(text(root).includes(CHARACTER_SIGNIN_OFF));
   assert.ok(!text(root).includes(CHARACTER_NEEDS_SIGNIN));
   // The character switch off hides the note: it matters only while the character is On.
-  (root.querySelectorAll(".switch")[0] as HTMLButtonElement).click();
+  (root.querySelectorAll(".game-card .switch")[0] as HTMLButtonElement).click();
   await tick();
   assert.equal(store.rows.get("setting:character"), "own");
   assert.equal((root.querySelector(".switch-needs") as HTMLElement).hidden, true);
   // "Allow Nanoterra emotes": on by default, off on a press, with its sentence.
-  const emotes = root.querySelectorAll(".switch")[2] as HTMLButtonElement;
+  const emotes = root.querySelectorAll(".game-card .switch")[2] as HTMLButtonElement;
   assert.equal(emotes.getAttribute("aria-checked"), "true");
   assert.ok(text(root).includes(SWITCHES.emotes.on));
   emotes.click();
@@ -136,7 +136,7 @@ test("a press on a switch saves it, says Saved, and the character note changes w
   assert.equal(store.rows.get("setting:emotes"), "off");
   assert.ok(text(root).includes(SWITCHES.emotes.off));
   // "Free play": on by default, off on a press, with its sentence (a paid game: the creator's).
-  const freePlay = root.querySelectorAll(".switch")[3] as HTMLButtonElement;
+  const freePlay = root.querySelectorAll(".game-card .switch")[3] as HTMLButtonElement;
   assert.equal(freePlay.getAttribute("aria-checked"), "true");
   assert.ok(text(root).includes(SWITCHES.freePlay.on));
   freePlay.click();
@@ -151,7 +151,7 @@ test("a press that the server refuses shows the server's words and changes nothi
   const store = createMemoryStore();
   const { root, mounted } = setup({ store });
   await mounted.ready;
-  const signin = root.querySelectorAll(".switch")[1] as HTMLButtonElement;
+  const signin = root.querySelectorAll(".game-card .switch")[1] as HTMLButtonElement;
   // Break the store: the handler answers 500 with a fixed sentence.
   store.saveSettings = async () => {
     throw new Error("SECRET DETAIL");
@@ -551,7 +551,7 @@ test("overview: the best sellers, the last orders and the two switches; a key op
   const glance = text(overview.querySelector(".glance-card")!);
   assert.ok(glance.includes(SWITCHES.character.title) && glance.includes("On"), glance);
   // A switch pressed in Settings shows on the Overview at once.
-  (root.querySelectorAll(".switch")[1] as HTMLButtonElement).click();
+  (root.querySelectorAll(".game-card .switch")[1] as HTMLButtonElement).click();
   await tick();
   const pills = [...overview.querySelectorAll(".glance-card .pill")].map((p) => text(p));
   assert.deepEqual(pills.slice(0, 2), ["On", "Off"]);

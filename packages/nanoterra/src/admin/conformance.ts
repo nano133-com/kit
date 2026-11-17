@@ -13,6 +13,7 @@ import { DEFAULT_LEGAL } from "./legal.js";
 import { mergeLegal } from "./legalRules.js";
 import { SETTING_KEYS, type AdminStore, type SettingName, type StoredSettings } from "./store.js";
 import { ORDERS_SHOWN, type CreditRow, type OrderRow } from "./summary.js";
+import { mergeMaintenance } from "./switches.js";
 
 /**
  * The kinds of visitor the game must be able to make:
@@ -351,7 +352,7 @@ export type StoreHarness = {
   seed(data: { orders?: OrderRow[]; owned?: { player: string; lookId: string; at: number }[]; credits?: CreditRow[]; rate?: { value: string; at: number } }): Promise<void>;
   /** True when the store reads the shop's plays (the orders' kind and the credits): the plays' case runs, and `snapshot` must hold the credits too. */
   plays?: boolean;
-  /** Every row that the store could change by mistake, as one text: the orders, the owned looks and the meta rows that are NOT the ten settings (SETTING_KEYS). Same rows, same text. */
+  /** Every row that the store could change by mistake, as one text: the orders, the owned looks and the meta rows that are NOT the thirteen settings (SETTING_KEYS). Same rows, same text. */
   snapshot(): Promise<string>;
   /** Only for a store with `recentLogins` and `signOutEverywhere`: put admin sign-ins in the game's database (the store only reads them). */
   seedLogins?(rows: { at: number; country: string | null; browser: string }[]): Promise<void>;
@@ -430,6 +431,22 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
     }
   });
 
+  add("the maintenance switch is kept with its two times (the press, and the press that nano133.com accepted), and a patch of it leaves the rest", async ({ store }) => {
+    await store.saveSettings({ signin: "none", friends: "off" }, NOW);
+    check(!mergeMaintenance(await store.readSettings()).on, "a new store is not under maintenance");
+    await store.saveSettings({ maintenance: "on", maintenanceAt: NOW + 1 }, NOW + 1);
+    let s = await store.readSettings();
+    let m = mergeMaintenance(s);
+    check(m.on && m.at === NOW + 1 && !m.told && s.signin === "none" && s.friends === "off", `after maintenance on: ${JSON.stringify(s)}`);
+    await store.saveSettings({ maintenanceToldAt: NOW + 1 }, NOW + 2);
+    m = mergeMaintenance(await store.readSettings());
+    check(m.on && m.at === NOW + 1 && m.told, `after nano133.com accepted it: ${JSON.stringify(m)}`);
+    await store.saveSettings({ maintenance: "off", maintenanceAt: NOW + 3 }, NOW + 3);
+    s = await store.readSettings();
+    m = mergeMaintenance(s);
+    check(!m.on && m.at === NOW + 3 && !m.told && s.signin === "none" && s.friends === "off", `after maintenance off: ${JSON.stringify(s)}`);
+  });
+
   add("a patch saves only what it names; the next patch keeps the rest", async ({ store }) => {
     await store.saveSettings({ signin: "none" }, NOW);
     let s = await store.readSettings();
@@ -453,7 +470,7 @@ export function adminStoreConformance(make: () => Promise<StoreHarness>): Confor
     const before = await h.snapshot();
     await h.store.saveSettings({ character: "own", signin: "none", friends: "off", emotes: "off", freePlay: "off" }, NOW + 5);
     check((await h.snapshot()) === before, "the rows of the game changed after saving the settings");
-    for (const [i, patch] of ([{ adultsOnly: "off" }, { sellLives: "on" }, { refundDays: 30 }, { refundWords: "No refunds after a use." }, { confirmLaws: true }] as const).entries()) {
+    for (const [i, patch] of ([{ adultsOnly: "off" }, { sellLives: "on" }, { refundDays: 30 }, { refundWords: "No refunds after a use." }, { confirmLaws: true }, { maintenance: "on", maintenanceAt: NOW + 20 }, { maintenanceToldAt: NOW + 20 }] as const).entries()) {
       await h.store.saveSettings(patch, NOW + 6 + i);
       check((await h.snapshot()) === before, `the rows of the game changed after saving ${JSON.stringify(patch)}`);
     }

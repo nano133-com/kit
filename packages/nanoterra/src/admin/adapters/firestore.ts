@@ -1,9 +1,10 @@
 // The admin store for a game on Firestore (the Admin SDK). The package has no Firebase dependency: the adapter uses the small interface below, which the
-// Admin SDK's `Firestore` fits. It writes ONLY the ten settings (SETTING_KEYS); everything else it does is a read.
+// Admin SDK's `Firestore` fits. It writes ONLY the thirteen settings (SETTING_KEYS); everything else it does is a read.
 //
 // The data model (the names a game must have; only the four collection names can be changed):
 //   meta/{key}          { value: string, at: number }          keys "setting:character", "setting:signin", "setting:friends", "setting:emotes", "setting:freePlay", the Legal card's
-//                                                              "setting:adultsOnly", "setting:sellLives", "setting:refundDays", "setting:refundWords", "setting:lawsConfirmedAt", and "rate" (value is JSON { usd, sources })
+//                                                              "setting:adultsOnly", "setting:sellLives", "setting:refundDays", "setting:refundWords", "setting:lawsConfirmedAt", the Maintenance card's
+//                                                              "setting:maintenance", "setting:maintenanceAt", "setting:maintenanceToldAt", and "rate" (value is JSON { usd, sources })
 //   orders/{id}         { player, lookId, usd, amount, status, createdAt, expiresAt, paidAt, payer, hash }   `amount` is the raw amount as text
 //   owned/{player__lookId}  { player, lookId, orderId, grantedAt }
 //   credits/{orderId}   { player, playId, grantedAt, expiresAt, usedAt }   the shop's credits of paid plays (read for the plays' numbers; none when the game sells no plays)
@@ -36,7 +37,7 @@ export interface FirestoreLike {
 }
 
 export const FIRESTORE_SCAN_LIMIT = 5000;
-/** The meta documents of the settings (the Game card's five and the Legal card's five). */
+/** The meta documents of the settings (the Game card's five, the Legal card's five and the Maintenance card's three). */
 export const FIRESTORE_KEYS = SETTING_KEYS;
 
 const text = (v: unknown, fallback = ""): string => (typeof v === "string" ? v : fallback);

@@ -2,8 +2,10 @@
 //
 //   GET  {base}/summary   the numbers: status, orders, the looks that players own, the plays (sold, used, ready, not used in time) and what to send back
 //   GET  {base}/game      the game switches
-//   POST {base}/game      a press: { character }, { signin }, { friends }, { emotes } or { freePlay } (only the known words), or one of the Legal card's
-//                         { adultsOnly }, { sellLives }, { refundDays }, { refundWords } or { confirmLaws: true } (./legal.ts)
+//   POST {base}/game      a press: { character }, { signin }, { friends }, { emotes }, { freePlay } or { maintenance } (only the known words), or one of the
+//                         Legal card's { adultsOnly }, { sellLives }, { refundDays }, { refundWords } or { confirmLaws: true } (./legal.ts). A press of
+//                         { maintenance } (only with the `maintenance` option) is saved first (the game's own site follows it at once), then told
+//                         to nano133.com (`maintenance.tell`); a press of the state it already has tells nano133.com again
 //   POST {base}/check     the payment check, when the game gives one
 //   POST {base}/unmatched the receives on the game's address that no order recorded, when the game gives the read (a POST: it asks the nodes)
 //
@@ -16,7 +18,8 @@ import { ADMIN_LOGINS_SHOWN, type AdminLogin, type AdminOrder, type AdminPlayer,
 import { checkPlays } from "../looks/play.js";
 import type { LegalState } from "./legal.js";
 import { mergeLegal } from "./legalRules.js";
-import { mergeSettings, parsePatch, type GameSettings, type GameState } from "./switches.js";
+import { mergeMaintenance, mergeSettings, parsePatch, type GameSettings, type GameState } from "./switches.js";
+import type { Tell } from "../maintenance/index.js";
 
 export type AdminRoute = { method: "GET" | "POST"; path: string };
 
@@ -45,6 +48,13 @@ export type AdminHandlerOptions = {
    * oldest order the summary lists (null: no order yet). Its answer is sent as `unmatched`. With none given, the route does not exist.
    */
   unmatched?: (now: number, since: number | null) => Promise<unknown>;
+  /**
+   * The Maintenance card ("@nano133/nanoterra/maintenance"): give it only when the game's router asks `maintenanceGate` first. Without it there is no
+   * card and no `maintenance` press (a switch that changed nothing for players would mislead the owner). `tell` tells nano133.com the state after a
+   * press: `nanoterraTeller` with the game's NANOTERRA_CLIENT_ID and NANOTERRA_SECRET. Null (the game has no Nanoterra secret): the switch works on the
+   * game's own site only, and the card says that Nanoterra is not told.
+   */
+  maintenance?: { tell: Tell | null };
   /** Where the routes are. Default "/api/admin". */
   basePath?: string;
   /** How old an admin login may be, in ms: one day at most (a bigger number is cut to one day). */
@@ -99,6 +109,9 @@ function readsAsBase(raw: string, base: string): boolean {
   return true;
 }
 
+/** How long a press waits for nano133.com at most, whatever the game's `maintenance.tell` does (the kit's own teller stops at 5 s). */
+const TELL_BOUND_MS = 6000;
+
 /** The default limiter lives at module level: a Worker makes a handler for each request, and a limiter made inside it would forget every press. */
 const sharedLimit = memoryLimiter();
 
@@ -118,7 +131,29 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
     ...(options.store.signOutEverywhere ? [{ method: "POST" as const, path: `${base}/signout-all` }] : []),
   ];
 
-  const settings = async (): Promise<GameState> => mergeSettings(await options.store.readSettings(), options.defaults);
+  const tell = options.maintenance?.tell ?? null;
+  const settings = async (): Promise<GameState> => {
+    const s = mergeSettings(await options.store.readSettings(), options.defaults);
+    if (!options.maintenance) delete s.maintenance;
+    else if (s.maintenance) s.maintenance.canTell = tell !== null;
+    return s;
+  };
+
+  /** Tells nano133.com a state; its answer in words when it did not keep it. A fault or a wait past the kit's bound is "did not answer". */
+  async function tellOnce(on: boolean, at: number): Promise<string | null> {
+    if (!tell) return null;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const late = new Promise<{ ok: false; error: string }>((done) => (timer = setTimeout(() => done({ ok: false, error: "Nanoterra did not answer." }), TELL_BOUND_MS)));
+      const r = await Promise.race([tell({ on, at }), late]);
+      return r.ok ? null : r.error;
+    } catch (e) {
+      report(e);
+      return "Nanoterra did not answer.";
+    } finally {
+      clearTimeout(timer);
+    }
+  }
   const plays = options.plays === undefined || options.plays === null ? [] : checkPlays(options.plays);
   const playOf = (id: string) => plays.find((p) => p.id === id);
 
@@ -203,10 +238,22 @@ export function createAdminHandler(options: AdminHandlerOptions): AdminHandler {
         const parsed = parsePatch(body);
         if (!parsed.ok) return fail(400, parsed.error);
         const patch = parsed.patch;
+        if (patch.maintenance && !options.maintenance) return fail(400, "This game has no maintenance switch.");
+        const before = await settings();
         // The owner's confirmation is kept once: its time is the first press.
-        if (patch.confirmLaws && (await settings()).legal.lawsConfirmedAt !== null) delete patch.confirmLaws;
+        if (patch.confirmLaws && before.legal.lawsConfirmedAt !== null) delete patch.confirmLaws;
+        // The time of a maintenance press is later than the last one, always: nano133.com keeps only a newer state.
+        if (patch.maintenance) patch.maintenanceAt = Math.max(Math.floor(at), (before.maintenance?.at ?? 0) + 1);
         if (Object.keys(patch).length) await options.store.saveSettings(patch, at);
-        return json(await settings());
+        let told: string | null = null;
+        if (patch.maintenance && patch.maintenanceAt !== undefined) {
+          told = await tellOnce(patch.maintenance === "on", patch.maintenanceAt);
+          // Kept only while this press is still the last one: an older press told late never marks a newer one as told.
+          if (tell && told === null && (await settings()).maintenance?.at === patch.maintenanceAt) await options.store.saveSettings({ maintenanceToldAt: patch.maintenanceAt }, now());
+        }
+        const out = await settings();
+        if (told !== null && out.maintenance) out.maintenance.error = told;
+        return json(out);
       }
       if (route.path === `${base}/signout-all`) {
         if (!(await limit(lkey("admin-signout-all"), ADMIN_LIMITS.signOutAll.limit, ADMIN_LIMITS.signOutAll.windowMs, at))) return fail(429, "Too many tries. Wait a minute.");
@@ -238,6 +285,18 @@ export async function loadGameSettings(store: Pick<AdminStore, "readSettings">, 
     return mergeSettings(await store.readSettings(), defaults);
   } catch {
     return mergeSettings({}, defaults);
+  }
+}
+
+/**
+ * Whether the game is under maintenance now, for the game's router (`maintenanceGate` of "@nano133/nanoterra/maintenance"). A fault in the store
+ * reads as off: the game stays open, as it is by default.
+ */
+export async function loadMaintenance(store: Pick<AdminStore, "readSettings">): Promise<boolean> {
+  try {
+    return mergeMaintenance(await store.readSettings()).on;
+  } catch {
+    return false;
   }
 }
 

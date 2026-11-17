@@ -1,6 +1,7 @@
 // The admin store for a game on Cloudflare D1, with the tables of the game starter (migrations/0001_init.sql): `meta`, `orders` and `owned`.
-// It writes ONLY the ten settings (SETTING_KEYS in `meta`: the Game card's `setting:character`, `setting:signin`, `setting:friends`, `setting:emotes`, `setting:freePlay`, and the Legal card's
-// `setting:adultsOnly`, `setting:sellLives`, `setting:refundDays`, `setting:refundWords`, `setting:lawsConfirmedAt`); everything else it does is a read, except when the game turns the sign-in list on
+// It writes ONLY the thirteen settings (SETTING_KEYS in `meta`: the Game card's `setting:character`, `setting:signin`, `setting:friends`, `setting:emotes`, `setting:freePlay`, and the Legal card's
+// `setting:adultsOnly`, `setting:sellLives`, `setting:refundDays`, `setting:refundWords`, `setting:lawsConfirmedAt`, and the Maintenance card's
+// `setting:maintenance`, `setting:maintenanceAt`, `setting:maintenanceToldAt`); everything else it does is a read, except when the game turns the sign-in list on
 // (`logins: true`): then the one other write is `DELETE FROM sessions WHERE scope = 'admin'` ("sign out everywhere").
 //
 //   import { createD1Store } from "@nano133/nanoterra/admin/d1";
@@ -22,7 +23,7 @@ export interface D1Like {
   batch(statements: D1StatementLike[]): Promise<unknown[]>;
 }
 
-/** The meta keys of the settings (the Game card's five and the Legal card's five). */
+/** The meta keys of the settings (the Game card's five, the Legal card's five and the Maintenance card's three). */
 export const D1_KEYS = SETTING_KEYS;
 
 type Row = { id: string; player: string; look_id: string; kind?: string; forgot_unused?: number | null; usd: string; amount: string; status: string; created_at: number; expires_at: number; paid_at: number | null; payer: string | null; hash: string | null };

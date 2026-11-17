@@ -112,6 +112,9 @@ const run = async (cases: ConformanceCase[]) => {
 
 // ---- the suite on a good host ----
 
+/** Maintenance as loadGameSettings reads it from a store that never had it (off, never pressed). The handler leaves it out with no `maintenance` option. */
+const STORE_OFF = { on: false, at: null, told: true };
+
 test("the conformance suite passes on a handler with the memory store", async () => {
   const { handler } = make();
   const { handler: noOwner } = make({ owner: null });
@@ -588,12 +591,12 @@ test("the base path must be a path", () => {
 
 test("loadGameSettings: the stored words, the defaults for a missing or odd word, and the defaults when the store fails", async () => {
   const store = createMemoryStore();
-  assert.deepEqual(await loadGameSettings(store, DEFAULTS), { character: "nanoterra", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false, freePlay: false }, legal: DEFAULT_LEGAL });
+  assert.deepEqual(await loadGameSettings(store, DEFAULTS), { character: "nanoterra", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false, freePlay: false }, legal: DEFAULT_LEGAL, maintenance: STORE_OFF });
   store.rows.set("setting:character", "own");
   store.rows.set("setting:signin", "ticket"); // not a word a press can set: ignored
-  assert.deepEqual(await loadGameSettings(store, DEFAULTS), { character: "own", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: true, signin: false, friends: false, emotes: false, freePlay: false }, legal: DEFAULT_LEGAL });
+  assert.deepEqual(await loadGameSettings(store, DEFAULTS), { character: "own", signin: "exchange", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: true, signin: false, friends: false, emotes: false, freePlay: false }, legal: DEFAULT_LEGAL, maintenance: STORE_OFF });
   const broken = { readSettings: async () => { throw new Error("down"); } };
-  assert.deepEqual(await loadGameSettings(broken, { character: "own", signin: "none" }), { character: "own", signin: "none", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false, freePlay: false }, legal: DEFAULT_LEGAL });
+  assert.deepEqual(await loadGameSettings(broken, { character: "own", signin: "none" }), { character: "own", signin: "none", friends: "nanoterra", emotes: "on", freePlay: "on", fromAdmin: { character: false, signin: false, friends: false, emotes: false, freePlay: false }, legal: DEFAULT_LEGAL, maintenance: STORE_OFF });
   // The game's own word for the friends list is its default; a stored word wins; an odd stored word is ignored.
   assert.equal((await loadGameSettings(createMemoryStore(), { ...DEFAULTS, friends: "off" })).friends, "off");
   store.rows.set("setting:friends", "own");

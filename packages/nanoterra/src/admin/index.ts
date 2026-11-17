@@ -2,13 +2,14 @@
 //
 //   adminAccess            the guard: one pure function, who may open /admin
 //   createAdminHandler     the routes, on Request and Response
-//   loadGameSettings       the game switches for the game's own routes (and loadLegal: the Legal card's settings, for the shop)
+//   loadGameSettings       the game switches for the game's own routes (and loadLegal: the Legal card's settings, for the shop; loadMaintenance: the
+//                          maintenance switch, for the game's router)
 //   createMemoryStore      a store in memory, for tests
 //   (the conformance suite is its own path: "@nano133/nanoterra/admin/conformance"; the adapters are "/admin/d1" and "/admin/firestore")
 
 export { ADMIN_SESSION_MS, CLOCK_SKEW_MS, OWNER_PATTERN, adminAccess } from "./guard.js";
 export type { AdminAccess, AdminAccessInput, AdminRefusal, AdminSession } from "./guard.js";
-export { ADMIN_LIMITS, createAdminHandler, loadGameSettings, loadLegal } from "./handler.js";
+export { ADMIN_LIMITS, createAdminHandler, loadGameSettings, loadLegal, loadMaintenance } from "./handler.js";
 export type { AdminHandler, AdminHandlerOptions, AdminRoute } from "./handler.js";
 export { createMemoryStore } from "./memory.js";
 export type { MemoryStore } from "./memory.js";
@@ -21,5 +22,5 @@ export type { AdminLogin, AdminOrder, AdminPlayer, AdminStatus, AdminStore, Admi
 export { ORDERS_SHOWN, addPlays, moneyOf, parseRate, playsSummary, shapeOrders, shapePlayers, statusOf, summarize, withReady } from "./summary.js";
 export type { CreditRow, OrderRow } from "./summary.js";
 export { RAW_PER_XNO, xnoText } from "./amount.js";
-export { CHARACTER_NEEDS_SIGNIN, CHARACTER_SIGNIN_OFF, DEFAULT_EMOTES, DEFAULT_FREE_PLAY, DEFAULT_FRIENDS, FREE_PLAY_NOTE, FRIENDS_CHOICES, FRIENDS_TITLE, LEGAL_WORDS, REVIEW_LINK, REVIEW_NOTE, SWITCHES, freePlayOn, isCharacter, isEmotes, isFreePlay, isFriends, isSignin, isSigninChoice, mergeSettings, parsePatch, pressOf, signinOn, stateOf } from "./switches.js";
-export type { Character, Emotes, FreePlay, Friends, GamePatch, GameSettings, GameState, Signin, SwitchId } from "./switches.js";
+export { CHARACTER_NEEDS_SIGNIN, CHARACTER_SIGNIN_OFF, DEFAULT_EMOTES, DEFAULT_FREE_PLAY, DEFAULT_FRIENDS, FREE_PLAY_NOTE, FRIENDS_CHOICES, FRIENDS_TITLE, LEGAL_WORDS, MAINTENANCE_CARD, REVIEW_LINK, REVIEW_NOTE, SWITCHES, freePlayOn, isCharacter, isEmotes, isFreePlay, isFriends, isMaintenance, isSignin, isSigninChoice, mergeMaintenance, mergeSettings, parsePatch, pressOf, signinOn, stateOf } from "./switches.js";
+export type { Character, Emotes, FreePlay, Friends, GamePatch, GameSettings, GameState, Maintenance, MaintenanceState, Signin, SwitchId } from "./switches.js";

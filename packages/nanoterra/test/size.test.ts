@@ -63,6 +63,8 @@ const PATHS: [string, string[], number, boolean][] = [
   ["@nano133/nanoterra/connect", ["connect/index.js"], CONNECT_CEILING, false],
   ["@nano133/nanoterra/connect/worker", ["connect/worker.js"], CONNECT_WORKER_CEILING, false],
   ["@nano133/nanoterra/connect/node", ["connect/node.js"], CONNECT_NODE_CEILING, false],
+  // Since 0.19.0 the maintenance part (the gate, the Back soon page, the signed teller): server code, imports nothing (1,946 B here).
+  ["@nano133/nanoterra/maintenance", ["maintenance/index.js"], 2_100, false],
 ];
 /** The emote clips: their own chunk, loaded on the first emote (never in a path's bundle above: "./clips.js" stays outside). */
 /** The name, the file, the ceiling (gzip), whether it has a default export, and the files it shares with the path that loads it (a bundler keeps those in that path's chunk). */

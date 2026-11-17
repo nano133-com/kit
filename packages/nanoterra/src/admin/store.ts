@@ -76,8 +76,9 @@ export type AdminLogin = { at: number; country: string | null; browser: string }
 export const ADMIN_LOGINS_SHOWN = 10;
 
 /**
- * The settings an admin store keeps, by name, and the key of each in the game's meta table (D1) or meta collection (Firestore). The Game card's five and
- * the Legal card's five. A value is kept as text: "14" for the refund days, the time in ms for the owner's confirmation (`confirmLaws` in a patch).
+ * The settings an admin store keeps, by name, and the key of each in the game's meta table (D1) or meta collection (Firestore). The Game card's five,
+ * the Legal card's five and the Maintenance card's three (the switch, the time of its last press and the time that nano133.com last accepted). A value
+ * is kept as text: "14" for the refund days, the time in ms for the owner's confirmation (`confirmLaws` in a patch) and for the two maintenance times.
  */
 export const SETTING_KEYS = {
   character: "setting:character",
@@ -90,6 +91,9 @@ export const SETTING_KEYS = {
   refundDays: "setting:refundDays",
   refundWords: "setting:refundWords",
   lawsConfirmedAt: "setting:lawsConfirmedAt",
+  maintenance: "setting:maintenance",
+  maintenanceAt: "setting:maintenanceAt",
+  maintenanceToldAt: "setting:maintenanceToldAt",
 } as const;
 export type SettingName = keyof typeof SETTING_KEYS;
 /** The settings as a store holds them: each one as it was kept (text), or missing. */
@@ -108,11 +112,14 @@ export function settingRows(patch: GamePatch, now: number): [SettingName, string
   if (patch.refundDays !== undefined) rows.push(["refundDays", String(patch.refundDays)]);
   if (patch.refundWords !== undefined) rows.push(["refundWords", patch.refundWords]);
   if (patch.confirmLaws === true) rows.push(["lawsConfirmedAt", String(Math.floor(now))]);
+  if (patch.maintenance) rows.push(["maintenance", patch.maintenance]);
+  if (patch.maintenanceAt !== undefined) rows.push(["maintenanceAt", String(Math.floor(patch.maintenanceAt))]);
+  if (patch.maintenanceToldAt !== undefined) rows.push(["maintenanceToldAt", String(Math.floor(patch.maintenanceToldAt))]);
   return rows;
 }
 
 /**
- * The game's database, as the handler needs it. An adapter writes ONLY what these calls say: the ten settings (SETTING_KEYS) and, when the game turns it
+ * The game's database, as the handler needs it. An adapter writes ONLY what these calls say: the thirteen settings (SETTING_KEYS) and, when the game turns it
  * on, the deletion of the admin sessions (`signOutEverywhere`). Nothing else.
  * (There is no call that writes a look, a play, a price, an order or a credit: the Shelf gives text to copy, and a change of looks or plays is a change of
  * the repository.)

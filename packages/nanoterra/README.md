@@ -103,6 +103,7 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/connect/d1`, `/connect/firestore` | the "works once" store on D1 (`createD1Once`, the starter's `hits`) or Firestore (`createFirestoreOnce`, a small interface, no Firebase dependency) (since 0.17.0) | no | n/a |
 | `@nano133/nanoterra/connect/conformance` | the protocol's rules as test cases, run on a game's own mounted routes (since 0.17.0) | no | n/a |
 | `@nano133/nanoterra/connect/style.css` | the screens' stylesheet on the `--n133-*` tokens (since 0.17.0) | no | 8.4 kB of CSS (not minified) |
+| `@nano133/nanoterra/maintenance` | a game under maintenance: `maintenanceGate` (the "Back soon" page for a player's page load), `backSoonPage`, `nanoterraTeller` (tells nano133.com, signed with the game's Nanoterra secret); its stylesheet `@nano133/nanoterra/maintenance/style.css` (server code; since 0.19.0) | no | 1.9 kB; it imports nothing |
 
 Measured 2026-10-26 (the friends paths 2026-10-30, the options, the emotes, the player sign-in and the shop paths 2026-11-01; "with the plays" 2026-11-03, by the size test): `esbuild --bundle --minify --format=esm --external:three`, then `gzip -9`, without Three.js.
 All four paths together: 23.6 kB. A test of the package proves that the record, the ticket, the looks and the small part import no package at all.
@@ -2427,6 +2428,52 @@ the whole check passed (the types, 381 tests, the build), and nano133.com's own 
   starter's copies have the same rule. nano133.com keeps it as part of its contract (`docs/agents/launch.md`).
 - **A name with a control or direction character is refused** (the player cannot sign in from Nanoterra). nano133.com's names are 3 to 16 of
   `A-Z a-z 0-9 _` today, so this cannot happen now.
+
+## Maintenance (`/maintenance`; since 0.19.0)
+
+The owner puts the game under maintenance from `/admin` (the Maintenance card, first in Settings: one switch, "Under maintenance"). Wes,
+2026-11-17: "our nanoterra kit (/admin page for gamers) should have a button to put a game into maintenance mode". While it is on:
+
+- **Players see "Back soon"** on the game's own site: a short page with the game's name and one line, in the game's own look (its stylesheets),
+  answered with 503 and `Retry-After: 300`, never kept by a cache.
+- **Nanoterra shows "Under maintenance"** on the game's plot, in the games list, on its page and on `/play`, and turns every Play key of the
+  game off. The game's server tells nano133.com at the press.
+- **What still works:** `/admin`, the admin's calls and its sign-in (`MAINTENANCE_OPEN`), and every request that is not a player's page load: the
+  game's API, its files, its listing file and its health answers. So a round that is under way finishes and keeps its result, and a paid play is
+  never lost: a credit is used only at a round's start, and a player whose page is open can still start, play and finish a round. The gate stops
+  only the next page load.
+
+```ts
+import { createAdminHandler, loadMaintenance } from "@nano133/nanoterra/admin";
+import { backSoonPage, maintenanceGate, nanoterraTeller } from "@nano133/nanoterra/maintenance";
+
+// The Maintenance card, and nano133.com told at each press (`tell` is null while the game has no Nanoterra client id and secret).
+// Give the option only with the gate below: without it there is no card.
+const admin = createAdminHandler({ ...options, maintenance: { tell: nanoterraTeller({ clientId: env.NANOTERRA_CLIENT_ID, secret: env.NANOTERRA_SECRET }) } });
+
+// The router asks the gate FIRST, for every request.
+const closed = await maintenanceGate(request, await loadMaintenance(store), { page: () => backSoonPage({ name: "My Game", stylesheets: ["/back-soon.css"] }) });
+if (closed) return closed;
+```
+
+A game whose pages are static files served without its server (a Worker's `assets`) must let the server run first for its pages: on Cloudflare,
+`"run_worker_first": ["/", "/index.html"]` in `wrangler.jsonc` and an `ASSETS` binding that the Worker answers with when the gate says go on.
+
+**The signature.** The game proves who it is with the client secret it already has for Nanoterra connect: there is no second key. nano133.com keeps
+only the SHA-256 of that secret, so the HMAC-SHA256's key is that hash as lowercase hex text. The signed text is
+`"@nano133/nanoterra maintenance, v1\n<client id>\n<on|off>\n<time in ms>"`; the request is `POST https://nano133.com/api/nanoterra/maintenance`
+with `{ client_id, on, at, sig }`. nano133.com refuses a time more than five minutes from its clock, a time that is not later than the last one it
+kept for the game (a request sent again changes nothing), an unknown client id, a wrong signature, a game whose sign-in nano133.com stopped and a game
+that is not listed. The handler makes each press's time later than the last, even when the clock goes back. The secret never leaves the server.
+
+**Nanoterra not told yet.** The switch is saved first, so the game's own site follows it at once. When nano133.com does not answer or refuses, the
+card says "Nanoterra not told yet" with the reason, tells it again by itself every 30 seconds while the page is open (10 times at most), and "Tell
+Nanoterra again" does it now (a press of the state the game already has). A game with no Nanoterra secret says that Nanoterra is not told, and its own
+site still shows "Back soon".
+
+The settings are three rows of the admin store (`setting:maintenance`, `setting:maintenanceAt`, `setting:maintenanceToldAt`): the D1 and Firestore
+adapters keep them with no change of tables, and `adminStoreConformance` holds them. There is no note ("Back at 3 PM") in this first version: one
+short label, the same words everywhere.
 
 ## The colour tokens of the panels (since 0.17.1)
 

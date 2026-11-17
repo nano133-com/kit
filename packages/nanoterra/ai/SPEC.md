@@ -382,7 +382,23 @@ a token call, a compare or a confirm screen of your own, and never copy the star
 secret; the token route goes to the suite's stand-in): every case passes. `GET /nanoterra/start` answers a 302 to
 `https://nano133.com/api/nanoterra/authorize` with a `__Host-nanoterra-state` cookie. Never sign in to a live site to test it: the owner does the real run.
 
-## 17. Do not
+## 17. Maintenance (a game with /admin and a server; since 0.19.0)
+
+The owner's Maintenance card in /admin puts the game under maintenance: players get "Back soon", and Nanoterra shows "Under maintenance".
+
+1. **The admin handler** gets `maintenance: { tell: nanoterraTeller({ clientId, secret }) }` from `@nano133/nanoterra/maintenance`, with the SAME
+   client id and secret as Nanoterra connect. Give it only together with step 2: without the option there is no card. Never add a second key, and never print, log or send the secret.
+2. **The gate first.** The game's router calls `maintenanceGate(request, await loadMaintenance(store), { page })` before any other route, and returns
+   its answer when it is not null. `page` is `backSoonPage({ name, stylesheets })` with the game's own stylesheet (its look), or a Response of the
+   game's own. Never stop the game's API, its files or its listing file in maintenance: a round under way must finish and keep its result.
+3. **Static pages** (a Worker's `assets`): let the Worker run first for the game's pages (`run_worker_first`), and serve the files through the
+   `ASSETS` binding when the gate says go on. Check that `/admin` still opens with maintenance on.
+4. Never change the gate's open paths for the admin, its 503 or its no-store.
+
+**Check:** with maintenance on, a page load of `/` answers 503 with "Back soon"; `/admin` opens; a POST to the API works. The card says
+"Nanoterra is told." after a press on a listed game (the owner does the real run; a test uses a stand-in for nano133.com on 127.0.0.1).
+
+## 18. Do not
 
 - Do not edit the geometry, the skeleton or the toon and ink materials.
 - Do not add the katana, the headband or other brands' art. A game's own worn model goes on a socket (`c.socket("head" | "hand" | "back")` or

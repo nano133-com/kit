@@ -64,7 +64,7 @@ prize. Follow `packages/three/ai/SPEC.md` step by step.
 Use it when a game wants the player's Nanoterra identity: a sign-in ticket (a game on a
 **static site**), the player's character in a Three.js scene, or the looks ladder for a game
 that sells looks, a friends list, an options menu, emotes, the player's sign-in, or a shop for its looks. One package; the main paths: `/ticket`, `/character` (and `/character/record`
-with no Three.js), `/looks`, `/friends`, `/options`, `/emotes`, `/player-signin`, `/admin-signin`, `/shop` and `/connect`. Follow `packages/nanoterra/ai/SPEC.md` step by step.
+with no Three.js), `/looks`, `/friends`, `/options`, `/emotes`, `/player-signin`, `/admin-signin`, `/shop`, `/connect` and `/maintenance`. Follow `packages/nanoterra/ai/SPEC.md` step by step.
 
 - **The ticket** (`/ticket`): a game with a server uses the code exchange, not this. A ticket
   proves nothing to a server: never give a sale, a prize or a score on it. Ask "Sign in as
@@ -142,6 +142,12 @@ with no Three.js), `/looks`, `/friends`, `/options`, `/emotes`, `/player-signin`
   never an admin login), `session`, and a "works once" store. Its own rules go in `arrived`, `same` and `signIn`; never change a check, a cookie,
   a form or the order of the screens. `after` is a fixed path on the game's site. Run `connectConformance` on the game's mounted routes with test
   values only; never sign in to a live site to test it.
+
+- **Maintenance** (`/maintenance`; since 0.19.0): the owner's Maintenance card in /admin. Give the admin handler `maintenance: { tell:
+  nanoterraTeller({ clientId, secret }) }` with the SAME client id and secret as the connect (never a second key; never print, log or send the secret).
+  The game's router calls `maintenanceGate(request, await loadMaintenance(store), { page })` FIRST, with the game's own "Back soon" look; it stops
+  only a player's page load, never the API, the files or the listing file, so a round under way finishes and keeps its result. A Worker with static
+  pages lets the Worker run first for them (`run_worker_first`) and serves the files through `ASSETS`. Never stop `/admin` or the admin's sign-in.
 
 ## Working in this repository
 
