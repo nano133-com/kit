@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.19.0 (unreleased)
+## 0.19.0 (2026-11-17)
 
 - **New: maintenance** (the new path `@nano133/nanoterra/maintenance` and its stylesheet `@nano133/nanoterra/maintenance/style.css`; README
   "Maintenance"; SPEC step 17). Wes, 2026-11-17: "our nanoterra kit (/admin page for gamers) should have a button to put a game into maintenance
