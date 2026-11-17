@@ -1840,7 +1840,9 @@ The controls (the stage is a focusable group named "Your character, wearing Clas
 - **Money is untouched.** A tried look is never worn (`wear` is not called), never saved and never sent: no request leaves the page for a try-on.
   The tray's Buy is the sheet's own Buy (the same order, the pay sheet), with no offer step (the stage showed the look).
 - A demo with a character of boxes and spheres (a hat, a scarf, a pack): `node test/tryon-demo/serve.mjs 18911`, then `http://127.0.0.1:18911/`
-  (`?body=kit` for the kit's character, `?theme=dark`).
+  (`?body=kit` for the kit's character, `?theme=dark`). `test/tryon-demo/check.mjs` checks it in Chrome.
+- **Not an API:** the stage's `data-view`, `data-whole`, `data-focus`, `data-ready` and `data-keys` attributes and its `n133Stage()` method are a
+  probe for the kit's own checks. They can change or go in any version: never read them in a game.
 
 ### The page's Content Security Policy
 
