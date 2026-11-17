@@ -288,6 +288,14 @@ test("Up close: the key and Enter on the stage open it; Escape closes Up close f
   assert.ok(sheet(el).classList.contains("n133s-upclose-on"));
   assert.equal(key.getAttribute("aria-pressed"), "true");
   assert.equal(key.textContent, "Back to the list");
+  // The keydown layer stops Escape itself (the review's M12): Chrome lets a page stop a dialog's cancel only after a new user activation, so the
+  // cancel layer alone could close the whole sheet on a second Up close with no click between.
+  const esc = new win.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+  key.dispatchEvent(esc as unknown as Event);
+  assert.ok(esc.defaultPrevented, "Escape's keydown is stopped while Up close is open");
+  assert.ok(!sheet(el).classList.contains("n133s-upclose-on"), "Up close is off");
+  key.click();
+  assert.ok(sheet(el).classList.contains("n133s-upclose-on"));
   escape(sheet(el));
   assert.ok(!sheet(el).classList.contains("n133s-upclose-on"), "Up close is off");
   assert.ok(sheet(el).open, "the sheet stays open");
