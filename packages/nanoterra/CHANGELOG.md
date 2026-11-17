@@ -29,8 +29,9 @@
 - Sizes (gzip, size test): `/shop/panel` 14.3 kB (14,325 B; ceiling 14.5 kB, was 13,550 B): the try-on's hook, +0.78 kB for every game. New:
   `/shop/viewer` 6.3 kB (6,289 B; ceiling 6.6 kB); the sheet's try-on chunk 1.7 kB (1,721 B, beside the panel's shared files); the viewer's kit
   character 20.6 kB (20,588 B; the character's builder, shared with `/character` in a game that has it). `/shop/style.css` grows by the stage's rules.
-- New words in `ShopWords`: `tryOn`, `tryOnLook`, `tryingOn`, and the stage's own (`TryOnWords`: `upClose`, `backToList`, `takeOff`, `stageLabel`,
-  `stageHint`, `trayLine`, `zoomIn`, `zoomOut`, `whole`, `turnAround`; their defaults are in the try-on chunk).
+- New words in `ShopWords`: `tryOn`, `tryOnLook`, `tryingOn`. The stage's own are a type of their own (`TryOnWords`: `upClose`, `backToList`, `takeOff`,
+  `stageLabel`, `stageHint`, `trayLine`, `zoomIn`, `zoomOut`, `whole`, `turnAround`; their defaults are in the try-on chunk, not in `SHOP_WORDS`);
+  `mountShop`'s `words` takes both (`Partial<ShopWords & TryOnWords>`).
 - A demo page with a character of boxes and spheres (a hat, a scarf, a pack): `node test/tryon-demo/serve.mjs`.
 
 - **What a game changes to take 0.18.0: nothing.** To turn the try-on on, add `tryOn` (README, 5 lines) and have `three` installed. A game's test

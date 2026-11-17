@@ -1,10 +1,12 @@
 // The kit's try-on viewer (src/shop/viewer/index.ts) in Node: the kit's character as a try-on body (its four hats, the box it frames), the framing
 // of that real box through a three.js camera, and the contract's "no WebGL" path (mount throws: the sheet keeps its still picture).
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import * as THREE from "three";
 import { HATS, type Look } from "../src/looks/look.js";
-import { LIFT, MARGIN, loadKitBody, mount, sideOf, tryOnView, tryOnViewer, type Box } from "../src/shop/viewer/index.js";
+import { loadKitBody, mount, tryOnViewer } from "../src/shop/viewer/index.js";
+import { LIFT, MARGIN, sideOf, tryOnView, type Box } from "../src/shop/viewer/inspect.js";
 import { kitBody } from "../src/shop/viewer/kit.js";
 
 const outfit = (hat: (typeof HATS)[number] | null, price = 0.25): Look => ({ id: `o-${hat ?? "none"}`, name: "O", priceUsd: price, change: { body: "#e0453b", ...(hat ? { hat, hatColor: "#222222" } : {}) } });
@@ -102,4 +104,15 @@ test("the contract with no WebGL (Node, or a device without it): mount fails, so
   await assert.rejects(async () => v.mount(box, ctx));
   assert.equal(made, 0, "no body is made when the renderer cannot start");
   assert.equal(await loadKitBody(), kitBody);
+});
+
+// The parts of the stage that need a GPU (Node has none): their rules, read from the source. A browser check proves them (the demo page).
+test("the stage's rules that need a GPU: dispose frees the context, a plain wheel scrolls the list, a key at a limit keeps the focus", () => {
+  const code = readFileSync(new URL("../src/shop/viewer/index.ts", import.meta.url), "utf8");
+  const dispose = code.slice(code.indexOf("    dispose() {"));
+  for (const call of ["cancelAnimationFrame(raf)", "observer?.disconnect()", "body.dispose()", "renderer.dispose()", "renderer.forceContextLoss()", "canvas.remove()"]) assert.ok(dispose.includes(call), `dispose: ${call}`);
+  // in the list that scrolls (touch-action pan-y) a plain wheel scrolls it; a trackpad's pinch (ctrl) zooms
+  assert.match(code, /const wheel = \(e: WheelEvent\) => \{[^}]*if \(!e\.ctrlKey && !ownsVertical\(\)\) return;/);
+  // a key at a limit says so with aria-disabled: a disabled key would drop the focus to the page, where a game's walk keys act
+  assert.doesNotMatch(code, /\.disabled\s*=|toggleAttribute\("disabled"|setAttribute\("disabled"/);
 });

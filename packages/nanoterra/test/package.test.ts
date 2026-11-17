@@ -202,6 +202,13 @@ test("the paths that must not load Three.js import no package at all (the record
   // The sheet's try-on part is a chunk of its own: mount.ts loads it with import() (a type import is fine), so a game with no `tryOn` never loads it.
   for (const file of sources.filter((f) => f.includes("/src/shop/panel/"))) assert.doesNotMatch(readFileSync(file, "utf8"), /(?:^|\n)\s*(?:import|export)\s+(?!type\b)[^;]*?from\s*["']\.\/tryon\.js["']/, `${relative(root, file)} imports the try-on statically`);
   assert.match(read("src/shop/panel/mount.ts"), /import\("\.\/tryon\.js"\)/);
+  // ... and only there: one import() of the try-on chunk, inside tryOnPart (which returns at once with no `tryOn`)
+  const mountCode = read("src/shop/panel/mount.ts");
+  const loads = [...mountCode.matchAll(/import\("\.\/tryon\.js"\)/g)].map((m) => m.index ?? -1);
+  const part = mountCode.indexOf("function tryOnPart(");
+  assert.equal(loads.length, 1, "one import() of the try-on chunk");
+  assert.ok(part > 0 && loads[0] > part && loads[0] < mountCode.indexOf("\n  }\n", part), "the try-on chunk loads only in tryOnPart");
+  assert.match(mountCode.slice(part, loads[0]), /if \(!load \|\| tryOnFailed\) return Promise\.resolve\(null\);/);
   assert.deepEqual(graph("src/shop/panel/tryon.ts").packages, []);
   // The viewer loads the kit's character (./kit.ts, the character's builder) with import() only, for a viewer with no `body`.
   for (const file of sources.filter((f) => f.includes("/src/shop/viewer/"))) assert.doesNotMatch(readFileSync(file, "utf8"), /(?:^|\n)\s*(?:import|export)\s+(?!type\b)[^;]*?from\s*["']\.\/kit\.js["']/, `${relative(root, file)} imports the kit's character statically`);

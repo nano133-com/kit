@@ -19,7 +19,7 @@ import type { TryOnContext, TryOnShow, TryOnStage, TryOnViewer } from "./contrac
 import { FRONT, IDLE_SPEED, LIFT, clampView, ease, keyStep, panBy, pinchFactor, sameView, sideOf, tryOnView, turnDiff, turnsByItself, wheelFactor, wholeView, yawFor, zoomBy, ZOOM_STEP, type Box, type Frame, type View } from "./inspect.js";
 
 export type { TryOnContext, TryOnShow, TryOnStage, TryOnViewer } from "./contract.js";
-export { BACK, FRONT, LIFT, MARGIN, ZOOM_STEP, fitPoints, keyStep, listWords, ringPoints, screenOf, sideOf, tryOnView, wholeView, type Box, type Frame, type View } from "./inspect.js";
+// The framing's numbers (./inspect.ts) stay inside the kit: a public name there could never change without breaking a game.
 
 /**
  * The game's character for the stage: the same shape as `createLookPreview`'s body (`object`, `dress`, `dispose`), and two optional parts.
@@ -106,8 +106,8 @@ const ICONS = {
   turn: "M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4v4h-4",
 };
 
-/** The state a test or a browser check reads (`box.dataset` holds the same in words): the yaw, the view, the canvas size. */
-export type StageProbe = {
+/** The state a test or a browser check reads (`box.dataset` holds the same in words): the yaw, the view, the canvas size. Not a public API. */
+type StageProbe = {
   yaw: number;
   view: View;
   whole: boolean;
@@ -185,10 +185,16 @@ function mountStage(box: HTMLElement, ctx: TryOnContext, makeBody: () => TryOnBo
     turner.rotation.y = 0;
     scene.updateMatrixWorld(true);
     turner.traverse((o) => (o as THREE.SkinnedMesh).isSkinnedMesh && (o as THREE.SkinnedMesh).skeleton.update());
-    const out = fn();
-    turner.rotation.y = was;
-    scene.updateMatrixWorld(true);
-    return out && !out.isEmpty() ? out : null;
+    try {
+      const out = fn();
+      return out && !out.isEmpty() ? out : null;
+    } catch {
+      // the game's part() threw: the whole character
+      return null;
+    } finally {
+      turner.rotation.y = was;
+      scene.updateMatrixWorld(true);
+    }
   }
   const isWhole = () => sameView(target, wholeView(frame, aspect));
 
@@ -262,10 +268,12 @@ function mountStage(box: HTMLElement, ctx: TryOnContext, makeBody: () => TryOnBo
       turner.add(body.object);
     }
     dressed = list;
-    try {
-      for (const l of changed) await body.dress(l);
-    } catch {
-      // a look that did not dress (a model that did not load): the stage shows the rest
+    for (const l of changed) {
+      try {
+        await body.dress(l);
+      } catch {
+        // a look that did not dress (a model that did not load): the stage shows the rest
+      }
     }
     if (n !== ask || disposed) return;
     body.update?.(0);

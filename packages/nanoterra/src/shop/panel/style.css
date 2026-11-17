@@ -1150,16 +1150,6 @@
    tray. A phone on its side: the stage on the left, the list on the right. A tablet or a computer: the stage beside the list; Up close makes the
    sheet larger and the stage with it, and the list stays beside it. The stage's keys are 44 px or more; its colours are the --n133-* tokens. */
 
-.n133-shop .n133s-sr {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
 .n133-shop .n133s-sheet-tryon {
   max-height: 94vh;
   max-height: 94dvh;
@@ -1167,6 +1157,8 @@
 
 .n133-shop .n133s-tryon {
   display: grid;
+  /* one column as wide as the sheet: the list's tabs never widen it (a 320 px phone, or text at 200%) */
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
 }
 
@@ -1507,6 +1499,13 @@
     max-height: 96px;
   }
 
+  /* the stage is short here (the tray under it): its keys stand in a row at the bottom, so all four stay in it */
+  .n133-shop .n133s-sheet-tryon:not(.n133s-upclose-on) .n133s-stage-keys {
+    top: auto;
+    bottom: 8px;
+    flex-direction: row;
+  }
+
   .n133-shop .n133s-sheet-tryon .n133s-tryon-list {
     min-height: 0;
     margin-right: -20px;
@@ -1527,10 +1526,6 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) 260px;
     grid-template-rows: minmax(0, 1fr);
-  }
-
-  .n133-shop .n133s-upclose-on .n133s-hint {
-    display: none;
   }
 
   .n133-shop .n133s-upclose-on .n133s-tray {

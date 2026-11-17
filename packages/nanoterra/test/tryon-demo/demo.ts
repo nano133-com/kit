@@ -159,7 +159,10 @@ const handler = createShopHandler({
 const requests: string[] = [];
 const localFetch = (async (input: string, init?: RequestInit) => {
   requests.push(`${init?.method ?? "GET"} ${input}`);
-  const res = await handler.handle(new Request(`${location.origin}${input}`, { ...init, headers: { ...(init?.headers as Record<string, string>), Origin: location.origin } }));
+  const req = new Request(`${location.origin}${input}`, init);
+  // A browser drops an Origin header that a page sets on a Request: the handler in this page reads this one (a Headers of its own may hold it).
+  Object.defineProperty(req, "headers", { value: new Headers({ ...(init?.headers as Record<string, string>), Origin: location.origin }) });
+  const res = await handler.handle(req);
   return res ?? new Response(JSON.stringify({ error: "No such route." }), { status: 404 });
 }) as typeof fetch;
 

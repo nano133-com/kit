@@ -11,7 +11,8 @@
 
 import { usdText, type Hat } from "../../looks/look.js";
 
-/** The try-on stage's own words (its defaults are in ./tryon.ts, TRYON_WORDS: that chunk loads only with `tryOn`). */
+/** The try-on stage's own words (its defaults are in ./tryon.ts, TRYON_WORDS: that chunk loads only with `tryOn`). Not in SHOP_WORDS: mountShop's
+ *  `words` takes both (`Partial<ShopWords & TryOnWords>`). */
 export type TryOnWords = {
   /** The key that opens the large stage, and the same key while it is open. */
   upClose: string;
@@ -30,7 +31,7 @@ export type TryOnWords = {
   turnAround: string;
 };
 
-export type ShopWords = TryOnWords & {
+export type ShopWords = {
   // ---- the looks sheet ----
   /** The sheet's title, the Looks key's word and the sheet's name for a screen reader. The option `title` wins over it. */
   title: string;
@@ -175,7 +176,7 @@ export const COINGECKO_CREDIT = "Powered by CoinGecko";
  */
 export const TRUST_LINE = "Paid straight to the creator. No network fee.";
 
-export const SHOP_WORDS: Omit<ShopWords, keyof TryOnWords> = {
+export const SHOP_WORDS: ShopWords = {
   title: "Looks",
   close: "Close",
   kinds: "Kinds of looks",
@@ -250,10 +251,10 @@ export const SHOP_WORDS: Omit<ShopWords, keyof TryOnWords> = {
 };
 
 /** The game's words over the defaults. A key the game leaves out, or gives as undefined, keeps its default. */
-export function shopWords(over?: Partial<ShopWords>, defaults: Partial<ShopWords> = SHOP_WORDS): ShopWords {
-  const out = { ...SHOP_WORDS, ...defaults };
-  for (const [k, v] of Object.entries(over ?? {})) if (v !== undefined && k in out) (out as Record<string, unknown>)[k] = v;
-  return out as ShopWords;
+export function shopWords(over?: Partial<ShopWords>): ShopWords {
+  const out = { ...SHOP_WORDS };
+  for (const [k, v] of Object.entries(over ?? {})) if (v !== undefined && k in SHOP_WORDS) (out as Record<string, unknown>)[k] = v;
+  return out;
 }
 
 /** The price's line: the game's words, with "Powered by CoinGecko" added when CoinGecko is a source and the words leave it out. */

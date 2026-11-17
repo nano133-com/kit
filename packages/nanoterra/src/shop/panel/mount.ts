@@ -32,7 +32,7 @@ import type { PlayUse } from "../../looks/play.js";
 import { looksView, slotsOf, swatchOf, type SlotWords } from "./looks.js";
 import { itemPicture, payPanel, type PayNext } from "./pay.js";
 import type { TryOnLoad, TryOnPanel } from "./tryon.js";
-import { playPrice, shopWords, type ShopWords } from "./words.js";
+import { playPrice, shopWords, type ShopWords, type TryOnWords } from "./words.js";
 
 /** A play as the panel shows it (plays.json; the server checks the file and decides every price). */
 export type PlayItem = { id: string; name: string; priceUsd: number; use: PlayUse | string };
@@ -82,8 +82,8 @@ export type ShopMountOptions = {
   slots?: Record<string, SlotWords>;
   /** The sheet's title. Default: `words.title` ("Looks"). */
   title?: string;
-  /** The game's words for the two sheets, over the defaults (SHOP_WORDS): `{ buyTitle: (look) => look, sendExactly: "Pay exactly" }`. */
-  words?: Partial<ShopWords>;
+  /** The game's words for the two sheets, over the defaults (SHOP_WORDS): `{ buyTitle: (look) => look, sendExactly: "Pay exactly" }`; the try-on stage's (TryOnWords) too. */
+  words?: Partial<ShopWords & TryOnWords>;
   /** Draw the Looks key. Default true; false: the game calls `open()` from its own key. */
   key?: boolean;
   /** "light", "dark", or "device" (the default): the page's `data-n133-theme` when it has one, else the device's setting. */
@@ -219,8 +219,12 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
     title.textContent = heading;
     // The try-on's layout (a large stage, beside the list on a wide screen) is the looks' only: Buy and the pay sheet keep the sheet's own size.
     dialog.classList.toggle("n133s-sheet-tryon", content instanceof HTMLElement && content.classList.contains("n133s-tryon"));
+    // A key that draws the next step (the tray's Buy, the offer's Buy, Wear) goes with the old content: the focus goes to the title, never to the
+    // page, where a game's walk keys act behind the sheet.
+    const had = isOpen() && body.contains(globalThis.document?.activeElement ?? null);
     body.replaceChildren(content);
     body.scrollTop = 0;
+    if (had && !body.contains(globalThis.document?.activeElement ?? null)) title.focus();
     if (!isOpen()) {
       const was = globalThis.document?.activeElement;
       opener = was instanceof HTMLElement && was !== globalThis.document?.body && !wrap.contains(was) ? was : null;

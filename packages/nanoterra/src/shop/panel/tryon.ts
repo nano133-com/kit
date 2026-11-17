@@ -37,7 +37,7 @@ export type TryOnPanelOptions = {
   host: HTMLElement;
   load: TryOnLoad;
   /** The game's words (mountShop's `words`), over the defaults. */
-  words?: Partial<ShopWords>;
+  words?: Partial<ShopWords & TryOnWords>;
   /** The looks the player wears now (the game's `worn`). */
   worn(): Look[];
   /** The looks the player owns (free ones too). */
@@ -70,7 +70,8 @@ export type TryOnPanel = {
 let ids = 0;
 
 export function tryOnPanel(o: TryOnPanelOptions): TryOnPanel {
-  const w = shopWords(o.words, TRYON_WORDS);
+  const w: ShopWords & TryOnWords = { ...shopWords(o.words), ...TRYON_WORDS };
+  for (const k of Object.keys(TRYON_WORDS) as (keyof TryOnWords)[]) if (o.words?.[k] !== undefined) (w as Record<string, unknown>)[k] = o.words[k];
   const n = ++ids;
   /** One tried look in each wear slot, in the order they were tried. */
   const tried = new Map<string, Look>();
@@ -171,8 +172,10 @@ export function tryOnPanel(o: TryOnPanelOptions): TryOnPanel {
       box.classList.add("n133s-has-3d");
       stage.show(view());
     } catch {
-      // No WebGL, or the viewer did not load: the stage keeps the look's still picture, large.
+      // No WebGL, or the viewer did not load: the stage keeps the look's still picture, large. The how-to line (drag, pinch, the wheel) goes: a still
+      // picture does none of it.
       stage = null;
+      box.removeAttribute("aria-describedby");
     } finally {
       loading = false;
     }

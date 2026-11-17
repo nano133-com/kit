@@ -96,7 +96,7 @@ Each path loads only what it needs. A page that reads a ticket loads no Three.js
 | `@nano133/nanoterra/shop/d1`, `/shop/firestore` | the shop's store on D1 (the starter's tables, `/shop/d1.sql`; the plays' migration `/shop/d1-plays.sql`, since 0.15.0) or Firestore: `createD1Shop`, `createFirestoreShop` (since 0.9.0) | no | 2.4 kB, 2.2 kB |
 | `@nano133/nanoterra/shop/worker` | the shop for a Worker with D1, from the starter's settings: `createShop` (since 0.9.0) | no | 10.0 kB (with the D1 store and Turnstile); 14.3 kB with the plays |
 | `@nano133/nanoterra/shop/panel` | the Looks key, the looks sheet and the pay sheet with its own QR code: `mountShop`, and its stylesheet `@nano133/nanoterra/shop/style.css` (since 0.9.0); the Play key and the "18 or older" step (since 0.15.0) | no | 10.0 kB + 2.5 kB of CSS (gzip; 8.5 kB minified); 11.2 kB with the plays; 13.6 kB with the pay sheet of 0.16.0 and the QR code's 40 versions (0.17.1); 14.3 kB with the try-on's hook (0.18.0) |
-| `@nano133/nanoterra/shop/viewer` | the looks sheet's try-on stage (`mountShop`'s `tryOn`): `mount` (the kit's character), `tryOnViewer({ body })` (the game's), the framing's numbers (since 0.18.0) | yes (an optional peer) | 6.3 kB; the kit's character for it is a chunk of its own (20.6 kB), loaded only with no `body` |
+| `@nano133/nanoterra/shop/viewer` | the looks sheet's try-on stage (`mountShop`'s `tryOn`): `mount` (the kit's character), `tryOnViewer({ body })` (the game's), `loadKitBody` (since 0.18.0) | yes (an optional peer) | 6.3 kB; the kit's character for it is a chunk of its own (20.6 kB), loaded only with no `body` |
 | `@nano133/nanoterra/shop/conformance` | the shop's money rules as test cases, for a store a game writes itself (since 0.9.0) | no | n/a |
 | `@nano133/nanoterra/connect` | Sign in from Nanoterra: `createConnect` (the four routes on Web Request/Response), the screens' words, `createMemoryOnce` (server code; since 0.17.0) | no | 11.0 kB (with the record's lists and the address check); a page loads none |
 | `@nano133/nanoterra/connect/worker`, `/connect/node` | the Worker's adapter (`createWorkerConnect`: the env's settings, D1's `hits`) and Node's (`createNodeConnect`, `webRequest`, `sendResponse`, `connectMiddleware`) (since 0.17.0) | no | 11.0 kB, 11.4 kB |
@@ -1791,7 +1791,10 @@ tryOn: async () => (await import("@nano133/nanoterra/shop/viewer")).tryOnViewer(
   character for it (20.6 kB, shared with `/character` in a game that has it) are chunks of their own, loaded only with `tryOn`.
 - **A game with its own looks sheet** (it calls `buy(lookId)`) can mount the viewer in its own box: `const v = (await import("@nano133/nanoterra/shop/viewer")).tryOnViewer({ body })`,
   `const stage = await v.mount(box, { calm, onTap, words })`, then `stage.show({ worn, tried, focus })` on each change and `stage.dispose()` on close
-  (`TryOnViewer` in `/shop/panel`'s types). Or move to the kit's sheet: it has the wear slots' tabs, `picture`, `takeOff` and the try-on.
+  (`TryOnViewer` in `/shop/panel`'s types). The box needs a size (a width and a height), and it sits in an element with the class `n133-shop` with
+  `/shop/style.css` loaded (the stage's keys are styled only there): `<div class="n133-shop"><div class="n133s-tryon-stage"></div></div>`. The game's
+  sheet then owns what the kit's sheet does: what is tried on, the tray with Take off and Buy, Up close, Escape and the focus. Or move to the kit's
+  sheet: it has the wear slots' tabs, `picture`, `takeOff` and the try-on.
 - **A game's own viewer** (another engine) passes the same contract: `tryOn: async () => ({ mount: (box, ctx) => myStage(box, ctx) })`.
 
 The controls (the stage is a focusable group named "Your character, wearing Classic, trying on Mint Cap"):

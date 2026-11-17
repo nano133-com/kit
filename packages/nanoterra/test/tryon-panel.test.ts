@@ -242,8 +242,12 @@ test("the tray's Buy is the sheet's own Buy (the same order route, no offer step
   shop.open();
   await settle();
   tryKey(el, "blue-cap").click();
-  (el.querySelector('[data-buy="blue-cap"]') as HTMLButtonElement).click();
+  const trayBuy = el.querySelector('[data-buy="blue-cap"]') as HTMLButtonElement;
+  trayBuy.focus();
+  trayBuy.click();
   await settle();
+  // the tray's Buy key went with the stage: the focus is in the sheet (the title), never on the page, where a game's walk keys act
+  assert.ok(sheet(el).contains(document.activeElement), `the focus is on ${document.activeElement?.tagName}`);
   // the order, then the pay sheet's checks of it (the same routes as any Buy)
   assert.match(g.calls[0], /^POST \/api\/orders \{"lookId":"blue-cap","turnstile":null\}$/);
   assert.ok(g.calls.slice(1).every((c) => /^POST \/api\/orders\/[^/]+\/check \{\}$/.test(c)), g.calls.join(" | "));
@@ -357,6 +361,7 @@ test("no 3D (the viewer throws, or does not load): the stage shows the look's st
     still = el.querySelector(".n133s-stage-still .n133s-pic") as HTMLElement;
     assert.equal(still.querySelector("img")?.dataset.look, "blue-cap", `${kind}: the tried look's picture`);
     assert.equal(stageOf(el).getAttribute("aria-label"), "Your character, trying on Blue Cap");
+    assert.equal(stageOf(el).getAttribute("aria-describedby"), null, `${kind}: no how-to line for a drag or a zoom that a still picture does not do`);
     assert.deepEqual(g.calls, []);
     shop.destroy();
   }
@@ -379,4 +384,11 @@ test("a game's words: every word of the try-on can be the game's own", async () 
   assert.equal(stageOf(el).getAttribute("aria-label"), "Moi: Plain / ");
   assert.equal(v.log.mounts[0].ctx.words.zoomIn, "Plus");
   shop.destroy();
+});
+
+test("the words: shopWords() holds every word of ShopWords (no key undefined); the stage's own words are the try-on chunk's (TRYON_WORDS)", async () => {
+  const { SHOP_WORDS, shopWords } = await import("../src/shop/panel/index.js");
+  const { TRYON_WORDS } = await import("../src/shop/panel/tryon.js");
+  for (const [k, v] of Object.entries(shopWords({ upClose: "x" } as never))) assert.notEqual(v, undefined, k);
+  for (const k of Object.keys(TRYON_WORDS)) assert.ok(!(k in SHOP_WORDS), `${k} is the try-on chunk's`);
 });

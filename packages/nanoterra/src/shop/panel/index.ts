@@ -22,4 +22,4 @@ export { qrModules, qrSvg, qrVersionFor } from "./qr.js";
 export type { TryOnLoad } from "./tryon.js";
 export type { TryOnContext, TryOnShow, TryOnStage, TryOnViewer } from "../viewer/contract.js";
 export { COINGECKO_CREDIT, SHOP_WORDS, TRUST_LINE, playPrice, priceLine, shopWords, useWord } from "./words.js";
-export type { ShopWords } from "./words.js";
+export type { ShopWords, TryOnWords } from "./words.js";
