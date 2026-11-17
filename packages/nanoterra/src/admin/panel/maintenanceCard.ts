@@ -64,7 +64,7 @@ export function maintenanceCard(api: Api, initial: GameState, onChange?: (state:
       // A card that left the page (a new sign-in builds a new panel) tells nothing more.
       if (!el.isConnected) return;
       retells++;
-      void send(ms().on ? "on" : "off", true);
+      void retell(true);
     }, RETELL_MS);
     // In Node (a test of the panel) the wait never holds the process open; a browser has no `unref`.
     (timer as { unref?: () => void }).unref?.();
@@ -91,10 +91,34 @@ export function maintenanceCard(api: Api, initial: GameState, onChange?: (state:
     }
   }
 
+  /**
+   * Tells nano133.com again: a press of the state the game has NOW. The card reads the server's state first: another tab (or another device) may have
+   * pressed since this card last drew, and a retry of the state this card still shows would turn that press back. A newer press, or one that was told,
+   * is only drawn.
+   */
+  async function retell(quiet = false) {
+    if (busy) return;
+    const seen = ms().at;
+    let now: GameState;
+    try {
+      now = await api.get<GameState>("/game");
+    } catch {
+      return void send(ms().on ? "on" : "off", quiet);
+    }
+    if (now.maintenance && (now.maintenance.at !== seen || now.maintenance.told)) {
+      state = now;
+      onChange?.(state);
+      draw();
+      schedule();
+      return;
+    }
+    await send(ms().on ? "on" : "off", quiet);
+  }
+
   button.addEventListener("click", () => void send(ms().on ? "off" : "on"));
   again.addEventListener("click", () => {
     retells = 0;
-    void send(ms().on ? "on" : "off");
+    void retell();
   });
   draw();
   // A page opened while Nanoterra was not told starts its tries.

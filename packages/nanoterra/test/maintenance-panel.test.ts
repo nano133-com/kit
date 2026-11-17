@@ -121,3 +121,49 @@ test("a game with no Nanoterra secret: the card says Nanoterra is not told and w
   assert.equal((card.querySelector(".maint-again .btn") as HTMLElement).hidden, true);
   root.remove();
 });
+
+test("a stale tab never turns a newer press back: its 'Tell Nanoterra again' reads the server first and only draws the newer state", async () => {
+  // Two tabs of /admin on one game (a laptop and a phone). Tab A turns maintenance on while Nanoterra does not answer; tab B, opened later, turns it off
+  // while Nanoterra answers. Tab A still shows "on, not told": its retry must not press "on" again.
+  const store = createMemoryStore();
+  let ok = false;
+  const told: boolean[] = [];
+  const handler = createAdminHandler({
+    store,
+    defaults: { character: "nanoterra", signin: "exchange" },
+    owner: OWNER,
+    session: async () => SESSION,
+    limit: () => true,
+    maintenance: { tell: async ({ on }) => (told.push(on), ok ? { ok: true } : { ok: false, error: "Nanoterra did not answer." }) },
+  });
+  const send = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    if ((init?.method ?? "GET") === "POST") headers.set("Origin", ORIGIN);
+    return (await handler.handle(new Request(new URL(String(input), ORIGIN), { method: init?.method ?? "GET", headers, body: init?.body as string | undefined }))) ?? new Response("{}", { status: 404 });
+  }) as typeof fetch;
+  const tab = async () => {
+    const root = win.document.createElement("div") as unknown as HTMLElement;
+    win.document.body.append(root as unknown as Node);
+    const mounted = mountAdmin(root, { looks: LOOKS, fetch: send, signOut: async () => undefined, signIn: () => undefined });
+    await mounted.ready;
+    return root;
+  };
+  const a = await tab();
+  const cardA = a.querySelector(".maint-card")!;
+  (cardA.querySelector(".switch") as HTMLButtonElement).click();
+  await tick();
+  assert.equal(text(cardA.querySelector(".maint-told")), MAINTENANCE_CARD.notTold);
+  const b = await tab();
+  const cardB = b.querySelector(".maint-card")!;
+  ok = true;
+  (cardB.querySelector(".switch") as HTMLButtonElement).click();
+  await tick();
+  assert.equal(store.rows.get("setting:maintenance"), "off");
+  (cardA.querySelector(".maint-again .btn") as HTMLButtonElement).click();
+  await tick();
+  assert.equal(store.rows.get("setting:maintenance"), "off", "the stale tab pressed its old state again");
+  assert.deepEqual(told, [true, false]);
+  assert.equal((cardA.querySelector(".switch") as HTMLElement).getAttribute("aria-checked"), "false");
+  a.remove();
+  b.remove();
+});
