@@ -1460,6 +1460,7 @@ one puts a key on the server.)
 | `@nano133/nanoterra/shop/firestore` | the store on Firestore (a small interface, no Firebase dependency): `createFirestoreShop` |
 | `@nano133/nanoterra/shop/worker` | the shop for a Worker with D1, set up from the starter's settings: `createShop(env, { catalogue, player })` |
 | `@nano133/nanoterra/shop/panel`, `/shop/style.css` | the Looks key, the looks sheet and the pay sheet (QR code, test stamp), in plain DOM: `mountShop` |
+| `@nano133/nanoterra/shop/tryon.css` | the try-on stage's rules (since 0.18.0): only a game with `tryOn` imports it, after `/shop/style.css` |
 | `@nano133/nanoterra/shop/viewer` | the looks sheet's try-on stage (Three.js), loaded by `mountShop`'s `tryOn` when the sheet opens (since 0.18.0) |
 | `@nano133/nanoterra/shop/conformance` | the money rules as test cases, for a store a game writes itself |
 
@@ -1754,14 +1755,19 @@ and inspectable." With `tryOn`, the looks sheet shows a large stage of the playe
 picture and name become one **Try on** key. The stage frames the tried item whole, as large as the stage allows. The player turns it all the way
 round, zooms, and opens **Up close**. The tray under the stage holds what is tried on, its price, **Take off** and **Buy**.
 
-Turn it on (the kit's own character, no hook):
+Turn it on (the kit's own character, no hook): the `tryOn` option, and the stage's stylesheet after the shop's:
 
 ```ts
+import "@nano133/nanoterra/shop/style.css";
+import "@nano133/nanoterra/shop/tryon.css";                       // the stage's rules: only a game with tryOn loads them
 const shop = mountShop(el, {
   ...options,                                                    // looks, owned, signedIn, worn, wear, ...
   tryOn: () => import("@nano133/nanoterra/shop/viewer"),         // loaded when the sheet first opens; needs three (an optional peer)
 });
 ```
+
+Without `tryon.css` the sheet goes on with no stage (as without `tryOn`), loads no viewer, and the console says once:
+`the try-on stage needs its stylesheet. Add this line after the shop's style.css: import "@nano133/nanoterra/shop/tryon.css";`.
 
 With the game's own character, give a **body**: the same shape as `createLookPreview`'s body, and one optional part for the framing:
 
@@ -1785,8 +1791,9 @@ tryOn: async () => (await import("@nano133/nanoterra/shop/viewer")).tryOnViewer(
   item's object: the stage measures its vertices, skinned as drawn, hidden meshes too. A hat and a scarf read best with the head: add a hidden
   head-sized sphere to the object (the kit's character does this). A round item (a hat) is framed whole at every turn; another item (a pack, a tool)
   from the side the stage shows (a pack from the back). The item keeps 8% of the stage clear on each side. A tiny item gets the closest view.
-- **The fallback.** With no `tryOn` the sheet is as before (no stage, no Three.js); the offer step's still picture is 240 px (it was 176). With
-  `tryOn` and no WebGL (or a viewer that does not load), the stage shows the look's still picture, large (`preview`, else `picture`, else the swatch).
+- **The fallback.** With no `tryOn` the sheet is as on 0.17.1: the same DOM and the same `/shop/style.css` (no stage, no Three.js, no try-on CSS).
+  With `tryOn` and no WebGL (or a viewer that does not load), the stage shows the look's still picture, large (`preview`, else `picture`, else the
+  swatch). With `tryOn` and no `/shop/tryon.css`, the sheet has no stage, and the console names the line to add.
 - **What loads.** `/shop/panel` grows 0.78 kB gzip for every game. The sheet's try-on part (1.7 kB gzip), the viewer (6.3 kB) and the kit's
   character for it (20.6 kB, shared with `/character` in a game that has it) are chunks of their own, loaded only with `tryOn`.
 - **A game with its own looks sheet** (it calls `buy(lookId)`) can mount the viewer in its own box: `const v = (await import("@nano133/nanoterra/shop/viewer")).tryOnViewer({ body })`,

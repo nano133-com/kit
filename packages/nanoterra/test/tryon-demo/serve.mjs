@@ -1,5 +1,5 @@
 // Serves the try-on demo on 127.0.0.1 (a private port, default 18911): builds demo.ts with esbuild (code splitting, so the viewer is a chunk of
-// its own, as in a game) into a temporary folder, and serves it with the shop's stylesheet. Usage: node test/tryon-demo/serve.mjs [port]
+// its own, as in a game) into a temporary folder, and serves it with the shop's two stylesheets (style.css and tryon.css). Usage: node test/tryon-demo/serve.mjs [port]
 import { build } from "esbuild";
 import { createServer } from "node:http";
 import { mkdtempSync, readFileSync, existsSync } from "node:fs";
@@ -11,7 +11,7 @@ const here = fileURLToPath(new URL(".", import.meta.url));
 const port = Number(process.argv[2] ?? 18911);
 const out = mkdtempSync(join(tmpdir(), "n133-tryon-demo-"));
 await build({ entryPoints: [join(here, "demo.ts")], bundle: true, splitting: true, format: "esm", outdir: out, minify: false, sourcemap: false, logLevel: "warning" });
-const files = { "/": join(here, "index.html"), "/style.css": join(here, "../../src/shop/panel/style.css") };
+const files = { "/": join(here, "index.html"), "/style.css": join(here, "../../src/shop/panel/style.css"), "/tryon.css": join(here, "../../src/shop/panel/tryon.css") };
 const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8" };
 createServer((req, res) => {
   const path = new URL(req.url ?? "/", "http://127.0.0.1").pathname;

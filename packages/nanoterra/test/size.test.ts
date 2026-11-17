@@ -1,7 +1,7 @@
 // How big each path is, minified and gzipped, without Three.js (esbuild comes with tsx). The numbers are printed so that a change of size is seen in the test
 // output, and each path has a ceiling a little over today's size: a size that grows by accident fails here. The paths that load no Three.js must not name it in their bundle.
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -72,6 +72,14 @@ const LAZY: [string, string, number, boolean, string[]?][] = [
   ["the viewer's kit character (loaded with no body)", "shop/viewer/kit.js", 24_500, false, ["../../looks/look.js"]],
 ];
 
+/** The shop's stylesheets, minified as a game's build ships them: the path, the file and the ceiling in bytes (gzip). 0.18.0: the try-on stage's rules are a
+ *  file of their own, so a game without `tryOn` loads the same /shop/style.css as on 0.17.1 (4,654 B here). */
+const CSS: [string, string, number][] = [
+  ["@nano133/nanoterra/shop/style.css", "src/shop/panel/style.css", 4_700],
+  // only a game with `tryOn` loads it (1,484 B here)
+  ["@nano133/nanoterra/shop/tryon.css", "src/shop/panel/tryon.css", 1_600],
+];
+
 async function bundle(files: string[], whole = true, withDefault = false, shared: string[] = []) {
   const contents = files.map((f) => `export * from ${JSON.stringify(dist + f)};${withDefault ? ` export { default } from ${JSON.stringify(dist + f)};` : ""}`).join("\n");
   const r = await esbuild!.build({ stdin: { contents, resolveDir: dist }, bundle: true, minify: true, format: "esm", external: ["three", "./clips.js", "./tryon.js", "./kit.js", "@nano133/signin", ...shared], write: false, treeShaking: !whole, logLevel: "silent" });
@@ -95,6 +103,12 @@ test("each path's size is under its ceiling, and the paths with no Three.js do n
     const gz = gzipSync(text, { level: 9 }).length;
     rows.push(`${name.padEnd(40)} ${String(text.length).padStart(7)} B minified ${String(gz).padStart(6)} B gzip`);
     assert.ok(gz <= ceiling, `${name} is ${gz} B gzipped, over its ceiling of ${ceiling} B`);
+  }
+  for (const [path, file, ceiling] of CSS) {
+    const text = (await esbuild!.transform(readFileSync(join(root, file), "utf8"), { loader: "css", minify: true })).code;
+    const gz = gzipSync(text, { level: 9 }).length;
+    rows.push(`${path.padEnd(40)} ${String(text.length).padStart(7)} B minified ${String(gz).padStart(6)} B gzip`);
+    assert.ok(gz <= ceiling, `${path} is ${gz} B gzipped, over its ceiling of ${ceiling} B`);
   }
   console.log(`\n${rows.join("\n")}`);
 });

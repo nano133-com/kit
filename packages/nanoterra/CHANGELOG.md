@@ -22,8 +22,11 @@
   (the device's, or the options' "Less motion"). Every key 44 px or more; the `--n133-*` tokens, dark and light.
 - **Money is untouched.** A tried look is never worn, saved or sent: no request, no `wear`, no storage (`test/tryon-panel.test.ts`). The tray's Buy
   is the sheet's own Buy (the same order and pay sheet), with no offer step. No file of the shop's server, orders, prices or pay sheet changed.
-- **The fallback.** With no `tryOn` the sheet is as before. The offer step's still picture is 240 px (it was 176; `preview(item, size)` gets 240). With
-  `tryOn` and no WebGL, or a viewer that does not load, the stage shows the look's still picture, large.
+- **The stage's CSS is a file of its own: `@nano133/nanoterra/shop/tryon.css`.** A game with `tryOn` adds one line after the shop's stylesheet:
+  `import "@nano133/nanoterra/shop/tryon.css";`. `/shop/style.css` is the same file as in 0.17.1, so a game without `tryOn` loads no byte of the
+  stage's rules. A game with `tryOn` and no `tryon.css`: the sheet goes on with no stage (no viewer loads), and the console names the line, once.
+- **The fallback.** With no `tryOn` the sheet is as in 0.17.1 (the same DOM; the offer step's still picture stays 176 px). With `tryOn` and no
+  WebGL, or a viewer that does not load, the stage shows the look's still picture, large.
 - **One renderer while the sheet is open**, freed when it closes. The sheet's try-on part (`src/shop/panel/tryon.ts`) and the kit's character for the
   viewer (`src/shop/viewer/kit.ts`) are chunks of their own, loaded with `import()` only when needed.
 - Sizes (gzip, size test): `/shop/panel` 14.3 kB (14,325 B; ceiling 14.5 kB, was 13,550 B): the try-on's hook, +0.78 kB for every game. New:
@@ -34,8 +37,8 @@
   `mountShop`'s `words` takes both (`Partial<ShopWords & TryOnWords>`).
 - A demo page with a character of boxes and spheres (a hat, a scarf, a pack): `node test/tryon-demo/serve.mjs`.
 
-- **What a game changes to take 0.18.0: nothing.** To turn the try-on on, add `tryOn` (README, 5 lines) and have `three` installed. A game's test
-  that pinned the offer picture at 176 px sees 240.
+- **What a game changes to take 0.18.0: nothing.** To turn the try-on on, add `tryOn` and the `tryon.css` import (README) and have `three`
+  installed.
 
 ## 0.17.1 (2026-11-15)
 

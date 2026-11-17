@@ -100,7 +100,7 @@ export function looksView(p: LooksViewOptions): HTMLElement {
     const what = isOutfit(look) ? w.outfitLine(look.change.hat ?? null) : w.itemLine(tab);
     const state = mine ? ` · ${look.priceUsd === 0 ? w.free : w.yours}` : "";
     const trying = p.tryOn?.tried(look) ? ` · ${w.tryingOn}` : "";
-    action.setAttribute("data-look", look.id);
+    if (p.tryOn) action.setAttribute("data-look", look.id);
     list.append(row(p.picture?.(look) ?? swatchOf(look), look.name, `${what}${state}${trying}`, action, worn, look));
   }
 

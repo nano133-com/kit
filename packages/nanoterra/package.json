@@ -58,6 +58,7 @@
     "./shop/panel": { "types": "./dist/shop/panel/index.d.ts", "import": "./dist/shop/panel/index.js" },
     "./shop/viewer": { "types": "./dist/shop/viewer/index.d.ts", "import": "./dist/shop/viewer/index.js" },
     "./shop/style.css": "./src/shop/panel/style.css",
+    "./shop/tryon.css": "./src/shop/panel/tryon.css",
     "./connect": { "types": "./dist/connect/index.d.ts", "import": "./dist/connect/index.js" },
     "./connect/worker": { "types": "./dist/connect/worker.d.ts", "import": "./dist/connect/worker.js" },
     "./connect/node": { "types": "./dist/connect/node.d.ts", "import": "./dist/connect/node.js" },

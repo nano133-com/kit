@@ -29,6 +29,23 @@ export const TRYON_WORDS: TryOnWords = {
   turnAround: "Turn around",
 };
 
+/** The line a game adds when the stage's stylesheet is missing (the console says it once a page). */
+export const TRYON_CSS_LINE = 'import "@nano133/nanoterra/shop/tryon.css";';
+let warned = false;
+
+/**
+ * Whether the stage's stylesheet (/shop/tryon.css) is on the page: it marks the stage's box with `--n133s-tryon-css`. Without it the stage has no
+ * size and its keys no place: the sheet goes on with no stage (as without `tryOn`), and the console says the line to add, once a page.
+ */
+export function tryOnStyled(box: HTMLElement): boolean {
+  const ok = box.ownerDocument.defaultView?.getComputedStyle(box).getPropertyValue("--n133s-tryon-css").trim() === "1";
+  if (!ok && !warned) {
+    warned = true;
+    console.warn(`@nano133/nanoterra: the try-on stage needs its stylesheet. Add this line after the shop's style.css: ${TRYON_CSS_LINE} The sheet goes on with no stage.`);
+  }
+  return ok;
+}
+
 /** The game's viewer, loaded when the sheet first opens: `() => import(VIEWER)` (the kit's character), or the game's own. */
 export type TryOnLoad = () => Promise<TryOnViewer>;
 
@@ -56,8 +73,8 @@ export type TryOnPanel = {
   tried(look: Look): boolean;
   /** Tries a look on, or takes it off when it is tried on now. */
   toggle(look: Look): void;
-  /** The sheet opened: the viewer loads and mounts (once a sheet). */
-  start(): void;
+  /** The sheet opened: the viewer loads and mounts (once a sheet). False: the stage's stylesheet is missing (nothing loads; the console says so). */
+  start(): boolean;
   /** The sheet closed: the tried looks are forgotten, Up close closes, and the viewer frees its renderer. */
   stop(): void;
   readonly isUpClose: boolean;
@@ -190,7 +207,11 @@ export function tryOnPanel(o: TryOnPanelOptions): TryOnPanel {
       draw();
       o.changed();
     },
-    start: () => void start(),
+    start() {
+      if (!tryOnStyled(box)) return false;
+      void start();
+      return true;
+    },
     stop() {
       started = false;
       tried.clear();

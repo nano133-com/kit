@@ -255,7 +255,8 @@ import "@nano133/nanoterra/shop/style.css";
 - The try-on stage (since 0.18.0; README "The try-on stage"): ask the owner first. With the kit's character, `tryOn: () => import("@nano133/nanoterra/shop/viewer")`;
   with the game's own, `tryOnViewer({ body })` from the same path, where `body` is the `createLookPreview` body (`object`, `dress`, `dispose`) with
   `part(look)` (the item's object; add a hidden head-sized sphere to a hat's or a scarf's) and `update(dt)`. Always a dynamic import, never a static one:
-  a game with no try-on must not load Three.js for the sheet. `dress` only draws: never call the game's `wear`, save or send from it. A tried look
+  a game with no try-on must not load Three.js for the sheet. Add `import "@nano133/nanoterra/shop/tryon.css";` after the shop's `style.css` (the
+  stage's rules are only there; without it the sheet shows no stage and the console names this line). `dress` only draws: never call the game's `wear`, save or send from it. A tried look
   is never worn, saved or sent; the tray's Buy is the sheet's own Buy. Keep the stage's keys and Escape order as they are (Escape closes Up close first).
 - The game's own words or language: `words` on `mountShop` (keys of `ShopWords`, over `SHOP_WORDS`). Keep each safety line's meaning; the stamp
   "TEST MODE: DO NOT PAY", "Powered by CoinGecko" and the trust line "Paid straight to the creator. No network fee." are not the game's to change.
@@ -265,7 +266,7 @@ import "@nano133/nanoterra/shop/style.css";
 - "Delete my data" calls `store.forget(player, now)`; with `waitUntil`, ask the player to try again then.
 - Tests: the shop's money tests are the package's. The game's tests read the game's own looks file and test only the game's own routes and wiring.
 
-**Check (the try-on, when on):** the network tab shows no `three` and no viewer chunk before the Looks sheet opens; Try on a hat, a scarf and a pack:
+**Check (the try-on, when on):** the console has no "needs its stylesheet" line; the network tab shows no `three` and no viewer chunk before the Looks sheet opens; Try on a hat, a scarf and a pack:
 each is whole on the stage at 390x844 and 1440x900, a pack from the back; Escape closes Up close first; the network tab shows no request for a try-on.
 
 **Check:** with `TEST_MODE` on, Buy shows the stamp, no QR code and no trust line, and the answer of `POST /api/orders` holds no `address` and no `uri`. With the owner's

@@ -1,6 +1,7 @@
 // The try-on demo: the kit's looks sheet with the try-on stage, and no game. The character is made of boxes and spheres in code (the game's own
 // body: `tryOnViewer({ body })`), with a hat, a scarf and a pack; `?body=kit` uses the kit's own character instead (no hook). The shop's handler
 // runs in this page on the memory store with no payee: TEST MODE, nothing can be paid. `?theme=dark` and `?theme=light` set the sheet's theme.
+// `?nocss=1` leaves out /shop/tryon.css (a game that forgot it: the console names the line, and the sheet goes on with no stage).
 import * as THREE from "three";
 import { mountShop } from "../../src/shop/panel/index.js";
 import { createMemoryShop, createShopHandler } from "../../src/shop/index.js";
@@ -8,6 +9,7 @@ import { wearOf, type Look } from "../../src/looks/look.js";
 import type { TryOnBody } from "../../src/shop/viewer/index.js";
 
 const params = new URLSearchParams(location.search);
+if (params.get("nocss")) document.getElementById("tryon-css")?.remove();
 
 const LOOKS: Look[] = [
   { id: "classic", name: "Classic", priceUsd: 0, change: { body: "#4aa8ff" } },

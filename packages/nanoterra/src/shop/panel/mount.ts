@@ -103,7 +103,7 @@ export type ShopMountOptions = {
 
   // ---- the creator's part of the pay sheet (since 0.16.0) ----
   /**
-   * The item's picture at a size in CSS px (64 beside its line, 128 on the success, 240 on the offer, since 0.18.0; 176 before): the look on the player's own character, a round's
+   * The item's picture at a size in CSS px (64 beside its line, 128 on the success, 176 on the offer): the look on the player's own character, a round's
    * day. Null (or no hook): `picture(look)`, else the kit's swatch; a play: its first letter.
    */
   preview?: (item: ShopItem, size: number) => HTMLElement | null;
@@ -362,7 +362,8 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
     show(sheetTitle, h("div", { class: "n133s-tryon" }, at, h("div", { class: "n133s-tryon-list" }, list)));
     void tryOnPart().then((p) => {
       if (!p || !isOpen() || !body.contains(at)) return;
-      p.start();
+      // No /shop/tryon.css on the page: the sheet goes on as without `tryOn` (the console names the line to add).
+      if (!p.start()) tryOnFailed = true;
       // the rows say what is tried on (a press before the chunk came is in)
       showLooks();
     });
@@ -401,7 +402,7 @@ export function mountShop(root: HTMLElement, options: ShopMountOptions): Mounted
       h(
         "div",
         { class: "n133s-offer" },
-        h("div", { class: "n133s-stage" }, itemPicture(look.name, 240, previewOf(item), "n133s-offer-pic")),
+        h("div", { class: "n133s-stage" }, itemPicture(look.name, 176, previewOf(item), "n133s-offer-pic")),
         h("p", { class: "n133s-pay-what" }, words.lookLine(look.name)),
         h("button", { class: "n133s-btn n133s-buy n133s-wide n133s-offer-key", type: "button", onclick: () => void buy(look, false) }, words.buy(usdText(look.priceUsd))),
         h("button", { class: "n133s-btn n133s-wide", type: "button", onclick: () => showLooks() }, words.back),
