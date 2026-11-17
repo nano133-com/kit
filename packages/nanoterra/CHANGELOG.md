@@ -14,7 +14,9 @@
   one. While nano133.com did not accept the state the card says "Nanoterra not told yet" with the reason, tells it again every 30 seconds while the
   page is open (10 times at most) and offers "Tell Nanoterra again".
 - **The store:** three more setting rows (`setting:maintenance`, `setting:maintenanceAt`, `setting:maintenanceToldAt`; `SETTING_KEYS` has 13), with no
-  change to the D1 tables or the Firestore collections. `adminStoreConformance` has a case for them. `GameState` has `maintenance` (`on`, `at`,
+  change to the D1 tables or the Firestore collections. `adminStoreConformance` has a case for them. **A game's store harness that lists the
+  setting keys by hand** (its `snapshot` leaves out the setting rows) must take the three new ones: read them from `SETTING_KEYS`, as the
+  kit's own harnesses do (Sunk Cost's listed ten and failed the new case until it did). `GameState` has `maintenance` (`on`, `at`,
   `told`, and from the handler `canTell` and a press's `error`); `parsePatch` takes `{ maintenance: "on" | "off" }` and never the two times. The
   new `loadMaintenance(store)` reads the switch for the router (a store fault reads as off).
 - **Unchanged:** the money, the shop, the plays, the sign-ins, the Legal card and its defaults. A game that does not give the handler its `maintenance`
