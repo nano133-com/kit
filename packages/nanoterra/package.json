@@ -68,7 +68,7 @@
     "./connect/style.css": "./src/connect/style.css"
   },
   "sideEffects": false,
-  "files": ["dist", "src", "README.md", "CHANGELOG.md", "LICENSE", "ai"],
+  "files": ["dist", "src", "README.md", "CHANGELOG.md", "LICENSE", "ai", "examples"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",

@@ -129,4 +129,6 @@ test("the stage's rules that need a GPU: dispose frees the context, a plain whee
   assert.equal([...code.matchAll(/body\.update\?\.\(/g)].length, 2);
   assert.equal([...code.matchAll(/if \(!stillPose\) body\.update\?\.\(/g)].length, 2, "each update() call is guarded");
   assert.match(code, /if \(warned\) return;\s*warned = true;\s*console\.warn\(/);
+  // R9: a game's own sheet with no /shop/tryon.css (or no n133-shop around the box): the console says the line, once; the stage goes on
+  assert.match(code, /getPropertyValue\("--n133s-tryon-css"\)\.trim\(\) !== "1" && !cssWarned\) \{\s*cssWarned = true;\s*console\.warn\('[^']*import "@nano133\/nanoterra\/shop\/tryon\.css";'\);/);
 });

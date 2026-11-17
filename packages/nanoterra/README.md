@@ -1796,13 +1796,24 @@ tryOn: async () => (await import("@nano133/nanoterra/shop/viewer")).tryOnViewer(
   swatch). With `tryOn` and no `/shop/tryon.css`, the sheet has no stage, and the console names the line to add.
 - **What loads.** `/shop/panel` grows 0.78 kB gzip for every game. The sheet's try-on part (1.7 kB gzip), the viewer (6.3 kB) and the kit's
   character for it (20.6 kB, shared with `/character` in a game that has it) are chunks of their own, loaded only with `tryOn`.
-- **A game with its own looks sheet** (it calls `buy(lookId)`) can mount the viewer in its own box: `const v = (await import("@nano133/nanoterra/shop/viewer")).tryOnViewer({ body })`,
-  `const stage = await v.mount(box, { calm, onTap, words })`, then `stage.show({ worn, tried, focus })` on each change and `stage.dispose()` on close
-  (`TryOnViewer` in `/shop/panel`'s types). The box needs a size (a width and a height), and it sits in an element with the class `n133-shop` with
-  `/shop/style.css` loaded (the stage's keys are styled only there): `<div class="n133-shop"><div class="n133s-tryon-stage"></div></div>`. The game's
-  sheet then owns what the kit's sheet does: what is tried on, the tray with Take off and Buy, Up close, Escape and the focus. Or move to the kit's
-  sheet: it has the wear slots' tabs, `picture`, `takeOff` and the try-on.
 - **A game's own viewer** (another engine) passes the same contract: `tryOn: async () => ({ mount: (box, ctx) => myStage(box, ctx) })`.
+
+**A game with its own looks sheet.** The supported way is the kit's sheet: `mountShop` with `tryOn` (and `picture`, `slots`, `takeOff`, `worn`
+and `wear` for the game's own wear slots). The kit tests the stage only there. A game that keeps its own sheet (it calls `buy(lookId)`) can mount
+the viewer in it, and then it does all of this itself (`examples/own-sheet.ts` is a complete one that the package's typecheck covers):
+
+1. Load both stylesheets: `/shop/style.css` and `/shop/tryon.css`.
+2. Put the stage's box in an element with the class `n133-shop`: `<div class="n133-shop"><div class="n133s-tryon-stage"></div></div>`. Without the
+   class the stage's keys have no style (38x31 px, under the canvas). The box gets its height from `tryon.css` (220 to 380 px); a box in a
+   layout of the game's own needs a width and a height of its own.
+3. Mount it when the sheet opens: `const stage = await (await import("@nano133/nanoterra/shop/viewer")).tryOnViewer({ body }).mount(box, context)`.
+   `context` is `{ calm, onTap, words, failed }` (`TryOnContext`): `calm()` says "less motion" now, `onTap()` is a tap on the stage, `words` names
+   the 4 keys, `failed(look)` (optional) is a look that did not draw. `mount` throws with no WebGL: show the look's still picture instead.
+4. Keep what is tried on: one look a wear slot, in the order tried. Call `stage.show({ worn, tried, focus })` on each change, and
+   `stage.dispose()` when the sheet closes (that frees the WebGL renderer).
+5. Draw the rest: the tray (each tried look, its price, Take off and Buy; Buy is the game's `buy(lookId)`), the stage's name for a screen reader,
+   Up close if the game wants it, Escape (Up close first, then the sheet), and the focus (never on the page while the sheet is open).
+6. Never wear, save or send a tried look.
 
 The controls (the stage is a focusable group named "Your character, wearing Classic, trying on Mint Cap"):
 

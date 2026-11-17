@@ -141,6 +141,7 @@ export const loadKitBody = async () => (await import("./kit.js")).kitBody;
 
 /** A fault of the game's body (a `part` or an `update` that throws) is said once a page, never thrown at the page: the stage goes on. */
 let warned = false;
+let cssWarned = false;
 function warnOnce(what: string, e: unknown) {
   if (warned) return;
   warned = true;
@@ -221,6 +222,11 @@ function mountStage(box: HTMLElement, ctx: TryOnContext, makeBody: () => TryOnBo
   keys.className = "n133s-stage-keys";
   keys.append(zoomIn, zoomOut, wholeKey, turnKey);
   box.append(canvas, keys);
+  // A game's own sheet (README) that left out /shop/tryon.css or the n133-shop class: the keys have no style. Said once a page; the stage goes on.
+  if (getComputedStyle(box).getPropertyValue("--n133s-tryon-css").trim() !== "1" && !cssWarned) {
+    cssWarned = true;
+    console.warn('@nano133/nanoterra: the try-on stage needs its stylesheet and a box in an element with the class n133-shop. Add: import "@nano133/nanoterra/shop/tryon.css";');
+  }
 
   /** The keys at a limit say so (aria-disabled, never disabled: a key that loses the focus drops it to the page, where a game's walk keys act). */
   function drawKeys() {
