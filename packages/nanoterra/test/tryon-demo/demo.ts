@@ -1,6 +1,7 @@
 // The try-on demo: the kit's looks sheet with the try-on stage, and no game. The character is made of boxes and spheres in code (the game's own
 // body: `tryOnViewer({ body })`), with a hat, a scarf and a pack; `?body=kit` uses the kit's own character instead (no hook). The shop's handler
-// runs in this page on the memory store with no payee: TEST MODE, nothing can be paid. `?theme=dark` and `?theme=light` set the sheet's theme.
+// runs in this page on the memory store with no payee: TEST MODE, nothing can be paid; Buy (a row's or the tray's) opens the pay sheet with its
+// stamp, and no request leaves the page (test/tryon-demo/check.mjs checks it in Chrome). `?theme=dark` and `?theme=light` set the sheet's theme.
 // `?nocss=1` leaves out /shop/tryon.css (a game that forgot it: the console names the line, and the sheet goes on with no stage).
 // For the browser check of a game's faults: `?fail=<look id>` makes that look's `dress` fail (a model that did not load), `?badpart=1` makes
 // `part` throw, `?badupdate=1` makes `update` throw.
